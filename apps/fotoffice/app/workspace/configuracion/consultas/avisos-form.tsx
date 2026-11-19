@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 import { guardarAvisosAction, type EstadoConsultasConfig } from "./actions";
 
-export type AjustesAvisos = { responsableUserId: number | null; notificarCorreo: boolean; crearTarea: boolean };
+export type AjustesAvisos = { responsableUserId: number | null; notificarCorreo: boolean; crearTarea: boolean; eventosPorDia: number };
 
 const INICIAL: EstadoConsultasConfig = { error: null };
 
@@ -59,6 +59,16 @@ export function AvisosForm({ ajustes, responsables }: { ajustes: AjustesAvisos; 
           <input type="checkbox" name="tarea" value="1" defaultChecked={ajustes.crearTarea} />
           Crear la tarea «Responder consulta»
         </label>
+        <div className="fo-field-stack max-w-md border-t border-[var(--fo-border)] pt-4">
+          <label className="fo-label" htmlFor="avisos-eventos">
+            Eventos que podés cubrir el mismo día
+          </label>
+          <input id="avisos-eventos" name="eventos" type="number" min={1} max={20} step={1} required defaultValue={ajustes.eventosPorDia} className="fo-input w-24" />
+          <p className="text-xs text-[var(--fo-muted)]">
+            Es el semáforo de las consultas: la fecha se pone en rojo cuando ya hay esta cantidad de eventos contratados ese día, en amarillo si
+            hay alguno o hay otras consultas, y en verde si está libre.
+          </p>
+        </div>
         <p className="text-sm text-[var(--fo-muted)]">
           El texto del correo se edita en{" "}
           <Link href="/workspace/configuracion/plantillas?canal=automaticos" className="text-[var(--fo-accent)] hover:underline">

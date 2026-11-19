@@ -288,7 +288,7 @@ describe("ajustes del aviso", () => {
   });
 
   it("sin fila: los de fábrica (sin responsable, con correo y tarea)", async () => {
-    expect(await A.leerAjustes("ws-1")).toEqual({ responsableUserId: null, notificarCorreo: true, crearTarea: true });
+    expect(await A.leerAjustes("ws-1")).toEqual({ responsableUserId: null, notificarCorreo: true, crearTarea: true, eventosPorDia: 1 });
   });
 
   it("guardar exige configurar y valida el responsable: del equipo y con Gestionar en Consultas", async () => {
@@ -300,15 +300,22 @@ describe("ajustes del aviso", () => {
     expect(await A.guardarAjustes(ADMIN, datos)).toEqual({ ok: false, error: A.MENSAJES_AJUSTES.responsable });
     expect(H.nivel).toHaveBeenLastCalledWith(5, "ws-1", "service-leads", "MANAGE");
     expect(await A.guardarAjustes(ADMIN, datos)).toEqual({ ok: true });
-    expect(await A.leerAjustes("ws-1")).toEqual({ responsableUserId: 5, notificarCorreo: false, crearTarea: true });
+    expect(await A.leerAjustes("ws-1")).toEqual({ responsableUserId: 5, notificarCorreo: false, crearTarea: true, eventosPorDia: 1 });
     expect(await A.guardarAjustes(ADMIN, { responsableUserId: null, notificarCorreo: true, crearTarea: false })).toEqual({ ok: true });
     expect(B.datos.fotofficeConsultaAjustes).toHaveLength(1);
-    expect(await A.leerAjustes("ws-1")).toEqual({ responsableUserId: null, notificarCorreo: true, crearTarea: false });
+    expect(await A.leerAjustes("ws-1")).toEqual({ responsableUserId: null, notificarCorreo: true, crearTarea: false, eventosPorDia: 1 });
     expect(await A.leerAjustes("ws-2")).toEqual(A.AJUSTES_DE_FABRICA);
   });
 
   it("datos inválidos", async () => {
     expect(await A.guardarAjustes(ADMIN, { responsableUserId: null, notificarCorreo: "sí", crearTarea: true })).toMatchObject({ ok: false });
     expect(await A.guardarAjustes(ADMIN, { responsableUserId: "5", notificarCorreo: true, crearTarea: true })).toMatchObject({ ok: false });
+    // Eventos por día: entre 1 y 20; sin el dato, queda el que estaba.
+    expect(await A.guardarAjustes(ADMIN, { responsableUserId: null, notificarCorreo: true, crearTarea: true, eventosPorDia: 0 })).toMatchObject({ ok: false });
+    expect(await A.guardarAjustes(ADMIN, { responsableUserId: null, notificarCorreo: true, crearTarea: true, eventosPorDia: 2.5 })).toMatchObject({ ok: false });
+    expect(await A.guardarAjustes(ADMIN, { responsableUserId: null, notificarCorreo: true, crearTarea: true, eventosPorDia: 2 })).toEqual({ ok: true });
+    expect((await A.leerAjustes("ws-1")).eventosPorDia).toBe(2);
+    expect(await A.guardarAjustes(ADMIN, { responsableUserId: null, notificarCorreo: true, crearTarea: true })).toEqual({ ok: true });
+    expect((await A.leerAjustes("ws-1")).eventosPorDia).toBe(2);
   });
 });

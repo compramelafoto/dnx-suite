@@ -166,11 +166,18 @@ export async function guardarAvisosAction(_prev: EstadoConsultasConfig | undefin
     if (!/^\d{1,9}$/.test(crudo)) return DATOS_INVALIDOS;
     responsableUserId = Number(crudo);
   }
+  const eventosCrudo = fd.get("eventos");
+  let eventosPorDia: number | undefined;
+  if (eventosCrudo !== null) {
+    if (typeof eventosCrudo !== "string" || !/^\d{1,2}$/.test(eventosCrudo.trim())) return DATOS_INVALIDOS;
+    eventosPorDia = Number(eventosCrudo.trim());
+  }
   return resultado(
     await guardarAjustes(ctx, {
       responsableUserId,
       notificarCorreo: fd.get("correo") === "1",
       crearTarea: fd.get("tarea") === "1",
+      eventosPorDia,
     }),
     "Avisos guardados.",
   );

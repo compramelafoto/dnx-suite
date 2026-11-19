@@ -7,6 +7,7 @@ import { AlarmClock, CalendarDays, Clock, ListChecks, CirclePause } from "lucide
 import { formatoPesos } from "@/lib/consultas/valor";
 import { iniciales } from "@/lib/circuitos/tablero-vista";
 import { MoverA, type Destino } from "./mover-a";
+import { PuntoSemaforo } from "@/components/consultas/punto-semaforo";
 
 export type AvisoTarjeta = { mensaje: string; pendientes?: string[]; puedePasarIgual: boolean };
 
@@ -87,6 +88,7 @@ export function Tarjeta({
           <p className="flex items-center gap-1.5 truncate text-xs text-[var(--fo-muted)]">
             {tarjeta.fechaEvento ? <CalendarDays className="size-3.5 shrink-0" aria-hidden="true" /> : null}
             <span className="truncate">{meta}</span>
+            {tarjeta.semaforo ? <PuntoSemaforo semaforo={tarjeta.semaforo} /> : null}
           </p>
         ) : null}
       </div>

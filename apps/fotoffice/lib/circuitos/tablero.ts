@@ -1,4 +1,6 @@
 import "server-only";
+import { semaforosDeConsultas } from "@/lib/consultas/semaforo";
+import type { Semaforo } from "@/lib/consultas/semaforo-puro";
 import { prisma } from "@repo/db";
 import { suspendidosEntre } from "@/lib/proyectos/proyectos";
 import { hoyEnBuenosAires } from "../listado/periodos";
@@ -47,6 +49,8 @@ export type TarjetaVista = {
   valor: number | null;
   /** Sólo se informa cuando es cierto: un proyecto suspendido. */
   suspendido?: boolean;
+  /** Semáforo de la fecha (consultas con fecha): rojo ocupada, amarillo con otras, verde libre. */
+  semaforo?: Semaforo;
 };
 
 export type EtapaVista = { id: string; nombre: string; color: string; archivada: boolean };
@@ -73,7 +77,7 @@ export function diasEnEtapaAR(entrada: Date, ahora: Date): number {
   return Math.max(0, Math.round((hasta - desde) / DIA_MS));
 }
 
-type DatosConsulta = { categoria: string | null; fechaEvento: string | null; valor: number | null };
+type DatosConsulta = { categoria: string | null; fechaEvento: string | null; valor: number | null; fecha: Date | null };
 
 /**
  * Categoría, día del evento y valor de estas consultas del workspace. En tandas de `LOTE_DE_IDS`
@@ -103,6 +107,7 @@ async function datosDeConsultas(workspaceId: string, leadIds: string[]): Promise
     mapa.set(f.leadId, {
       categoria: c?.name ?? null,
       fechaEvento: f.eventStartsAt && pideFecha ? fechaDeEvento(f.eventStartsAt) : null,
+      fecha: pideFecha ? f.eventStartsAt : null,
       valor: valorComoNumero(f.estimatedValue as { toString(): string } | null),
     });
   }
@@ -265,6 +270,15 @@ export async function cargarTablero(
     tipoDeNumero ? numeroDe(workspaceId, tipoDeNumero, sujetos) : Promise.resolve(new Map<string, string>()),
   ]);
 
+  // Semáforo de fechas: sólo para las tarjetas que se dibujan (consultas con fecha).
+  const semaforos =
+    TIPO_SUJETO === "CAPTACION"
+      ? await semaforosDeConsultas(workspaceId, recorridos.map((j) => ({ leadId: j.subjectId, fecha: datos.get(j.subjectId)?.fecha ?? null }))).catch((e) => {
+          console.error("[fotoffice][consultas] no se pudo calcular el semáforo de fechas", { codigo: (e as { code?: unknown })?.code ?? "desconocido" });
+          return new Map<string, Semaforo>();
+        })
+      : new Map<string, Semaforo>();
+
   const columnas: ColumnaVista[] = porEtapa.map(({ etapa, filas, total }) => ({
     etapa: { id: etapa.id, nombre: etapa.name, color: etapa.color, archivada: etapa.archivedAt !== null },
     total,
@@ -283,6 +297,7 @@ export async function cargarTablero(
       fechaEvento: datos.get(j.subjectId)?.fechaEvento ?? null,
       valor: datos.get(j.subjectId)?.valor ?? null,
       ...(suspendidos.has(j.subjectId) ? { suspendido: true } : {}),
+      ...(semaforos.has(j.subjectId) ? { semaforo: semaforos.get(j.subjectId)! } : {}),
     })),
   }));
 
