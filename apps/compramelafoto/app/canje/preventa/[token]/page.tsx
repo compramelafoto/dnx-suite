@@ -221,7 +221,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
   // El Excel trae "Apellido Nombre": se da vuelta para saludar con el nombre de pila.
   const familia =
     nombreNaturalDesdeExcel(externo?.parentName) || order.buyerName?.trim() || preCompra?.buyerName?.trim() || null;
-  const alumno = studentNameForGreeting(
+  const alumnoDelPedido = studentNameForGreeting(
     nombreNaturalDesdeExcel(externo?.studentName) ||
       [preCompra?.studentFirstName, preCompra?.studentLastName].filter(Boolean).join(" "),
     familia
@@ -242,13 +242,13 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
    */
   const selfieSinFotos = album.hiddenPhotosEnabled && visible.initialHasGrant && visible.photos.length === 0;
   if (album.hiddenPhotosEnabled && (!visible.initialHasGrant || selfieSinFotos)) {
-    const quien = alumno ? alumno : "tu hija o tu hijo";
+    const quien = alumnoDelPedido ? alumnoDelPedido : "tu hija o tu hijo";
     return (
       <ProtectedAlbumWrapper albumId={album.id} enableProtection>
         <section className="mx-auto max-w-lg px-4 pt-10">
           <h1 className="m-0 text-2xl font-semibold text-[#1f2328]">{familia ? `Hola, ${familia.split(/\s+/)[0]}` : "Hola"}</h1>
           <p className="m-0 mt-2 text-[#4b4f56]">
-            {alumno ? `El pack de ${alumno} ya está pago. ` : "Tu pack ya está pago. "}
+            {alumnoDelPedido ? `El pack de ${alumnoDelPedido} ya está pago. ` : "Tu pack ya está pago. "}
             En esta galería cada familia ve sólo sus fotos: primero verificá con una selfie y después elegís
             las fotos de tu pack.
           </p>
@@ -301,7 +301,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
    * colegio.
    */
   let designValues: Record<string, string> =
-    designContext?.values ?? (alumno ? { "student.fullName": alumno } : {});
+    designContext?.values ?? (alumnoDelPedido ? { "student.fullName": alumnoDelPedido } : {});
   if (designs.length > 0 && !designContext && externo) {
     designValues = await valoresDelPackExterno({
       albumId: album.id,
@@ -312,6 +312,15 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
       photographerName: album.user?.name,
     });
   }
+
+  // El nombre con que se saluda sale del librito cuando lo hay: nombre y apellido separados, de la
+  // lista del colegio. El Excel trae «Apellido Nombre» sin separar y «Correa Saroli Paloma» se
+  // daba vuelta como «Saroli Paloma Correa».
+  const nombreDelLibrito = [designValues["student.firstName"], designValues["student.lastName"]]
+    .map((x) => x?.trim())
+    .filter(Boolean)
+    .join(" ");
+  const alumno = nombreDelLibrito ? studentNameForGreeting(nombreDelLibrito, familia) : alumnoDelPedido;
 
   /*
    * Si la plantilla deja sumar otros cursos al listado (fotos grupales con 7.° A y 7.° B), la
@@ -434,6 +443,7 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
           benefits: benefitsConMedida,
           parentName: familia,
           studentName: alumno,
+          studentFirstName: designValues["student.firstName"]?.trim() || null,
         }}
         photos={photos.map((p) => ({ ...p, faces: facesById.get(p.id) ?? null }))}
         designs={designs}

@@ -81,6 +81,8 @@ type Props = {
     >;
     parentName: string | null;
     studentName: string | null;
+    /** El nombre de pila del alumno, ya separado del apellido (sale de la lista del colegio). */
+    studentFirstName?: string | null;
   };
   /**
    * Pack cobrado por fuera: no tenemos el email de la familia, así que se lo pedimos antes de
@@ -190,7 +192,10 @@ export default function PreventaCanjeFlow({
   const elegidas = filled.filter((x) => x != null) as number[];
   const completo = isCanjeComplete(filled);
   const alumno = pack.studentName;
-  const alumnoCorto = primerNombre(alumno);
+  // Con el nombre separado no hay que adivinar cuál es el de pila.
+  const alumnoCortoDelPack = pack.studentFirstName?.trim() || primerNombre(alumno);
+  // Si la familia corrigió el nombre en la revisión, se la saluda con el que escribió.
+  const alumnoCorto = textosEditados["student.firstName"]?.trim() || alumnoCortoDelPack;
   const byId = useMemo(() => new Map(photos.map((p) => [p.id, p])), [photos]);
   const thumbUrl = useCallback(
     (id: number) => `/api/photos/${id}/view?albumId=${album.id}&mode=thumb`,
@@ -663,7 +668,7 @@ export default function PreventaCanjeFlow({
             values={valoresDelLibrito}
             photoUrl={(id) => `/api/photos/${id}/view?mode=preview&albumId=${album.id}`}
             photos={byId}
-            studentName={alumno}
+            studentName={alumnoCorto}
           />
         ) : null}
 
