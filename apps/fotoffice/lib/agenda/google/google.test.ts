@@ -617,15 +617,24 @@ describe("cron agenda-google-sync", () => {
 
   it("con el secreto corre por organización y devuelve códigos, no datos", async () => {
     vi.stubEnv("CRON_SECRET", "secreto");
-    nuevaCita("c1", { title: "Cita secreta c1" });
-    const { GET } = await import("@/app/api/cron/agenda-google-sync/route");
-    const res = await GET(new Request("http://x/api", { headers: { authorization: "Bearer secreto" } }));
-    expect(res.status).toBe(200);
-    const cuerpo = await res.json();
-    expect(cuerpo).toMatchObject({ ok: true, workspaces: 1 });
-    expect(JSON.stringify(cuerpo)).not.toContain("secreta");
-    expect(G.eventos.has(idEventoCita("c1"))).toBe(true);
-    vi.unstubAllEnvs();
+    // El cron usa el reloj real y la cita de prueba es del 20/10: desde el 19/11 quedaba fuera
+    // del período que se sincroniza y la prueba fallaba en todos los PR. Se fija el reloj en AHORA,
+    // la misma fecha que usan las demás pruebas de este archivo.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(AHORA);
+    try {
+      nuevaCita("c1", { title: "Cita secreta c1" });
+      const { GET } = await import("@/app/api/cron/agenda-google-sync/route");
+      const res = await GET(new Request("http://x/api", { headers: { authorization: "Bearer secreto" } }));
+      expect(res.status).toBe(200);
+      const cuerpo = await res.json();
+      expect(cuerpo).toMatchObject({ ok: true, workspaces: 1 });
+      expect(JSON.stringify(cuerpo)).not.toContain("secreta");
+      expect(G.eventos.has(idEventoCita("c1"))).toBe(true);
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllEnvs();
+    }
   });
 
   it("deja de empezar organizaciones pasado el presupuesto de tiempo y lo informa (M2)", async () => {
