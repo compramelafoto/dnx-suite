@@ -4,12 +4,14 @@ import { BotonesDelChat } from "@/components/bandeja/botones-del-chat";
 import { BurbujaDeMensaje } from "@/components/bandeja/burbuja-de-mensaje";
 import { CajaDeRespuesta } from "@/components/bandeja/caja-de-respuesta";
 import { DesplazarAlFinal } from "@/components/bandeja/desplazar-al-final";
+import { EnviarPlantilla } from "@/components/bandeja/enviar-plantilla";
 import { InsigniaEstado } from "@/components/bandeja/insignia-estado";
 import { MarcarLeido } from "@/components/bandeja/marcar-leido";
 import { PanelDelCliente } from "@/components/bandeja/panel-del-cliente";
 import { RefrescoPeriodico } from "@/components/bandeja/refresco-periodico";
 import { detalleChat } from "@/lib/bandeja/lecturas";
 import { requireBandeja } from "@/lib/bandeja/pagina";
+import { plantillasDelChat } from "@/lib/bandeja/plantillas";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +24,8 @@ export default async function ChatPage({ params }: { params: Promise<{ chatId: s
 
   const esMio = chat.estado === "HUMANO" && chat.asignadoUserId === ctx.userId;
   const ultimo = chat.mensajes[chat.mensajes.length - 1];
+  // Plantillas aprobadas de Meta (sólo WhatsApp): fuera de las 24 h es la única forma de escribir.
+  const plantillas = puedeOperar && chat.canal !== "INSTAGRAM" ? await plantillasDelChat(ctx, chat.id) : [];
   return (
     <div className="space-y-4">
       <div className="space-y-2">
@@ -80,7 +84,14 @@ export default async function ChatPage({ params }: { params: Promise<{ chatId: s
             <DesplazarAlFinal clave={ultimo?.id ?? "vacio"} />
           </section>
           {puedeOperar ? (
-            <CajaDeRespuesta chatId={chat.id} dentroDeVentana={chat.dentroDeVentana} ultimoMensajeId={ultimo?.id ?? null} canal={chat.canal} />
+            <div className="space-y-3">
+              <CajaDeRespuesta chatId={chat.id} dentroDeVentana={chat.dentroDeVentana} ultimoMensajeId={ultimo?.id ?? null} canal={chat.canal} />
+              {chat.canal !== "INSTAGRAM" ? (
+                <div className="fo-card !p-3 sm:!p-4">
+                  <EnviarPlantilla chatId={chat.id} plantillas={plantillas} abierta={!chat.dentroDeVentana} />
+                </div>
+              ) : null}
+            </div>
           ) : (
             <p role="status" className="text-sm text-[var(--fo-muted)]">
               Tenés permiso para ver la bandeja, pero no para responder.

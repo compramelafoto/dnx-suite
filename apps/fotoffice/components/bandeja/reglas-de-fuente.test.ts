@@ -99,7 +99,7 @@ describe("permisos en pantalla", () => {
   it("las acciones sólo se dibujan para quien puede operar", () => {
     const f = leer("app/(shell)/bandeja/[chatId]/page.tsx");
     expect(f).toMatch(/puedeOperar \? \(\s*<BotonesDelChat/);
-    expect(f).toMatch(/puedeOperar \? \(\s*<CajaDeRespuesta/);
+    expect(f).toMatch(/puedeOperar \? \(\s*(<div[^>]*>\s*)?<CajaDeRespuesta/);
   });
 
   it("el panel del cliente sólo ofrece vincular o crear con permiso de operar", () => {
