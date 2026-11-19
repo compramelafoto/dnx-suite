@@ -17,7 +17,7 @@ export function EnviarPlantilla({ chatId, plantillas, abierta = true }: { chatId
   const [clave, setClave] = useState<string>(plantillas[0] ? `${plantillas[0].nombre}|${plantillas[0].idioma}` : "");
   const elegida = useMemo(() => plantillas.find((p) => `${p.nombre}|${p.idioma}` === clave) ?? null, [plantillas, clave]);
   const [valores, setValores] = useState<string[]>(plantillas[0]?.sugeridos ?? []);
-  const [boton, setBoton] = useState("");
+  const [boton, setBoton] = useState(plantillas[0]?.sugeridoBoton ?? "");
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
@@ -35,7 +35,7 @@ export function EnviarPlantilla({ chatId, plantillas, abierta = true }: { chatId
     setClave(nueva);
     const p = plantillas.find((x) => `${x.nombre}|${x.idioma}` === nueva);
     setValores(p?.sugeridos ?? []);
-    setBoton("");
+    setBoton(p?.sugeridoBoton ?? "");
     setError(null);
     setAviso(null);
   }

@@ -5,10 +5,11 @@ import { MENSAJES_BANDEJA, puedeOperarBandeja, puedeVerBandeja, type CtxBandeja 
 import { aEstado, canalDe, chatBloqueado, escribirSistema, guardarResultadoDelEnvio, type Resultado, type RespuestaEnviada } from "./acciones";
 import { leerConexion, type Conexion } from "./conexion";
 import { enviarPlantilla } from "./plantilla-meta";
-import { armarTexto, parsearPlantillas, sugerirValores, validarValores, type DatosParaSugerir, type PlantillaDisponible, type PlantillaParaElegir } from "./plantillas-puro";
+import { armarTexto, paraElegir, parsearPlantillas, validarValores, type DatosParaSugerir, type PlantillaDisponible, type PlantillaParaElegir } from "./plantillas-puro";
 import { alResponderDesdePanel } from "./reglas";
 import { detalleDeError } from "./registro";
 import { vistaPreviaDe } from "./vista-previa";
+import { resolverClaveDeEnlace, tokenDeVersion } from "@/lib/presupuestos/enlace";
 
 /**
  * Plantillas aprobadas de Meta desde la Bandeja: la lista (leída de Meta, con un rato de memoria)
@@ -70,8 +71,8 @@ export function olvidarPlantillas() {
 
 /** Lo que se usa para proponer los valores: el nombre, la última consulta del cliente y su próxima cita. */
 export async function datosParaSugerir(workspaceId: string, chat: { nombre: string | null; clientId: string | null }, ahora: Date = new Date()): Promise<DatosParaSugerir> {
-  if (!chat.clientId) return { nombre: chat.nombre, categoria: null, fechaEvento: null, proximaCita: null };
-  const [cliente, consulta, cita] = await Promise.all([
+  if (!chat.clientId) return { nombre: chat.nombre, categoria: null, fechaEvento: null, proximaCita: null, enlaceCotizacion: null };
+  const [cliente, consulta, cita, cotizacion, branding] = await Promise.all([
     prisma.client.findFirst({ where: { id: chat.clientId, workspaceId }, select: { firstName: true, lastName: true, businessName: true } }),
     prisma.fotofficeConsulta.findFirst({
       where: { workspaceId, clientId: chat.clientId },
@@ -83,7 +84,19 @@ export async function datosParaSugerir(workspaceId: string, chat: { nombre: stri
       orderBy: { startAt: "asc" },
       select: { startAt: true },
     }),
+    // La última cotización enviada que sigue abierta: su enlace va en el botón de `seguimiento_cotizacion`.
+    prisma.fotofficePresupuesto.findFirst({
+      where: { workspaceId, clientId: chat.clientId, status: { in: ["ENVIADO", "VISTO"] }, currentVersionId: { not: null }, acceptedVersionId: null },
+      orderBy: { updatedAt: "desc" },
+      select: { currentVersionId: true },
+    }),
+    prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId }, select: { publicSlug: true } }),
   ]);
+  const clave = resolverClaveDeEnlace();
+  const enlaceCotizacion =
+    clave && cotizacion?.currentVersionId && branding?.publicSlug
+      ? `w/${encodeURIComponent(branding.publicSlug)}/presupuesto/${encodeURIComponent(tokenDeVersion(cotizacion.currentVersionId, clave))}`
+      : null;
   const categoria = consulta?.categoryId
     ? await prisma.fotofficeConsultaCategoria.findFirst({ where: { id: consulta.categoryId, workspaceId }, select: { name: true } })
     : null;
@@ -93,6 +106,7 @@ export async function datosParaSugerir(workspaceId: string, chat: { nombre: stri
     categoria: categoria?.name ?? null,
     fechaEvento: consulta?.eventStartsAt ?? null,
     proximaCita: cita?.startAt ?? null,
+    enlaceCotizacion,
   };
 }
 
@@ -104,7 +118,7 @@ export async function plantillasDelChat(ctx: CtxBandeja, chatId: string, deps: D
   const plantillas = await plantillasAprobadas(await leerConexion(ctx.workspaceId), deps);
   if (plantillas.length === 0) return [];
   const datos = await datosParaSugerir(ctx.workspaceId, chat);
-  return plantillas.map((p) => ({ ...p, sugeridos: sugerirValores(p, datos) }));
+  return paraElegir(plantillas, datos);
 }
 
 export type EntradaPlantilla = { nombre: unknown; idioma: unknown; valores: unknown; boton?: unknown };
