@@ -77,7 +77,12 @@ async function fromFotorank(s: ShowcaseSettings, campaign: string | null, now: D
   });
   const out: ShowcaseItem[] = [];
   for (const c of concursos) {
-    const closesAt = c.registrationClosesAt ?? c.submissionDeadline ?? null;
+    const uploadsOnly =
+      !!c.registrationClosesAt &&
+      !!c.submissionDeadline &&
+      c.registrationClosesAt <= now &&
+      c.submissionDeadline > now;
+    const closesAt = uploadsOnly ? c.submissionDeadline : (c.registrationClosesAt ?? c.submissionDeadline ?? null);
     const phase = fotorankPhase(c.status, closesAt, now);
     if (!phase) continue;
     out.push({
@@ -93,6 +98,7 @@ async function fromFotorank(s: ShowcaseSettings, campaign: string | null, now: D
       phase,
       url: withTracking(`${FOTORANK_ORIGIN}/concursos/${c.slug}${phase === "results" ? "/resultados" : ""}`, campaign),
       own: s.organizationIds.includes(c.organizationId),
+      ...(uploadsOnly ? { uploadsOnly: true } : {}),
     });
   }
   return out;

@@ -23,4 +23,8 @@ export {
   SANTA_FE_EN_FOCO_PUBLIC_PRIZES,
 } from "./santa-fe-en-foco-prizes";
 export { resolvePublicContestPrizes } from "./resolve-public-prizes";
-export { formatPublicDate, resolveRegistrationCloseLabel } from "./registration-close";
+export {
+  formatPublicDate,
+  formatUploadDeadlineLabel,
+  resolveRegistrationCloseLabel,
+} from "./registration-close";

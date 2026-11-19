@@ -168,8 +168,8 @@ const sfefFecha = toPublicHomeContestCard({
   submissionDeadline: SFEF_CIERRE_EXCLUSIVO,
 });
 ok(
-  sfefFecha.registrationCloseLabel === "31 de octubre de 2026",
-  'la home muestra "31 de octubre de 2026" (fecha publicada, inclusiva)',
+  sfefFecha.registrationCloseLabel === "1 de diciembre de 2026",
+  'la home muestra "1 de diciembre de 2026" (fecha publicada, inclusiva; reabierta el 19/11)',
 );
 ok(
   !String(sfefFecha.registrationCloseLabel).includes("noviembre"),
@@ -216,7 +216,7 @@ ok(
   "un concurso sin override muestra su propia fecha formateada",
 );
 ok(
-  otroFecha.registrationCloseLabel !== "31 de octubre de 2026",
+  otroFecha.registrationCloseLabel !== "1 de diciembre de 2026",
   "el override de Santa Fe no se aplica a otros concursos",
 );
 
