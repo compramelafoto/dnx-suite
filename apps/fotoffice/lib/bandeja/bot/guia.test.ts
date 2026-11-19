@@ -9,6 +9,28 @@ describe("guía del bot de atención", () => {
     expect(g).toMatch(/markdown/);
   });
 
+  it("XV desde un anuncio: primero valor (portfolio y desde) y una sola pregunta al final, la fecha", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("PRIMER MENSAJE DE XV");
+    expect(g).toContain("usá presentacion_xv");
+    expect(g).toContain("https://www.compramelafoto.com/dnx/xv");
+    expect(g).toMatch(/recién al final hacer UNA sola pregunta: la fecha de la fiesta/);
+    expect(g).toMatch(/si la herramienta dice que no hay precio, no digas ninguno/);
+    // El ejemplo no trae un número: el precio siempre sale de la herramienta.
+    const ejemplo = g.split("\n").find((l) => l.startsWith("- Ejemplo: \"¡Hola Laura!"))!;
+    expect(ejemplo).toBeTruthy();
+    expect(ejemplo).not.toMatch(/\$\s?\d/);
+    expect(ejemplo.trim().endsWith("¿Para qué fecha es la fiesta? 🎉\"")).toBe(true);
+    expect(ejemplo.match(/\?/g)).toHaveLength(1);
+  });
+
+  it("XV: nombre y horas después, de a una pregunta por mensaje; el único precio de evento es el desde", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("de a una pregunta por mensaje: primero el nombre y apellido, después cuántas horas dura la fiesta");
+    expect(g).toContain('Nunca digas precios de eventos, salvo el "desde" de XV que te da presentacion_xv');
+    expect(g).not.toContain('XV / 15 años u otra fiesta → "¿Para qué fecha es la fiesta? 🎉"');
+  });
+
   it("sabe pedir la foto como Documento cuando no alcanza la calidad", () => {
     expect(guiaDeAtencion()).toContain("como Documento");
     expect(guiaDeAtencion()).toMatch(/Si ya la mandó como documento/);

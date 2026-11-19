@@ -110,7 +110,16 @@ describe("anuncios de XV: siempre cobertura de la fiesta", () => {
       { direccion: "ENTRANTE", autor: "CLIENTE", tipo: "TEXTO", texto: e.texto, media: e.media },
     ]);
     expect(r?.userText).toBe(
-      "[el cliente llegó tocando un anuncio del estudio en Facebook/Instagram: «Más info — ¿Edición y retoques en fotos de quinceañeras?» · TEMA: cobertura fotográfica de una fiesta de XV (busca fotógrafo para la fiesta; no es retoque de fotos sueltas)] ¡Hola! Quiero más información",
+      "[el cliente llegó tocando un anuncio del estudio en Facebook/Instagram: «Más info — ¿Edición y retoques en fotos de quinceañeras?» · TEMA: cobertura fotográfica de una fiesta de XV (busca fotógrafo para la fiesta; no es retoque de fotos sueltas; primera respuesta con presentacion_xv)] ¡Hola! Quiero más información",
     );
+  });
+
+  it("detecta XV en los títulos y textos de los anuncios nuevos, sin confundir otros temas", () => {
+    expect(temaDeAnuncio({ titulo: "Fotógrafo para tus XV", texto: "Mirá cómo quedan las fotos" })).toBe("XV");
+    expect(temaDeAnuncio({ titulo: "Más info", texto: "Tu fiesta de 15 AÑOS como la soñaste" })).toBe("XV");
+    expect(temaDeAnuncio({ texto: "Quinceañeras 2027: reservá tu fecha" })).toBe("XV");
+    expect(temaDeAnuncio({ texto: "Fotos de casamientos" })).toBeNull();
+    expect(temaDeAnuncio({ texto: "Digitalizá 15 VHS" })).toBeNull();
+    expect(temaDeAnuncio({})).toBeNull();
   });
 });

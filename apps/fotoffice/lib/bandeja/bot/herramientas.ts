@@ -7,6 +7,7 @@ import type { DatosPedidoCatalogo, ResultadoPedidoCatalogo } from "@/lib/pedidos
 import type { PedidoFotolibro, RespuestaFotolibro } from "@/lib/fotolibro/bot";
 import type { Canal } from "../constantes";
 import type { FotoNumerada } from "./historial";
+import { textoPresentacionXv } from "./presentacion-xv";
 
 /**
  * Herramientas del bot que atiende a los clientes por WhatsApp. Son de LECTURA salvo
@@ -84,6 +85,8 @@ export type DepsAtencion = {
   ultimoPedidoEn: (workspaceId: string, chat: ChatAtencion) => Promise<Date | null>;
   /** Los datos para transferir (Configuración → Presupuestos → Cobros); null si no hay alias ni CBU/CVU. */
   datosTransferencia: (workspaceId: string) => Promise<DatosTransferencia | null>;
+  /** El "desde" de XV en pesos (propuesta modelo a precios de hoy); null si no hay uno respaldado. */
+  precioDesdeXv: (workspaceId: string) => Promise<number | null>;
 };
 
 export type DatosTransferencia = { alias: string | null; cbuCvu: string | null; titular: string | null; banco: string | null; cuit: string | null };
@@ -186,6 +189,10 @@ const DEPS: DepsAtencion = {
   ultimoPedidoEn: async (workspaceId, chat) => {
     const p = await prisma.fotofficePrintOrder.findFirst({ where: { workspaceId, waChatId: chat.id }, orderBy: { createdAt: "desc" }, select: { createdAt: true } });
     return p?.createdAt ?? null;
+  },
+  precioDesdeXv: async (workspaceId) => {
+    const { precioDesdeXv } = await import("./presentacion-xv-servidor");
+    return precioDesdeXv(workspaceId);
   },
   prepararPresupuesto: async (workspaceId, chat, datos) => {
     // Se carga recién acá: el alta de consultas y Presupuestos no hacen falta para contestar precios.
@@ -346,6 +353,14 @@ export function herramientasDeAtencion(
           ].join("\n"),
         };
       },
+    }),
+    defineTool({
+      name: "presentacion_xv",
+      description:
+        "Para la primera respuesta a quien consulta por una fiesta de XV / 15 años (sobre todo si llegó de un anuncio de XV): te da el enlace del portfolio y los paquetes y, si hay uno cargado, el precio orientativo \"desde\". Es el único precio de un evento que podés decir, tal cual te lo da.",
+      input: z.object({}),
+      kind: "read",
+      run: async () => ({ ok: true, message: textoPresentacionXv(await deps.precioDesdeXv(workspaceId).catch(() => null)) }),
     }),
     defineTool({
       name: "preparar_presupuesto",
