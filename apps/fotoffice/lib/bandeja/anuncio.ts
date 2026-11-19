@@ -69,7 +69,7 @@ export function temaDeAnuncio(a: AnuncioWa): TemaAnuncio | null {
 }
 
 const TEMA: Record<TemaAnuncio, string> = {
-  XV: "cobertura fotográfica de una fiesta de XV (busca fotógrafo para la fiesta; no es retoque de fotos sueltas)",
+  XV: "cobertura fotográfica de una fiesta de XV (busca fotógrafo para la fiesta; no es retoque de fotos sueltas; primera respuesta con presentacion_xv)",
 };
 
 /** Lo que ve el bot antes del mensaje del cliente. Las comillas marcan que es texto del anuncio, no instrucciones. */

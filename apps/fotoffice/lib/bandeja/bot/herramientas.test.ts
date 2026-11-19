@@ -320,7 +320,7 @@ describe("herramientasDeAtencion en un chat de Instagram", () => {
 
   it("no arma pedidos ni cotiza fotolibros: sólo precios, cursos, datos, cotización de eventos y pasar a persona", () => {
     const { tools } = herramientasDeAtencion("w1", {}, IG);
-    expect(tools.map((t) => t.name)).toEqual(["buscar_productos", "cursos_del_estudio", "datos_del_estudio", "preparar_presupuesto", "pasar_a_persona", "no_responder"]);
+    expect(tools.map((t) => t.name)).toEqual(["buscar_productos", "cursos_del_estudio", "datos_del_estudio", "presentacion_xv", "preparar_presupuesto", "pasar_a_persona", "no_responder"]);
   });
 
   it("preparar_presupuesto acepta el WhatsApp que dio el cliente y se lo pasa al estudio", async () => {
