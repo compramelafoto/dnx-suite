@@ -15,6 +15,7 @@ import {
 } from "@/lib/bandeja/acciones";
 import { contextoDeBandeja } from "@/lib/bandeja/contexto";
 import { buscarClientes, type ClienteBuscado } from "@/lib/bandeja/lecturas";
+import { enviarPlantillaDesdePanel } from "@/lib/bandeja/plantillas";
 
 // Archivo "use server": sólo exporta funciones async. Cada acción arma primero el contexto desde la
 // sesión (usuario + workspace activo + módulo encendido + nivel) y recién ahí actúa. El workspace y
@@ -44,6 +45,16 @@ async function conOperar<T extends object>(
 /** `clientToken`: lo genera el formulario una vez por envío (evita el doble envío en reintentos). */
 export async function responderAction(chatId: string, texto: string, clientToken: string) {
   return conOperar(chatId, (ctx, id) => responder(ctx, id, texto, clientToken));
+}
+
+/** Manda una plantilla aprobada de Meta (la única forma de escribir pasadas las 24 h). */
+export async function enviarPlantillaAction(
+  chatId: string,
+  plantilla: { nombre: string; idioma: string; valores: string[]; boton?: string },
+  clientToken: string,
+) {
+  const p = typeof plantilla === "object" && plantilla !== null ? plantilla : { nombre: "", idioma: "", valores: [] };
+  return conOperar(chatId, (ctx, id) => enviarPlantillaDesdePanel(ctx, id, { nombre: p.nombre, idioma: p.idioma, valores: p.valores, boton: p.boton }, clientToken));
 }
 
 export async function tomarAction(chatId: string) {
