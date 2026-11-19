@@ -80,6 +80,12 @@ describe("textos", () => {
   it("línea de fecha", () => {
     expect(deadlineLine(item({ closesAt: new Date("2026-11-01T02:59:00Z") }), ahora)).toBe("Cierra el 31/10 · quedan 25 días");
     expect(deadlineLine(item({ phase: "results" }), ahora)).toBe("Resultados publicados");
+    // Cierre exclusivo a medianoche: se anuncia el último día en que se puede participar.
+    expect(deadlineLine(item({ closesAt: new Date("2026-11-01T03:00:00Z") }), ahora)).toBe("Cierra el 31/10 · quedan 25 días");
+    // Inscripción cerrada y carga reabierta para inscriptos (Santa Fe en Foco hasta el 1/12).
+    expect(deadlineLine(item({ closesAt: new Date("2026-12-02T03:00:00Z"), uploadsOnly: true }), ahora)).toBe(
+      "Carga de fotos para inscriptos hasta el 1/12",
+    );
     expect(deadlineLine(item({ phase: "in_progress", source: "clickaton" }), ahora)).toBe("En curso");
   });
 
@@ -87,6 +93,7 @@ describe("textos", () => {
     expect(ctaLabel(item({ source: "clickaton" }))).toBe("Inscribirme");
     expect(ctaLabel(item({}))).toBe("Participar");
     expect(ctaLabel(item({ phase: "results" }))).toBe("Ver resultados");
+    expect(ctaLabel(item({ uploadsOnly: true }))).toBe("Cargar mi foto");
   });
 
   it("marca de origen", () => {

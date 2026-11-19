@@ -25,6 +25,11 @@ export type ShowcaseItem = {
   url: string;
   /** Lo organiza esta misma institución: va primero y con su nombre. */
   own: boolean;
+  /**
+   * La inscripción cerró pero la carga sigue abierta para quienes ya se inscribieron
+   * (Santa Fe en Foco reabrió la carga hasta el 1/12). `closesAt` es entonces el fin de la carga.
+   */
+  uploadsOnly?: boolean;
 };
 
 export type ShowcaseMode = "ALL" | "OWN" | "OFF";
@@ -108,24 +113,37 @@ export function daysLeft(until: Date | null, now: Date): number | null {
 const ZONA = "America/Argentina/Buenos_Aires";
 const dia = (d: Date) => new Intl.DateTimeFormat("es-AR", { timeZone: ZONA, day: "2-digit", month: "2-digit" }).format(d);
 
-/** La línea de fecha de la tarjeta: "Cierra el 01/11 · quedan 26 días". */
-export function deadlineLine(item: Pick<ShowcaseItem, "phase" | "closesAt" | "startsAt" | "source">, now: Date): string {
+/**
+ * El cierre se guarda exclusivo (2/12 00:00 = se recibe todo el 1/12): se muestra el minuto
+ * anterior para no anunciar un día de más.
+ */
+const ultimoDia = (d: Date) => dia(new Date(d.getTime() - 60_000));
+
+/** La línea de fecha de la tarjeta: "Cierra el 31/10 · quedan 26 días". */
+export function deadlineLine(
+  item: Pick<ShowcaseItem, "phase" | "closesAt" | "startsAt" | "source" | "uploadsOnly">,
+  now: Date,
+): string {
   if (item.phase === "results") return "Resultados publicados";
   if (item.phase === "in_progress") return item.source === "clickaton" ? "En curso" : "En evaluación";
   if (item.phase === "upcoming") {
     return item.startsAt ? `Próximamente · ${dia(item.startsAt)}` : "Próximamente";
   }
   const quedan = daysLeft(item.closesAt, now);
+  if (item.uploadsOnly && item.closesAt) {
+    return `Carga de fotos para inscriptos hasta el ${ultimoDia(item.closesAt)}`;
+  }
   if (item.closesAt && quedan !== null) {
     const resto = quedan === 0 ? "cierra hoy" : quedan === 1 ? "queda 1 día" : `quedan ${quedan} días`;
-    return `Cierra el ${dia(item.closesAt)} · ${resto}`;
+    return `Cierra el ${ultimoDia(item.closesAt)} · ${resto}`;
   }
   if (item.source === "clickaton" && item.startsAt) return `${dia(item.startsAt)} · inscripción abierta`;
   return "Inscripción abierta";
 }
 
-export function ctaLabel(item: Pick<ShowcaseItem, "source" | "phase">): string {
+export function ctaLabel(item: Pick<ShowcaseItem, "source" | "phase" | "uploadsOnly">): string {
   if (item.phase === "results") return "Ver resultados";
+  if (item.uploadsOnly && item.phase === "open") return "Cargar mi foto";
   if (item.phase === "in_progress" || item.phase === "upcoming") return "Ver concurso";
   return item.source === "clickaton" ? "Inscribirme" : "Participar";
 }
