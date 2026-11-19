@@ -192,6 +192,8 @@ const PROJECT_SELECT = {
   rosterEntryId: true,
   reviewNote: true,
   approvedAt: true,
+  sentToPrintAt: true,
+  printedAt: true,
   createdAt: true,
   updatedAt: true,
   currentRevision: { select: { id: true, dataJson: true } },

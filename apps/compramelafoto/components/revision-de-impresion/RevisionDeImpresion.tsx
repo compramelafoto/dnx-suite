@@ -30,6 +30,7 @@ export default function RevisionDeImpresion({
   autorizado,
   onAutorizar,
   frase = FRASE_DE_AUTORIZACION,
+  antesDeAutorizar,
 }: {
   titulo: string;
   bajada?: ReactNode;
@@ -48,6 +49,8 @@ export default function RevisionDeImpresion({
   autorizado: boolean;
   onAutorizar: (autorizado: boolean) => void;
   frase?: string;
+  /** Lo que va justo arriba de la casilla (por ejemplo, la advertencia de que después no se cambia). */
+  antesDeAutorizar?: ReactNode;
 }) {
   const [escribiendo, setEscribiendo] = useState(false);
   const [borrador, setBorrador] = useState("");
@@ -186,6 +189,8 @@ export default function RevisionDeImpresion({
           ) : null}
         </div>
       ) : null}
+
+      {antesDeAutorizar}
 
       <label
         className={`mt-6 flex cursor-pointer items-start gap-3 rounded-xl border-2 p-4 ${

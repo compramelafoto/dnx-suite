@@ -5,11 +5,10 @@ import {
   anularAutorizacion,
   aplicarCorrecciones,
   contenidoCanonico,
-  FRASE_DE_AUTORIZACION,
   parseRevisionDelCliente,
   tituloDeLaRevision,
 } from "./autorizacion";
-import { aplicarRevisionDelCanje, textosAImprimir } from "./revision-del-canje";
+import { aplicarRevisionDelCanje, FRASE_DE_AUTORIZACION_LIBRITO, textosAImprimir } from "./revision-del-canje";
 
 const B = {
   key: "padron|||7.°|B",
@@ -50,7 +49,7 @@ test("la familia corrige su nombre pero no el colegio, el curso ni el listado", 
   assert.equal(r.values["school.name"], "Colegio San Patricio");
   assert.equal(r.values["course.studentList"], values["course.studentList"]);
   const a = r.clientReview.authorization!;
-  assert.equal(a.statement, FRASE_DE_AUTORIZACION);
+  assert.equal(a.statement, FRASE_DE_AUTORIZACION_LIBRITO);
   assert.equal(a.authorizedAt, "2026-10-22T15:00:00.000Z");
   assert.deepEqual(a.edits, [{ key: "student.fullName", from: "Mria Gómez", to: "María Gómez" }]);
   // Lo que vio: los textos ya corregidos y el listado con su título.
@@ -132,4 +131,29 @@ test("el título de la revisión usa el nombre del producto", () => {
   assert.equal(tituloDeLaRevision("Librito"), "Revisá tu librito");
   assert.equal(tituloDeLaRevision("SFPR anuario"), "Revisá tu SFPR anuario");
   assert.equal(tituloDeLaRevision(""), "Revisá todo antes de confirmar");
+});
+
+test("la familia corrige un nombre del listado: va en su librito y le avisa al fotógrafo", () => {
+  const r = aplicarRevisionDelCanje({
+    ...base,
+    permiteSumar: true,
+    revision: {
+      autorizado: true,
+      cursos: ["padron|||7.°|B"],
+      nombres: [
+        { de: { firstName: "Lía", lastName: "Ruiz" }, a: { firstName: "Lía", lastName: "Ruiz Díaz" } },
+        { de: { firstName: "Nadie", lastName: "Acá" }, a: { firstName: "Otro", lastName: "Nombre" } },
+      ],
+      avisos: ["Falta Juan Pérez"],
+    },
+  });
+  const grupos = parseClassListGroups(r.values["course.studentList"]);
+  assert.ok(grupos[1]!.students.some((s) => s.lastName === "Ruiz Díaz"));
+  const a = r.clientReview.authorization!;
+  assert.deepEqual(a.edits, [{ key: "nombre del listado", from: "Lía Ruiz", to: "Lía Ruiz Díaz" }]);
+  const avisos = r.clientReview.reports.map((x) => x.text);
+  assert.equal(avisos.length, 2);
+  assert.match(avisos[0]!, /«Lía Ruiz» → «Lía Ruiz Díaz»/);
+  assert.doesNotMatch(avisos[0]!, /Nadie/);
+  assert.equal(avisos[1], "Falta Juan Pérez");
 });

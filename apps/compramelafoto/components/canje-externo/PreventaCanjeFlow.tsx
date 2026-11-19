@@ -37,6 +37,7 @@ import {
   type CursoDelAlbum,
 } from "@/lib/design-v2/listado-cursos";
 import { esTextoEditablePorLaFamilia } from "@/lib/revision-de-impresion/revision-del-canje";
+import { corregirNombresEnValores, type CambioDeNombre } from "@/lib/design-v2/corregir-nombres";
 import { tituloDeLaRevision } from "@/lib/revision-de-impresion/autorizacion";
 import RevisionDelLibrito from "./RevisionDelLibrito";
 
@@ -177,6 +178,7 @@ export default function PreventaCanjeFlow({
   const [textosEditados, setTextosEditados] = useState<Record<string, string>>({});
   const [cursosElegidos, setCursosElegidos] = useState<string[]>([]);
   const [avisosListado, setAvisosListado] = useState<string[]>([]);
+  const [nombresCorregidos, setNombresCorregidos] = useState<CambioDeNombre[]>([]);
   const [autorizado, setAutorizado] = useState(false);
   const { medidas, registrar } = useMedidasDeFotos();
 
@@ -213,14 +215,19 @@ export default function PreventaCanjeFlow({
     () => designs.some((d) => listadoPermiteSumarCursos(d.template.blocks)),
     [designs]
   );
-  /** Los textos del librito como se van a imprimir: con lo que corrigió la familia y los cursos sumados. */
-  const valoresDelLibrito = useMemo(() => {
+  /** Los textos del librito con lo que corrigió la familia y los cursos sumados, antes de corregir nombres del listado. */
+  const valoresSinNombres = useMemo(() => {
     const v = { ...designValues };
     for (const [k, t] of Object.entries(textosEditados)) {
       if (esTextoEditablePorLaFamilia(k) && t.trim()) v[k] = t;
     }
     return permiteSumarCursos && cursosElegidos.length ? valoresConCursos(v, cursosParaSumar, cursosElegidos) : v;
   }, [designValues, textosEditados, permiteSumarCursos, cursosElegidos, cursosParaSumar]);
+  /** Los textos del librito como se van a imprimir (el servidor hace la misma cuenta al confirmar). */
+  const valoresDelLibrito = useMemo(
+    () => corregirNombresEnValores(valoresSinNombres, nombresCorregidos).values,
+    [valoresSinNombres, nombresCorregidos]
+  );
   const productoDelLibrito =
     (designs[0] ? beneficio.get(designs[0].benefitKey)?.name : null)?.trim() || pack.name;
   // La foto grupal que eligió la familia para el librito: con sus caras se avisa si hay más de un curso.
@@ -352,6 +359,7 @@ export default function PreventaCanjeFlow({
                   ),
                   cursos: permiteSumarCursos ? cursosElegidos : [],
                   avisos: avisosListado,
+                  nombres: nombresCorregidos,
                 },
               }
             : {}),
@@ -699,6 +707,12 @@ export default function PreventaCanjeFlow({
                   fotografo={album.photographerName}
                   autorizado={autorizado}
                   onAutorizar={setAutorizado}
+                  valoresSinCorregir={valoresSinNombres}
+                  nombresCorregidos={nombresCorregidos}
+                  onNombresCorregidos={(c) => {
+                    setNombresCorregidos(c);
+                    setAutorizado(false);
+                  }}
                 />
               </div>
             ) : null}
