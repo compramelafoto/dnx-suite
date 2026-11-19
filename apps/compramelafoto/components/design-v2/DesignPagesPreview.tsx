@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ConLupa from "./ConLupa";
+import VisorAmpliado from "./VisorAmpliado";
 import { PAPER_TOKENS, TemplateCanvasRenderer, editorThemeStyle } from "@repo/template-editor-ui";
 import type { DesignV2Data } from "@/lib/design-v2/design-data";
 import { designPhotoOverrides, sinFondoDelDiseno, visibleDesignBlocks } from "@/lib/design-v2/render-inputs";
@@ -30,6 +32,49 @@ export function mejorGrilla(
     if (escala > mejor.escala) mejor = { columnas, escala };
   }
   return { columnas: mejor.columnas, escala: Math.max(0, Math.min(1, mejor.escala)) };
+}
+
+/**
+ * Una cara del diseño dibujada a la escala pedida, con su esquina arriba a la izquierda. Es el
+ * mismo dibujo que la exportación: lo usan la vista, la lupa y la vista en grande.
+ */
+export function useDibujarCara(template: DesignTemplatePayload, photos: DesignPhotoPayload[], data: DesignV2Data) {
+  const canvasW = Number(template.canvas.width) || 1;
+  const canvasH = Number(template.canvas.height) || 1;
+  const photoUrlById = useMemo(() => new Map(photos.map((p) => [p.id, p.url])), [photos]);
+  const visibles = useMemo(() => visibleDesignBlocks(template.blocks, data.values), [template.blocks, data.values]);
+  const overrides = useMemo(
+    () => designPhotoOverrides(data.slots, photoUrlById, sinFondoDelDiseno(template.blocks, photos)),
+    [data.slots, photoUrlById, template, photos],
+  );
+  return useCallback(
+    (page: number, s: number) => (
+      <div
+        style={{
+          ...editorThemeStyle(),
+          ...PAPER_TOKENS,
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: canvasW,
+          height: canvasH,
+          transform: `scale(${s})`,
+          transformOrigin: "top left",
+          pointerEvents: "none",
+        }}
+      >
+        <TemplateCanvasRenderer
+          canvas={template.canvas}
+          blocks={visibles}
+          resolvedVariables={data.values}
+          readOnly
+          pageIndex={page}
+          photoOverrides={overrides}
+        />
+      </div>
+    ),
+    [canvasW, canvasH, template.canvas, visibles, data.values, overrides],
+  );
 }
 
 export default function DesignPagesPreview({
@@ -63,6 +108,9 @@ export default function DesignPagesPreview({
   const bloquePorId = useMemo(() => new Map(template.blocks.map((b) => [b.id, b])), [template.blocks]);
   const { columnas, escala } = mejorGrilla(paginas, caja, { width: canvasW, height: canvasH });
   const etiqueta = (i: number) => template.pageLabels[i]?.trim() || `Cara ${i + 1}`;
+  const [ampliada, setAmpliada] = useState<number | null>(null);
+
+  const dibujarCara = useDibujarCara(template, photos, data);
 
   return (
     <div ref={ref} className="h-full w-full min-h-0 overflow-hidden">
@@ -74,10 +122,19 @@ export default function DesignPagesPreview({
           {Array.from({ length: paginas }, (_, page) => (
             <div
               key={page}
-              className="relative overflow-hidden bg-white shadow-sm ring-1 ring-[#e5e7eb]"
+              role="button"
+              tabIndex={0}
+              title="Pasá el mouse para ver con lupa · clic para verla en grande"
+              onClick={() => setAmpliada(page)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") setAmpliada(page);
+              }}
+              className="relative cursor-zoom-in bg-white shadow-sm ring-1 ring-[#e5e7eb]"
               style={{ width: canvasW * escala, height: canvasH * escala }}
-              aria-label={etiqueta(page)}
+              aria-label={`${etiqueta(page)}: ver en grande`}
             >
+              <ConLupa ancho={canvasW} alto={canvasH} escala={escala} dibujar={(s) => dibujarCara(page, s)}>
+              <div className="absolute inset-0 overflow-hidden">
               <div
                 style={{
                   ...editorThemeStyle(),
@@ -125,6 +182,8 @@ export default function DesignPagesPreview({
                     );
                   })}
               </div>
+              </div>
+              </ConLupa>
               {paginas > 1 ? (
                 <span className="absolute bottom-1 left-1 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white">
                   {etiqueta(page)}
@@ -133,6 +192,17 @@ export default function DesignPagesPreview({
             </div>
           ))}
         </div>
+      ) : null}
+      {ampliada != null ? (
+        <VisorAmpliado
+          ancho={canvasW}
+          alto={canvasH}
+          paginas={paginas}
+          paginaInicial={ampliada}
+          etiqueta={etiqueta}
+          dibujar={(page, s) => <div className="relative" style={{ width: canvasW * s, height: canvasH * s }}>{dibujarCara(page, s)}</div>}
+          onCerrar={() => setAmpliada(null)}
+        />
       ) : null}
     </div>
   );

@@ -157,3 +157,36 @@ test("la familia corrige un nombre del listado: va en su librito y le avisa al f
   assert.doesNotMatch(avisos[0]!, /Nadie/);
   assert.equal(avisos[1], "Falta Juan Pérez");
 });
+
+test("la familia escribe nombre y apellido por separado: se arman la tapa y el listado", () => {
+  const conCampos = {
+    ...values,
+    "student.firstName": "Saroli Delfina",
+    "student.lastName": "Carranza",
+    "student.fullName": "Carranza Saroli Delfina",
+    "course.studentList": serializeClassListGroups([
+      {
+        title: "7.° A",
+        courseKey: "padron|||7.°|A",
+        students: [{ firstName: "Saroli Delfina", lastName: "Carranza", isOwner: true }],
+      },
+    ]),
+  };
+  const r = aplicarRevisionDelCanje({
+    ...base,
+    values: conCampos,
+    textVariables: ["student.firstName", "course.studentList"],
+    permiteSumar: false,
+    revision: { autorizado: true, textos: { "student.firstName": " Delfina ", "student.lastName": "Carranza  Saroli" } },
+  });
+  assert.equal(r.values["student.firstName"], "Delfina");
+  assert.equal(r.values["student.lastName"], "Carranza Saroli");
+  assert.equal(r.values["student.fullName"], "Delfina Carranza Saroli");
+  assert.equal(r.values["student.lastNameFirst"], "Carranza Saroli, Delfina");
+  const alumno = parseClassListGroups(r.values["course.studentList"])[0]!.students[0]!;
+  assert.deepEqual([alumno.firstName, alumno.lastName, alumno.isOwner], ["Delfina", "Carranza Saroli", true]);
+  assert.deepEqual(r.clientReview.authorization!.edits, [
+    { key: "student.firstName", from: "Saroli Delfina", to: "Delfina" },
+    { key: "student.lastName", from: "Carranza", to: "Carranza Saroli" },
+  ]);
+});
