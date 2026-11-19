@@ -367,7 +367,7 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
 
       {exported && data.export ? (
         <Card className="mt-4 p-4">
-          <p className="text-sm font-semibold text-[#111827]">Archivos entregados</p>
+          <p className="text-sm font-semibold text-[#111827]">Archivos para imprimir</p>
           <div className="mt-2 flex flex-wrap gap-3 text-sm">
             {data.export.pdfUrl ? (
               <a href={data.export.pdfUrl} target="_blank" rel="noreferrer" className="font-medium text-[#c27b3d] underline">

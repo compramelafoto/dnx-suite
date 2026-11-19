@@ -3,7 +3,7 @@ export const DESIGN_STATUS_LABELS: Record<string, string> = {
   PENDING_PHOTOGRAPHER_APPROVAL: "Para revisar",
   NEEDS_ADJUSTMENT: "Cambios pedidos al cliente",
   APPROVED_FOR_EXPORT: "Aprobado — falta generar el archivo",
-  EXPORTED: "Aprobado y entregado",
+  EXPORTED: "Aprobado · listo para imprimir",
 };
 
 export const DESIGN_STATUS_TONES: Record<string, string> = {
