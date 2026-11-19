@@ -15,6 +15,7 @@ import {
 } from "@/lib/design-v2/listado-cursos";
 import {
   aplicarCorrecciones,
+  type CorreccionDeTexto,
   limpiarAvisos,
   type ListaAImprimir,
   type RevisionDelCliente,
@@ -34,6 +35,46 @@ import {
  */
 export const FRASE_DE_AUTORIZACION_LIBRITO =
   "Revisé las fotos, el nombre de mi hijo o hija, el curso y todos los nombres del listado. Están bien escritos y autorizo que se imprima exactamente así. Entiendo que después de confirmar no se puede cambiar nada.";
+
+/** Las dos claves con que la familia escribe el nombre del alumno (siempre en campos separados). */
+export const CLAVES_DEL_NOMBRE_DEL_ALUMNO = ["student.firstName", "student.lastName"] as const;
+
+/**
+ * El nombre del alumno como lo escribió la familia, en dos campos: nombre y apellido. Con eso se
+ * arman todos los formatos (la tapa, «Apellido, Nombre», el nombre completo) y el alumno en el
+ * listado y en el mosaico. Así no hay que adivinar dónde termina el apellido: «Carranza Saroli
+ * Delfina» escrito en un solo campo salía con el apellido primero.
+ *
+ * Un campo vacío deja lo que había. Devuelve también la corrección, para la prueba de la autorización.
+ */
+export function aplicarNombreDelAlumno(
+  values: Record<string, string>,
+  textos: Record<string, string> | null | undefined,
+): { values: Record<string, string>; edits: CorreccionDeTexto[] } {
+  const limpio = (t: string | undefined) => (t ?? "").replace(/\s+/g, " ").trim().slice(0, 100);
+  const antes = { firstName: values["student.firstName"] ?? "", lastName: values["student.lastName"] ?? "" };
+  const pedidoNombre = limpio(textos?.["student.firstName"]);
+  const pedidoApellido = limpio(textos?.["student.lastName"]);
+  const despues = {
+    firstName: pedidoNombre || antes.firstName,
+    lastName: pedidoApellido || antes.lastName,
+  };
+  if (despues.firstName === antes.firstName && despues.lastName === antes.lastName) return { values, edits: [] };
+  const conListado = antes.firstName || antes.lastName
+    ? corregirNombresEnValores(values, [{ de: antes, a: despues }]).values
+    : { ...values };
+  const next = {
+    ...conListado,
+    "student.firstName": despues.firstName,
+    "student.lastName": despues.lastName,
+    "student.fullName": nombreCompleto(despues),
+    "student.lastNameFirst": despues.firstName && despues.lastName ? `${despues.lastName}, ${despues.firstName}` : despues.lastName || despues.firstName,
+  };
+  const edits: CorreccionDeTexto[] = [];
+  if (despues.firstName !== antes.firstName) edits.push({ key: "student.firstName", from: antes.firstName, to: despues.firstName });
+  if (despues.lastName !== antes.lastName) edits.push({ key: "student.lastName", from: antes.lastName, to: despues.lastName });
+  return { values: next, edits };
+}
 
 /** El aviso que le llega al fotógrafo cuando la familia corrigió nombres del listado. */
 export function avisoDeNombresCorregidos(cambios: readonly CambioDeNombre[]): string | null {
@@ -113,7 +154,19 @@ export function aplicarRevisionDelCanje(input: {
   now: Date;
 }): { values: Record<string, string>; clientReview: RevisionDelCliente } {
   const editables = new Set(input.textVariables.filter(esTextoEditablePorLaFamilia));
-  const corregido = aplicarCorrecciones(input.values, editables, input.revision.textos);
+  const pedidas = input.revision.textos ?? {};
+  // El nombre del alumno va en dos campos (nombre y apellido), aunque la plantilla imprima sólo uno.
+  const alumno = aplicarNombreDelAlumno(input.values, pedidas);
+  const resto = Object.fromEntries(
+    Object.entries(pedidas).filter(
+      ([k]) => !(CLAVES_DEL_NOMBRE_DEL_ALUMNO as readonly string[]).includes(k) && k !== "student.fullName" && k !== "student.lastNameFirst",
+    ),
+  );
+  // Un navegador con la página vieja todavía manda el nombre completo en un solo campo.
+  const sinCampos = !CLAVES_DEL_NOMBRE_DEL_ALUMNO.some((k) => (pedidas[k] ?? "").trim());
+  const otros = sinCampos ? pedidas : resto;
+  const corregidoResto = aplicarCorrecciones(alumno.values, editables, otros);
+  const corregido = { values: corregidoResto.values, edits: [...alumno.edits, ...corregidoResto.edits] };
   const grupos = cursosDelListado(corregido.values);
   const posibles = new Set(cursosParaSumar(grupos, input.disponibles).map((c) => c.key));
   const cursos = input.permiteSumar

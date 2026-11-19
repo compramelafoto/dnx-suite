@@ -36,7 +36,11 @@ import {
   valoresConCursos,
   type CursoDelAlbum,
 } from "@/lib/design-v2/listado-cursos";
-import { esTextoEditablePorLaFamilia } from "@/lib/revision-de-impresion/revision-del-canje";
+import {
+  aplicarNombreDelAlumno,
+  CLAVES_DEL_NOMBRE_DEL_ALUMNO,
+  esTextoEditablePorLaFamilia,
+} from "@/lib/revision-de-impresion/revision-del-canje";
 import { corregirNombresEnValores, type CambioDeNombre } from "@/lib/design-v2/corregir-nombres";
 import { tituloDeLaRevision } from "@/lib/revision-de-impresion/autorizacion";
 import RevisionDelLibrito from "./RevisionDelLibrito";
@@ -217,8 +221,10 @@ export default function PreventaCanjeFlow({
   );
   /** Los textos del librito con lo que corrigió la familia y los cursos sumados, antes de corregir nombres del listado. */
   const valoresSinNombres = useMemo(() => {
-    const v = { ...designValues };
+    // Nombre y apellido del alumno: la misma cuenta que hace el servidor al confirmar.
+    const v = { ...aplicarNombreDelAlumno(designValues, textosEditados).values };
     for (const [k, t] of Object.entries(textosEditados)) {
+      if ((CLAVES_DEL_NOMBRE_DEL_ALUMNO as readonly string[]).includes(k)) continue;
       if (esTextoEditablePorLaFamilia(k) && t.trim()) v[k] = t;
     }
     return permiteSumarCursos && cursosElegidos.length ? valoresConCursos(v, cursosParaSumar, cursosElegidos) : v;
@@ -708,6 +714,7 @@ export default function PreventaCanjeFlow({
                   autorizado={autorizado}
                   onAutorizar={setAutorizado}
                   valoresSinCorregir={valoresSinNombres}
+                  textosEditados={textosEditados}
                   nombresCorregidos={nombresCorregidos}
                   onNombresCorregidos={(c) => {
                     setNombresCorregidos(c);

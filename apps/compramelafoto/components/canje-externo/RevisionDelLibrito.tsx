@@ -2,6 +2,7 @@
 
 import RevisionDeImpresion from "@/components/revision-de-impresion/RevisionDeImpresion";
 import {
+  CLAVES_DEL_NOMBRE_DEL_ALUMNO,
   FRASE_DE_AUTORIZACION_LIBRITO,
   listasAImprimir,
   textosAImprimir,
@@ -34,6 +35,7 @@ export default function RevisionDelLibrito({
   valoresSinCorregir,
   nombresCorregidos,
   onNombresCorregidos,
+  textosEditados = {},
 }: {
   textVariables: string[];
   opcionesDelListado?: ClassListOptions;
@@ -54,8 +56,23 @@ export default function RevisionDelLibrito({
   valoresSinCorregir: Record<string, string>;
   nombresCorregidos: CambioDeNombre[];
   onNombresCorregidos: (cambios: CambioDeNombre[]) => void;
+  /** Lo que la familia va escribiendo (para que un campo se pueda vaciar mientras se corrige). */
+  textosEditados?: Record<string, string>;
 }) {
-  const textos = textosAImprimir(textVariables, valores);
+  // El nombre del alumno se pide siempre en dos campos, nombre y apellido, aunque la plantilla
+  // imprima uno solo o el nombre completo: así queda bien separado para la tapa y el listado.
+  const delAlumno = new Set<string>([...CLAVES_DEL_NOMBRE_DEL_ALUMNO, "student.fullName", "student.lastNameFirst"]);
+  const textos = [
+    ...CLAVES_DEL_NOMBRE_DEL_ALUMNO.map((key) => ({
+      key,
+      label: key === "student.firstName" ? "Nombre del alumno" : "Apellido del alumno",
+      value: textosEditados[key] ?? valores[key] ?? "",
+      editable: true,
+    })),
+    ...textosAImprimir(textVariables, valores)
+      .filter((t) => !delAlumno.has(t.key))
+      .map((t) => (t.editable && textosEditados[t.key] != null ? { ...t, value: textosEditados[t.key]! } : t)),
+  ];
   const listas = listasAImprimir(valores, opcionesDelListado);
   const grupos = cursosDelListado(valores);
   // El aviso compara con el listado propio: si ya sumó cursos y alcanzan, deja de avisar.

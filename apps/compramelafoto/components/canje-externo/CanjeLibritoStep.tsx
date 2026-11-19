@@ -16,6 +16,7 @@ import {
 } from "@repo/template-editor-core";
 import type { DesignTemplatePayload } from "@/lib/design-v2/client-payload";
 import { paginasDelLibro } from "@/lib/design-v2/book-leaves";
+import VisorAmpliado from "@/components/design-v2/VisorAmpliado";
 import {
   GROUP_PHOTO_MIN_FACES,
   photosForCanjeRole,
@@ -149,6 +150,7 @@ export default function CanjeLibritoStep({
 
   const [libroIdx, setLibroIdx] = useState(0);
   const [page, setPage] = useState(0);
+  const [ampliado, setAmpliado] = useState(false);
   /*
    * Giro de la vista, de a 90°. En un diseño apaisado con textos de costado (la carpeta de San
    * Patricio) la familia lo puede poner derecho para leerlo. Sólo cambia cómo se ve acá: lo
@@ -523,6 +525,59 @@ export default function CanjeLibritoStep({
           <div className="aspect-[3/4] w-full max-w-sm animate-pulse rounded-lg bg-[#efe9e2]" />
         )}
       </div>
+
+      {scale > 0 ? (
+        <div className="mt-3 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setAmpliado(true)}
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#c27b3d] bg-white px-4 text-sm font-semibold text-[#a8652e]"
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden>
+              <circle cx="11" cy="11" r="7" />
+              <path d="M20 20l-4-4M11 8v6M8 11h6" />
+            </svg>
+            Ver en grande para revisar los nombres
+          </button>
+        </div>
+      ) : null}
+      {ampliado ? (
+        <VisorAmpliado
+          ancho={canvasW}
+          alto={canvasH}
+          paginas={pageCount}
+          paginaInicial={page}
+          etiqueta={pageLabel}
+          dibujar={(p, s) => (
+            <div className="relative overflow-hidden" style={{ width: canvasW * s, height: canvasH * s }}>
+              <div
+                style={{
+                  ...editorThemeStyle(),
+                  ...PAPER_TOKENS,
+                  position: "absolute",
+                  left: 0,
+                  top: 0,
+                  width: canvasW,
+                  height: canvasH,
+                  transform: `scale(${s})`,
+                  transformOrigin: "top left",
+                  pointerEvents: "none",
+                }}
+              >
+                <TemplateCanvasRenderer
+                  canvas={t.canvas}
+                  blocks={visibleBlocks}
+                  resolvedVariables={values}
+                  readOnly
+                  pageIndex={p}
+                  photoOverrides={overrides}
+                />
+              </div>
+            </div>
+          )}
+          onCerrar={() => setAmpliado(false)}
+        />
+      ) : null}
 
       <p className="m-0 mt-4 rounded-xl border border-[#e7e1da] bg-white px-4 py-3 text-sm text-[#4b4f56]">
         Lo impreso sale igual a lo que ves acá. Podés cambiar las fotos de lugar tantas veces como quieras antes de

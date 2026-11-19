@@ -11,6 +11,7 @@ import { DESIGN_STATUS_TONES, designStatusLabel } from "@/lib/design-v2/labels";
 import RecortesPanel from "./RecortesPanel";
 import ListadoDelCursoPanel from "./ListadoDelCursoPanel";
 import CorregirNombresPanel from "./CorregirNombresPanel";
+import VerEnGrandeBoton from "@/components/design-v2/VerEnGrandeBoton";
 
 type DesignInfo = {
   id: number;
@@ -283,6 +284,7 @@ export default function DesignReviewClient({ designId }: { designId: string }) {
           >
             Descargar JPG
           </Button>
+          <VerEnGrandeBoton template={template} photos={photos} data={data} />
           <Button
             variant="secondary"
             size="sm"
