@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { armarCatalogo } from "./catalogo";
-import { armarMarcos, bordesCm, colorDeVariante, esProductoMarco, medidaConMarco, medidasDeMarco, type ModeloMarco } from "./marcos";
+import { armarMarcos, bordesCm, colorDeVariante, esProductoMarco, marcosConPrecio, medidaConMarco, medidasDeMarco, type ModeloMarco } from "./marcos";
 
 // Una foto de frente de 1000×1250 px de un marco de 40×50 cm con 5 cm de perfil parejo.
 const MODELO: ModeloMarco = {
@@ -75,5 +75,17 @@ describe("el precio de un cuadro con marco", () => {
   it("un marco sin precio no se puede pedir", () => {
     const [m] = armarMarcos([{ ...producto, variantes: [{ id: "v1", name: "Negro · 20x30cm", priceArs: 0 }] }], [MODELO], catalogo);
     expect(m.medidas[0].motivo).toBe("El marco todavía no tiene precio");
+  });
+});
+
+describe("los marcos que ve el cliente", () => {
+  const base = { nombre: "Marco", color: "Negro", imagen: { url: "", ancho: 1, alto: 1, ventana: { x: 0, y: 0, w: 1, h: 1 } }, exteriorCm: { w: 30, h: 40 } };
+  const med = (precioArs: number | null) => ({ varianteId: null, foto: { corto: 20, largo: 30 }, exterior: { corto: 30, largo: 40 }, precioArs, motivo: precioArs ? null : "El marco todavía no tiene precio" });
+  it("saca las medidas sin precio y los modelos que se quedan sin ninguna", () => {
+    const r = marcosConPrecio([
+      { ...base, modeloId: "a", medidas: [med(50000), med(null)] },
+      { ...base, modeloId: "b", medidas: [med(null), med(0)] },
+    ]);
+    expect(r.map((m) => [m.modeloId, m.medidas.length])).toEqual([["a", 1]]);
   });
 });

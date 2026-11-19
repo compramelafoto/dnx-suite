@@ -197,6 +197,13 @@ export function marcosPublicos(m: readonly MarcoServidor[]): MarcoPublico[] {
   return m.map((x) => ({ modeloId: x.modeloId, nombre: x.nombre, color: x.color, imagen: x.imagen, exteriorCm: x.exteriorCm, medidas: x.medidas }));
 }
 
+/** Para el cliente: sólo las medidas con precio, y sólo los modelos que tienen alguna. */
+export function marcosConPrecio(m: readonly MarcoPublico[]): MarcoPublico[] {
+  return m
+    .map((x) => ({ ...x, medidas: x.medidas.filter((d) => d.precioArs != null && d.precioArs > 0) }))
+    .filter((x) => x.medidas.length > 0);
+}
+
 /** El modelo como lo necesita el dibujo, a partir de lo que ve el cliente. */
 export function modeloDePublico(m: MarcoPublico): ModeloMarco {
   return {
