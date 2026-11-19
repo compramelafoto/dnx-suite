@@ -403,6 +403,7 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
       const packRow = await prisma.packDefinition.findFirst({
         where: { id: packDefId, albumId: order.albumId },
         include: {
+          album: { select: { includeDigitalWithPrint: true } },
           benefits: {
             orderBy: { sortOrder: "asc" },
             include: {

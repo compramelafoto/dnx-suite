@@ -155,6 +155,7 @@ export async function createPrecompraPackOrderInTransaction(
   const packRow = await tx.packDefinition.findFirst({
     where: { id: packDefinitionId, albumId },
     include: {
+      album: { select: { includeDigitalWithPrint: true } },
       benefits: {
         orderBy: { sortOrder: "asc" },
         include: {

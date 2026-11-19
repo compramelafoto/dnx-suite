@@ -114,10 +114,15 @@ function humanFieldsForBenefit(
 }
 
 export function buildPreventaPackSnapshotV1(
-  pack: PackDefinition & { benefits: BenefitForSnapshotBuild[] },
+  pack: PackDefinition & {
+    benefits: BenefitForSnapshotBuild[];
+    /** Si el álbum incluye la digital con cada impresa, el impreso del pack también la trae. */
+    album?: { includeDigitalWithPrint: boolean | null } | null;
+  },
   frozenAt: Date
 ): PreventaPackSnapshotV1 {
   const benefits = [...pack.benefits].sort((a, b) => a.sortOrder - b.sortOrder);
+  const impresaConSuDigital = pack.album?.includeDigitalWithPrint === true;
   return {
     schemaVersion: PREVENTA_PACK_SNAPSHOT_SCHEMA_VERSION,
     frozenAt: frozenAt.toISOString(),
@@ -145,6 +150,7 @@ export function buildPreventaPackSnapshotV1(
       extraUnitPriceOverrideArs: b.extraUnitPriceOverrideArs ?? null,
       regularUnitPriceAfterPreventaArs: b.regularUnitPriceAfterPreventaArs ?? null,
       sortOrder: b.sortOrder,
+      ...(impresaConSuDigital && b.kind === "PHYSICAL" ? { includesDigital: true } : {}),
       ...humanFieldsForBenefit(b),
     })),
   };
