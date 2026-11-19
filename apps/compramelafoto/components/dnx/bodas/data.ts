@@ -1,13 +1,15 @@
+import { whatsappDnx } from "@/components/dnx/contacto";
 import type { PlanDnx } from "@/components/dnx/DnxPlanes";
 
-export const PRESENCIAL_CALENDAR_URL =
-  "https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ2z_EHMUyZyJoj5R3lNntYdsB8k3vwT60KrdZPSRWzeFR3Pob1o1a1nr90eZXpIs4qxm15ydvF4";
+/** Todo entra por el WhatsApp del estudio (bot + Bandeja de FOTOFFICE): ver `components/dnx/contacto.ts`. */
+export const WHATSAPP_URL = whatsappDnx("Hola DNX, quiero consultar por fotografía para mi boda");
 
-export const ONLINE_CALENDAR_URL =
-  "https://calendar.google.com/calendar/u/0/appointments/schedules/AcZssZ1PLPHPaQEQhSqelvI-O7rq1RXy-N-micuNdyEygkTDr4trwCX88fxjNQOID2uVF9GY5JKwkIHd";
+export const ENTREVISTA_PRESENCIAL_URL = whatsappDnx("Hola DNX, quiero agendar una entrevista presencial para mi boda");
 
-export const WHATSAPP_URL =
-  "https://web.whatsapp.com/send?phone=5493413748324&text=Hola%20DNX%2C%20quiero%20consultar%20por%20fotograf%C3%ADa%20para%20mi%20boda";
+export const ENTREVISTA_ONLINE_URL = whatsappDnx("Hola DNX, quiero agendar una entrevista online para mi boda");
+
+/** El botón de la presentación (/sp), que se manda a quien ya está hablando por WhatsApp. */
+export const COTIZACION_WHATSAPP_URL = whatsappDnx("Hola DNX, vi la presentación y quiero la cotización para mi boda");
 
 export const GOOGLE_REVIEWS_URL = "https://share.google/e5qJvomFH1DV2mf4a";
 
@@ -259,7 +261,7 @@ export const planesBodas: PlanDnx[] = [
 ];
 
 export const notaFinanciacionBodas =
-  "Los pagos se reparten sin recargo hasta el día de la boda, con un máximo de 12, así que la cuota exacta depende de cuánto falte para la fecha. También se puede señar o cancelar por transferencia bancaria. Los valores pueden variar según fecha, disponibilidad, ciudad y adicionales: los confirmamos juntos en la entrevista.";
+  "Los pagos se reparten sin recargo hasta el día de la boda, con un máximo de 12, así que la cuota exacta depende de cuánto falte para la fecha. También se puede señar o cancelar por transferencia bancaria. Los valores pueden variar según fecha, disponibilidad, ciudad y adicionales: quedan escritos en tu cotización.";
 
 /** Lo que se lleva la pareja, en concreto, antes de hablar de plata. */
 export const queSeLlevanBodas = [
