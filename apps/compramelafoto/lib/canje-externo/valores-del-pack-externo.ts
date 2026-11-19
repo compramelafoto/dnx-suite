@@ -12,8 +12,41 @@ export function cursoComparable(...partes: Array<string | null | undefined>): st
     .toLowerCase();
 }
 
+/** Palabras del nombre sin tildes, apóstrofos ni puntos: «L’Abbate, Inés» y «Labbate Ines» son el mismo. */
+function palabrasDelNombre(...partes: string[]): string[] {
+  return partes
+    .join(" ")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/['’´`.,]/g, "")
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
 function nombreComparable(nombre: string, apellido: string): string {
-  return cursoComparable(...[...nombre.split(/\s+/), ...apellido.split(/\s+/)].sort());
+  return palabrasDelNombre(nombre, apellido).sort().join(" ");
+}
+
+/**
+ * La fila del padrón del alumno del pack. Primero, el mismo nombre completo; si no, la única fila
+ * que contiene todas sus palabras (el Excel trae «Bessone Julia» y la lista del colegio «Bessone,
+ * Julia Ema»). Con dos candidatas no elige ninguna.
+ */
+function duenoEnElPadron<T extends { snapshotFirstName: string; snapshotLastName: string }>(
+  padron: T[],
+  partes: { firstName: string; lastName: string } | null,
+): T | null {
+  if (!partes) return null;
+  const clave = nombreComparable(partes.firstName, partes.lastName);
+  const exacto = padron.find((f) => nombreComparable(f.snapshotFirstName, f.snapshotLastName) === clave);
+  if (exacto) return exacto;
+  const buscadas = palabrasDelNombre(partes.firstName, partes.lastName);
+  const candidatas = padron.filter((f) => {
+    const tiene = new Set(palabrasDelNombre(f.snapshotFirstName, f.snapshotLastName));
+    return buscadas.every((w) => tiene.has(w));
+  });
+  return candidatas.length === 1 ? candidatas[0]! : null;
 }
 
 /** La clave de un curso de los packs cargados del Excel (la misma que usa `class-list`). */
@@ -61,9 +94,8 @@ export function valoresDelPackExternoDesdePacks(input: {
   const padron = input.padronDelCurso ?? [];
   let courseMosaic: ReturnType<typeof armarCompaneros> | null = null;
   let courseMosaicOwner: ReturnType<typeof armarCompaneros>[number] | null = null;
+  const dueno = padron.length > 0 ? duenoEnElPadron(padron, partes) : null;
   if (padron.length > 0) {
-    const claveDueno = partes ? nombreComparable(partes.firstName, partes.lastName) : null;
-    const dueno = padron.find((f) => nombreComparable(f.snapshotFirstName, f.snapshotLastName) === claveDueno);
     courseMosaic = armarCompaneros(padron, dueno?.id ?? -1);
     courseMosaicOwner = dueno ? (armarCompaneros([dueno], -1)[0] ?? null) : null;
   } else if (courseStudents.length > 0) {
@@ -72,15 +104,13 @@ export function valoresDelPackExternoDesdePacks(input: {
       .filter((c) => !c.isOwner)
       .map((c) => ({ firstName: c.firstName, lastName: c.lastName }));
   }
-  // Sin otros packs del curso, el listado sale del padrón.
+  // Con padrón del curso, el listado es el curso completo (compraron o no); sin padrón, los
+  // alumnos de los packs del Excel. Antes el padrón sólo se usaba si nadie más del curso tenía pack,
+  // así que el listado salía con los que compraron y no con todo el curso.
   const listado =
-    courseStudents.length > 0
-      ? courseStudents
-      : padron.map((f) => ({
-          firstName: f.snapshotFirstName,
-          lastName: f.snapshotLastName,
-          isOwner: courseMosaicOwner != null && f.snapshotFirstName === courseMosaicOwner.firstName && f.snapshotLastName === courseMosaicOwner.lastName,
-        }));
+    padron.length > 0
+      ? padron.map((f) => ({ firstName: f.snapshotFirstName, lastName: f.snapshotLastName, isOwner: f === dueno }))
+      : courseStudents;
   return buildDesignValues({
     studentName: externo.studentName,
     studentFirstName: partes?.firstName,

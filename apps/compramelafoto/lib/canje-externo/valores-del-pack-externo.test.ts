@@ -102,4 +102,31 @@ describe("valoresDelPackExternoDesdePacks", () => {
     assert.match(v["course.mosaic"]!, /Gómez/);
     assert.doesNotMatch(v["course.mosaic"]!, /Pérez/);
   });
+  it("con padrón del curso, el listado es el curso entero y marca al alumno aunque el Excel lo abrevie", () => {
+    const fila = (id: number, nombre: string, apellido: string) => ({
+      id,
+      snapshotFirstName: nombre,
+      snapshotLastName: apellido,
+      mosaicPhotoId: null,
+      mosaicPhotoAspect: null,
+      mosaicPhotoCrop: null,
+      urlDeVista: null,
+    });
+    const v = valoresDelPackExternoDesdePacks({
+      externo: pack("Bessone Julia"),
+      packsDelAlbum: [pack("Bessone Julia"), pack("Comba Felipe")],
+      schoolName: null,
+      schoolLogoUrl: null,
+      buyerName: null,
+      photographerName: null,
+      padronDelCurso: [fila(1, "Julia Ema", "Bessone"), fila(2, "Felipe", "Comba"), fila(3, "Felipe", "L'Abbate Del Zotto")],
+    });
+    const listado = JSON.parse(v["course.studentList"]!) as { g: Array<{ s: Array<{ f: string; l: string; o?: number }> }> };
+    const lista = listado.g[0]!.s;
+    assert.equal(lista.length, 3);
+    assert.deepEqual(
+      lista.filter((a) => a.o === 1).map((a) => `${a.f} ${a.l}`),
+      ["Julia Ema Bessone"],
+    );
+  });
 });
