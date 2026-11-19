@@ -6,6 +6,7 @@ import { cifrasNoRespaldadas } from "@/lib/dnx-bot/cifras";
 import { leerConfigBot, plataformaDe, type BotConfigFotoffice } from "@/lib/dnx-bot/config";
 import { reportarIncidente } from "@/lib/dnx-bot/incidentes";
 import { decidirLimites } from "@/lib/dnx-bot/limites";
+import { incidenteDeTope } from "./aviso-tope";
 import type { enviarTexto } from "../envio";
 import { atiendeElBot, puedeResponderLibre } from "../reglas";
 import { cifrasRespaldadasEnAtencion } from "./cifras-atencion";
@@ -133,10 +134,10 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
 
   const plataforma = plataformaDe(workspaceId);
   const ultimoMensajeId = antes.id;
-  const incidente = (codigo: string, detalle: string) =>
-    reportarIncidente({ plataforma, area: "whatsapp", codigo, ids: { chatId }, detalle, urgente: false }).catch(() => undefined);
-  const fallar = async (codigo: string, detalle: string): Promise<SalidaBot> => {
-    await incidente(codigo, detalle);
+  const incidente = (codigo: string, detalle: string, urgente = false) =>
+    reportarIncidente({ plataforma, area: "whatsapp", codigo, ids: { chatId }, detalle, urgente }).catch(() => undefined);
+  const fallar = async (codigo: string, detalle: string, urgente = false): Promise<SalidaBot> => {
+    await incidente(codigo, detalle, urgente);
     const salida = await enviarComoBot(workspaceId, chatId, TEXTO_SI_FALLA, { ultimoMensajeId }, { ahora: ahora(), enviar: deps.enviar });
     if (salida === "omitido") return "nada";
     await pasarAPersona(workspaceId, chatId, "el bot no pudo responder", ahora());
@@ -148,7 +149,10 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
     );
 
   const limites = decidirLimites({ ...cfg.limits, maxMessagesPerUserPerDay: MAX_RESPUESTAS_POR_DIA }, await usoWa({ plataforma, chatId, ahora: ahora() }));
-  if (!limites.permitido) return fallar(`tope_${limites.motivo}`, limites.motivo);
+  if (!limites.permitido) {
+    const i = incidenteDeTope(limites.motivo, ahora());
+    return fallar(i.codigo, i.detalle, i.urgente);
+  }
 
   // El bot cobra por transferencia: si mandó un comprobante de un pedido que espera el pago, se verifica
   // antes de hablar con el modelo. Si se acreditó o pasa a una persona, el bot no contesta otra cosa.
