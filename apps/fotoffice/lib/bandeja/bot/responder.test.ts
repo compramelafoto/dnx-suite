@@ -9,7 +9,13 @@ vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: B.prisma }));
 vi.mock("@/lib/integrations/whatsapp/credentials", () => ({ leerTokenWhatsapp: vi.fn(async () => null), hayTokenWhatsapp: vi.fn(), guardarTokenWhatsapp: vi.fn() }));
 const incidentes: string[] = [];
-vi.mock("@/lib/dnx-bot/incidentes", () => ({ reportarIncidente: vi.fn(async (p: { codigo: string }) => void incidentes.push(p.codigo)) }));
+const urgentes: { codigo: string; detalle: string }[] = [];
+vi.mock("@/lib/dnx-bot/incidentes", () => ({
+  reportarIncidente: vi.fn(async (p: { codigo: string; detalle: string; urgente: boolean }) => {
+    incidentes.push(p.codigo);
+    if (p.urgente) urgentes.push({ codigo: p.codigo, detalle: p.detalle });
+  }),
+}));
 vi.mock("@/lib/dnx-bot/anthropic", () => ({ clienteAnthropic: () => ({}) }));
 vi.mock("./uso", () => ({
   usoWa: vi.fn(async () => USO.actual),
@@ -76,6 +82,7 @@ async function chatCon(textos: string[], extra: Record<string, unknown> = {}) {
 beforeEach(() => {
   B.vaciar();
   incidentes.length = 0;
+  urgentes.length = 0;
   USO.actual = { mensajesHoyPersona: 0, gastoMesGlobal: 0, gastoMesWorkspace: 0 };
   USO.encendido = true;
   vi.spyOn(console, "error").mockImplementation(() => undefined);
@@ -219,6 +226,26 @@ describe("responderConBot", () => {
     expect(await responderConBot(chatId, deps(t.fn))).toBe("derivo");
     expect(t.vistos).toHaveLength(0);
     expect(mensajes().find((m) => m.autor === "BOT")?.texto).toBe(TEXTO_SI_FALLA);
+  });
+
+  it("al agotar el tope de gasto del mes avisa a Daniel por Telegram (un aviso por mes)", async () => {
+    USO.actual = { mensajesHoyPersona: 0, gastoMesGlobal: 10_000_000, gastoMesWorkspace: 10_000_000 };
+    const chatId = await chatCon(["¡Hola! Quiero más información."]);
+    const t = turnoQue("¡Hola!");
+    expect(await responderConBot(chatId, deps(t.fn))).toBe("derivo");
+    expect(t.vistos).toHaveLength(0);
+    expect(mensajes().find((m) => m.autor === "BOT")?.texto).toBe(TEXTO_SI_FALLA);
+    // La marca lleva el mes: al mes siguiente vuelve a ser nueva y vuelve a avisar.
+    expect(urgentes).toHaveLength(1);
+    expect(urgentes[0].codigo).toBe("tope_workspace_2026-10");
+    expect(urgentes[0].detalle).toContain("FOTOFFICE_BOT_WORKSPACE_MONTHLY_CAP_USD");
+  });
+
+  it("el tope diario por chat no avisa por Telegram", async () => {
+    USO.actual = { mensajesHoyPersona: 60, gastoMesGlobal: 0, gastoMesWorkspace: 0 };
+    const chatId = await chatCon(["hola"]);
+    await responderConBot(chatId, deps(turnoQue("¡Hola!").fn));
+    expect(urgentes).toHaveLength(0);
   });
 
   it("si la API falla, avisa al cliente y pasa a persona", async () => {
