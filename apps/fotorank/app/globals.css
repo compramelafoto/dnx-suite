@@ -9,6 +9,8 @@
 /* Puente visual inscripción/upload → public-ui. Re-tematiza las clases de
    arriba con los tokens públicos; debe ir DESPUÉS para poder sobreescribirlas. */
 @import "./styles/inscription-public-bridge.css";
+/* Panel del participante: tarjetas, etapas y fotos (`fr-pp-*`). */
+@import "./styles/participant-panel.css";
 
 /* ==========================================================================
    FOTORANK — Sistema de diseño premium 2026

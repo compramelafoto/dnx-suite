@@ -3,7 +3,9 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Hash, Layers } from "lucide-react";
 import {
   ParticipantNextStep,
+  ParticipantPhotoStrip,
   ParticipantProgress,
+  participantStepHints,
   ParticipantStatusPill,
   ParticipantUploadClosedNotice,
   RulesReacceptanceCard,
@@ -51,9 +53,16 @@ export default async function ParticipacionDetailPage({ params }: Props) {
         </Link>
       </nav>
 
+      {view.cover ? (
+        <div className="fr-pp-detail-cover">
+          {/* eslint-disable-next-line @next/next/no-img-element -- portada del concurso */}
+          <img src={view.cover.url} alt={view.cover.alt} className="fr-pp-detail-cover__img" />
+        </div>
+      ) : null}
+
       <header className="fr-participant-detail__header">
         <div className="fr-participant-detail__header-main">
-          <p className="fr-eyebrow text-gold">Participación</p>
+          <p className="fr-eyebrow text-gold">{view.organizerName ?? "Participación"}</p>
           <h1 className="fr-participant-detail__title">{view.contestTitle}</h1>
           <div className="fr-participant-detail__meta">
             <ParticipantStatusPill status={view.primaryStatus} />
@@ -87,6 +96,13 @@ export default async function ParticipacionDetailPage({ params }: Props) {
         </div>
       </header>
 
+      <section className="fr-participant-detail__section" aria-labelledby="progress-heading">
+        <h2 id="progress-heading" className="fr-participant-detail__section-title">
+          Etapas
+        </h2>
+        <ParticipantProgress steps={view.progress} hints={participantStepHints(view)} />
+      </section>
+
       <ParticipantNextStep block={view.nextStep} />
 
       {view.needsRulesReacceptance && currentRules ? (
@@ -97,13 +113,6 @@ export default async function ParticipacionDetailPage({ params }: Props) {
           currentRulesTitle={currentRules.title}
         />
       ) : null}
-
-      <section className="fr-participant-detail__section" aria-labelledby="progress-heading">
-        <h2 id="progress-heading" className="fr-participant-detail__section-title">
-          Progreso
-        </h2>
-        <ParticipantProgress steps={view.progress} />
-      </section>
 
       {showUploadClosed ? (
         <ParticipantUploadClosedNotice
@@ -194,37 +203,29 @@ export default async function ParticipacionDetailPage({ params }: Props) {
 
       <section className="fr-participant-detail__section" aria-labelledby="works-heading">
         <h2 id="works-heading" className="fr-participant-detail__section-title">
-          Obras
+          Tus fotos
         </h2>
-        {!view.entry ? (
-          <div className="fr-participant-works-empty">
-            {view.upload.isOpen ? (
-              <p className="fr-body text-fr-muted">
-                Todavía no cargaste fotografías. Podés comenzar cuando quieras.
-              </p>
-            ) : (
-              <p className="fr-body text-fr-muted">
-                Sin fotografías todavía
-                {view.upload.phase === "not_yet_open" && view.upload.opensAt
-                  ? ` · apertura ${formatParticipantDateShort(view.upload.opensAt)}`
-                  : ""}
-                .
-              </p>
-            )}
-          </div>
+        {view.photos.length > 0 || view.upload.isOpen ? (
+          <ParticipantPhotoStrip
+            photos={view.photos}
+            maxFiles={view.maxFiles}
+            size="lg"
+            addHref={
+              view.upload.isOpen && view.registrationStatus === "CONFIRMED" && !view.needsRulesReacceptance
+                ? `/concursos/${view.contestSlug}/inscripcion`
+                : null
+            }
+          />
         ) : (
-          <dl className="fr-participant-detail__dl">
-            <div>
-              <dt>Estado</dt>
-              <dd>{entryStatus.label}</dd>
-            </div>
-            {view.entry.entryNumber ? (
-              <div>
-                <dt>Número de obra</dt>
-                <dd>{view.entry.entryNumber}</dd>
-              </div>
-            ) : null}
-          </dl>
+          <div className="fr-participant-works-empty">
+            <p className="fr-body text-fr-muted">
+              Sin fotografías todavía
+              {view.upload.phase === "not_yet_open" && view.upload.opensAt
+                ? ` · la carga abre el ${formatParticipantDateShort(view.upload.opensAt)}`
+                : ""}
+              .
+            </p>
+          </div>
         )}
       </section>
 

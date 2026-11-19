@@ -1,7 +1,14 @@
 import { prisma } from "@repo/db";
 import { isEmptyDraftEntry, resolveCategoryEntryLimits } from "../entries/entry-quota";
+import { resolveManagedContestMediaBatch, type ManagedMediaBundle } from "../contest-media/presentation-bridge";
+import { resolveContestVisualTheme, resolveHeroAsset } from "../contest-visual";
+import { getContestEntryStorage } from "../storage/provider";
 import { buildParticipantParticipationView } from "./build-view";
-import type { ParticipantParticipationView } from "./types";
+import type {
+  ParticipantContestCover,
+  ParticipantParticipationView,
+  ParticipantPhotoThumb,
+} from "./types";
 
 type EntryRow = {
   id: string;
@@ -32,14 +39,21 @@ const ENTRY_SELECT = {
  * vista nunca la leyó, y sumarle el flag `publicUploadOpen` acá cambiaría lo que
  * ven los participantes de otros concursos sin que nadie lo haya pedido.
  */
-function withoutUploadPolicy<T extends { uploadPolicyJson: unknown; categories: unknown }>(
-  contest: T,
-): Omit<T, "uploadPolicyJson" | "categories"> {
-  const rest: Omit<T, "uploadPolicyJson" | "categories"> & { uploadPolicyJson?: unknown; categories?: unknown } = {
+function withoutUploadPolicy<
+  T extends { uploadPolicyJson: unknown; categories: unknown; coverImageUrl: unknown; organization: unknown },
+>(contest: T): Omit<T, "uploadPolicyJson" | "categories" | "coverImageUrl" | "organization"> {
+  const rest: Omit<T, "uploadPolicyJson" | "categories" | "coverImageUrl" | "organization"> & {
+    uploadPolicyJson?: unknown;
+    categories?: unknown;
+    coverImageUrl?: unknown;
+    organization?: unknown;
+  } = {
     ...contest,
   };
   delete rest.uploadPolicyJson;
   delete rest.categories;
+  delete rest.coverImageUrl;
+  delete rest.organization;
   return rest;
 }
 
@@ -83,6 +97,87 @@ function mapEntry(e: EntryRow | undefined) {
 }
 
 /**
+ * Portada del concurso con la misma regla que la tarjeta pública: primero la
+ * imagen de tarjeta cargada por el organizador, después el banner, después
+ * `coverImageUrl` y por último la del tema en código (Santa Fe en Foco).
+ */
+function resolveCover(input: {
+  slug: string;
+  title: string;
+  organizerName: string | null;
+  coverImageUrl: string | null;
+  managed: ManagedMediaBundle | null;
+}): ParticipantContestCover | null {
+  try {
+    const theme = resolveContestVisualTheme(input.slug, undefined, {
+      coverImageUrl: input.coverImageUrl,
+      contestTitle: input.title,
+      organizerName: input.organizerName ?? undefined,
+      managed: input.managed
+        ? { ...input.managed, banner: input.managed.card ?? input.managed.banner }
+        : null,
+    });
+    const hero = resolveHeroAsset(theme.presentation, "desktop");
+    if (!hero?.url) return null;
+    return { url: hero.url, alt: hero.alt?.trim() || `Imagen de ${input.title}` };
+  } catch {
+    return null;
+  }
+}
+
+/** Duración del enlace firmado de cada miniatura. La página se vuelve a pedir al navegar. */
+const THUMB_TTL_SEC = 60 * 30;
+
+/**
+ * Miniaturas de las obras. Un fallo del almacenamiento no puede tirar el panel:
+ * en ese caso la obra se muestra sin imagen.
+ */
+async function loadPhotoThumbs(entries: EntryRow[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (entries.length === 0) return out;
+  try {
+    const assets = await prisma.fotorankContestEntryAsset.findMany({
+      where: {
+        entryId: { in: entries.map((e) => e.id) },
+        isActive: true,
+        kind: { in: ["THUMBNAIL", "JURY_PREVIEW"] },
+      },
+      select: { entryId: true, kind: true, storageKey: true },
+    });
+    const byEntry = new Map<string, { kind: string; storageKey: string }>();
+    for (const a of assets) {
+      if (!a.entryId) continue;
+      const prev = byEntry.get(a.entryId);
+      if (!prev || (prev.kind !== "THUMBNAIL" && a.kind === "THUMBNAIL")) {
+        byEntry.set(a.entryId, { kind: a.kind, storageKey: a.storageKey });
+      }
+    }
+    const storage = getContestEntryStorage();
+    await Promise.all(
+      [...byEntry.entries()].map(async ([entryId, a]) => {
+        try {
+          out.set(entryId, await storage.getSignedUrl(a.storageKey, "read", THUMB_TTL_SEC));
+        } catch {
+          /* sin miniatura */
+        }
+      }),
+    );
+  } catch {
+    /* sin miniaturas */
+  }
+  return out;
+}
+
+function toPhotos(entries: EntryRow[] | undefined, thumbs: Map<string, string>): ParticipantPhotoThumb[] {
+  return (entries ?? []).map((e) => ({
+    entryId: e.id,
+    entryNumber: e.entryNumber,
+    status: e.admissionStatus === "REJECTED" ? "REJECTED" : e.status,
+    thumbUrl: thumbs.get(e.id) ?? null,
+  }));
+}
+
+/**
  * Listado de participaciones del usuario autenticado.
  * Ownership: where participantUserId.
  */
@@ -100,6 +195,8 @@ export async function listMyParticipationViews(
           title: true,
           slug: true,
           status: true,
+          coverImageUrl: true,
+          organization: { select: { name: true } },
           timezone: true,
           registrationOpensAt: true,
           registrationClosesAt: true,
@@ -138,6 +235,10 @@ export async function listMyParticipationViews(
   }
 
   const contestIds = [...new Set(rows.map((r) => r.contestId))];
+  const [thumbs, managedByContest] = await Promise.all([
+    loadPhotoThumbs([...entriesByReg.values()].flat()),
+    resolveManagedContestMediaBatch(contestIds).catch(() => new Map<string, ManagedMediaBundle>()),
+  ]);
   const publishedBatches = await prisma.fotorankResultBatch.findMany({
     where: { contestId: { in: contestIds }, status: "PUBLISHED" },
     select: { contestId: true },
@@ -161,6 +262,15 @@ export async function listMyParticipationViews(
       contestId: r.contestId,
       contestTitle: r.contest.title,
       contestSlug: r.contest.slug,
+      organizerName: r.contest.organization?.name ?? null,
+      cover: resolveCover({
+        slug: r.contest.slug,
+        title: r.contest.title,
+        organizerName: r.contest.organization?.name ?? null,
+        coverImageUrl: r.contest.coverImageUrl,
+        managed: managedByContest.get(r.contestId) ?? null,
+      }),
+      photos: toPhotos(entriesByReg.get(r.id), thumbs),
       registrationNumber: r.registrationNumber,
       categoryId: r.category.id,
       categoryName: r.category.name,
@@ -202,6 +312,8 @@ export async function getMyParticipationView(
           title: true,
           slug: true,
           status: true,
+          coverImageUrl: true,
+          organization: { select: { name: true } },
           timezone: true,
           registrationOpensAt: true,
           registrationClosesAt: true,
@@ -234,6 +346,11 @@ export async function getMyParticipationView(
     }),
   );
 
+  const [thumbs, managedByContest] = await Promise.all([
+    loadPhotoThumbs(entries),
+    resolveManagedContestMediaBatch([r.contestId]).catch(() => new Map<string, ManagedMediaBundle>()),
+  ]);
+
   const published = await prisma.fotorankResultBatch.findFirst({
     where: { contestId: r.contestId, status: "PUBLISHED" },
     select: { id: true },
@@ -250,6 +367,15 @@ export async function getMyParticipationView(
     contestId: r.contestId,
     contestTitle: r.contest.title,
     contestSlug: r.contest.slug,
+    organizerName: r.contest.organization?.name ?? null,
+    cover: resolveCover({
+      slug: r.contest.slug,
+      title: r.contest.title,
+      organizerName: r.contest.organization?.name ?? null,
+      coverImageUrl: r.contest.coverImageUrl,
+      managed: managedByContest.get(r.contestId) ?? null,
+    }),
+    photos: toPhotos(entries, thumbs),
     registrationNumber: r.registrationNumber,
     categoryId: r.category.id,
     categoryName: r.category.name,

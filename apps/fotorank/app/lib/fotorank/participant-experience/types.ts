@@ -15,11 +15,29 @@ export type ParticipantEntrySlice = {
   publicRejectionReason: string | null;
 };
 
+/** Miniatura de una obra enviada (enlace firmado, vence en minutos). */
+export type ParticipantPhotoThumb = {
+  entryId: string;
+  entryNumber: string | null;
+  status: string;
+  thumbUrl: string | null;
+};
+
+/** Imagen de portada del concurso (tarjeta o banner cargado por el organizador). */
+export type ParticipantContestCover = {
+  url: string;
+  alt: string;
+};
+
 export type ParticipantParticipationView = {
   id: string;
   contestId: string;
   contestTitle: string;
   contestSlug: string;
+  organizerName: string | null;
+  cover: ParticipantContestCover | null;
+  /** Obras reales con su miniatura, en orden de envío. */
+  photos: ParticipantPhotoThumb[];
   registrationNumber: string;
   categoryId: string;
   categoryName: string;
