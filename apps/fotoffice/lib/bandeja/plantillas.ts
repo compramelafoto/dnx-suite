@@ -152,12 +152,13 @@ export async function enviarPlantillaDesdePanel(
 
   let guardado: { mensajeId: string; waId: string };
   try {
-    const r = await prisma.$transaction(async (tx) => {
+    type Paso = { ok: false; error: string } | { ok: true; repetido: RespuestaEnviada } | { ok: true; mensajeId: string; waId: string };
+    const r = await prisma.$transaction(async (tx): Promise<Paso> => {
       const chat = await chatBloqueado(tx, ctx.workspaceId, chatId);
       if (!chat) return no(MENSAJES_BANDEJA.noExiste);
       if (canalDe(chat) !== "WHATSAPP") return no(MENSAJES_PLANTILLAS.soloWhatsapp);
       const repetido = await tx.fotofficeWaMensaje.findFirst({ where: { chatId: chat.id, workspaceId: ctx.workspaceId, clientToken }, select: { id: true, estadoEnvio: true } });
-      if (repetido) return { ok: true as const, repetido: { ok: true as const, mensajeId: repetido.id, estadoEnvio: repetido.estadoEnvio } };
+      if (repetido) return { ok: true, repetido: { mensajeId: repetido.id, estadoEnvio: repetido.estadoEnvio } };
       const regla = alResponderDesdePanel(aEstado(chat), userId, ctx.userLabel);
       if (regla.sistema) await escribirSistema(tx, ctx.workspaceId, chat.id, regla.sistema.texto, ahora);
       const m = await tx.fotofficeWaMensaje.create({
@@ -175,10 +176,10 @@ export async function enviarPlantillaDesdePanel(
           ...(ahora.getTime() > chat.ultimoMensajeEn.getTime() ? { ultimoMensajeEn: new Date(ahora.getTime() + 1), ...vistaPreviaDe(texto, "TEXTO") } : {}),
         },
       });
-      return { ok: true as const, mensajeId: m.id, waId: chat.waId };
+      return { ok: true, mensajeId: m.id, waId: chat.waId };
     });
     if (!r.ok) return r;
-    if ("repetido" in r) return r.repetido;
+    if ("repetido" in r) return { ok: true, ...r.repetido };
     guardado = r;
   } catch (e) {
     if ((e as { code?: unknown } | null)?.code === "P2002") {
