@@ -39,7 +39,7 @@ import { proyectosParaTarjeta } from "@/lib/proyectos/tarjetas";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { listarPresupuestos } from "@/lib/presupuestos/presupuestos";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
-import { CuadroResumen } from "@/components/entidades/entidad";
+import { ResumenDesplegable } from "@/components/entidades/resumen-desplegable";
 import { cuadrosDelResumen } from "@/lib/clients/resumen";
 import { pesosPedido } from "@/lib/pedidos/pantalla";
 import { ClientForm } from "../client-form";
@@ -212,53 +212,32 @@ export default async function ClientePage({
         }}
         resumen={
           cuadros.length > 0 ? (
-            <section aria-label="Resumen del cliente" className="space-y-3">
-              {/* Arriba, cuántos de cada cosa; abajo, el dinero. */}
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
-                {cuadros
-                  .filter((c) => c.entidad !== "cobrado" && c.entidad !== "porCobrar")
-                  .map((c) => (
-                    <CuadroResumen key={c.entidad} entidad={c.entidad} valor={c.valor} detalle={c.detalle} href={c.href} />
-                  ))}
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {cuadros
-                  .filter((c) => c.entidad === "cobrado" || c.entidad === "porCobrar")
-                  .map((c) => (
-                    <CuadroResumen key={c.entidad} entidad={c.entidad} valor={c.valor} detalle={c.detalle} href={c.href} />
-                  ))}
-              </div>
-            </section>
+            <ResumenDesplegable
+              cuadros={cuadros}
+              paneles={{
+                consultas: delContacto ? (
+                  <ConsultasDelContacto clientId={cliente.id} consultas={delContacto.consultas} hayMas={delContacto.hayMas} puedeCrear={creaConsultas} />
+                ) : null,
+                cotizaciones: presupuestos ? (
+                  <TarjetaPresupuestos
+                    presupuestos={presupuestos}
+                    hrefNuevo={`/presupuestos/nuevo?contacto=${encodeURIComponent(cliente.id)}`}
+                    puedeCrear={puede(acceso, "operar", QUOTES_MODULE_KEY)}
+                    vacio="Todavía no tiene cotizaciones."
+                  />
+                ) : null,
+                pedidos: pedidos ? (
+                  <TarjetaPedidos
+                    pedidos={pedidos}
+                    hrefNuevo={puede(acceso, "operar", ORDERS_MODULE_KEY) ? `/pedidos/nuevo?contacto=${encodeURIComponent(cliente.id)}` : null}
+                    vacio="Todavía no tiene pedidos."
+                  />
+                ) : null,
+                proyectos: proyectos ? <TarjetaProyectos proyectos={proyectos} vacio="Todavía no tiene proyectos." /> : null,
+                contratos: contratos ? <TarjetaContratos contratos={contratos} vacio="Todavía no tiene contratos." /> : null,
+              }}
+            />
           ) : null
-        }
-        principal={
-          <div className="grid items-start gap-4 xl:grid-cols-2">
-            {delContacto ? (
-              <ConsultasDelContacto
-                clientId={cliente.id}
-                consultas={delContacto.consultas}
-                hayMas={delContacto.hayMas}
-                puedeCrear={creaConsultas}
-              />
-            ) : null}
-            {presupuestos ? (
-              <TarjetaPresupuestos
-                presupuestos={presupuestos}
-                hrefNuevo={`/presupuestos/nuevo?contacto=${encodeURIComponent(cliente.id)}`}
-                puedeCrear={puede(acceso, "operar", QUOTES_MODULE_KEY)}
-                vacio="Todavía no tiene cotizaciones."
-              />
-            ) : null}
-            {pedidos ? (
-              <TarjetaPedidos
-                pedidos={pedidos}
-                hrefNuevo={puede(acceso, "operar", ORDERS_MODULE_KEY) ? `/pedidos/nuevo?contacto=${encodeURIComponent(cliente.id)}` : null}
-                vacio="Todavía no tiene pedidos."
-              />
-            ) : null}
-            {proyectos ? <TarjetaProyectos proyectos={proyectos} vacio="Todavía no tiene proyectos." /> : null}
-            {contratos ? <TarjetaContratos contratos={contratos} vacio="Todavía no tiene contratos." /> : null}
-          </div>
         }
         datos={
           <>

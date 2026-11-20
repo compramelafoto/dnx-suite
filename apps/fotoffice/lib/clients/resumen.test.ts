@@ -23,19 +23,25 @@ describe("resumen de la ficha del cliente", () => {
       },
       pesos,
     );
-    expect(c.map((x) => [x.entidad, x.valor, x.detalle])).toEqual([
-      ["consulta", "5+", null],
-      ["cotizacion", "2", "1 aceptada"],
-      ["pedido", "2", "1 en curso"],
-      ["contrato", "1", "1 firmado"],
-      ["proyecto", "1", null],
-      ["cobrado", "$600", "de $1000 vendido"],
-      ["porCobrar", "$400", "$100 vencido"],
+    expect(c.map((x) => [x.entidad, x.valor, x.detalle, x.panel, x.vacio])).toEqual([
+      ["consulta", "5+", null, "consultas", false],
+      ["cotizacion", "2", "1 aceptada", "cotizaciones", false],
+      ["pedido", "2", "1 en curso", "pedidos", false],
+      ["contrato", "1", "1 firmado", "contratos", false],
+      ["proyecto", "1", null, "proyectos", false],
+      ["cobrado", "$600", "de $1000 vendido", "pedidos", false],
+      ["porCobrar", "$400", "$100 vencido", "pedidos", false],
     ]);
   });
 
   it("saldo en cero: no dice «al día»", () => {
     const c = cuadrosDelResumen({ ...NADA, pedidos: [{ estado: "COMPLETADO", total: 500, aCobrar: 0, vencido: 0 }] }, pesos);
-    expect(c.find((x) => x.entidad === "porCobrar")).toMatchObject({ valor: "$0", detalle: null });
+    expect(c.find((x) => x.entidad === "porCobrar")).toMatchObject({ valor: "$0", detalle: null, vacio: true });
+    expect(c.find((x) => x.entidad === "cobrado")).toMatchObject({ valor: "$500", vacio: false });
+  });
+
+  it("sin nada, todos los cuadros quedan en tono suave", () => {
+    const c = cuadrosDelResumen({ consultas: { cantidad: 0, hayMas: false }, cotizaciones: [], pedidos: [], contratos: [], proyectos: [] }, pesos);
+    expect(c.every((x) => x.vacio)).toBe(true);
   });
 });
