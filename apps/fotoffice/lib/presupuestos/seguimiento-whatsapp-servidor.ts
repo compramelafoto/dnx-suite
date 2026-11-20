@@ -5,16 +5,21 @@ import type { ResultadoEnvio } from "@/lib/bandeja/envio";
 import { enviarPlantilla, type Plantilla } from "@/lib/bandeja/plantilla-meta";
 import { waIdDe } from "@/lib/bandeja/telefono";
 import { entroPorElBot } from "@/lib/presupuesto-automatico/flujo";
-import { resolverClaveDeEnlace, tokenDeVersion } from "./enlace";
+import { resolverClaveDeEnlace, tokenDeVersion, urlDelPresupuesto } from "./enlace";
+import { sitioDelWorkspace } from "./sitio";
+import type { ResultadoCorreoSeguimiento } from "./seguimiento";
 import type { EstadoPresupuesto } from "./constantes";
 import { estadoEfectivo } from "./estados";
 import {
-  cualSeguimiento, DIAS_MAXIMO, DIAS_PRIMERO, marcaDe, type NumeroSeguimiento, MARCA_SEGUIMIENTO, nombreDePila, PLANTILLA_SEGUIMIENTO, tipoDeEvento, ultimoSeguimiento,
+  cualSeguimiento, DIAS_MAXIMO, DIAS_PRIMERO, marcaDe, marcaDeCorreo, sinSenalesDeVida, vaPorCorreo, type NumeroSeguimiento, MARCA_SEGUIMIENTO, nombreDePila, PLANTILLA_SEGUIMIENTO, seguirEnLaVentana, textoSeguimientoEnVentana, tipoDeEvento, ultimoSeguimiento,
 } from "./seguimiento-whatsapp";
 
 /**
- * Seguimiento por WhatsApp de las cotizaciones de eventos sin respuesta (lo corre el cron una vez
- * por día). Sale siempre con la plantilla `seguimiento_cotizacion` de Meta (se cobra): a los 3 días
+ * Seguimiento de las cotizaciones de eventos sin respuesta (lo corre el cron una vez por día).
+ * El 1.º sale antes, dentro de la ventana de 24 h (`cotizacionParaSeguirEnVentana`, sin plantilla); si
+ * no llegó a salir, acá a los 2 días con la plantilla. El 2.º y el 3.º (días 7 y 12) van por CORREO y
+ * sólo si el cliente no dio señales de vida (no la abrió, no escribió, nadie del equipo le escribió
+ * ni le cargó una cita). La plantilla `seguimiento_cotizacion` de Meta (se cobra): a los 2 días
  * la ventana de 24 h sólo puede estar abierta si el cliente escribió después de recibir la
  * cotización, y en ese caso ya no corresponde insistir. Si Meta la rechaza (por ejemplo, todavía no está
  * aprobada) no se anota y se vuelve a intentar al día siguiente. Cada envío deja un mensaje del
@@ -34,6 +39,9 @@ type Candidato = {
   aprobacionId: string;
   workspaceId: string;
   leadId: string;
+  presupuestoId: string;
+  /** El cliente ya la abrió (estado VISTO). */
+  vista: boolean;
   /** La consulta la armó el bot (origen WHATSAPP o INSTAGRAM). */
   entroPorElBot: boolean;
   waId: string;
@@ -56,6 +64,10 @@ export type DepsSeguimientoWa = {
   marcar?: (workspaceId: string, chatId: string, texto: string) => Promise<void>;
   /** Busca o crea el chat de WhatsApp de ese número (consultas del bot sin chat de WhatsApp). */
   chatNuevo?: (workspaceId: string, waId: string, leadId: string, nombre: string | null, ahora: Date) => Promise<ChatSeguimiento>;
+  /** ¿Alguien del equipo le escribió o le cargó algo, o la abrió, desde que le salió? */
+  actividadDesde?: (c: Candidato, chatId: string) => Promise<{ vio: boolean; delEquipo: boolean }>;
+  /** El correo de seguimiento (días 7 y 12). `previos`: cuántos correos ya pudo tener. */
+  correo?: (workspaceId: string, presupuestoId: string, previos: number) => Promise<ResultadoCorreoSeguimiento>;
 };
 
 /** Teléfono guardado en la fila → waId como lo arma el webhook de Meta; `null` si no es un teléfono válido. */
@@ -118,7 +130,7 @@ async function candidatosDeLaBase(ahora: Date): Promise<Candidato[]> {
       ? `w/${encodeURIComponent(branding.publicSlug)}/presupuesto/${encodeURIComponent(tokenDeVersion(presupuesto.currentVersionId, clave))}`
       : null;
     salida.push({
-      aprobacionId: a.id, workspaceId: a.workspaceId, leadId: a.leadId, entroPorElBot: entroPorElBot(a.origin), waId: a.waId, enviadaEn: a.sentAt, nombre: lead?.name ?? null, categoria: categoria?.name ?? null,
+      aprobacionId: a.id, workspaceId: a.workspaceId, leadId: a.leadId, presupuestoId: a.presupuestoId, vista: estado === "VISTO", entroPorElBot: entroPorElBot(a.origin), waId: a.waId, enviadaEn: a.sentAt, nombre: lead?.name ?? null, categoria: categoria?.name ?? null,
       abierta: (estado === "ENVIADO" || estado === "VISTO") && !presupuesto.acceptedVersionId, ruta, chat, yaEnviados,
     });
   }
@@ -143,6 +155,20 @@ const POR_OMISION: Required<Omit<DepsSeguimientoWa, "ahora" | "prueba">> = {
     return r;
   },
   chatNuevo: chatWhatsappParaSeguimiento,
+  actividadDesde: async (c, chatId) => {
+    const desde = c.enviadaEn;
+    const [vistas, mensajes, citas, desdeElChat] = await Promise.all([
+      prisma.fotofficePresupuestoVista.count({ where: { workspaceId: c.workspaceId, version: { presupuestoId: c.presupuestoId }, viewedAt: { gte: desde } } }),
+      prisma.fotofficeMessage.count({ where: { workspaceId: c.workspaceId, entityType: "CONSULTA", entityId: c.leadId, automatic: false, createdAt: { gte: desde } } }),
+      prisma.fotofficeCita.count({ where: { workspaceId: c.workspaceId, consultaLeadId: c.leadId, createdAt: { gte: desde } } }),
+      prisma.fotofficeWaMensaje.count({ where: { chatId, autor: { in: ["USUARIO", "CELULAR"] }, createdAt: { gte: desde } } }),
+    ]);
+    return { vio: c.vista || vistas > 0, delEquipo: mensajes + citas + desdeElChat > 0 };
+  },
+  correo: async (workspaceId, presupuestoId, previos) => {
+    const { enviarCorreoDeSeguimiento } = await import("./seguimiento");
+    return enviarCorreoDeSeguimiento(workspaceId, presupuestoId, previos);
+  },
   marcar: async (workspaceId, chatId, texto) => {
     const { escribirSistema } = await import("@/lib/bandeja/acciones");
     await prisma.$transaction((tx) => escribirSistema(tx, workspaceId, chatId, texto, new Date()));
@@ -186,6 +212,20 @@ export async function seguirCotizacionesPorWhatsapp(deps: DepsSeguimientoWa = {}
         if (!numero) continue;
       }
       if (!chat) continue;
+      if (vaPorCorreo(numero)) {
+        // Días 7 y 12: por correo y sólo si no dio señales de vida (nunca otra plantilla de WhatsApp).
+        const act = await d.actividadDesde(c, chat.id);
+        if (!sinSenalesDeVida({ vio: act.vio, delEquipo: act.delEquipo, respondio: false, atiendePersona: false })) continue;
+        const r = await d.correo(c.workspaceId, c.presupuestoId, numero - 2);
+        if (r === "SALTEADO") continue;
+        if (r === "FALLO") {
+          fallidas++;
+          continue;
+        }
+        await d.marcar(c.workspaceId, chat.id, marcaDeCorreo(numero));
+        enviadas++;
+        continue;
+      }
       const ok = (await d.plantilla(c.workspaceId, destino, { ...PLANTILLA_SEGUIMIENTO, cuerpo: [nombreDePila(c.nombre) || "¡hola", tipoDeEvento(c.categoria)], boton: c.ruta }, chat.id)).ok;
       if (!ok) {
         fallidas++;
@@ -199,4 +239,43 @@ export async function seguirCotizacionesPorWhatsapp(deps: DepsSeguimientoWa = {}
     }
   }
   return deps.prueba ? { revisadas, enviadas, fallidas, prueba } : { revisadas, enviadas, fallidas };
+}
+
+/**
+ * Seguimiento dentro de la ventana de 24 h (lo llama el cron del recordatorio de pago, cada 15 minutos,
+ * cuando ya es la hora: ver `tocaRecordar`). Busca la última cotización que le salió a este chat de
+ * WhatsApp después del último mensaje del cliente; si sigue abierta, sin seguimientos y salió hace al
+ * menos 12 h, devuelve el texto (con el enlace) y la marca del seguimiento 1, que también cuenta para
+ * que la plantilla de los 2 días no se repita. null si no corresponde.
+ */
+export async function cotizacionParaSeguirEnVentana(
+  workspaceId: string,
+  chatId: string,
+  ultimoEntranteEn: Date,
+  ahora: Date,
+): Promise<{ texto: string; marca: string } | null> {
+  const chat = await prisma.fotofficeWaChat.findUnique({ where: { id: chatId }, select: { waId: true, canal: true } });
+  if (!chat || chat.canal !== "WHATSAPP" || !chat.waId) return null;
+  const a = await prisma.fotofficePresupuestoAprobacion.findFirst({
+    where: { workspaceId, status: "ENVIADO", waId: chat.waId, presupuestoId: { not: null }, sentAt: { gt: ultimoEntranteEn } },
+    orderBy: { sentAt: "desc" },
+    select: { presupuestoId: true, leadId: true, categoryId: true, sentAt: true },
+  });
+  if (!a?.presupuestoId || !a.sentAt) return null;
+  const [presupuesto, lead, categoria, marcas] = await Promise.all([
+    prisma.fotofficePresupuesto.findUnique({ where: { id: a.presupuestoId }, select: { status: true, validUntil: true, currentVersionId: true, acceptedVersionId: true } }),
+    prisma.serviceSalesLead.findUnique({ where: { id: a.leadId }, select: { name: true } }).catch(() => null),
+    a.categoryId ? prisma.fotofficeConsultaCategoria.findUnique({ where: { id: a.categoryId }, select: { name: true } }).catch(() => null) : null,
+    prisma.fotofficeWaMensaje.findMany({ where: { chatId, direccion: "SISTEMA", texto: { startsWith: MARCA_SEGUIMIENTO }, createdAt: { gte: a.sentAt } }, select: { texto: true }, take: 10 }),
+  ]);
+  if (!presupuesto?.currentVersionId) return null;
+  const estado = estadoEfectivo(presupuesto.status as EstadoPresupuesto, presupuesto.validUntil, ahora);
+  const abierta = (estado === "ENVIADO" || estado === "VISTO") && !presupuesto.acceptedVersionId;
+  if (!seguirEnLaVentana({ ultimoEntranteEn, enviadaEn: a.sentAt, ahora, yaEnviados: ultimoSeguimiento(marcas.map((m) => m.texto)), abierta })) return null;
+  const clave = resolverClaveDeEnlace();
+  const sitio = await sitioDelWorkspace(workspaceId);
+  const origen = (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "").replace(/\/+$/, "");
+  const enlace = clave && sitio ? urlDelPresupuesto({ ...sitio, appOrigin: origen, token: tokenDeVersion(presupuesto.currentVersionId, clave) }) : null;
+  if (!enlace) return null;
+  return { texto: textoSeguimientoEnVentana(lead?.name ?? null, categoria?.name ?? null, enlace), marca: marcaDe(1) };
 }

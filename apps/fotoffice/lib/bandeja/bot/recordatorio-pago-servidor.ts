@@ -8,10 +8,13 @@ import {
   marcaDe,
   MARCA_RECORDATORIO,
   PEDIDO_MAXIMO_DIAS,
+  EVENTO_DESDE_HORAS,
+  LIMITE_HORAS,
   RECORDAR_DESDE_HORAS,
   RECORDAR_HASTA_HORAS,
   textoDelRecordatorio,
   tocaRecordar,
+  tocaSeguimientoDeEvento,
   type PendienteDePago,
 } from "./recordatorio-pago";
 import { decidirSeguimiento, DIAS_ENTRE_SEGUIMIENTOS, horarioDeSeguimiento, MARCA_SEGUIMIENTO_CONSULTA, textoSeguimientoConsulta } from "./seguimiento-consulta";
@@ -25,6 +28,9 @@ import { decidirSeguimiento, DIAS_ENTRE_SEGUIMIENTOS, horarioDeSeguimiento, MARC
  * Si no hay nada para pagar pero el bot le pasó un precio y el cliente no compró, en el mismo
  * momento sale el seguimiento de la consulta (`seguimiento-consulta.ts`), una vez por semana como mucho,
  * sólo de 9 a 20 h de Argentina y sólo si nadie del estudio atendió el chat después (ver las reglas allá).
+ *
+ * Si le salió una cotización de evento después de su último mensaje, sale el primer seguimiento de esa
+ * cotización, sin plantilla: a las 22 h del último mensaje del cliente, de 7 a 21 h (`tocaSeguimientoDeEvento`).
  */
 
 const HORA_MS = 3_600_000;
@@ -44,6 +50,8 @@ export type DepsRecordatorio = {
   marcar?: (workspaceId: string, chatId: string, texto: string) => Promise<void>;
   /** ¿El estudio cobra por transferencia (alias o CVU cargado)? Entonces el recordatorio no lleva link. */
   porTransferencia?: (workspaceId: string) => Promise<boolean>;
+  /** Primer seguimiento de una cotización de evento que le salió después de su último mensaje; null si no corresponde. */
+  cotizacionSinRespuesta?: (chat: ChatCandidato, ahora: Date) => Promise<{ texto: string; marca: string } | null>;
 };
 
 const POR_OMISION: Required<Omit<DepsRecordatorio, "ahora">> = {
@@ -56,7 +64,10 @@ const POR_OMISION: Required<Omit<DepsRecordatorio, "ahora">> = {
     const chats = await prisma.fotofficeWaChat.findMany({
       where: {
         estado: { in: ["BOT", "HUMANO"] },
-        ultimoEntranteEn: { gte: new Date(ahora.getTime() - RECORDAR_HASTA_HORAS * HORA_MS), lte: new Date(ahora.getTime() - RECORDAR_DESDE_HORAS * HORA_MS) },
+        ultimoEntranteEn: {
+          gte: new Date(ahora.getTime() - Math.max(RECORDAR_HASTA_HORAS, LIMITE_HORAS) * HORA_MS),
+          lte: new Date(ahora.getTime() - Math.min(RECORDAR_DESDE_HORAS, EVENTO_DESDE_HORAS) * HORA_MS),
+        },
       },
       select: { id: true, workspaceId: true, nombre: true, estado: true, asignadoUserId: true, botPausadoHasta: true, botExcluido: true, ultimoEntranteEn: true },
       take: 200,
@@ -127,6 +138,11 @@ const POR_OMISION: Required<Omit<DepsRecordatorio, "ahora">> = {
     const a = await leerAjustesCobro(workspaceId);
     return Boolean(a.alias?.trim() || a.cbuCvu?.trim());
   },
+  cotizacionSinRespuesta: async (chat, ahora) => {
+    if (!chat.ultimoEntranteEn) return null;
+    const { cotizacionParaSeguirEnVentana } = await import("@/lib/presupuestos/seguimiento-whatsapp-servidor");
+    return cotizacionParaSeguirEnVentana(chat.workspaceId, chat.id, chat.ultimoEntranteEn, ahora);
+  },
 };
 
 export async function recordarPagosPendientes(deps: DepsRecordatorio = {}): Promise<{ revisados: number; enviados: number }> {
@@ -138,23 +154,31 @@ export async function recordarPagosPendientes(deps: DepsRecordatorio = {}): Prom
   for (const chat of await d.candidatos(ahora)) {
     revisados++;
     try {
-      if (!atiendeElBot(chat, ahora) || !tocaRecordar(chat.ultimoEntranteEn, ahora)) continue;
+      const toca = tocaRecordar(chat.ultimoEntranteEn, ahora);
+      const tocaEvento = tocaSeguimientoDeEvento(chat.ultimoEntranteEn, ahora);
+      if (!atiendeElBot(chat, ahora) || (!toca && !tocaEvento)) continue;
       if (!activo.has(chat.workspaceId)) activo.set(chat.workspaceId, await d.botActivo(chat.workspaceId));
       if (!activo.get(chat.workspaceId)) continue;
-      const p = await d.pendiente(chat, ahora);
+      const p = toca ? await d.pendiente(chat, ahora) : null;
       let texto: string;
       let marca: string;
-      if (p && p.aPagar > 0) {
-        if (await d.yaRecordado(chat, p)) continue;
+      if (p) {
+        if (p.aPagar <= 0 || (await d.yaRecordado(chat, p))) continue;
         texto = textoDelRecordatorio(chat.nombre, p, await d.porTransferencia(chat.workspaceId).catch(() => false));
         marca = marcaDe(p);
-      } else if (!p && horarioDeSeguimiento(ahora)) {
-        // Fuera de 9 a 20 h no sale: espera a la próxima vuelta del cron (si la ventana de 24 h se cierra antes, no sale).
-        const consulta = await d.consultaSinCompra(chat, ahora);
-        if (!consulta) continue;
-        texto = textoSeguimientoConsulta(chat.nombre, consulta.tema ?? null);
-        marca = MARCA_SEGUIMIENTO_CONSULTA;
-      } else continue;
+      } else {
+        // Fuera de 9 a 20 h el de la consulta no sale: espera a la próxima vuelta del cron.
+        const consulta = toca && horarioDeSeguimiento(ahora) ? await d.consultaSinCompra(chat, ahora) : null;
+        if (consulta) {
+          texto = textoSeguimientoConsulta(chat.nombre, consulta.tema ?? null);
+          marca = MARCA_SEGUIMIENTO_CONSULTA;
+        } else {
+          const cotizacion = tocaEvento ? await d.cotizacionSinRespuesta(chat, ahora) : null;
+          if (!cotizacion) continue;
+          texto = cotizacion.texto;
+          marca = cotizacion.marca;
+        }
+      }
       const ultimo = await d.ultimoMensaje(chat.id);
       if (!ultimo || ultimo.direccion !== "SALIENTE") continue;
       const salida = await d.enviar(chat.workspaceId, chat.id, texto, { ultimoMensajeId: ultimo.id });

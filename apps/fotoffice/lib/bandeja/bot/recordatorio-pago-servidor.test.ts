@@ -103,4 +103,21 @@ describe("recordarPagosPendientes", () => {
     await recordarPagosPendientes(d);
     expect(enviar).not.toHaveBeenCalled();
   });
+
+  it("cotización de evento: a las 22 h del último mensaje sale su seguimiento por WhatsApp, sin plantilla", async () => {
+    const cotizacionSinRespuesta = vi.fn(async () => ({ texto: "¡Hola Daniel! ¿Pudiste ver la cotización para tus 15?", marca: "Seguimiento de cotización 1 enviado por WhatsApp" }));
+    // AHORA = 12:00 de Argentina; 22 h antes = 14:00 del día anterior.
+    const { d, enviar, marcar } = deps({ candidatos: async () => [{ ...CHAT, ultimoEntranteEn: hace(22) }], pendiente: async () => null, cotizacionSinRespuesta });
+    expect(await recordarPagosPendientes(d)).toEqual({ revisados: 1, enviados: 1 });
+    expect(enviar).toHaveBeenCalledWith("w1", "chat1", "¡Hola Daniel! ¿Pudiste ver la cotización para tus 15?", { ultimoMensajeId: "m9" });
+    expect(marcar).toHaveBeenCalledWith("w1", "chat1", "Seguimiento de cotización 1 enviado por WhatsApp");
+  });
+
+  it("cotización de evento: antes de las 22 h no sale (el pago y las consultas siguen con su horario)", async () => {
+    const cotizacionSinRespuesta = vi.fn(async () => ({ texto: "x", marca: "y" }));
+    const { d, enviar } = deps({ candidatos: async () => [{ ...CHAT, ultimoEntranteEn: hace(21) }], pendiente: async () => null, cotizacionSinRespuesta });
+    await recordarPagosPendientes(d);
+    expect(cotizacionSinRespuesta).not.toHaveBeenCalled();
+    expect(enviar).not.toHaveBeenCalled();
+  });
 });
