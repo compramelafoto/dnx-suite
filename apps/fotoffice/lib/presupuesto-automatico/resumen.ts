@@ -52,7 +52,7 @@ export type DatosResumen = {
 
 export type EstadoDelAviso =
   | { tipo: "PENDIENTE" }
-  | { tipo: "ENVIADO"; canales: ResultadoCanales; via: "TELEGRAM" | "PANEL" }
+  | { tipo: "ENVIADO"; canales: ResultadoCanales; via: "TELEGRAM" | "PANEL" | "BOT" }
   | { tipo: "FALLO"; motivo: string };
 
 const MAX_ITEMS = 12;
@@ -184,7 +184,7 @@ export function armarResumen(d: DatosResumen, estado: EstadoDelAviso = { tipo: "
 
   if (estado.tipo === "ENVIADO") {
     l.push("");
-    l.push(`✅ <b>${estado.via === "PANEL" ? "Aprobado desde FOTOFFICE" : "Aprobado"}.</b> ${e(textoDeCanales(estado.canales))}`);
+    l.push(`✅ <b>${estado.via === "PANEL" ? "Aprobado desde FOTOFFICE" : estado.via === "BOT" ? "Enviada sola (paquete estándar)" : "Aprobado"}.</b> ${e(textoDeCanales(estado.canales))}`);
     return { html: l.join("\n"), teclado: null };
   }
   if (estado.tipo === "FALLO") {

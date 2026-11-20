@@ -10,7 +10,7 @@ import { incidenteDeTope } from "./aviso-tope";
 import type { enviarTexto } from "../envio";
 import { atiendeElBot, puedeResponderLibre } from "../reglas";
 import { cifrasRespaldadasEnAtencion } from "./cifras-atencion";
-import { enviarComoBot, pasarAPersona } from "./envio-bot";
+import { asignarAVentas, enviarComoBot, pasarAPersona } from "./envio-bot";
 import { guiaDeAtencion, situacionDeAtencion } from "./guia";
 import { herramientasDeAtencion, type DepsAtencion } from "./herramientas";
 import { archivoDeMensaje, PENDIENTE_MAXIMO_MS } from "../archivo-de-mensaje";
@@ -70,6 +70,26 @@ async function hayArchivosBajando(chatId: string, ahora: Date): Promise<boolean>
     select: { direccion: true, tipo: true, media: true, createdAt: true },
   })) as { direccion: string; tipo: string; media: unknown; createdAt: Date }[];
   return recientes.some((m) => archivoDeMensaje(m.tipo, m.media, { direccion: m.direccion, createdAt: m.createdAt, ahora })?.estado === "PENDIENTE");
+}
+
+/**
+ * El id contra el que se compara antes de enviar: el último mensaje (no SISTEMA) si es un saliente
+ * del bot posterior al del cliente que se está contestando; si no, el del cliente (y si entró otro
+ * mensaje del cliente, no coincide y la respuesta no sale, como siempre).
+ */
+async function ultimoSalienteDelTurno(chatId: string, ultimoEntranteId: string): Promise<string> {
+  const ultimo = await prisma.fotofficeWaMensaje.findFirst({
+    where: { chatId, direccion: { not: "SISTEMA" } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, direccion: true, autor: true },
+  });
+  if (!ultimo || ultimo.id === ultimoEntranteId) return ultimoEntranteId;
+  return ultimo.direccion === "SALIENTE" && ultimo.autor === "BOT" && !(await entroOtroDelCliente(chatId, ultimoEntranteId)) ? ultimo.id : ultimoEntranteId;
+}
+
+async function entroOtroDelCliente(chatId: string, ultimoEntranteId: string): Promise<boolean> {
+  const ultimoDelCliente = await prisma.fotofficeWaMensaje.findFirst({ where: { chatId, direccion: "ENTRANTE" }, orderBy: { createdAt: "desc" }, select: { id: true } });
+  return ultimoDelCliente !== null && ultimoDelCliente.id !== ultimoEntranteId;
 }
 
 /** El texto final del modelo: el último mensaje del asistente (sin lo que dijo entre herramientas). */
@@ -171,7 +191,7 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
     .findUnique({ where: { workspaceId }, select: { commercialName: true } })
     .then((b) => b?.commercialName ?? "el estudio")
     .catch(() => "el estudio");
-  const { tools, pedidoDePersona, pedidoDeSilencio } = herramientasDeAtencion(workspaceId, deps.herramientas, {
+  const { tools, pedidoDePersona, pedidoDeSilencio, paseAVentas } = herramientasDeAtencion(workspaceId, deps.herramientas, {
     id: chat.id, waId: chat.waId, clientId: chat.clientId, nombre: chat.nombre,
     ...(canal === "INSTAGRAM" ? { canal, usuarioInstagram: chat.usuarioInstagram ?? null } : {}),
   }, h.fotos, h.fotosBajando);
@@ -226,9 +246,17 @@ async function turno(chatId: string, deps: DepsResponder): Promise<SalidaBot> {
   const sueltas = cifrasNoRespaldadas(texto, cifrasRespaldadasEnAtencion(h.history, result.appended, texto));
   if (sueltas.length > 0) return fallar("cifra_no_respaldada", sueltas.join(", "));
 
-  const salida = await enviarComoBot(workspaceId, chatId, texto, { ultimoMensajeId }, { ahora: ahora(), enviar: deps.enviar });
+  const pase = paseAVentas();
+  // Con la cotización del paquete, el sistema ya le mandó el enlace en este turno (un mensaje del
+  // bot): la respuesta sale igual si el cliente no escribió nada después.
+  const condicion = pase ? { ultimoMensajeId: await ultimoSalienteDelTurno(chatId, ultimoMensajeId) } : { ultimoMensajeId };
+  const salida = await enviarComoBot(workspaceId, chatId, texto, condicion, { ahora: ahora(), enviar: deps.enviar });
   if (salida === "omitido") return "nada";
   if (salida === "fallo") await incidente("envio_fallo", "Meta rechazó el mensaje del bot");
+  if (pase) {
+    await asignarAVentas(workspaceId, chatId, { userId: pase.persona.userId, nombre: pase.persona.nombre }, pase.motivo, ahora());
+    return "derivo";
+  }
   const motivo = pedidoDePersona();
   if (motivo) {
     await pasarAPersona(workspaceId, chatId, motivo, ahora());

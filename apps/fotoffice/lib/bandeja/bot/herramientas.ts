@@ -8,11 +8,25 @@ import type { PedidoFotolibro, RespuestaFotolibro } from "@/lib/fotolibro/bot";
 import type { Canal } from "../constantes";
 import type { FotoNumerada } from "./historial";
 import { textoPresentacionXv } from "./presentacion-xv";
+import {
+  elegirPaquete,
+  estadoDeLaFecha,
+  eventoDeCategoria,
+  fraseDelPase,
+  instruccionDelPase,
+  textoDeLaFecha,
+  textoDePaquetes,
+  type EventoConPortfolio,
+} from "./eventos-con-portfolio";
+import type { OcupacionDelDia, PaquetesDelEvento, Vendedora } from "./eventos-con-portfolio-servidor";
 
 /**
  * Herramientas del bot que atiende a los clientes por WhatsApp. Son de LECTURA salvo
  * `preparar_presupuesto` (spec 2026-10-25), que da de alta la consulta y deja el presupuesto
- * armado esperando la aprobación de una persona: el bot nunca dice el precio. `pasar_a_persona` tampoco tiene efectos: deja anotado el
+ * armado esperando la aprobación de una persona: el bot nunca dice el precio. En XV y bodas
+ * (spec 2026-11-20) `enviar_cotizacion_del_paquete` envía sola la cotización del paquete estándar
+ * que eligió el cliente (precios ya aprobados) y, con ésa o con la personalizada, el chat queda
+ * asignado a ventas (`paseAVentas`, lo hace `responder.ts` después de enviar la respuesta). `pasar_a_persona` tampoco tiene efectos: deja anotado el
  * motivo y quien orquesta el turno (`responder.ts`) pasa el chat después de enviar la respuesta.
  * El `workspaceId` va por closure: nunca sale del modelo.
  */
@@ -87,6 +101,19 @@ export type DepsAtencion = {
   datosTransferencia: (workspaceId: string) => Promise<DatosTransferencia | null>;
   /** El "desde" de XV en pesos (propuesta modelo a precios de hoy); null si no hay uno respaldado. */
   precioDesdeXv: (workspaceId: string) => Promise<number | null>;
+  /** XV y bodas (spec 2026-11-20): los eventos contratados de ese día ("aaaa-mm-dd"). */
+  ocupacionDelDia: (workspaceId: string, dia: string) => Promise<OcupacionDelDia | null>;
+  /** XV y bodas: la categoría del evento y los paquetes de su propuesta modelo, con precio. */
+  paquetesDelEvento: (workspaceId: string, evento: EventoConPortfolio) => Promise<PaquetesDelEvento | null>;
+  /** XV y bodas: da de alta la consulta y envía sola la cotización del paquete estándar. */
+  enviarCotizacionDelPaquete: (
+    workspaceId: string,
+    chat: ChatAtencion,
+    datos: DatosPresupuestoBot,
+    paquete: { categoriaId: string; categoria: string; nombre: string },
+  ) => Promise<{ ok: boolean; message: string }>;
+  /** A quién pasa el chat después de la cotización: la responsable de las consultas nuevas (o el dueño). */
+  vendedora: (workspaceId: string) => Promise<Vendedora | null>;
 };
 
 export type DatosTransferencia = { alias: string | null; cbuCvu: string | null; titular: string | null; banco: string | null; cuit: string | null };
@@ -194,6 +221,19 @@ const DEPS: DepsAtencion = {
     const { precioDesdeXv } = await import("./presentacion-xv-servidor");
     return precioDesdeXv(workspaceId);
   },
+  ocupacionDelDia: async (workspaceId, dia) => (await import("./eventos-con-portfolio-servidor")).ocupacionDelDia(workspaceId, dia),
+  paquetesDelEvento: async (workspaceId, evento) => (await import("./eventos-con-portfolio-servidor")).paquetesDelEvento(workspaceId, evento),
+  vendedora: async (workspaceId) => (await import("./eventos-con-portfolio-servidor")).vendedoraDeConsultas(workspaceId),
+  enviarCotizacionDelPaquete: async (workspaceId, chat, datos, paquete) => {
+    const { prepararDesdeWhatsapp } = await import("@/lib/presupuesto-automatico/whatsapp");
+    const r = await prepararDesdeWhatsapp(workspaceId, chat, datos, {}, { paquete });
+    if (r.ok) {
+      const { programarConversion } = await import("@/lib/bandeja/conversiones-servidor");
+      const dia = new Date().toISOString().slice(0, 10);
+      programarConversion({ evento: "LeadSubmitted", workspaceId, eventoId: `cotizacion-${chat.id}-${dia}`, chatId: chat.id });
+    }
+    return r;
+  },
   prepararPresupuesto: async (workspaceId, chat, datos) => {
     // Se carga recién acá: el alta de consultas y Presupuestos no hacen falta para contestar precios.
     const { prepararDesdeWhatsapp } = await import("@/lib/presupuesto-automatico/whatsapp");
@@ -284,10 +324,26 @@ export function herramientasDeAtencion(
   fotos: Map<number, FotoNumerada> = new Map(),
   /** Fotos del cliente que todavía se están bajando (no entran al pedido). */
   fotosBajando = 0,
-): { tools: BotTool[]; pedidoDePersona: () => string | null; pedidoDeSilencio: () => string | null } {
+): {
+  tools: BotTool[];
+  pedidoDePersona: () => string | null;
+  pedidoDeSilencio: () => string | null;
+  /** XV y bodas: a quién queda asignado el chat después de este turno (spec 2026-11-20). */
+  paseAVentas: () => { persona: Vendedora; motivo: string } | null;
+} {
   const deps: DepsAtencion = { ...DEPS, ...parciales };
   let motivoPersona: string | null = null;
   let motivoSilencio: string | null = null;
+  let pase: { persona: Vendedora; motivo: string } | null = null;
+  /** Deja anotado el pase a ventas y devuelve la instrucción para el bot ("" si no hay a quién). */
+  const pasarAVentas = async (motivo: string): Promise<string> => {
+    const persona = await deps.vendedora(workspaceId).catch(() => null);
+    if (!persona) return "";
+    pase = { persona, motivo };
+    return `\n${instruccionDelPase(fraseDelPase(persona.nombre, persona.esResponsable))}`;
+  };
+  const EVENTO = z.enum(["xv", "boda"]);
+  const deEvento = (e: "xv" | "boda"): EventoConPortfolio => (e === "xv" ? "XV" : "BODA");
   const esInstagram = chat?.canal === "INSTAGRAM";
   const entradaPresupuesto = z.object({
     tipo: z.string().min(2).max(80),
@@ -298,6 +354,11 @@ export function herramientasDeAtencion(
     horas: z.number().min(0.5).max(24).optional(),
     email: z.string().email().max(200).optional(),
     detalle: z.string().max(500).optional(),
+  });
+  const entradaPaquete = entradaPresupuesto.omit({ tipo: true }).extend({
+    evento: EVENTO,
+    paquete: z.string().min(2).max(60),
+    horario: z.string().max(80).optional(),
   });
 
   const todas: BotTool[] = [
@@ -374,7 +435,65 @@ export function herramientasDeAtencion(
       kind: "read",
       run: async (datos: DatosPresupuestoBot) => {
         if (!chat) return { ok: true, message: "Ahora no puedo registrar la consulta. Usá pasar_a_persona con un resumen de lo que pide." };
-        return deps.prepararPresupuesto(workspaceId, chat, datos);
+        const r = await deps.prepararPresupuesto(workspaceId, chat, datos);
+        // XV y bodas: la cotización personalizada va a aprobación y el chat sigue con ventas.
+        if (r.ok && eventoDeCategoria(datos.tipo) && !/ya hay una cotizaci[oó]n en preparaci[oó]n/i.test(r.message)) {
+          return { ...r, message: `${r.message}${await pasarAVentas("cotización personalizada pedida (va a aprobación)")}` };
+        }
+        return r;
+      },
+    }),
+    defineTool({
+      name: "fecha_disponible",
+      description:
+        "XV y bodas: apenas el cliente te da la fecha del evento, revisá si el estudio la tiene libre. Te dice si está libre, si el dueño ya tiene un evento ese día (y qué decirle) o si está completa.",
+      input: z.object({ fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }),
+      kind: "read",
+      run: async ({ fecha }) => {
+        const o = await deps.ocupacionDelDia(workspaceId, fecha).catch(() => null);
+        if (!o) return { ok: true, message: "No pude revisar la agenda. Seguí con el paso siguiente sin decir nada sobre la fecha." };
+        return { ok: true, message: textoDeLaFecha({ fecha, ahora: new Date(), estado: estadoDeLaFecha(o.contratados, o.capacidad), dueno: o.dueno, estudio: o.estudio }) };
+      },
+    }),
+    defineTool({
+      name: "paquetes_del_evento",
+      description:
+        "XV y bodas: el enlace del portfolio con los trabajos y los paquetes (la página no muestra precios), los nombres de los paquetes y su precio vigente. Usala apenas tengas la fecha libre (o aceptó avanzar igual) para mandarle el enlace, y cuando elija un paquete para decirle su precio. Nunca digas otro precio de evento.",
+      input: z.object({ evento: EVENTO }),
+      kind: "read",
+      run: async ({ evento }) => {
+        const e = deEvento(evento);
+        const p = await deps.paquetesDelEvento(workspaceId, e).catch(() => null);
+        return { ok: true, message: textoDePaquetes(e, p?.paquetes ?? []) };
+      },
+    }),
+    defineTool({
+      name: "enviar_cotizacion_del_paquete",
+      description:
+        "XV y bodas: cuando el cliente eligió un paquete tal cual (sin agregados ni cambios) y dijo que sí a que le dejes la cotización, registra la consulta y le envía sola la cotización de ese paquete con el botón para reservar la fecha (no necesita aprobación). Necesita el nombre y apellido, la fecha, el salón y la localidad y el horario. Si quiere cambios o agregados, usá preparar_presupuesto.",
+      // Como preparar_presupuesto: en Instagram suma el WhatsApp que dio el cliente.
+      input: esInstagram ? entradaPaquete.extend({ whatsapp: z.string().max(30).optional() }) : entradaPaquete,
+      kind: "read",
+      run: async ({ evento, paquete, horario, ...datos }: Omit<DatosPresupuestoBot, "tipo"> & { evento: "xv" | "boda"; paquete: string; horario?: string }) => {
+        if (!chat) return { ok: true, message: "Ahora no puedo registrar la consulta. Usá pasar_a_persona con un resumen de lo que pide." };
+        const e = deEvento(evento);
+        const p = await deps.paquetesDelEvento(workspaceId, e).catch(() => null);
+        if (!p) return { ok: true, message: "No encontré la categoría de ese evento. Usá preparar_presupuesto con lo que te dijo." };
+        const elegido = elegirPaquete(p.paquetes, paquete);
+        if (!elegido.ok) {
+          if (elegido.motivo === "SIN_PAQUETES") return { ok: true, message: "Ese evento no tiene paquetes con precio cargados. Usá preparar_presupuesto con lo que te dijo." };
+          return { ok: true, message: `No hay un paquete "${paquete}". Los paquetes son: ${p.paquetes.map((x) => x.nombre).join(", ")}. Preguntale cuál quiere y volvé a usar la herramienta.` };
+        }
+        const detalle = [horario ? `Horario: ${horario}.` : null, `Eligió el paquete ${elegido.paquete.nombre}.`, datos.detalle ?? null].filter(Boolean).join(" ");
+        const r = await deps.enviarCotizacionDelPaquete(
+          workspaceId,
+          chat,
+          { ...datos, tipo: p.categoria, detalle: detalle.slice(0, 500) },
+          // Sin opciones en la propuesta, la cotización es la propuesta entera.
+          { categoriaId: p.categoriaId, categoria: p.categoria, nombre: p.conOpciones ? elegido.paquete.nombre : "" },
+        );
+        if (!r.ok) return r;
+        return { ...r, message: `${r.message}${await pasarAVentas(`le salió la cotización del paquete ${elegido.paquete.nombre}`)}` };
       },
     }),
     defineTool({
@@ -602,5 +721,5 @@ export function herramientasDeAtencion(
   const soloWhatsapp = new Set<string>(HERRAMIENTAS_SOLO_WHATSAPP);
   const tools = esInstagram ? todas.filter((t) => !soloWhatsapp.has(t.name)) : todas;
 
-  return { tools, pedidoDePersona: () => motivoPersona, pedidoDeSilencio: () => motivoSilencio };
+  return { tools, pedidoDePersona: () => motivoPersona, pedidoDeSilencio: () => motivoSilencio, paseAVentas: () => pase };
 }

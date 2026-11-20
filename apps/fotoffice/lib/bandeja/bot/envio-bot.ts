@@ -72,3 +72,24 @@ export async function pasarAPersona(workspaceId: string, chatId: string, motivo:
     await escribirSistema(tx, workspaceId, chat.id, truncarSeguro(`El bot pasó el chat a una persona: ${motivo}`, 300), new Date(ahora.getTime() + 2));
   });
 }
+
+/**
+ * XV y bodas (spec 2026-11-20): el chat queda ASIGNADO a la persona de ventas (HUMANO con
+ * asignado: el bot no lo vuelve a atender y los seguimientos automáticos no salen). El mensaje de
+ * sistema dice "pasó el chat a una persona" para que el seguimiento de consulta lo reconozca.
+ */
+export async function asignarAVentas(
+  workspaceId: string,
+  chatId: string,
+  persona: { userId: number; nombre: string | null },
+  motivo: string,
+  ahora: Date = new Date(),
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const chat = await chatBloqueado(tx, workspaceId, chatId);
+    if (!chat) return;
+    await tx.fotofficeWaChat.update({ where: { id: chat.id }, data: { estado: "HUMANO", asignadoUserId: persona.userId, botPausadoHasta: null } });
+    const quien = persona.nombre ? ` (${persona.nombre})` : "";
+    await escribirSistema(tx, workspaceId, chat.id, truncarSeguro(`El bot pasó el chat a una persona${quien}: ${motivo}`, 300), new Date(ahora.getTime() + 2));
+  });
+}

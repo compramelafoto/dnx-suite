@@ -115,6 +115,40 @@ describe("responderConBot", () => {
     expect(mensajes().find((m) => m.direccion === "SISTEMA")?.texto).toContain("presupuesto de casamiento");
   });
 
+  it("XV y bodas: con la cotización del paquete ya enviada en el turno, contesta igual y deja el chat asignado a ventas", async () => {
+    const chatId = await chatCon(["Sí, dejame la cotización del Intermedio"]);
+    const PAQ = { categoriaId: "cat-boda", categoria: "Boda", conOpciones: true, paquetes: [{ nombre: "Intermedio", total: 620000 }] };
+    const enviarCotizacionDelPaquete = async () => {
+      // Lo que hace aprobarYEnviar: el enlace de la cotización sale como un mensaje del bot.
+      await P.fotofficeWaMensaje.create({
+        data: { workspaceId: "w1", chatId, direccion: "SALIENTE", autor: "BOT", tipo: "TEXTO", texto: "¡Hola Laura! Ya está lista tu propuesta: https://x/presupuesto/t", estadoEnvio: "ENVIADO", createdAt: new Date(AHORA.getTime() + 500) },
+      });
+      return { ok: true, message: "Listo: salió." };
+    };
+    const t = turnoQue("¡Listo! Ahí te dejé la cotización con el botón para reservar la fecha. Te dejo con Giuli, de nuestro equipo de ventas, que te va a acompañar para cerrar todo 😊", [
+      { name: "enviar_cotizacion_del_paquete", input: { evento: "boda", paquete: "Intermedio", nombre: "Laura Gómez", fecha: "2027-03-13", lugar: "Salón, Funes", horario: "21 a 5" } },
+    ]);
+    const herramientas = { ...CATALOGO, paquetesDelEvento: async () => PAQ, vendedora: async () => ({ userId: 7, nombre: "Giuli", esResponsable: true }), enviarCotizacionDelPaquete };
+    expect(await responderConBot(chatId, deps(t.fn, { herramientas, ahora: () => new Date(AHORA.getTime() + 1000) }))).toBe("derivo");
+    expect(mensajes().filter((m) => m.autor === "BOT").map((m) => m.texto)).toEqual([expect.stringContaining("propuesta"), expect.stringContaining("Te dejo con Giuli")]);
+    expect(chats()[0]).toMatchObject({ estado: "HUMANO", asignadoUserId: 7 });
+    expect(mensajes().find((m) => m.direccion === "SISTEMA")?.texto).toBe("El bot pasó el chat a una persona (Giuli): le salió la cotización del paquete Intermedio");
+  });
+
+  it("XV y bodas: si el cliente escribió otra cosa mientras tanto, no contesta ni asigna (lo contesta el turno de ese mensaje)", async () => {
+    const chatId = await chatCon(["Sí, dejame la cotización del Intermedio"]);
+    const PAQ = { categoriaId: "cat-boda", categoria: "Boda", conOpciones: true, paquetes: [{ nombre: "Intermedio", total: 620000 }] };
+    const enviarCotizacionDelPaquete = async () => {
+      await P.fotofficeWaMensaje.create({ data: { workspaceId: "w1", chatId, direccion: "ENTRANTE", autor: "CLIENTE", tipo: "TEXTO", texto: "ah, y somos 150", estadoEnvio: "RECIBIDO", createdAt: new Date(AHORA.getTime() + 400) } });
+      await P.fotofficeWaMensaje.create({ data: { workspaceId: "w1", chatId, direccion: "SALIENTE", autor: "BOT", tipo: "TEXTO", texto: "propuesta", estadoEnvio: "ENVIADO", createdAt: new Date(AHORA.getTime() + 500) } });
+      return { ok: true, message: "Listo: salió." };
+    };
+    const t = turnoQue("Te dejo con Giuli 😊", [{ name: "enviar_cotizacion_del_paquete", input: { evento: "boda", paquete: "Intermedio", nombre: "Laura Gómez", fecha: "2027-03-13" } }]);
+    const herramientas = { ...CATALOGO, paquetesDelEvento: async () => PAQ, vendedora: async () => ({ userId: 7, nombre: "Giuli", esResponsable: true }), enviarCotizacionDelPaquete };
+    expect(await responderConBot(chatId, deps(t.fn, { herramientas, ahora: () => new Date(AHORA.getTime() + 1000) }))).toBe("nada");
+    expect(mensajes().some((m) => m.texto === "Te dejo con Giuli 😊")).toBe(false);
+  });
+
   it("a un proveedor o spam le dice que lo pasa al encargado, le avisa al dueño por Telegram y deja el chat a una persona", async () => {
     const chatId = await chatCon(["Hola, somos fabricantes de ropa de trabajo, te paso el catálogo"]);
     const t = turnoQue("", [{ name: "no_responder", input: { motivo: "publicidad de ropa de trabajo" } }]);

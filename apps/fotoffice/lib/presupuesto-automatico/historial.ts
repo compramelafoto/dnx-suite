@@ -34,9 +34,12 @@ export function eventosDeFila(f: Fila, leadId: string): EventoDeAprobacion[] {
   const aviso = f.telegramMessageId ? " y se avisó por Telegram para aprobar" : f.errorCode?.startsWith("TELEGRAM_") ? " (no se pudo avisar por Telegram)" : "";
   out.push({ id: `auto-${f.id}`, fecha: f.createdAt, texto: `${armado}${aviso}`, href });
   if (f.status === "ENVIADO" && f.sentAt) {
-    const quien = f.approvedVia === "PANEL" ? "desde FOTOFFICE" : "por Telegram";
     const detalle = f.errorCode === "ENVIADO_A_MANO" ? "ya se había enviado a mano" : esCanales(f.channels) ? textoDeCanales(f.channels) : "enviado";
-    out.push({ id: `auto-enviado-${f.id}`, fecha: f.sentAt, texto: `Se aprobó ${quien}: ${detalle}`, href });
+    // El paquete estándar que eligió el cliente por el bot sale sin aprobación (spec 2026-11-20).
+    const texto = f.approvedVia === "BOT"
+      ? `El bot la envió sola con el paquete que eligió el cliente: ${detalle}`
+      : `Se aprobó ${f.approvedVia === "PANEL" ? "desde FOTOFFICE" : "por Telegram"}: ${detalle}`;
+    out.push({ id: `auto-enviado-${f.id}`, fecha: f.sentAt, texto, href });
   } else if (f.status === "FALLO" && f.approvedAt) {
     out.push({ id: `auto-fallo-${f.id}`, fecha: f.approvedAt, texto: "Se aprobó, pero el envío falló: revisá la cotización", href });
   }

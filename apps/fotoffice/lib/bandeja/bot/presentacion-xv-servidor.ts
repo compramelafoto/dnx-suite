@@ -1,8 +1,6 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { asignarItems, totalesConAlternativas } from "@/lib/presupuestos/alternativas";
-import { itemsDeLaPropuesta } from "@/lib/presupuestos/items-de-la-propuesta";
-import { leerPropuestaModelo } from "@/lib/presupuestos/propuestas-modelo";
+import { paquetesDeLaCategoria } from "./eventos-con-portfolio-servidor";
 import { esCategoriaXv, precioDesde } from "./presentacion-xv";
 
 /**
@@ -21,13 +19,7 @@ export async function precioDesdeXv(workspaceId: string, ahora: Date = new Date(
       take: 500,
     });
     for (const c of categorias.filter((c) => esCategoriaXv(c.name))) {
-      const propuesta = await leerPropuestaModelo(workspaceId, c.id);
-      if (!propuesta || propuesta.items.length === 0) continue;
-      const instanciada = await itemsDeLaPropuesta(workspaceId, propuesta.items, ahora);
-      if (!instanciada.ok) continue;
-      const items = asignarItems(instanciada.items, propuesta.alternativas);
-      const t = totalesConAlternativas(items, propuesta.alternativas, null);
-      const desde = precioDesde(t.alternativas.length > 0 ? t.alternativas.map((a) => a.totales.total) : [t.totales.total]);
+      const desde = precioDesde((await paquetesDeLaCategoria(workspaceId, c.id, c.name, ahora)).map((p) => p.total));
       if (desde !== null) return desde;
     }
     return null;

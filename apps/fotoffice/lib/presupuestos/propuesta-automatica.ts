@@ -35,6 +35,7 @@ import { geocodificarLugar, guardarPorHorasDeConsulta, leerAjustesPorHoras, leer
 import { kmDeDistancia, llevaSegundoFotografo, porHorasAplica, recetaPorHoras, type AjustesPorHoras } from "@/lib/presupuesto-automatico/por-horas-puro";
 import { itemsPorHoras, segundoFotografoOpcional, valorHoraDeDaniel } from "./borrador-por-horas";
 import type { ItemPresupuesto } from "./constantes";
+import { soloLaAlternativa } from "./alternativas";
 
 /**
  * La consulta web recibe su propuesta modelo sola (etapa 2, Entrega B, spec §2 B.13): el "tercer
@@ -201,6 +202,8 @@ async function armarBorradorBase(
   deps: DepsPropuestaAutomatica,
   /** Presupuesto por horas: suma el segundo fotógrafo opcional a los ítems ya instanciados. */
   agregar?: (items: ItemPresupuesto[]) => ItemPresupuesto[],
+  /** El paquete estándar que eligió el cliente por el bot: sólo esa opción, sin las otras. */
+  soloAlternativa?: string,
 ): Promise<{ ok: true; borrador: { valor: BorradorNormalizado }; ajustes: Ajustes; owner: number | null } | { ok: false }> {
   const instanciada = await itemsDeLaPropuesta(workspaceId, propuesta.items, ahora);
   if (!instanciada.ok) {
@@ -208,8 +211,17 @@ async function armarBorradorBase(
     aviso(instanciada.motivo === "PRODUCTO_INACTIVO" ? "PRODUCTO_FUERA_DEL_CATALOGO" : instanciada.motivo);
     return { ok: false };
   }
+  const items = agregar ? agregar(instanciada.items) : instanciada.items;
+  if (soloAlternativa !== undefined) {
+    const delPaquete = soloLaAlternativa(items, propuesta.alternativas, soloAlternativa);
+    if (!delPaquete || delPaquete.length === 0) {
+      aviso("PAQUETE_NO_ESTA");
+      return { ok: false };
+    }
+    return normalizarYResponsable(workspaceId, { items: delPaquete, alternativas: [], condiciones: propuesta.condiciones }, ahora, deps);
+  }
   return normalizarYResponsable(workspaceId, {
-    items: agregar ? agregar(instanciada.items) : instanciada.items,
+    items,
     alternativas: propuesta.alternativas,
     condiciones: propuesta.condiciones,
   }, ahora, deps);
@@ -311,8 +323,10 @@ export async function armarBorradorParaAprobar(
   workspaceId: string,
   leadId: string,
   deps: DepsPropuestaAutomatica = {},
+  /** `soloAlternativa`: el paquete estándar que eligió el cliente (sólo esa opción de la propuesta). */
+  opciones: { soloAlternativa?: string } = {},
 ): Promise<ResultadoBorradorParaAprobar> {
-  return armarBorrador(workspaceId, leadId, deps, true);
+  return armarBorrador(workspaceId, leadId, deps, true, opciones.soloAlternativa);
 }
 
 async function armarBorrador(
@@ -320,6 +334,7 @@ async function armarBorrador(
   leadId: string,
   deps: DepsPropuestaAutomatica,
   paraAprobar: boolean,
+  soloAlternativa?: string,
 ): Promise<ResultadoBorradorParaAprobar> {
   const sin = (resultado: ResultadoBorradorParaAprobar["resultado"]): ResultadoBorradorParaAprobar => ({ resultado, presupuestoId: null });
   try {
@@ -336,6 +351,8 @@ async function armarBorrador(
     // Presupuesto por horas (spec 2026-10-28): sólo en el camino con aprobación por Telegram.
     const porHoras = paraAprobar ? await leerAjustesPorHoras(workspaceId) : null;
     if (sinPropuesta && !(porHoras && porHorasAplica(porHoras, ficha.categoryId))) return sin(paraAprobar ? "SIN_PROPUESTA" : "NO_APLICA");
+    // El paquete estándar sale de la propuesta modelo: sin propuesta no hay paquete que armar.
+    if (sinPropuesta && soloAlternativa !== undefined) return sin("SIN_PROPUESTA");
     const previo = await presupuestoDeLaConsulta(workspaceId, leadId);
     if (previo) return { resultado: "YA_TIENE_PRESUPUESTO", presupuestoId: paraAprobar ? previo : null };
 
@@ -370,7 +387,7 @@ async function armarBorrador(
     } else {
       const valorHora = segundo ? await valorHoraDelSistema(workspaceId) : null;
       const agregar = segundo ? (items: ItemPresupuesto[]) => segundoFotografoOpcional(items, propuesta!.alternativas, valorHora, porHoras!.segundoFotografoPct) : undefined;
-      armado = await armarBorradorBase(workspaceId, propuesta!, ahora, deps, agregar);
+      armado = await armarBorradorBase(workspaceId, propuesta!, ahora, deps, agregar, soloAlternativa);
     }
     if (!armado.ok) return sin("FALLO");
     const { borrador, ajustes, owner } = armado;

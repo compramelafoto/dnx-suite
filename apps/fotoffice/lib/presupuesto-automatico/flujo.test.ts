@@ -475,3 +475,51 @@ describe("resumenDeVersion", () => {
     expect(r).toMatchObject({ total: 500_000, costo: null, margen: null, horas: null });
   });
 });
+
+describe("enviarPaqueteEstandar (XV y bodas, spec 2026-11-20)", () => {
+  it("arma sólo el paquete elegido y lo envía solo, sin avisar por Telegram, con la vía BOT", async () => {
+    const pedidos: unknown[] = [];
+    const { d, avisos, envios } = deps({
+      armar: async (ws, lead, dd, opciones) => {
+        pedidos.push(opciones);
+        return armar!(ws, lead, dd);
+      },
+    });
+    const r = await F.enviarPaqueteEstandar(WS, "lead-1", "WHATSAPP", { waId: "5493415551234" }, "Intermedio", d);
+    expect(r).toMatchObject({ ok: true });
+    expect(pedidos).toEqual([{ soloAlternativa: "Intermedio" }]);
+    expect(avisos).toHaveLength(0);
+    expect(envios).toHaveLength(1);
+    expect(await fila()).toMatchObject({ status: "ENVIADO", presupuestoId: "pres-1", approvedVia: "BOT", origin: "WHATSAPP", telegramMessageId: null });
+  });
+
+  it("sin opciones en la propuesta arma la propuesta entera", async () => {
+    const pedidos: unknown[] = [];
+    const { d } = deps({ armar: async (ws, lead, dd, opciones) => (pedidos.push(opciones), armar!(ws, lead, dd)) });
+    await F.enviarPaqueteEstandar(WS, "lead-1", "WHATSAPP", { waId: "5493415551234" }, "", d);
+    expect(pedidos).toEqual([{}]);
+  });
+
+  it("si no se pudo armar, la fila queda en FALLO (no frena otra cotización) y no se envía nada", async () => {
+    const { d, envios } = deps({ armar: async () => ({ resultado: "FALLO", presupuestoId: null }) });
+    expect(await F.enviarPaqueteEstandar(WS, "lead-1", "WHATSAPP", { waId: "5493415551234" }, "Gold", d)).toMatchObject({ ok: false, codigo: "SIN_PRESUPUESTO" });
+    expect(envios).toHaveLength(0);
+    expect(await fila()).toMatchObject({ status: "FALLO", errorCode: "PAQUETE_FALLO" });
+    expect(await F.enPreparacionParaWhatsapp(WS, "5493415551234", AHORA)).toBe(false);
+  });
+
+  it("sin canal para enviarla queda por aprobar en FOTOFFICE", async () => {
+    await B.tablas.serviceSalesLead.updateMany({ where: { id: "lead-1" }, data: { email: null, phone: null } });
+    const { d } = deps();
+    const r = await F.enviarPaqueteEstandar(WS, "lead-1", "WHATSAPP", {}, "Intermedio", d);
+    expect(r).toMatchObject({ ok: false, codigo: "NO_SALIO" });
+    expect(await fila()).toMatchObject({ status: "AVISADO", presupuestoId: "pres-1" });
+  });
+
+  it("una segunda vez para la misma consulta no manda otra", async () => {
+    const { d, envios } = deps();
+    await F.enviarPaqueteEstandar(WS, "lead-1", "WHATSAPP", { waId: "5493415551234" }, "Intermedio", d);
+    expect(await F.enviarPaqueteEstandar(WS, "lead-1", "WHATSAPP", { waId: "5493415551234" }, "Intermedio", d)).toMatchObject({ ok: false, codigo: "YA_AVISADO" });
+    expect(envios).toHaveLength(1);
+  });
+});

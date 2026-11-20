@@ -112,6 +112,23 @@ export function itemsDeAlternativa<T extends { alternativaId?: string | null }>(
   return items.filter((i) => i.alternativaId === alternativaId);
 }
 
+const sinTildes = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+/**
+ * Una sola opción de la propuesta como cotización sin opciones (el paquete estándar que eligió el
+ * cliente por el bot, spec 2026-11-20): los ítems de esa opción, sin `alternativaId`. La opción se
+ * busca por nombre, sin tildes ni mayúsculas. null si no hay opciones o ninguna se llama así.
+ */
+export function soloLaAlternativa(items: readonly ItemPresupuesto[], alternativas: readonly Alternativa[], nombre: string): ItemPresupuesto[] | null {
+  const buscado = sinTildes(nombre);
+  const elegida = buscado ? alternativas.find((a) => sinTildes(a.nombre) === buscado) : undefined;
+  if (!elegida) return null;
+  return itemsDeAlternativa(asignarItems(items, alternativas), elegida.id).map((i) => {
+    const { alternativaId: _fuera, ...resto } = i;
+    return resto;
+  });
+}
+
 // --- Totales y costos --------------------------------------------------------------------------------
 
 type ItemParaTotales = Parameters<typeof calcularTotales>[0][number] & { alternativaId?: string | null };
