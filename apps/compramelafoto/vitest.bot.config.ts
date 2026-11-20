@@ -12,6 +12,7 @@ export default defineConfig({
     environment: "node",
     include: [
       "lib/cron/send-album-notifications.test.ts",
+      "lib/preventa-canjeable/cursos-publicados-reglas.test.ts",
       "lib/agencies/**/*.test.ts",
       "lib/albums/finalize-album-photo-from-raw.agency.test.ts",
       "lib/albums/enqueue-album-photo-ingest.test.ts",

@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const albumFindMany = vi.fn();
-const orderGroupBy = vi.fn();
+const packsConCurso = vi.fn();
+const marcasDeCurso = vi.fn();
 const notificationUpdate = vi.fn();
 const queueEmail = vi.fn();
 const getAlbumsReadiness = vi.fn();
@@ -12,9 +13,12 @@ vi.mock("@/lib/prisma", () => ({
   Prisma: { AnyNull: "AnyNull" },
   prisma: {
     album: { findMany: (...a: unknown[]) => albumFindMany(...a) },
-    order: { groupBy: (...a: unknown[]) => orderGroupBy(...a) },
     albumNotification: { update: (...a: unknown[]) => notificationUpdate(...a) },
   },
+}));
+vi.mock("@/lib/preventa-canjeable/cursos-publicados", () => ({
+  packsConCurso: (...a: unknown[]) => packsConCurso(...a),
+  marcasDeCurso: (...a: unknown[]) => marcasDeCurso(...a),
 }));
 vi.mock("@/lib/email-queue", () => ({ queueEmail: (...a: unknown[]) => queueEmail(...a) }));
 vi.mock("@/lib/analysis/album-analysis-readiness", () => ({
@@ -34,11 +38,34 @@ function albumes({ listos = [] as Album[], recordatorios = [] as Album[] }) {
   );
 }
 
-/** groupBy de packs pagos: el primero cuenta todos, el segundo sólo los ya avisados. */
-function packs({ conPacks = [] as number[], avisados = [] as number[] }) {
-  orderGroupBy.mockImplementation(async (args: { where: Record<string, unknown> }) =>
-    ("redemptionPaymentRefsJson" in args.where ? avisados : conPacks).map((albumId) => ({ albumId }))
-  );
+/** Packs pagos por álbum: los de `avisados` ya recibieron el aviso del fotógrafo. */
+function packs({
+  conPacks = [] as number[],
+  avisados = [] as number[],
+  cursos = [] as Array<{ albumId: number; curso: number; avisado?: boolean }>,
+  marcados = [] as Array<{ albumId: number; curso: number }>,
+}) {
+  packsConCurso.mockImplementation(async () => {
+    const m = new Map<number, unknown[]>();
+    for (const id of conPacks) {
+      m.set(id, [{ orderId: id * 10, schoolCourseId: null, canjeado: false, tieneEmail: true, avisoAt: avisados.includes(id) ? "2026-11-01T00:00:00.000Z" : null }]);
+    }
+    cursos.forEach((c, i) => {
+      const lista = m.get(c.albumId) ?? [];
+      lista.push({ orderId: 900 + i, schoolCourseId: c.curso, canjeado: false, tieneEmail: true, avisoAt: c.avisado ? "2026-11-01T00:00:00.000Z" : null });
+      m.set(c.albumId, lista);
+    });
+    return m;
+  });
+  marcasDeCurso.mockImplementation(async () => {
+    const m = new Map<number, Map<number, unknown>>();
+    for (const x of marcados) {
+      const porCurso = m.get(x.albumId) ?? new Map();
+      porCurso.set(x.curso, { schoolCourseId: x.curso, marcadoAt: new Date(), avisoAt: new Date() });
+      m.set(x.albumId, porCurso);
+    }
+    return m;
+  });
 }
 
 const ALBUM_LISTO: Album = {
@@ -50,7 +77,7 @@ const ALBUM_LISTO: Album = {
 };
 
 beforeEach(() => {
-  for (const f of [albumFindMany, orderGroupBy, notificationUpdate, queueEmail, getAlbumsReadiness]) f.mockReset();
+  for (const f of [albumFindMany, packsConCurso, marcasDeCurso, notificationUpdate, queueEmail, getAlbumsReadiness]) f.mockReset();
   getAlbumsReadiness.mockImplementation(async (ids: number[]) => new Map(ids.map((id) => [id, { ready: true }])));
   packs({});
 });
@@ -68,6 +95,25 @@ describe("aviso «ya están las fotos» a los anotados", () => {
   it("con preventa y el fotógrafo ya avisó: sale", async () => {
     albumes({ listos: [ALBUM_LISTO] });
     packs({ conPacks: [1075], avisados: [1075] });
+    const r = await runSendAlbumNotifications();
+    expect(queueEmail).toHaveBeenCalledTimes(1);
+    expect(r.notifiedWhenReady).toBe(1);
+  });
+
+  it("con cursos: si falta subir un curso con packs, los anotados esperan", async () => {
+    albumes({ listos: [ALBUM_LISTO] });
+    packs({ cursos: [{ albumId: 1075, curso: 1 }, { albumId: 1075, curso: 2 }], marcados: [{ albumId: 1075, curso: 1 }] });
+    const r = await runSendAlbumNotifications();
+    expect(queueEmail).not.toHaveBeenCalled();
+    expect(r.notifiedWhenReady).toBe(0);
+  });
+
+  it("con cursos: cuando están todos (marcados o avisados antes), sale", async () => {
+    albumes({ listos: [ALBUM_LISTO] });
+    packs({
+      cursos: [{ albumId: 1075, curso: 1 }, { albumId: 1075, curso: 2, avisado: true }],
+      marcados: [{ albumId: 1075, curso: 1 }],
+    });
     const r = await runSendAlbumNotifications();
     expect(queueEmail).toHaveBeenCalledTimes(1);
     expect(r.notifiedWhenReady).toBe(1);

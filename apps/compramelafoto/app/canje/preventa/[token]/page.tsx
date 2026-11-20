@@ -25,6 +25,10 @@ import { loadAlbumCourses } from "@/lib/design-v2/class-list";
 import { cursosDelListado, cursosParaSumar, listadoPermiteSumarCursos } from "@/lib/design-v2/listado-cursos";
 import { loadSchoolDesignContext } from "@/lib/school-render/ensure-school-design-for-preventa-order-item";
 import { clientPhotoInputs } from "@repo/template-editor-core";
+import { marcasDeCurso } from "@/lib/preventa-canjeable/cursos-publicados";
+import { cursoDelPackTodaviaNoEsta } from "@/lib/preventa-canjeable/cursos-publicados-reglas";
+import { fechaAvisoFotosListas } from "@/lib/preventa-canjeable/aviso-fotos-listas";
+import { textoCurso } from "@/lib/schools/embudo-pedidos-escolares";
 
 export const dynamic = "force-dynamic";
 
@@ -56,8 +60,15 @@ function Aviso({ titulo, texto, href, link }: { titulo: string; texto: string; h
  * trae a la familia acá. Mismas reglas de acceso que la galería: en un álbum con fotos
  * ocultas, primero la selfie y después sólo las fotos de esa persona.
  */
-export default async function PreventaCanjePage({ params }: { params: Promise<{ token: string }> }) {
+export default async function PreventaCanjePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ token: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { token } = await params;
+  const mirarIgual = (await searchParams).mirar === "igual";
   const lookup = await getOrderIdForPackAccessToken(token);
   if (!lookup.ok) {
     return (
@@ -213,9 +224,39 @@ export default async function PreventaCanjePage({ params }: { params: Promise<{ 
   const preCompra = preCompraId
     ? await prisma.preCompraOrder.findUnique({
         where: { id: preCompraId },
-        select: { studentFirstName: true, studentLastName: true, buyerName: true },
+        select: {
+          studentFirstName: true,
+          studentLastName: true,
+          buyerName: true,
+          schoolCourseId: true,
+          schoolCourse: { select: { name: true, division: true } },
+        },
       })
     : null;
+
+  /*
+   * Aviso por curso: si el fotógrafo ya empezó a marcar cursos y el de este pack todavía no
+   * está, la familia entraría a buscar fotos que no se subieron. Se le dice y se le deja mirar
+   * igual (por si el fotógrafo se olvidó de marcarlo).
+   */
+  if (!modoPrueba && !mirarIgual && preCompra?.schoolCourseId != null) {
+    const marcas = (await marcasDeCurso([album.id])).get(album.id) ?? new Map();
+    const faltaElCurso = cursoDelPackTodaviaNoEsta(
+      { schoolCourseId: preCompra.schoolCourseId, avisoAt: fechaAvisoFotosListas(order.redemptionPaymentRefsJson) },
+      marcas
+    );
+    if (faltaElCurso) {
+      const curso = textoCurso(preCompra.schoolCourse) ?? "tu curso";
+      return (
+        <Aviso
+          titulo={`Las fotos de ${curso} todavía no están`}
+          texto={`${album.user?.name ?? "El fotógrafo"} está subiendo las fotos del colegio curso por curso. Cuando estén las de ${curso} te llega un correo y vas a poder elegirlas con este mismo link. Guardalo.`}
+          href={`/canje/preventa/${encodeURIComponent(token)}?mirar=igual`}
+          link="Mirar las fotos que ya están"
+        />
+      );
+    }
+  }
   // Pack cobrado por fuera: no hay PreCompraOrder; alumno y adulto vienen con el pack.
   const externo = parseExternalPreventaRefs(order.redemptionPaymentRefsJson);
   // El Excel trae "Apellido Nombre": se da vuelta para saludar con el nombre de pila.

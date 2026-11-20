@@ -18,6 +18,13 @@ import {
   getPreventaPhotosReadyStatus,
   notifyPreventaPhotosReady,
 } from "@/lib/preventa-canjeable/notify-preventa-photos-ready";
+import {
+  avisarCursosPendientes,
+  cursosDelAlbum,
+  marcarCursosSubidos,
+  type CursosDelAlbum,
+} from "@/lib/preventa-canjeable/cursos-publicados";
+import { resolverCursosPorNombre } from "@/lib/preventa-canjeable/cursos-publicados-reglas";
 import { inviteSchoolOrganizerForOwner } from "@/lib/schools/invite-organizer";
 import { createSchoolCoursesForOwner, createSchoolForOwner, findOwnedSchool } from "@/lib/schools/school-setup";
 import { prisma } from "@/lib/prisma";
@@ -93,7 +100,13 @@ function lista(items: string[]): string {
 async function albumPropio(albumId: number, userId: number) {
   return prisma.album.findFirst({
     where: { id: albumId, userId, deletedAt: null },
-    select: { id: true, title: true, organizerCommissionPercentage: true, organizerCommissionAppliesTo: true },
+    select: {
+      id: true,
+      title: true,
+      schoolId: true,
+      organizerCommissionPercentage: true,
+      organizerCommissionAppliesTo: true,
+    },
   });
 }
 
@@ -134,10 +147,19 @@ type AvisoPreparado =
       album: { title: string };
       estado: Awaited<ReturnType<typeof getPreventaPhotosReadyStatus>>;
       destinatarios: Awaited<ReturnType<typeof countPreventaPhotosReadyRecipients>>;
+      /** Álbum escolar: el aviso va sólo a estos cursos. */
+      porCurso: { ids: number[]; nombres: string[]; familias: number; conEmail: number } | null;
     };
 
+function listaDeCursos(datos: CursosDelAlbum): string {
+  return datos.cursos
+    .filter((c) => c.packs > 0)
+    .map((c) => `${c.nombre} (${c.pendientes} esperan${c.estado === "avisado" ? ", ya avisado" : ""})`)
+    .join(", ");
+}
+
 /** Chequeos previos al aviso a familias; lanza (describe) o se devuelve como error (run). */
-async function prepararAviso(albumId: number, userId: number): Promise<AvisoPreparado> {
+async function prepararAviso(albumId: number, userId: number, cursos?: readonly string[]): Promise<AvisoPreparado> {
   const album = await albumPropio(albumId, userId);
   if (!album) return { error: NO_ALBUM };
   const fotos = await prisma.photo.count({ where: { albumId, isRemoved: false } });
@@ -148,13 +170,43 @@ async function prepararAviso(albumId: number, userId: number): Promise<AvisoPrep
   if (estado.pendientes === 0) {
     return { error: `No hay familias de la preventa de «${album.title}» esperando para elegir sus fotos: no hay a quién avisar.` };
   }
+  // Álbum escolar: se avisa por curso. Avisarle a todo el colegio con la mitad de los cursos
+  // subidos hace entrar a familias que no encuentran sus fotos.
+  if (album.schoolId != null) {
+    const datos = await cursosDelAlbum(albumId);
+    if (datos.cursos.length > 0) {
+      if (!cursos?.length) {
+        return {
+          error: `En «${album.title}» se avisa por curso, para no hacer entrar a familias cuyo curso todavía no subiste. ¿Qué cursos ya están completos? Cursos con preventa: ${listaDeCursos(datos)}.`,
+        };
+      }
+      const { ids, noEncontrados } = resolverCursosPorNombre(cursos, datos.cursos);
+      if (noEncontrados.length > 0 || ids.length === 0) {
+        return {
+          error: `No encontré ${noEncontrados.map((n) => `«${n}»`).join(", ") || "esos cursos"} en «${album.title}». Cursos con preventa: ${listaDeCursos(datos)}.`,
+        };
+      }
+      const elegidos = datos.cursos.filter((c) => ids.includes(c.schoolCourseId));
+      return {
+        album,
+        estado,
+        destinatarios: await countPreventaPhotosReadyRecipients(albumId),
+        porCurso: {
+          ids,
+          nombres: elegidos.map((c) => c.nombre),
+          familias: elegidos.reduce((n, c) => n + c.pendientes, 0),
+          conEmail: elegidos.reduce((n, c) => n + c.pendientesConEmail, 0),
+        },
+      };
+    }
+  }
   const destinatarios = await countPreventaPhotosReadyRecipients(albumId);
   if (destinatarios.conEmail === 0) {
     return {
       error: `Las ${estado.pendientes} familias pendientes de «${album.title}» no tienen mail cargado (packs cobrados por fuera): el link se les pasa desde Canjes.`,
     };
   }
-  return { album, estado, destinatarios };
+  return { album, estado, destinatarios, porCurso: null };
 }
 
 export const escolarTools: BotTool[] = [
@@ -334,13 +386,20 @@ export const escolarTools: BotTool[] = [
   defineTool({
     name: "avisar_familias_fotos_listas",
     description:
-      "Propone mandar el mail «ya están las fotos» a las familias que compraron en preventa y todavía no eligieron sus fotos. Sólo si el álbum ya tiene fotos. Manda mails: no se puede deshacer.",
+      "Propone mandar el mail «ya están las fotos» a las familias que compraron en preventa y todavía no eligieron sus fotos. Sólo si el álbum ya tiene fotos. En álbumes escolares se avisa por curso: hay que pasar en `cursos` los cursos que el fotógrafo ya terminó de subir (p. ej. [\"3° A\", \"Sala 5\"]); si no los dijo, preguntale. Manda mails: no se puede deshacer.",
     kind: "write",
-    input: z.strictObject({ albumId: id }),
-    describe: async ({ albumId }, actor) => {
-      const p = await prepararAviso(albumId, actor.userId);
+    input: z.strictObject({ albumId: id, cursos: z.array(z.string().min(1).max(60)).max(60).optional() }),
+    describe: async ({ albumId, cursos }, actor) => {
+      const p = await prepararAviso(albumId, actor.userId, cursos);
       if ("error" in p) throw new Error(p.error);
-      const { album, estado, destinatarios } = p;
+      const { album, estado, destinatarios, porCurso } = p;
+      if (porCurso) {
+        return [
+          `Se marcan como subidas las fotos de ${porCurso.nombres.join(", ")} en «${album.title}» y se les avisa a ${porCurso.familias} ${porCurso.familias === 1 ? "familia" : "familias"} de esos cursos (${porCurso.conEmail} con mail) que ya pueden elegir sus fotos.`,
+          "Las de los otros cursos no reciben nada. Si las fotos todavía se están procesando, el aviso sale solo apenas terminen.",
+          "No se puede deshacer.",
+        ].join(" ");
+      }
       const partes = [
         `Se manda un mail a ${destinatarios.conEmail} ${destinatarios.conEmail === 1 ? "familia" : "familias"} de «${album.title}» avisando que ya están las fotos, con el link para elegir las de su pack.`,
       ];
@@ -351,10 +410,21 @@ export const escolarTools: BotTool[] = [
       partes.push("No se puede deshacer.");
       return partes.join(" ");
     },
-    run: async ({ albumId }, actor) => {
-      const p = await prepararAviso(albumId, actor.userId);
+    run: async ({ albumId, cursos }, actor) => {
+      const p = await prepararAviso(albumId, actor.userId, cursos);
       if ("error" in p) return p.error === NO_ALBUM ? { ok: false, code: "NOT_FOUND", message: NO_ALBUM } : { ok: false, message: p.error };
       const baseUrl = (process.env.APP_URL || URL_SITIO).replace(/\/+$/, "");
+      if (p.porCurso) {
+        await marcarCursosSubidos({ albumId, cursoIds: p.porCurso.ids, userId: actor.userId });
+        const a = await avisarCursosPendientes({ baseUrl, albumIds: [albumId] });
+        const hecho = a.avisados.find((x) => x.albumId === albumId);
+        const data = { enviados: hecho?.enviados ?? 0, sinEmail: hecho?.sinEmail ?? 0, esperando: a.esperando.includes(albumId) };
+        const message = data.esperando
+          ? `Listo, marqué ${p.porCurso.nombres.join(", ")}. Las fotos todavía se están procesando: el aviso a esas familias sale solo apenas terminen.`
+          : `Listo, avisé a ${data.enviados} ${data.enviados === 1 ? "familia" : "familias"} de ${p.porCurso.nombres.join(", ")}.` +
+            (data.sinEmail ? ` ${data.sinEmail} no tienen mail: a esas pasales el link desde Canjes.` : "");
+        return { ok: true, message, data };
+      }
       const r = await notifyPreventaPhotosReady({ albumId, baseUrl });
       const sinEmail = r.sinEmail ? ` ${r.sinEmail} no tienen mail: a esas pasales el link desde Canjes.` : "";
       return { ok: true, message: `Listo, avisé a ${r.enviados} ${r.enviados === 1 ? "familia" : "familias"}.${sinEmail}`, data: r };

@@ -2408,6 +2408,7 @@ model Album {
   cameraConnectionActiveSettings  CameraConnectionSettings[]     @relation("CameraConnectionActiveAlbum")
   cameraUploadLogs                CameraUploadLog[]
   cameraIngestJobs                CameraIngestJob[]
+  cursosPublicados                AlbumCursoPublicado[]
   albumFolders                    AlbumFolder[]
   videoFrames                     VideoFrame[]
   videoRemovalRequests            VideoRemovalRequest[]
@@ -2981,6 +2982,28 @@ model SchoolOrganizerInvitation {
 }
 
 /// * Curso/división de una escuela
+/// Cursos de un álbum escolar cuyas fotos el fotógrafo ya dio por subidas. El aviso «ya están
+/// las fotos» a las familias de la preventa sale por curso: así no entran familias cuyo curso
+/// todavía no se subió (álbum 1075, octubre de 2026).
+model AlbumCursoPublicado {
+  id               Int          @id @default(autoincrement())
+  albumId          Int
+  schoolCourseId   Int
+  /// Cuándo el fotógrafo dijo que ya están las fotos de este curso (se renueva si lo vuelve a marcar).
+  marcadoAt        DateTime     @default(now())
+  /// Cuándo salió el aviso a las familias del curso. Null = pendiente: lo manda el cron horario
+  /// cuando el álbum terminó de procesarse.
+  avisoAt          DateTime?
+  marcadoPorUserId Int?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  album            Album        @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  schoolCourse     SchoolCourse @relation(fields: [schoolCourseId], references: [id], onDelete: Cascade)
+
+  @@unique([albumId, schoolCourseId])
+  @@index([avisoAt])
+}
+
 model SchoolCourse {
   id              Int              @id @default(autoincrement())
   schoolId        Int
@@ -2993,6 +3016,7 @@ model SchoolCourse {
   updatedAt       DateTime         @updatedAt
   preCompraOrders PreCompraOrder[]
   school          School           @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  cursosPublicados AlbumCursoPublicado[]
   subjects        Subject[]
 
   @@index([schoolId])
