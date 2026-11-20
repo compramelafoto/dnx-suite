@@ -3,7 +3,8 @@
 import { CalculadoraFotolibro } from "@/components/fotolibro/calculadora-fotolibro";
 import type { CatalogoFotolibro } from "@/lib/fotolibro/cotizar";
 import { useRouter } from "next/navigation";
-import { useId, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
+import { marcarCambiosSinGuardar } from "./cambios-sin-guardar";
 import { ArrowDown, ArrowUp, X } from "lucide-react";
 import { guardarBorradorAction } from "@/app/actions/presupuestos";
 import { InputMoneda } from "@/components/campos/input-moneda";
@@ -319,6 +320,11 @@ export function EditorPresupuesto({
     Date.now() - (guardadosRecientes.get(datos.presupuestoId) ?? 0) < RECIENTE_MS ? { ok: true, texto: "Guardado." } : null,
   );
   const [cambios, setCambios] = useState(false);
+  // «Aprobar y enviar al cliente» no aprueba con cambios sin guardar (mandaría la versión vieja).
+  useEffect(() => {
+    marcarCambiosSinGuardar(datos.presupuestoId, cambios);
+    return () => marcarCambiosSinGuardar(datos.presupuestoId, false);
+  }, [cambios, datos.presupuestoId]);
   /** Ítems calculados con el precio tocado a mano: al guardar viajan con `precioAjustado: true`. */
   const [ajustados, setAjustados] = useState<Set<string>>(() => ajustadosIniciales(datos.items));
   const marcarAjuste = (id: string, ajustado: boolean) =>

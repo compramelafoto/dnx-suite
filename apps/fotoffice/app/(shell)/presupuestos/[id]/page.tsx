@@ -24,9 +24,13 @@ import { entradaGuardada, importeDeOpcion, opcionesPublicas, opcionesVacias } fr
 import { puedeGestionarPedidos } from "@/lib/pedidos/acceso";
 import { pedidoDePresupuesto } from "@/lib/pedidos/pedidos";
 import { EventoDeCotizacionTarjeta } from "@/components/presupuestos/evento-de-cotizacion";
+import { AprobarCotizacion, UltimoResultadoAprobacion } from "@/components/presupuestos/aprobar-cotizacion";
+import { aprobacionDelPresupuesto } from "@/lib/presupuesto-automatico/por-aprobar";
 import { eventoDeLaConsulta, vistasDeCotizaciones } from "@/lib/presupuestos/evento-de-cotizacion";
 
 export const dynamic = "force-dynamic";
+/** «Aprobar y enviar al cliente» manda el WhatsApp y el correo en la misma acción. */
+export const maxDuration = 60;
 
 const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
 const fecha = (ymd: string | null) => (ymd ? ymd.split("-").reverse().join("/") : "—");
@@ -121,6 +125,9 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
   const confirmaPedido = aceptado && pedido === null && puedeGestionarPedidos(ctx);
   // El evento se lee de la consulta (sin copia) y las aperturas, de todas las versiones.
   const [evento, vistas] = await Promise.all([eventoDeLaConsulta(workspace.id, detalle.consultaLeadId), vistasDeCotizaciones(workspace.id, [detalle.id])]);
+  // La armó el bot y espera aprobación: el aviso con «Aprobar y enviar al cliente» (con "Gestionar").
+  // Es el mismo presupuesto que abre «✏️ Corregir» en Telegram.
+  const aprobacion = gestiona ? await aprobacionDelPresupuesto(workspace.id, detalle.id) : null;
 
   return (
     <div className="space-y-6">
@@ -146,6 +153,18 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
         </span>
         {detalle.pedidoPorConfirmar ? <span className="text-[var(--fo-muted)]">Pedido por confirmar</span> : null}
       </div>
+
+      {aprobacion ? (
+        <section aria-labelledby="por-aprobar-titulo" className="fo-card space-y-3 border-l-4 border-l-[var(--fo-accent)] text-sm">
+          <h2 id="por-aprobar-titulo" className="text-base font-semibold">Esta cotización la armó el bot y espera tu aprobación</h2>
+          <p className="text-[var(--fo-muted)]">
+            Revisala y, si querés, corregila acá abajo y guardá. Al aprobar, al cliente le llega el enlace por WhatsApp (si se puede) y por correo.
+          </p>
+          <AprobarCotizacion aprobacionId={aprobacion.id} presupuestoId={detalle.id} />
+        </section>
+      ) : gestiona ? (
+        <UltimoResultadoAprobacion presupuestoId={detalle.id} />
+      ) : null}
 
       <EventoDeCotizacionTarjeta
         evento={evento}

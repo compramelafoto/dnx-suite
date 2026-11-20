@@ -8,7 +8,6 @@ import type { CtxConsultas } from "@/lib/consultas/catalogo";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { editarPortfolio, guardarAcuse, guardarAprobacionTelegram, MENSAJES_AJUSTES_AUTO } from "@/lib/presupuesto-automatico/ajustes";
 import type { CambioPortfolio } from "@/lib/presupuesto-automatico/portfolio-items";
-import { aprobarYEnviar } from "@/lib/presupuesto-automatico/flujo";
 import { guardarAjustesPorHoras } from "@/lib/presupuesto-automatico/por-horas";
 import { subirFotoAlPortfolio } from "@/lib/presupuesto-automatico/portfolio";
 import { avisarPorTelegram, conectarTelegram, desconectarTelegram, MENSAJES_TELEGRAM, nuevoCodigoTelegram } from "@/lib/telegram/conexion";
@@ -86,17 +85,6 @@ export async function guardarAcuseAction(_prev: EstadoTelegramConfig | undefined
   if (!r.ok) return { error: r.error };
   revalidatePath(RUTA);
   return { error: null, ok: "Acuse guardado." };
-}
-
-/** "Aprobar y enviar" desde FOTOFFICE (lo mismo que el botón de Telegram, igual de idempotente). */
-export async function aprobarDesdePanelAction(_prev: EstadoTelegramConfig | undefined, fd: FormData): Promise<EstadoTelegramConfig> {
-  const ctx = await contexto();
-  if (!ctx || ctx.userId === null) return { error: MENSAJES_AJUSTES_AUTO.sinPermiso };
-  const id = texto(fd, "aprobacionId");
-  if (!id || id.length > 64) return { error: MENSAJES_AJUSTES_AUTO.datosInvalidos };
-  const r = await aprobarYEnviar(ctx.workspaceId, id, { tipo: "PANEL", userId: ctx.userId });
-  revalidatePath(RUTA);
-  return r.ok ? { error: null, ok: r.texto } : { error: r.texto };
 }
 
 // --- Portfolio de una categoría -------------------------------------------------------------------

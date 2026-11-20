@@ -14,6 +14,9 @@ import {
 } from "@/lib/presupuestos/presupuestos";
 import { crearNuevaVersion, type ResultadoVersionNueva } from "@/lib/presupuestos/versiones";
 import { enviarPresupuesto, type ResultadoEnvioPresupuesto } from "@/lib/presupuestos/envio";
+import { aprobarDesdeElPanel, descartarAprobacion } from "@/lib/presupuesto-automatico/por-aprobar";
+
+const RUTA_POR_APROBAR = "/presupuestos/por-aprobar";
 
 // Archivo "use server": sólo exporta funciones async. Cada acción, en este orden: revisa la forma
 // de lo que llega, arma el contexto (sesión + workspace de la sesión + módulo `quotes` encendido
@@ -175,4 +178,33 @@ export async function enviarPresupuestoAction(datos: {
   });
   if (r.ok || r.enviado) revalidar(datos.presupuestoId);
   return r;
+}
+
+// --- Cotizaciones que armó el bot y esperan aprobación ---------------------------------------------
+
+type ResultadoAprobarPanel = { ok: true; texto: string } | { ok: false; error: string };
+
+/**
+ * «Aprobar y enviar al cliente» desde Presupuestos (el aviso del presupuesto o la lista «Por
+ * aprobar»): el mismo camino que el botón de Telegram (`aprobarYEnviar` con PANEL). Con «Gestionar».
+ */
+export async function aprobarCotizacionAction(aprobacionId: string): Promise<ResultadoAprobarPanel> {
+  if (!esId(aprobacionId)) return INVALIDO;
+  const ctx = await contextoDePresupuestos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await aprobarDesdeElPanel(ctx, aprobacionId);
+  revalidar();
+  revalidatePath(RUTA_POR_APROBAR);
+  return r.ok ? { ok: true, texto: r.texto } : { ok: false, error: r.texto };
+}
+
+/** «Descartar» una cotización por aprobar: queda archivada y deja de aparecer. Con «Gestionar». */
+export async function descartarCotizacionAction(aprobacionId: string): Promise<ResultadoAprobarPanel> {
+  if (!esId(aprobacionId)) return INVALIDO;
+  const ctx = await contextoDePresupuestos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await descartarAprobacion(ctx, aprobacionId);
+  revalidar();
+  revalidatePath(RUTA_POR_APROBAR);
+  return r.ok ? { ok: true, texto: "Descartada: ya no aparece en la lista." } : r;
 }

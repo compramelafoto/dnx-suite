@@ -4,7 +4,6 @@ import { useActionState } from "react";
 import { InputMoneda } from "@/components/campos/input-moneda";
 import type { AjustesPorHoras } from "@/lib/presupuesto-automatico/por-horas-puro";
 import {
-  aprobarDesdePanelAction,
   cambiarCategoriaAction,
   conectarTelegramAction,
   desconectarTelegramAction,
@@ -137,23 +136,6 @@ export function AcuseForm({ encendido, texto, porOmision }: { encendido: boolean
       </div>
       <Mensaje estado={estado} />
       <button type="submit" disabled={guardando} className="fo-btn fo-btn-primary">{guardando ? "Guardando…" : "Guardar el acuse"}</button>
-    </form>
-  );
-}
-
-export function AprobarForm({ aprobacionId, cliente }: { aprobacionId: string; cliente: string }) {
-  const [estado, aprobar, aprobando] = useActionState(aprobarDesdePanelAction, INICIAL);
-  return (
-    <form
-      action={aprobar}
-      onSubmit={(e) => {
-        if (!window.confirm(`¿Enviarle la cotización a ${cliente}?`)) e.preventDefault();
-      }}
-      className="space-y-1"
-    >
-      <input type="hidden" name="aprobacionId" value={aprobacionId} />
-      <button type="submit" disabled={aprobando} className="fo-btn fo-btn-primary text-sm">{aprobando ? "Enviando…" : "Aprobar y enviar"}</button>
-      <Mensaje estado={estado} />
     </form>
   );
 }
