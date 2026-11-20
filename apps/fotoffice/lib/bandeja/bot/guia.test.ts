@@ -9,19 +9,21 @@ describe("guía del bot de atención", () => {
     expect(g).toMatch(/markdown/);
   });
 
-  it("XV desde un anuncio: primero valor (portfolio y desde) y una sola pregunta al final, la fecha", () => {
+  it("XV desde un anuncio: el primer mensaje es el saludo y la fecha, sin portfolio ni precios", () => {
     const g = guiaDeAtencion();
     expect(g).toContain("PRIMER MENSAJE DE XV");
-    expect(g).toContain("usá presentacion_xv");
-    expect(g).toContain("https://www.compramelafoto.com/dnx/xv");
-    expect(g).toMatch(/recién al final hacer UNA sola pregunta: la fecha de la fiesta/);
-    expect(g).toMatch(/si la herramienta dice que no hay precio, no digas ninguno/);
-    // El ejemplo no trae un número: el precio siempre sale de la herramienta.
+    expect(g).toContain("No mandes el enlace del portfolio, los paquetes ni precios en el primer mensaje");
+    expect(g).not.toContain("https://www.compramelafoto.com/dnx/xv");
     const ejemplo = g.split("\n").find((l) => l.startsWith("- Ejemplo: \"¡Hola Laura!"))!;
-    expect(ejemplo).toBeTruthy();
-    expect(ejemplo).not.toMatch(/\$\s?\d/);
-    expect(ejemplo.trim().endsWith("¿Para qué fecha es la fiesta? 🎉\"")).toBe(true);
-    expect(ejemplo.match(/\?/g)).toHaveLength(1);
+    expect(ejemplo).toBe('- Ejemplo: "¡Hola Laura! Gracias por escribirnos 😊 ¿Para qué fecha es la fiesta? 🎉"');
+    expect(g).toMatch(/si la herramienta dice que no hay precio, no digas ninguno/);
+  });
+
+  it("XV y bodas: la fecha va primero y el bot nunca habla de botones", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("en este orden: la fecha del evento; el nombre y apellido;");
+    expect(g).toContain("nunca hables de botones");
+    expect(g).not.toMatch(/con el botón para reservar/);
   });
 
   it("XV desde un anuncio sigue con XV Y BODAS, de a una pregunta; los únicos precios de evento son el desde y el del paquete", () => {
@@ -40,9 +42,9 @@ describe("guía del bot de atención", () => {
       expect(g).toContain("En XV / 15 años y en bodas seguí XV Y BODAS: una sola pregunta por mensaje.");
     });
 
-    it("junta los datos de a uno y en orden: nombre, fecha, salón y localidad, horario; después la idea y la cobertura", () => {
+    it("junta los datos de a uno y en orden: fecha, nombre, salón y localidad, horario; después la idea y la cobertura", () => {
       expect(bloque).toContain("de a UNA pregunta por mensaje");
-      const orden = ["el nombre y apellido", "la fecha del evento", "el salón y la localidad", "el horario (de qué hora a qué hora)", "si tiene una idea pensada y qué cobertura busca (fotos, video, sesión previa…)"];
+      const orden = ["la fecha del evento", "el nombre y apellido", "el salón y la localidad", "el horario (de qué hora a qué hora)", "si tiene una idea pensada y qué cobertura busca (fotos, video, sesión previa…)"];
       const posiciones = orden.map((o) => bloque.indexOf(o));
       expect(posiciones.every((p) => p >= 0)).toBe(true);
       expect([...posiciones].sort((a, b) => a - b)).toEqual(posiciones);

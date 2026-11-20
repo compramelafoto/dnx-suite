@@ -470,7 +470,7 @@ export function herramientasDeAtencion(
     defineTool({
       name: "enviar_cotizacion_del_paquete",
       description:
-        "XV y bodas: cuando el cliente eligió un paquete tal cual (sin agregados ni cambios) y dijo que sí a que le dejes la cotización, registra la consulta y le envía sola la cotización de ese paquete con el botón para reservar la fecha (no necesita aprobación). Necesita el nombre y apellido, la fecha, el salón y la localidad y el horario. Si quiere cambios o agregados, usá preparar_presupuesto.",
+        "XV y bodas: cuando el cliente eligió un paquete tal cual (sin agregados ni cambios) y dijo que sí a que le dejes la cotización, registra la consulta y le envía sola la cotización de ese paquete, con el enlace para reservar la fecha (no necesita aprobación). Necesita el nombre y apellido, la fecha, el salón y la localidad y el horario. Si quiere cambios o agregados, usá preparar_presupuesto.",
       // Como preparar_presupuesto: en Instagram suma el WhatsApp que dio el cliente.
       input: esInstagram ? entradaPaquete.extend({ whatsapp: z.string().max(30).optional() }) : entradaPaquete,
       kind: "read",

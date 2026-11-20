@@ -107,7 +107,7 @@ export function textoWhatsappDelPresupuesto(d: { nombre: string | null; categori
   const hola = nombrePila(d.nombre) ? `¡Hola ${nombrePila(d.nombre)}!` : "¡Hola!";
   const para = d.categoria ? ` para ${d.categoria.toLowerCase()}` : "";
   const firma = d.estudio ? `\n\n${d.estudio}` : "";
-  return `${hola} Ya está lista tu propuesta${para}. Acá podés ver fotos de otros trabajos, el detalle y el botón para reservar la fecha:\n${d.enlace}${firma}`;
+  return `${hola} Ya está lista tu propuesta${para}. Acá podés ver fotos de otros trabajos, el detalle y reservar la fecha:\n${d.enlace}${firma}`;
 }
 
 export const ACUSE_POR_OMISION = "¡Gracias por escribirnos! Recibimos tu consulta y en un rato te mandamos la propuesta.";

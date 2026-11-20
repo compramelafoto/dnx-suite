@@ -110,7 +110,7 @@ describe("anuncios de XV: siempre cobertura de la fiesta", () => {
       { direccion: "ENTRANTE", autor: "CLIENTE", tipo: "TEXTO", texto: e.texto, media: e.media },
     ]);
     expect(r?.userText).toBe(
-      "[el cliente llegó tocando un anuncio del estudio en Facebook/Instagram: «Más info — ¿Edición y retoques en fotos de quinceañeras?» · TEMA: cobertura fotográfica de una fiesta de XV (busca fotógrafo para la fiesta; no es retoque de fotos sueltas; primera respuesta con presentacion_xv)] ¡Hola! Quiero más información",
+      "[el cliente llegó tocando un anuncio del estudio en Facebook/Instagram: «Más info — ¿Edición y retoques en fotos de quinceañeras?» · TEMA: cobertura fotográfica de una fiesta de XV (busca fotógrafo para la fiesta; no es retoque de fotos sueltas; primera respuesta: el saludo y la fecha de la fiesta, sin enlaces ni precios)] ¡Hola! Quiero más información",
     );
   });
 
