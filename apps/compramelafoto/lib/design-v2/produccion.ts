@@ -245,7 +245,7 @@ export async function volverUnPaso(
     ...propios(actor),
     ...extra,
   });
-  const aprobado = { in: ["APPROVED_FOR_EXPORT", "EXPORTED"] };
+  const aprobado: Prisma.DesignProjectWhereInput["status"] = { in: ["APPROVED_FOR_EXPORT", "EXPORTED"] };
   let total = 0;
 
   if (desde === "CAMBIOS_PEDIDOS" || desde === "PARA_IMPRIMIR") {
@@ -274,7 +274,7 @@ export async function volverUnPaso(
     return r.count;
   }
 
-  const ahoraDisenos =
+  const ahoraDisenos: { where: Prisma.DesignProjectWhereInput; data: Prisma.DesignProjectUpdateManyMutationInput } =
     desde === "EN_IMPRENTA"
       ? {
           where: deDisenos({ status: aprobado, sentToPrintAt: { not: null }, printedAt: null }),
