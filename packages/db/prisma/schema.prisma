@@ -4602,6 +4602,23 @@ model TemplateV2Publication {
 }
 
 /// * Proyecto de diseño (cliente diseña, fotógrafo aprueba)
+/// Avance de impresión de un canje escolar que lleva copias impresas y NINGÚN librito (los libritos
+/// guardan el suyo en `DesignProject`). Sin esto esos pedidos quedaban trabados en «Para imprimir»
+/// de «Pedidos escolares» (CLF). `orderId` es el pedido de canje (`Order.id`).
+model SchoolCopiesPrintJob {
+  id                 Int       @id @default(autoincrement())
+  orderId            Int       @unique
+  photographerUserId Int
+  printBatchName     String?
+  sentToPrintAt      DateTime?
+  printedAt          DateTime?
+  deliveredAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([photographerUserId, printBatchName])
+}
+
 model DesignProject {
   id                  Int                 @id @default(autoincrement())
   /// Preventa escolar: el ítem canjeado. Nulo en los diseños de packs de galería.

@@ -1,12 +1,19 @@
 import "server-only";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import QRCode from "qrcode";
-import { prisma } from "@/lib/prisma";
+import { prisma, type Prisma } from "@/lib/prisma";
 import { ensureFulfillmentQrTokenForPreCompraOrderItem } from "@/lib/school-fulfillment/ensure-fulfillment-qr-token";
 import { baseAppUrl, urlDeEntregaEscolar } from "@/lib/school-fulfillment/entrega-url";
 import { readFromR2 } from "@/lib/r2-client";
 import { urlToR2Key } from "@/lib/r2-public-url";
 import { parseDesignV2Data } from "./design-data";
+import {
+  actualizarCopias,
+  avancesDeCopiasEnLotes,
+  cargarPedidosDeCopias,
+  mandarCopiasAImprimir,
+  type PedidoDeCopias,
+} from "./copias-en-produccion";
 import type { DesignActor } from "./projects";
 import {
   datosDelLibrito,
@@ -115,84 +122,238 @@ export async function conCodigoDeEntrega(libros: LibritoParaProducir[]): Promise
   return salida;
 }
 
-/** Manda a imprimir: los agrupa en un lote nuevo con nombre «Lote N · fecha». */
-export async function crearLote(actor: DesignActor, ids: number[]): Promise<{ nombre: string; cantidad: number }> {
-  const libros = await cargarLibritos(actor, { ids });
+/**
+ * Manda a imprimir: los agrupa en un lote nuevo con nombre «Lote N · fecha». Además de los
+ * libritos (`ids`), entran los pedidos de sólo copias (`copias`, ids de pedido de canje).
+ */
+export async function crearLote(
+  actor: DesignActor,
+  ids: number[],
+  copias: number[] = [],
+): Promise<{ nombre: string; cantidad: number }> {
+  const libros = ids.length ? await cargarLibritos(actor, { ids }) : [];
+  const pedidosDeCopias = copias.length ? await cargarPedidosDeCopias(actor, { copias }) : [];
   const sinArchivo = libros.filter((l) => !l.pdfKey);
-  if (libros.length === 0) throw new ProduccionError("Ninguno de los elegidos está aprobado.");
+  if (libros.length === 0 && pedidosDeCopias.length === 0) {
+    throw new ProduccionError("Ninguno de los elegidos está listo para imprimir.");
+  }
   if (sinArchivo.length > 0) {
     throw new ProduccionError(
       `${sinArchivo.length} librito(s) no tienen su PDF final todavía. Abrilos y tocá «Aprobar de nuevo».`,
     );
   }
-  const existentes = await prisma.designProject.findMany({
-    where: { ...propios(actor), printBatchName: { not: null } },
-    distinct: ["printBatchName"],
-    select: { printBatchName: true },
-  });
+  const [existentes, deCopias] = await Promise.all([
+    prisma.designProject.findMany({
+      where: { ...propios(actor), printBatchName: { not: null } },
+      distinct: ["printBatchName"],
+      select: { printBatchName: true },
+    }),
+    avancesDeCopiasEnLotes(actor),
+  ]);
+  const ahora = new Date();
   const nombre = nombreDelProximoLote(
-    existentes.map((e) => e.printBatchName!).filter(Boolean),
-    new Date(),
+    [...existentes.map((e) => e.printBatchName!), ...deCopias.map((c) => c.printBatchName!)].filter(Boolean),
+    ahora,
   );
-  const r = await prisma.designProject.updateMany({
-    where: { id: { in: libros.map((l) => l.id) }, ...propios(actor) },
-    data: { printBatchName: nombre, sentToPrintAt: new Date(), printedAt: null, deliveredAt: null },
-  });
-  return { nombre, cantidad: r.count };
+  const r = libros.length
+    ? await prisma.designProject.updateMany({
+        where: { id: { in: libros.map((l) => l.id) }, ...propios(actor) },
+        data: { printBatchName: nombre, sentToPrintAt: ahora, printedAt: null, deliveredAt: null },
+      })
+    : { count: 0 };
+  const c = await mandarCopiasAImprimir(actor, pedidosDeCopias, nombre, ahora);
+  return { nombre, cantidad: r.count + c };
 }
 
 export type PasoDeProduccion = "IMPRESO" | "ENTREGADO" | "VOLVER_A_IMPRIMIR";
 
-/** Marca un paso para los elegidos o para un lote entero. */
+/**
+ * Marca un paso para los elegidos o para un lote entero. `ids` son libritos y `copias` pedidos de
+ * sólo copias; con `lote` van los dos.
+ */
 export async function marcarPaso(
   actor: DesignActor,
-  filtro: { ids?: number[]; lote?: string },
+  filtro: { ids?: number[]; lote?: string; copias?: number[] },
   paso: PasoDeProduccion,
 ): Promise<number> {
-  const libros = await cargarLibritos(actor, filtro);
+  const libros = filtro.ids?.length || filtro.lote ? await cargarLibritos(actor, filtro) : [];
   const ids = libros.map((l) => l.id);
-  if (ids.length === 0) return 0;
+  const pedidos =
+    filtro.copias?.length || filtro.lote
+      ? (await cargarPedidosDeCopias(actor, { copias: filtro.copias, lote: filtro.lote })).filter((p) => p.sentToPrintAt)
+      : [];
+  const ordenes = pedidos.map((p) => p.orderId);
   const ahora = new Date();
-  const data =
-    paso === "IMPRESO"
-      ? { printedAt: ahora }
-      : paso === "ENTREGADO"
-        ? { deliveredAt: ahora, printedAt: undefined }
-        : { printBatchName: null, sentToPrintAt: null, printedAt: null, deliveredAt: null };
-  const r = await prisma.designProject.updateMany({ where: { id: { in: ids }, ...propios(actor) }, data });
-  // Entregar sin haber marcado impreso: se da por impreso en el mismo momento.
-  if (paso === "ENTREGADO") {
-    await prisma.designProject.updateMany({
-      where: { id: { in: ids }, ...propios(actor), printedAt: null },
-      data: { printedAt: ahora },
-    });
+  let total = 0;
+  if (ids.length) {
+    const data =
+      paso === "IMPRESO"
+        ? { printedAt: ahora }
+        : paso === "ENTREGADO"
+          ? { deliveredAt: ahora, printedAt: undefined }
+          : { printBatchName: null, sentToPrintAt: null, printedAt: null, deliveredAt: null };
+    const r = await prisma.designProject.updateMany({ where: { id: { in: ids }, ...propios(actor) }, data });
+    total += r.count;
+    // Entregar sin haber marcado impreso: se da por impreso en el mismo momento.
+    if (paso === "ENTREGADO") {
+      await prisma.designProject.updateMany({
+        where: { id: { in: ids }, ...propios(actor), printedAt: null },
+        data: { printedAt: ahora },
+      });
+    }
   }
-  return r.count;
+  if (ordenes.length) {
+    if (paso === "IMPRESO") total += await actualizarCopias(ordenes, { printedAt: ahora });
+    else if (paso === "ENTREGADO") {
+      total += await actualizarCopias(ordenes, { deliveredAt: ahora });
+      await actualizarCopias(ordenes, { printedAt: ahora }, { printedAt: null });
+    } else {
+      total += await actualizarCopias(ordenes, { printBatchName: null, sentToPrintAt: null, printedAt: null, deliveredAt: null });
+    }
+  }
+  return total;
+}
+
+/** Pasos desde los que se puede volver uno atrás. */
+export const PASOS_CON_VUELTA = ["CAMBIOS_PEDIDOS", "PARA_IMPRIMIR", "EN_IMPRENTA", "PARA_ENTREGAR", "ENTREGADO"] as const;
+export type PasoConVuelta = (typeof PASOS_CON_VUELTA)[number];
+
+/**
+ * Lleva las piezas elegidas que están en `desde` al paso anterior. Sólo mueve las que están en ese
+ * paso: si un pedido tiene un librito más adelantado, ése queda donde está.
+ *
+ * - Cambios pedidos → Revisar diseño: se retira el pedido de cambios (vuelve a esperar tu revisión).
+ * - Para imprimir → Revisar diseño: se des-aprueba el librito. Al aprobarlo de nuevo se rehace el
+ *   PDF. Los pedidos de sólo copias no tienen paso anterior (sería deshacer el canje).
+ * - En imprenta → Para imprimir: sale del lote (lo mismo que «Sacar del lote»).
+ * - Para entregar → En imprenta: se borra la marca de impreso.
+ * - Entregado → Para entregar: se borra la marca de entregado.
+ *
+ * No manda correos. `items` son ítems de la tienda escolar, que llevan su propio estado físico
+ * (PHYSICAL_IN_PROGRESS → AT_SCHOOL → DELIVERED) además de las fechas del librito.
+ */
+export async function volverUnPaso(
+  actor: DesignActor,
+  desde: PasoConVuelta,
+  piezas: { disenos?: number[]; copias?: number[]; items?: number[] },
+): Promise<number> {
+  const disenos = piezas.disenos ?? [];
+  const copias = piezas.copias ?? [];
+  const items = piezas.items ?? [];
+  const deDisenos = (extra: Prisma.DesignProjectWhereInput): Prisma.DesignProjectWhereInput => ({
+    id: { in: disenos },
+    ...propios(actor),
+    ...extra,
+  });
+  const aprobado: Prisma.DesignProjectWhereInput["status"] = { in: ["APPROVED_FOR_EXPORT", "EXPORTED"] };
+  let total = 0;
+
+  if (desde === "CAMBIOS_PEDIDOS" || desde === "PARA_IMPRIMIR") {
+    if (disenos.length === 0) return 0;
+    const where =
+      desde === "CAMBIOS_PEDIDOS"
+        ? deDisenos({ status: "NEEDS_ADJUSTMENT" })
+        : deDisenos({ status: aprobado, sentToPrintAt: null });
+    const afectados = await prisma.designProject.findMany({ where, select: { id: true, orderItemId: true } });
+    if (afectados.length === 0) return 0;
+    const r = await prisma.designProject.updateMany({
+      where: { id: { in: afectados.map((d) => d.id) } },
+      data:
+        desde === "CAMBIOS_PEDIDOS"
+          ? { status: "PENDING_PHOTOGRAPHER_APPROVAL" }
+          : { status: "PENDING_PHOTOGRAPHER_APPROVAL", approvedAt: null, approvedByUserId: null },
+    });
+    // El ítem de la tienda lo había pasado a EXPORTED la aprobación: vuelve a «diseño enviado».
+    const deTienda = afectados.map((d) => d.orderItemId).filter((v): v is number => v != null);
+    if (desde === "PARA_IMPRIMIR" && deTienda.length) {
+      await prisma.preCompraOrderItem.updateMany({
+        where: { id: { in: deTienda }, status: { in: ["APPROVED", "EXPORTED"] } },
+        data: { status: "DESIGN_SUBMITTED" },
+      });
+    }
+    return r.count;
+  }
+
+  const ahoraDisenos: { where: Prisma.DesignProjectWhereInput; data: Prisma.DesignProjectUpdateManyMutationInput } =
+    desde === "EN_IMPRENTA"
+      ? {
+          where: deDisenos({ status: aprobado, sentToPrintAt: { not: null }, printedAt: null }),
+          data: { printBatchName: null, sentToPrintAt: null, printedAt: null, deliveredAt: null },
+        }
+      : desde === "PARA_ENTREGAR"
+        ? { where: deDisenos({ status: aprobado, printedAt: { not: null }, deliveredAt: null }), data: { printedAt: null } }
+        : { where: deDisenos({ status: aprobado, deliveredAt: { not: null } }), data: { deliveredAt: null } };
+  if (disenos.length) total += (await prisma.designProject.updateMany(ahoraDisenos)).count;
+
+  if (copias.length) {
+    const propiosDeCopias = (await cargarPedidosDeCopias(actor, { copias })).map((p) => p.orderId);
+    total +=
+      desde === "EN_IMPRENTA"
+        ? await actualizarCopias(
+            propiosDeCopias,
+            { printBatchName: null, sentToPrintAt: null, printedAt: null, deliveredAt: null },
+            { sentToPrintAt: { not: null }, printedAt: null },
+          )
+        : desde === "PARA_ENTREGAR"
+          ? await actualizarCopias(propiosDeCopias, { printedAt: null }, { printedAt: { not: null }, deliveredAt: null })
+          : await actualizarCopias(propiosDeCopias, { deliveredAt: null }, { deliveredAt: { not: null } });
+  }
+
+  if (items.length) {
+    const [antes, despues] =
+      desde === "EN_IMPRENTA"
+        ? (["PHYSICAL_IN_PROGRESS", "EXPORTED"] as const)
+        : desde === "PARA_ENTREGAR"
+          ? (["AT_SCHOOL", "PHYSICAL_IN_PROGRESS"] as const)
+          : (["DELIVERED", "AT_SCHOOL"] as const);
+    const r = await prisma.preCompraOrderItem.updateMany({
+      where: {
+        id: { in: items },
+        status: antes,
+        ...(actor.role === "ADMIN" ? {} : { order: { album: { userId: actor.id } } }),
+      },
+      data: { status: despues },
+    });
+    total += r.count;
+  }
+  return total;
 }
 
 export type ResumenDeLote = {
   nombre: string;
+  /** Trabajos del lote: libritos más pedidos de sólo copias. */
   cantidad: number;
+  libritos: number;
+  /** Pedidos de sólo copias impresas (sin librito). */
+  copias: number;
   enviadoAt: Date | null;
   impresos: number;
   entregados: number;
 };
 
 export async function listarLotes(actor: DesignActor): Promise<ResumenDeLote[]> {
-  const rows = await prisma.designProject.findMany({
-    where: { ...propios(actor), printBatchName: { not: null } },
-    select: { printBatchName: true, sentToPrintAt: true, printedAt: true, deliveredAt: true },
-  });
+  const [rows, deCopias] = await Promise.all([
+    prisma.designProject.findMany({
+      where: { ...propios(actor), printBatchName: { not: null } },
+      select: { printBatchName: true, sentToPrintAt: true, printedAt: true, deliveredAt: true },
+    }),
+    avancesDeCopiasEnLotes(actor),
+  ]);
   const porLote = new Map<string, ResumenDeLote>();
-  for (const r of rows) {
+  const sumar = (r: (typeof rows)[number], tipo: "libritos" | "copias") => {
     const nombre = r.printBatchName!;
-    const l = porLote.get(nombre) ?? { nombre, cantidad: 0, enviadoAt: r.sentToPrintAt, impresos: 0, entregados: 0 };
+    const l =
+      porLote.get(nombre) ??
+      { nombre, cantidad: 0, libritos: 0, copias: 0, enviadoAt: r.sentToPrintAt, impresos: 0, entregados: 0 };
     l.cantidad++;
+    l[tipo]++;
     if (r.printedAt) l.impresos++;
     if (r.deliveredAt) l.entregados++;
     if (r.sentToPrintAt && (!l.enviadoAt || r.sentToPrintAt < l.enviadoAt)) l.enviadoAt = r.sentToPrintAt;
     porLote.set(nombre, l);
-  }
+  };
+  for (const r of rows) sumar(r, "libritos");
+  for (const r of deCopias) sumar(r, "copias");
   return [...porLote.values()].sort((a, b) => (b.enviadoAt?.getTime() ?? 0) - (a.enviadoAt?.getTime() ?? 0));
 }
 
@@ -244,7 +405,11 @@ export async function pdfUnico(libros: LibritoParaProducir[]): Promise<{ bytes: 
 }
 
 /** Resumen del lote en PDF: qué librito va en qué número, para controlar al recibirlos. */
-export async function resumenDelLote(nombre: string, libros: LibritoParaProducir[]): Promise<Uint8Array> {
+export async function resumenDelLote(
+  nombre: string,
+  libros: LibritoParaProducir[],
+  pedidosDeCopias: PedidoDeCopias[] = [],
+): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
@@ -253,19 +418,31 @@ export async function resumenDelLote(nombre: string, libros: LibritoParaProducir
   let y = 800;
   page.drawText(limpio(nombre), { x: 40, y, size: 16, font: bold });
   y -= 22;
-  page.drawText(`${libros.length} libritos`, { x: 40, y, size: 10, font, color: rgb(0.35, 0.35, 0.35) });
+  const conteo = pedidosDeCopias.length
+    ? `${libros.length} libritos · ${pedidosDeCopias.length} pedidos de solo copias`
+    : `${libros.length} libritos`;
+  page.drawText(conteo, { x: 40, y, size: 10, font, color: rgb(0.35, 0.35, 0.35) });
   y -= 24;
-  const ancho = Math.max(3, String(libros.length).length);
-  libros.forEach((l, i) => {
+  const total = libros.length + pedidosDeCopias.length;
+  const ancho = Math.max(3, String(total).length);
+  const renglon = (texto: string) => {
     if (y < 50) {
       page = doc.addPage([595, 842]);
       y = 800;
     }
-    // Mismo número y mismo id que en los nombres de los archivos del ZIP.
-    const linea = `${String(i + 1).padStart(ancho, "0")}   ${limpio(l.curso)}   ${limpio(l.alumno)}   (diseno ${l.id})`;
-    page.drawText(linea, { x: 40, y, size: 10, font });
+    page.drawText(texto, { x: 40, y, size: 10, font });
     y -= 15;
-  });
+  };
+  // Mismo número y mismo id que en los nombres de los archivos del ZIP. Los pedidos de sólo copias
+  // van después de los libritos, con el número del pedido.
+  libros.forEach((l, i) =>
+    renglon(`${String(i + 1).padStart(ancho, "0")}   ${limpio(l.curso)}   ${limpio(l.alumno)}   (diseno ${l.id})`),
+  );
+  pedidosDeCopias.forEach((p, i) =>
+    renglon(
+      `${String(libros.length + i + 1).padStart(ancho, "0")}   ${limpio(p.curso)}   ${limpio(p.alumno)}   (solo copias, pedido ${p.orderId})`,
+    ),
+  );
   return doc.save();
 }
 
@@ -273,7 +450,9 @@ export async function resumenDelLote(nombre: string, libros: LibritoParaProducir
  * Etiquetas para los sobres: A4, 3 columnas × 8 filas, alumno grande y curso/colegio abajo. Si el
  * librito tiene código de entrega, lleva el QR (~2 cm) a la derecha, que abre la ficha de entrega.
  */
-export async function etiquetas(libros: LibritoParaProducir[]): Promise<Uint8Array> {
+export async function etiquetas(
+  libros: Array<Pick<LibritoParaProducir, "id" | "alumno" | "curso" | "colegio" | "qrToken">>,
+): Promise<Uint8Array> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);

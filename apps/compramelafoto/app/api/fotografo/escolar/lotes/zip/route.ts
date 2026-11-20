@@ -18,7 +18,13 @@ import {
   planDelLoteJpg,
 } from "@/lib/design-v2/produccion-reglas";
 import { streamPrintExportZip } from "@/lib/orders/print-export/stream-print-export-zip";
-import { copiasSueltasDelLote, lineaDeCopiasSueltas } from "@/lib/design-v2/copias-sueltas-del-lote";
+import {
+  copiasDePedidosSinLibrito,
+  copiasSueltasDelLote,
+  lineaDeCopiasSueltas,
+} from "@/lib/design-v2/copias-sueltas-del-lote";
+import { cargarPedidosDeCopias, type PedidoDeCopias } from "@/lib/design-v2/copias-en-produccion";
+import type { PrintExportFile } from "@/lib/orders/print-export/stream-print-export-zip";
 import type { DesignActor } from "@/lib/design-v2/projects";
 
 export const runtime = "nodejs";
@@ -26,7 +32,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 /**
- * GET ?lote=… o ?ids=… [&formato=jpg] — ZIP del lote: una sola carpeta con todos los archivos,
+ * GET ?lote=… o ?ids=…&copias=… [&formato=jpg] — ZIP del lote: una sola carpeta con todos los archivos,
  * que ordenados por nombre quedan en orden de impresión, más el resumen y el control («000 - …»).
  *
  * - PDF (por defecto): un PDF por trabajo, «001 - 7 A - Celoria Pedro (diseño 123).pdf».
@@ -43,9 +49,17 @@ export async function GET(req: NextRequest) {
   try {
     const sp = req.nextUrl.searchParams;
     const formato = sp.get("formato") === "jpg" ? "jpg" : "pdf";
-    const filtro = filtroDeLibritos({ ids: sp.get("ids") ?? undefined, lote: sp.get("lote") ?? undefined });
-    const libros = await cargarLibritos(actor, filtro);
-    if (libros.length === 0) return NextResponse.json({ error: "No hay librititos aprobados para descargar." }, { status: 400 });
+    const filtro = filtroDeLibritos({
+      ids: sp.get("ids") ?? undefined,
+      lote: sp.get("lote") ?? undefined,
+      copias: sp.get("copias") ?? undefined,
+    });
+    const libros = filtro.ids || filtro.lote ? await cargarLibritos(actor, filtro) : [];
+    // Pedidos de sólo copias impresas (sin librito): sus fotos van en «Copias sueltas».
+    const pedidos = filtro.copias || filtro.lote ? await cargarPedidosDeCopias(actor, filtro) : [];
+    if (libros.length === 0 && pedidos.length === 0) {
+      return NextResponse.json({ error: "No hay nada aprobado para descargar." }, { status: 400 });
+    }
     const tope = formato === "jpg" ? MAX_LIBRITOS_POR_ZIP_JPG : MAX_LIBRITOS_POR_ZIP;
     if (libros.length > tope) {
       return NextResponse.json(
@@ -59,16 +73,32 @@ export async function GET(req: NextRequest) {
       );
     }
     const nombre = filtro.lote ?? `Librititos ${new Date().toISOString().slice(0, 10)}`;
-    return formato === "jpg" ? await zipDeJpg(actor, nombre, libros) : await zipDePdf(actor, nombre, libros);
+    return formato === "jpg" ? await zipDeJpg(actor, nombre, libros, pedidos) : await zipDePdf(actor, nombre, libros, pedidos);
   } catch (err) {
     return respuestaDeError(err, "zip del lote");
   }
 }
 
-async function zipDePdf(actor: DesignActor, nombre: string, libros: LibritoParaProducir[]) {
+/** Las copias de los libritos y las de los pedidos sin librito, más la línea del control. */
+async function todasLasCopias(actor: DesignActor, libros: LibritoParaProducir[], pedidos: PedidoDeCopias[], carpeta: string) {
+  const deLibritos = await copiasSueltasDelLote(actor, libros, carpeta);
+  const sinLibrito = await copiasDePedidosSinLibrito(actor, pedidos, libros.length + 1, libros.length + pedidos.length, carpeta);
+  const lineas = [
+    ...lineaDeCopiasSueltas(deLibritos),
+    ...(pedidos.length
+      ? [
+          `${pedidos.length} ${pedidos.length === 1 ? "pedido" : "pedidos"} de solo copias impresas (sin librito), también en «Copias sueltas», numerados después de los libritos.`,
+          "",
+        ]
+      : []),
+  ];
+  return { files: [...deLibritos, ...sinLibrito] as PrintExportFile[], lineas };
+}
+
+async function zipDePdf(actor: DesignActor, nombre: string, libros: LibritoParaProducir[], pedidos: PedidoDeCopias[]) {
   const archivos = archivosDelLote(libros);
   const carpeta = carpetaDelLote(nombre);
-  const copias = await copiasSueltasDelLote(actor, libros, carpeta);
+  const { files: copias, lineas } = await todasLasCopias(actor, libros, pedidos, carpeta);
   const sinArchivo = libros.flatMap((l, i) => (l.pdfKey ? [] : [nombreDeTrabajo(i + 1, l, libros.length)]));
   return streamPrintExportZip(
     [
@@ -76,7 +106,7 @@ async function zipDePdf(actor: DesignActor, nombre: string, libros: LibritoParaP
         folder: carpeta,
         manifestName: ARCHIVOS_DE_CONTROL.control,
         summaryName: ARCHIVOS_DE_CONTROL.resumen,
-        manifestHeader: [nombre, `${archivos.length} librititos`, "", ...lineaDeCopiasSueltas(copias)],
+        manifestHeader: [nombre, `${archivos.length} librititos`, "", ...lineas],
         files: [
           ...archivos.map((a) => ({
             zipPath: `${carpeta}/${a.nombre}`,
@@ -86,7 +116,7 @@ async function zipDePdf(actor: DesignActor, nombre: string, libros: LibritoParaP
           })),
           ...copias,
         ],
-        pdfBytes: await resumenDelLote(nombre, libros),
+        pdfBytes: await resumenDelLote(nombre, libros, pedidos),
         notes: sinArchivo.length
           ? [
               {
@@ -101,9 +131,9 @@ async function zipDePdf(actor: DesignActor, nombre: string, libros: LibritoParaP
   );
 }
 
-async function zipDeJpg(actor: DesignActor, nombre: string, libros: LibritoParaProducir[]) {
+async function zipDeJpg(actor: DesignActor, nombre: string, libros: LibritoParaProducir[], pedidos: PedidoDeCopias[]) {
   const plan = planDelLoteJpg(nombre, await conEtiquetasDeCaras(libros));
-  const copias = await copiasSueltasDelLote(actor, libros, plan.carpeta);
+  const { files: copias, lineas } = await todasLasCopias(actor, libros, pedidos, plan.carpeta);
   const trabajos = libros.length - plan.faltantes.length;
   return streamPrintExportZip(
     [
@@ -111,7 +141,7 @@ async function zipDeJpg(actor: DesignActor, nombre: string, libros: LibritoParaP
         folder: plan.carpeta,
         manifestName: ARCHIVOS_DE_CONTROL.control,
         summaryName: ARCHIVOS_DE_CONTROL.resumen,
-        manifestHeader: [nombre, `${trabajos} trabajos · ${plan.archivos.length} JPG`, "", ...lineaDeCopiasSueltas(copias)],
+        manifestHeader: [nombre, `${trabajos} trabajos · ${plan.archivos.length} JPG`, "", ...lineas],
         files: [
           ...plan.archivos.map((a) => ({
             zipPath: a.zipPath,
@@ -122,11 +152,11 @@ async function zipDeJpg(actor: DesignActor, nombre: string, libros: LibritoParaP
           })),
           ...copias,
         ],
-        pdfBytes: await resumenDelLote(nombre, libros),
+        pdfBytes: await resumenDelLote(nombre, libros, pedidos),
         notes: [
           {
             name: ARCHIVOS_DE_CONTROL.leeme,
-            content: copias.length ? `${plan.leeme}\r\n${lineaDeCopiasSueltas(copias)[0]}\r\n` : plan.leeme,
+            content: lineas.length ? `${plan.leeme}\r\n${lineas.filter(Boolean).join("\r\n")}\r\n` : plan.leeme,
           },
           ...(plan.faltantes.length
             ? [

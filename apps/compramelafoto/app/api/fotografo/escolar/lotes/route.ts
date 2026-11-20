@@ -17,14 +17,14 @@ export async function GET() {
   }
 }
 
-/** POST { ids } — manda a imprimir los librititos aprobados elegidos, en un lote nuevo. */
+/** POST { ids, copias } — manda a imprimir los librititos aprobados y los pedidos de sólo copias elegidos, en un lote nuevo. */
 export async function POST(req: Request) {
   const actor = await requireDesignActor();
   if (actor instanceof NextResponse) return actor;
   try {
-    const { ids } = filtroDeLibritos((await req.json().catch(() => ({}))) as { ids?: unknown });
-    if (!ids?.length) return NextResponse.json({ error: "Elegí al menos un librito." }, { status: 400 });
-    return NextResponse.json(await crearLote(actor, ids));
+    const { ids, copias } = filtroDeLibritos((await req.json().catch(() => ({}))) as { ids?: unknown; copias?: unknown });
+    if (!ids?.length && !copias?.length) return NextResponse.json({ error: "Elegí al menos un pedido." }, { status: 400 });
+    return NextResponse.json(await crearLote(actor, ids ?? [], copias ?? []));
   } catch (err) {
     return respuestaDeError(err, "crear lote");
   }

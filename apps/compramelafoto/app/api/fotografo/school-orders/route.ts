@@ -187,7 +187,7 @@ export async function GET(req: NextRequest) {
         take: 1000,
       });
       const canjes = packs.map((p) => p.redemptionOrderId).filter((id): id is number => id != null);
-      const [disenos, conCopias] = canjes.length
+      const [disenos, conCopias, avancesDeCopias] = canjes.length
         ? await Promise.all([
             prisma.designProject.findMany({
               where: { albumOrderId: { in: canjes } },
@@ -200,8 +200,14 @@ export async function GET(req: NextRequest) {
               select: { orderId: true },
               distinct: ["orderId"],
             }),
+            // Avance de imprenta de los canjes de sólo copias (los libritos lo guardan en su diseño).
+            prisma.schoolCopiesPrintJob.findMany({
+              where: { orderId: { in: canjes } },
+              select: { orderId: true, ...PRODUCCION },
+            }),
           ])
-        : [[], []];
+        : [[], [], []];
+      const avancePorCanje = new Map(avancesDeCopias.map((a) => [a.orderId, produccion(a)]));
       const canjesConCopias = new Set(conCopias.map((c) => c.orderId));
       const huecosPacks = await huecosVaciosDe(
         disenos.filter((d) => d.status === "PENDING_PHOTOGRAPHER_APPROVAL").map((d) => d.id),
@@ -222,6 +228,17 @@ export async function GET(req: NextRequest) {
         }
         const nombre = externo?.studentName?.trim() ?? "";
         const delCanje = disenos.filter((d) => p.redemptionOrderId != null && d.albumOrderId === p.redemptionOrderId);
+        const tieneCopiasFisicas = p.redemptionOrderId != null && canjesConCopias.has(p.redemptionOrderId);
+        // Sólo copias, sin librito: su avance viaja aparte (vacío hasta que entra en un lote).
+        const copias =
+          tieneCopiasFisicas && delCanje.length === 0
+            ? (avancePorCanje.get(p.redemptionOrderId!) ?? {
+                printBatchName: null,
+                sentToPrintAt: null,
+                printedAt: null,
+                deliveredAt: null,
+              })
+            : null;
         payload.push({
           kind: "PACK_EXTERNO",
           id: p.id,
@@ -240,8 +257,10 @@ export async function GET(req: NextRequest) {
             kind: "PACK_EXTERNO",
             canjeado: p.redemptionOrderId != null,
             disenos: delCanje.map((d) => ({ status: d.status, ...produccion(d) })),
-            tieneCopiasFisicas: p.redemptionOrderId != null && canjesConCopias.has(p.redemptionOrderId),
+            tieneCopiasFisicas,
+            copias,
           }),
+          copias,
           disenos: delCanje.map(
             (d): DisenoFila => ({
               id: d.id,

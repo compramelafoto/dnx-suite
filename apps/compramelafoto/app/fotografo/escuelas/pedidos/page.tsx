@@ -43,7 +43,24 @@ type Diseno = {
   deliveredAt?: string | null;
 };
 
-type Lote = { nombre: string; cantidad: number; enviadoAt: string | null; impresos: number; entregados: number };
+type Lote = {
+  nombre: string;
+  /** Trabajos del lote: libritos más pedidos de sólo copias. */
+  cantidad: number;
+  libritos: number;
+  copias: number;
+  enviadoAt: string | null;
+  impresos: number;
+  entregados: number;
+};
+
+/** Avance de imprenta de un pedido de sólo copias impresas (sin librito). */
+type AvanceCopias = {
+  printBatchName: string | null;
+  sentToPrintAt: string | null;
+  printedAt: string | null;
+  deliveredAt: string | null;
+};
 
 const APROBADO = new Set(["APPROVED_FOR_EXPORT", "EXPORTED"]);
 
@@ -51,6 +68,33 @@ const APROBADO = new Set(["APPROVED_FOR_EXPORT", "EXPORTED"]);
 function disenosDe(pedidos: Order[], cumple: (d: Diseno) => boolean): number[] {
   return [...new Set(pedidos.flatMap((o) => o.disenos).filter(cumple).map((d) => d.id))];
 }
+
+/** Pedidos de sólo copias (sin librito) que cumplen una condición: devuelve sus pedidos de canje. */
+function copiasDe(pedidos: Order[], cumple: (c: AvanceCopias) => boolean): number[] {
+  return [
+    ...new Set(
+      pedidos.flatMap((o) => (o.copias && o.redemptionOrderId && cumple(o.copias) ? [o.redemptionOrderId] : [])),
+    ),
+  ];
+}
+
+/** «2 librititos y 1 pedido de copias». */
+function textoTrabajos(libritos: number, copias: number): string {
+  const partes = [
+    libritos ? `${libritos} ${libritos === 1 ? "librito" : "librititos"}` : "",
+    copias ? `${copias} ${copias === 1 ? "pedido de copias" : "pedidos de copias"}` : "",
+  ].filter(Boolean);
+  return partes.join(" y ") || "0 pedidos";
+}
+
+/** Paso anterior de cada paso que admite volver (el resto no tiene vuelta). */
+const PASO_ANTERIOR: Partial<Record<PasoEmbudo, PasoEmbudo>> = {
+  CAMBIOS_PEDIDOS: "REVISAR_DISENO",
+  PARA_IMPRIMIR: "REVISAR_DISENO",
+  EN_IMPRENTA: "PARA_IMPRIMIR",
+  PARA_ENTREGAR: "EN_IMPRENTA",
+  ENTREGADO: "PARA_ENTREGAR",
+};
 
 type Order = {
   /** Pedido de la tienda escolar, o pack cobrado por fuera (San Patricio) y sus pruebas DEMO. */
@@ -68,6 +112,8 @@ type Order = {
   isDemo?: boolean;
   paso: UbicacionEnEmbudo;
   disenos: Diseno[];
+  /** Sólo en los canjes de copias impresas sin librito: su avance por la imprenta. */
+  copias?: AvanceCopias | null;
   album: { id: number; title: string; publicSlug: string; school: { id: number; name: string } | null } | null;
   schoolCourse: { id: number; name: string; division: string | null } | null;
   items?: Array<{ id: number; status: string; designProjectId: number | null; designProjectStatus: string | null }>;
@@ -403,9 +449,10 @@ export default function FotografoEscuelasPedidosPage() {
     void cargarLotes();
   }, [cargarLotes]);
 
-  const descargar = (ruta: string, filtro: { ids?: number[]; lote?: string }, formato?: "jpg") => {
+  const descargar = (ruta: string, filtro: { ids?: number[]; lote?: string; copias?: number[] }, formato?: "jpg") => {
     const q = new URLSearchParams();
     if (filtro.ids?.length) q.set("ids", filtro.ids.join(","));
+    if (filtro.copias?.length) q.set("copias", filtro.copias.join(","));
     if (filtro.lote) q.set("lote", filtro.lote);
     if (formato) q.set("formato", formato);
     window.open(`/api/fotografo/escolar/${ruta}?${q.toString()}`, "_blank");
@@ -413,10 +460,12 @@ export default function FotografoEscuelasPedidosPage() {
 
   /** Para imprimir · principal: junta los aprobados en un lote nuevo y los pasa a «En imprenta». */
   async function crearLote() {
-    const ids = disenosDe(elegidas.length ? elegidas : filas, (d) => APROBADO.has(d.status) && !d.sentToPrintAt);
-    if (ids.length === 0) return;
+    const base = elegidas.length ? elegidas : filas;
+    const ids = disenosDe(base, (d) => APROBADO.has(d.status) && !d.sentToPrintAt);
+    const copias = copiasDe(base, (c) => !c.sentToPrintAt);
+    if (ids.length === 0 && copias.length === 0) return;
     const ok = window.confirm(
-      `Vas a mandar a imprimir ${plural(ids.length, "librito", "librititos")}${elegidas.length ? "" : " (todos los de este paso)"}. ` +
+      `Vas a mandar a imprimir ${textoTrabajos(ids.length, copias.length)}${elegidas.length ? "" : " (todos los de este paso)"}. ` +
         "Se arma un lote nuevo y pasan a «En imprenta». Después bajás el ZIP o el PDF único para la imprenta.\n\n¿Seguimos?",
     );
     if (!ok) return;
@@ -427,13 +476,13 @@ export default function FotografoEscuelasPedidosPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids }),
+        body: JSON.stringify({ ids, copias }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "No se pudo armar el lote.");
       setMensaje({
         tono: "ok",
-        texto: `Listo: ${d.nombre} con ${plural(d.cantidad, "librito", "librititos")}. Lo encontrás en «En imprenta» para descargarlo.`,
+        texto: `Listo: ${d.nombre} con ${plural(d.cantidad, "pedido", "pedidos")}. Lo encontrás en «En imprenta» para descargarlo.`,
       });
       setSeleccion(new Set());
       await Promise.all([recargar(), cargarLotes()]);
@@ -444,7 +493,11 @@ export default function FotografoEscuelasPedidosPage() {
     }
   }
 
-  async function marcar(paso: "IMPRESO" | "ENTREGADO" | "VOLVER_A_IMPRIMIR", filtro: { ids?: number[]; lote?: string }, texto: string) {
+  async function marcar(
+    paso: "IMPRESO" | "ENTREGADO" | "VOLVER_A_IMPRIMIR",
+    filtro: { ids?: number[]; lote?: string; copias?: number[] },
+    texto: string,
+  ) {
     if (!window.confirm(texto)) return;
     setOcupado(paso);
     setMensaje(null);
@@ -457,11 +510,59 @@ export default function FotografoEscuelasPedidosPage() {
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "No se pudo actualizar.");
-      setMensaje({ tono: "ok", texto: `Actualizados: ${plural(d.actualizados ?? 0, "librito", "librititos")}.` });
+      setMensaje({ tono: "ok", texto: `Actualizados: ${plural(d.actualizados ?? 0, "pedido", "pedidos")}.` });
       setSeleccion(new Set());
       await Promise.all([recargar(), cargarLotes()]);
     } catch (e) {
       setMensaje({ tono: "error", texto: e instanceof Error ? e.message : "No se pudo actualizar." });
+    } finally {
+      setOcupado(null);
+    }
+  }
+
+  /**
+   * «Volver un paso»: lleva los pedidos marcados al paso anterior. Manda todas sus piezas; el
+   * servidor mueve sólo las que están en este paso.
+   */
+  async function volverUnPaso(desde: PasoEmbudo) {
+    const anterior = PASO_ANTERIOR[desde];
+    if (!anterior || elegidas.length === 0) return;
+    const disenos = disenosDe(elegidas, () => true);
+    const copias = copiasDe(elegidas, () => true);
+    const items = elegidas.flatMap((o) => (o.kind === "PACK_EXTERNO" ? [] : (o.items ?? []).map((i) => i.id)));
+    const aviso: Partial<Record<PasoEmbudo, string>> = {
+      CAMBIOS_PEDIDOS: " Se retira el pedido de cambios: el diseño vuelve a esperar tu revisión. A la familia no le llega ningún aviso.",
+      PARA_IMPRIMIR:
+        " Se des-aprueba el librito: lo revisás y lo aprobás de nuevo (se rehace el PDF). A la familia no le llega ningún aviso. Los pedidos de sólo copias no tienen paso anterior y quedan donde están.",
+      EN_IMPRENTA: " Salen del lote.",
+      PARA_ENTREGAR: " Se borra la marca de impreso.",
+      ENTREGADO: " Se borra la marca de entregado.",
+    };
+    const ok = window.confirm(
+      `¿Volver ${plural(elegidas.length, "pedido", "pedidos")} a «${INFO_PASOS[anterior].titulo}»?${aviso[desde] ?? ""}`,
+    );
+    if (!ok) return;
+    setOcupado("volver");
+    setMensaje(null);
+    try {
+      const r = await fetch("/api/fotografo/escolar/volver-paso", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ desde, disenos, copias, items }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || "No se pudo volver al paso anterior.");
+      const n = Number(d.actualizados ?? 0);
+      setMensaje(
+        n > 0
+          ? { tono: "ok", texto: `Listo: volvieron a «${INFO_PASOS[anterior].titulo}».` }
+          : { tono: "error", texto: "Ninguno de los marcados se pudo volver desde este paso." },
+      );
+      setSeleccion(new Set());
+      await Promise.all([recargar(), cargarLotes()]);
+    } catch (e) {
+      setMensaje({ tono: "error", texto: e instanceof Error ? e.message : "No se pudo volver al paso anterior." });
     } finally {
       setOcupado(null);
     }
@@ -568,8 +669,8 @@ export default function FotografoEscuelasPedidosPage() {
             ))}
             {o.disenos.length === 0 ? <span className="text-xs text-gray-600">Copias sueltas, sin librito</span> : null}
             {o.kind === "PACK_EXTERNO" && o.redemptionOrderId ? (
-              // Las copias sueltas no entran en los lotes: se bajan del pedido (fotos por tamaño y,
-              // si hay librito, su PDF).
+              // Descarga suelta de este pedido (fotos por tamaño y, si hay librito, su PDF). Las
+              // copias también van en el ZIP del lote.
               <a
                 href={`/api/fotografo/pedidos/${o.redemptionOrderId}/export-print`}
                 className={link}
@@ -599,7 +700,11 @@ export default function FotografoEscuelasPedidosPage() {
         );
       case "EN_IMPRENTA":
         if (o.kind === "PACK_EXTERNO") {
-          return <span className="text-xs text-gray-600">{o.disenos.find((d) => d.printBatchName)?.printBatchName ?? "En imprenta"}</span>;
+          return (
+            <span className="text-xs text-gray-600">
+              {o.disenos.find((d) => d.printBatchName)?.printBatchName ?? o.copias?.printBatchName ?? "En imprenta"}
+            </span>
+          );
         }
         return item ? (
           <button
@@ -615,7 +720,11 @@ export default function FotografoEscuelasPedidosPage() {
         ) : null;
       case "PARA_ENTREGAR":
         if (o.kind === "PACK_EXTERNO") {
-          return <span className="text-xs text-gray-600">Impreso · {o.disenos.find((d) => d.printBatchName)?.printBatchName ?? ""}</span>;
+          return (
+            <span className="text-xs text-gray-600">
+              Impreso · {o.disenos.find((d) => d.printBatchName)?.printBatchName ?? o.copias?.printBatchName ?? ""}
+            </span>
+          );
         }
         return item ? (
           <button
@@ -632,7 +741,7 @@ export default function FotografoEscuelasPedidosPage() {
       case "ENTREGADO":
         return (
           <span className="text-xs text-gray-600">
-            {o.kind === "PACK_EXTERNO" && o.disenos.length === 0 ? "Sólo digital: ya lo descargó" : "Entregado"}
+            {o.kind === "PACK_EXTERNO" && o.disenos.length === 0 && !o.copias ? "Sólo digital: ya lo descargó" : "Entregado"}
           </span>
         );
       default:
@@ -641,6 +750,29 @@ export default function FotografoEscuelasPedidosPage() {
   }
 
   // ------------------------------------------------------------------ barra de acciones del paso
+
+  /** «Volver a …» para los pedidos marcados, en los pasos que tienen paso anterior. */
+  function botonVolver() {
+    if (vistaEfectiva === "FUERA") return null;
+    const anterior = PASO_ANTERIOR[vistaEfectiva];
+    if (!anterior) return null;
+    return (
+      <div className="flex flex-wrap items-center gap-2 border-t border-gray-100 pt-2">
+        <button
+          type="button"
+          className="text-xs font-medium text-gray-600 underline-offset-2 hover:text-gray-900 hover:underline disabled:cursor-not-allowed disabled:opacity-50 disabled:no-underline"
+          disabled={!!ocupado || elegidas.length === 0}
+          title={elegidas.length === 0 ? "Marcá los pedidos que querés volver" : undefined}
+          onClick={() => void volverUnPaso(vistaEfectiva)}
+        >
+          {ocupado === "volver"
+            ? "Volviendo…"
+            : `← Volver a «${INFO_PASOS[anterior].titulo}»${elegidas.length ? ` (${elegidas.length})` : ""}`}
+        </button>
+        {elegidas.length === 0 ? <span className="text-xs text-gray-400">Marcá los pedidos para volverlos un paso atrás.</span> : null}
+      </div>
+    );
+  }
 
   function barraDeAcciones() {
     const btnPrincipal =
@@ -702,11 +834,15 @@ export default function FotografoEscuelasPedidosPage() {
       case "PARA_IMPRIMIR": {
         const base = elegidas.length ? elegidas : filas;
         const paraLote = disenosDe(base, (d) => APROBADO.has(d.status) && !d.sentToPrintAt);
+        // Pedidos de sólo copias impresas (sin librito): también entran en el lote y en los ZIP.
+        const copiasParaLote = copiasDe(base, (c) => !c.sentToPrintAt);
+        const trabajos = paraLote.length + copiasParaLote.length;
+        const filtroZip = { ids: paraLote, copias: copiasParaLote };
         return (
           <>
             <div className="flex flex-wrap gap-2">
-              <button type="button" className={btnPrincipal} disabled={!!ocupado || paraLote.length === 0} onClick={() => void crearLote()}>
-                {ocupado === "lote" ? "Armando el lote…" : `Crear lote de impresión${paraLote.length ? ` (${paraLote.length})` : ""}`}
+              <button type="button" className={btnPrincipal} disabled={!!ocupado || trabajos === 0} onClick={() => void crearLote()}>
+                {ocupado === "lote" ? "Armando el lote…" : `Crear lote de impresión${trabajos ? ` (${trabajos})` : ""}`}
               </button>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -714,30 +850,32 @@ export default function FotografoEscuelasPedidosPage() {
               <button
                 type="button"
                 className={btnSecundario}
-                disabled={paraLote.length === 0}
-                onClick={() => descargar("lotes/zip", { ids: paraLote })}
+                disabled={trabajos === 0}
+                onClick={() => descargar("lotes/zip", filtroZip)}
               >
                 ZIP de PDF
               </button>
               <button
                 type="button"
                 className={btnSecundario}
-                disabled={paraLote.length === 0 || paraLote.length > MAX_ZIP_JPG}
+                disabled={trabajos === 0 || paraLote.length > MAX_ZIP_JPG}
                 title={paraLote.length > MAX_ZIP_JPG ? `El ZIP de JPG admite hasta ${MAX_ZIP_JPG}: marcá menos o armá lotes por curso.` : undefined}
-                onClick={() => descargar("lotes/zip", { ids: paraLote }, "jpg")}
+                onClick={() => descargar("lotes/zip", filtroZip, "jpg")}
               >
                 ZIP de JPG
               </button>
             </div>
             {nota(
               (elegidas.length ? "Va sólo lo que marcaste. " : "Sin marcar nada, va todo lo de este paso. ") +
-                `El lote junta los archivos finales en orden de impresión (colegio, curso y alumno). Los ZIP traen también, en la carpeta «Copias sueltas», las copias que esas familias pidieron aparte del librito. Conviene un lote por curso: el PDF único admite hasta 40 librititos, el ZIP de PDF hasta 60 y el ZIP de JPG hasta ${MAX_ZIP_JPG} (un JPG de 300 dpi por cara, con el alumno y la cara en el nombre).`,
+                `El lote junta los archivos finales en orden de impresión (colegio, curso y alumno). Los ZIP traen también, en la carpeta «Copias sueltas», las copias que esas familias pidieron aparte del librito y las de los pedidos que son sólo copias. Conviene un lote por curso: el PDF único admite hasta 40 librititos, el ZIP de PDF hasta 60 y el ZIP de JPG hasta ${MAX_ZIP_JPG} (un JPG de 300 dpi por cara, con el alumno y la cara en el nombre).`,
             )}
           </>
         );
       }
       case "EN_IMPRENTA": {
         const impresos = disenosDe(elegidas, (d) => !!d.sentToPrintAt && !d.printedAt);
+        const copiasImpresas = copiasDe(elegidas, (c) => !!c.sentToPrintAt && !c.printedAt);
+        const marcadosImpresos = impresos.length + copiasImpresas.length;
         const enCurso = lotes.filter((l) => l.impresos < l.cantidad);
         return (
           <>
@@ -747,7 +885,7 @@ export default function FotografoEscuelasPedidosPage() {
                 <div key={l.nombre} className="rounded-lg border border-gray-200 bg-white p-3">
                   <p className="m-0 text-sm font-semibold text-gray-900">{l.nombre}</p>
                   <p className="m-0 text-xs text-gray-600">
-                    {plural(l.cantidad, "librito", "librititos")} · {l.impresos} impresos
+                    {textoTrabajos(l.libritos, l.copias)} · {l.impresos} impresos
                   </p>
                   <p className="m-0 mt-2 text-xs font-medium text-gray-600">Descargar para la imprenta</p>
                   <div className="mt-1 grid grid-cols-3 gap-2">
@@ -763,9 +901,9 @@ export default function FotografoEscuelasPedidosPage() {
                     <button
                       type="button"
                       className={btnFormato}
-                      disabled={l.cantidad > MAX_ZIP_JPG}
+                      disabled={l.libritos > MAX_ZIP_JPG}
                       title={
-                        l.cantidad > MAX_ZIP_JPG
+                        l.libritos > MAX_ZIP_JPG
                           ? `El ZIP de JPG admite hasta ${MAX_ZIP_JPG}: bajá el de PDF o armá lotes más chicos.`
                           : "Un JPG de 300 dpi por cara, con el alumno y la cara en el nombre"
                       }
@@ -777,8 +915,14 @@ export default function FotografoEscuelasPedidosPage() {
                     <button
                       type="button"
                       className={btnFormato}
-                      disabled={l.cantidad > 40}
-                      title={l.cantidad > 40 ? "El PDF único admite hasta 40: bajá el ZIP." : "Todos los trabajos en un solo PDF"}
+                      disabled={l.libritos === 0 || l.libritos > 40}
+                      title={
+                        l.libritos === 0
+                          ? "Este lote no tiene libritos: las copias van en el ZIP."
+                          : l.libritos > 40
+                            ? "El PDF único admite hasta 40: bajá el ZIP."
+                            : "Todos los libritos en un solo PDF"
+                      }
                       onClick={() => descargar("lotes/pdf", { lote: l.nombre })}
                     >
                       <span>PDF único</span>
@@ -800,60 +944,59 @@ export default function FotografoEscuelasPedidosPage() {
                 </div>
               ))}
             </div>
-            {impresos.length ? (
+            {marcadosImpresos ? (
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
                   className={btnSecundario}
                   disabled={!!ocupado}
                   onClick={() =>
-                    void marcar("IMPRESO", { ids: impresos }, `¿Volvieron impresos los ${impresos.length} que marcaste?`)
-                  }
-                >
-                  Marcar impresos los elegidos ({impresos.length})
-                </button>
-                <button
-                  type="button"
-                  className={btnSecundario}
-                  disabled={!!ocupado}
-                  onClick={() =>
                     void marcar(
-                      "VOLVER_A_IMPRIMIR",
-                      { ids: impresos },
-                      `¿Sacar ${impresos.length} del lote? Vuelven a «Para imprimir» para armar otro lote.`,
+                      "IMPRESO",
+                      { ids: impresos, copias: copiasImpresas },
+                      `¿Volvieron impresos los ${marcadosImpresos} que marcaste?`,
                     )
                   }
                 >
-                  Sacar del lote
+                  Marcar impresos los elegidos ({marcadosImpresos})
                 </button>
               </div>
             ) : null}
-            {nota("Cuando la imprenta te los devuelva, marcá el lote impreso. Si alguno salió mal, marcalo y «Sacar del lote» para reimprimirlo.")}
+            {nota(
+              "Cuando la imprenta te los devuelva, marcá el lote impreso. Si alguno salió mal, marcalo y tocá «Volver a «Para imprimir»» para sacarlo del lote y reimprimirlo.",
+            )}
           </>
         );
       }
       case "PARA_ENTREGAR": {
         const base = elegidas.length ? elegidas : filas;
         const ids = disenosDe(base, (d) => !!d.printedAt && !d.deliveredAt);
+        const copias = copiasDe(base, (c) => !!c.printedAt && !c.deliveredAt);
+        const trabajos = ids.length + copias.length;
         return (
           <>
             <div className="flex flex-wrap gap-2">
-              <button type="button" className={btnPrincipal} disabled={ids.length === 0} onClick={() => descargar("etiquetas", { ids })}>
-                Imprimir etiquetas{ids.length ? ` (${ids.length})` : ""}
+              <button
+                type="button"
+                className={btnPrincipal}
+                disabled={trabajos === 0}
+                onClick={() => descargar("etiquetas", { ids, copias })}
+              >
+                Imprimir etiquetas{trabajos ? ` (${trabajos})` : ""}
               </button>
               <button
                 type="button"
                 className={btnSecundario}
-                disabled={!!ocupado || ids.length === 0}
+                disabled={!!ocupado || trabajos === 0}
                 onClick={() =>
                   void marcar(
                     "ENTREGADO",
-                    { ids },
-                    `¿Marcar entregados ${plural(ids.length, "librito", "librititos")}${elegidas.length ? "" : " (todos los de este paso)"}?`,
+                    { ids, copias },
+                    `¿Marcar entregados ${textoTrabajos(ids.length, copias.length)}${elegidas.length ? "" : " (todos los de este paso)"}?`,
                   )
                 }
               >
-                Marcar entregados{ids.length ? ` (${ids.length})` : ""}
+                Marcar entregados{trabajos ? ` (${trabajos})` : ""}
               </button>
             </div>
             {nota(
@@ -1040,6 +1183,7 @@ export default function FotografoEscuelasPedidosPage() {
               ) : null}
             </div>
             {barraDeAcciones()}
+            {botonVolver()}
             {mensaje ? (
               <p
                 role="status"
