@@ -167,6 +167,7 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
         versiones={detalle.pedidoPorConfirmar ? `${versiones} · Pedido por confirmar` : versiones}
         vence={fecha(detalle.validUntil)}
         contacto={detalle.contacto}
+        clientId={detalle.clientId}
         evento={evento}
         vistas={vistas.get(detalle.id) ?? null}
         enviada={detalle.versiones.some((v) => v.sentAt !== null)}

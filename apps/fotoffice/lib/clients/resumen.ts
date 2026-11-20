@@ -22,7 +22,7 @@ export type CuadroDeResumen = {
   valor: string;
   detalle: string | null;
   panel: PanelDeResumen;
-  /** En cero: se dibuja en tono suave, para que resalte lo que sí hay. */
+  /** En cero (hoy se dibuja igual; queda para quien quiera distinguirlo). */
   vacio: boolean;
 };
 
