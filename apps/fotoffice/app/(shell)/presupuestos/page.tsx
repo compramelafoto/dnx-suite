@@ -8,6 +8,8 @@ import { requirePresupuestos } from "@/lib/presupuestos/pagina";
 import { botEnPanel } from "@/lib/dnx-bot/panel";
 import { presupuestosSinRespuesta } from "@/lib/dnx-bot/seguimientos";
 import { PreguntaleAlBot } from "@/components/dnx-bot/preguntale-al-bot";
+import { PestanasCotizaciones } from "@/components/presupuestos/pestanas-cotizaciones";
+import { contarPorAprobar } from "@/lib/presupuesto-automatico/por-aprobar";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +27,9 @@ export default async function PresupuestosPage({
   const [ctxListado, bot] = await Promise.all([contextoListadoDePagina(user, workspace, QUOTES_MODULE_KEY), botEnPanel()]);
   // «Seguimientos» sólo si hay presupuestos sin respuesta (y el bot está encendido).
   const sinRespuesta = bot ? (await presupuestosSinRespuesta(ctx).catch(() => null))?.presupuestos.length ?? 0 : 0;
+  // Las que armó el bot y esperan aprobación (sólo quien puede aprobarlas).
+  const gestiona = puedeGestionarPresupuestos(ctx);
+  const porAprobar = gestiona ? await contarPorAprobar(workspace.id) : 0;
   return (
     <div className="space-y-6">
       <PageHeader
@@ -47,6 +52,7 @@ export default async function PresupuestosPage({
           </div>
         }
       />
+      {gestiona ? <PestanasCotizaciones activa="todas" porAprobar={porAprobar} /> : null}
       <Listado def={listadoPresupuestos} ctx={ctxListado} ruta="/presupuestos" searchParams={searchParams} />
     </div>
   );

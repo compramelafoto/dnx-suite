@@ -6,37 +6,18 @@ import { appUrl } from "@/lib/app-url";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { ajustesPorCategoria, leerAcuse } from "@/lib/presupuesto-automatico/ajustes";
 import { ACUSE_POR_OMISION } from "@/lib/presupuesto-automatico/canales";
-import { pendientesDeAprobar } from "@/lib/presupuesto-automatico/flujo";
 import { leerAjustesPorHoras } from "@/lib/presupuesto-automatico/por-horas";
 import { listarPropuestasModelo } from "@/lib/presupuestos/propuestas-modelo";
 import { estadoTelegram } from "@/lib/telegram/conexion";
-import { AcuseForm, AprobarForm, CategoriaForm, ConectarForm, DesconectarForm, PorHorasForm, VincularForm } from "./telegram-form";
+import { AcuseForm, CategoriaForm, ConectarForm, DesconectarForm, PorHorasForm, VincularForm } from "./telegram-form";
 
 export const dynamic = "force-dynamic";
-/** "Aprobar y enviar" desde acá manda el correo y el WhatsApp en la misma acción. */
 export const maxDuration = 60;
-
-const ESTADOS: Record<string, string> = {
-  AVISADO: "Esperando tu aprobación",
-  AVISO_FALLIDO: "Esperando tu aprobación (no se pudo avisar por Telegram)",
-  SIN_PROPUESTA: "Sin propuesta modelo: respondé a mano",
-  ENVIANDO: "Enviando…",
-  FALLO: "El envío falló: revisá la cotización",
-};
-
-const fecha = new Intl.DateTimeFormat("es-AR", {
-  timeZone: "America/Argentina/Buenos_Aires",
-  day: "2-digit",
-  month: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
 
 /**
  * Configuración → Telegram (spec 2026-10-25): conectar el bot de @BotFather, vincular el chat,
- * elegir qué categorías esperan la aprobación por Telegram, el acuse por WhatsApp y lo que está
- * esperando aprobación. Permiso: `configurar`, antes de cualquier lectura. El token NUNCA se lee
+ * elegir qué categorías esperan la aprobación por Telegram, el acuse por WhatsApp; lo que espera
+ * aprobación está en Cotizaciones → Por aprobar. Permiso: `configurar`, antes de cualquier lectura. El token NUNCA se lee
  * hacia la pantalla: `estadoTelegram` sólo dice si hay uno.
  */
 export default async function ConfiguracionTelegramPage() {
@@ -50,12 +31,11 @@ export default async function ConfiguracionTelegramPage() {
     );
   }
   const ctx = { workspaceId: workspace.id, userId: user.id, userLabel: etiquetaDeUsuario(user), role };
-  const [estado, categorias, ajustes, acuse, pendientes, porHoras] = await Promise.all([
+  const [estado, categorias, ajustes, acuse, porHoras] = await Promise.all([
     estadoTelegram(workspace.id),
     listarPropuestasModelo(ctx).then((c) => c ?? []),
     ajustesPorCategoria(workspace.id),
     leerAcuse(workspace.id),
-    pendientesDeAprobar(workspace.id),
     leerAjustesPorHoras(workspace.id),
   ]);
   const sinTablas = ajustes === null;
@@ -186,42 +166,12 @@ export default async function ConfiguracionTelegramPage() {
         <AcuseForm encendido={acuse.encendido} texto={acuse.configurado ?? ""} porOmision={ACUSE_POR_OMISION} />
       </section>
 
-      <section className="fo-card space-y-3 p-5 text-sm" aria-labelledby="tg-pend-titulo">
+      <section className="fo-card space-y-2 p-5 text-sm" aria-labelledby="tg-pend-titulo">
         <h2 id="tg-pend-titulo" className="text-base font-semibold">Esperando aprobación</h2>
-        {pendientes.length === 0 ? (
-          <p className="text-[var(--fo-muted)]">No hay cotizaciones esperando.</p>
-        ) : (
-          <ul className="divide-y divide-[var(--fo-border)]">
-            {pendientes.map((p) => (
-              <li key={p.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
-                <div>
-                  <p className="font-medium text-[var(--fo-text)]">
-                    {p.cliente}
-                    {p.categoria ? ` · ${p.categoria}` : ""}
-                  </p>
-                  <p className="text-xs text-[var(--fo-muted)]">
-                    {fecha.format(p.creada)} · {p.origen === "WHATSAPP" ? "WhatsApp" : p.origen === "INSTAGRAM" ? "Instagram" : "Web"} · {ESTADOS[p.status] ?? p.status}
-                    {p.errorCode === "SIN_CANAL" ? " · no dejó correo y no se le puede escribir por WhatsApp" : ""}
-                  </p>
-                  {p.precios.length > 0 ? (
-                    <ul className="mt-1 space-y-0.5 text-xs tabular-nums text-[var(--fo-text)]">
-                      {p.precios.map((linea) => (
-                        <li key={linea}>{linea}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  <p className="mt-1 flex flex-wrap gap-3 text-xs">
-                    {p.presupuestoId ? (
-                      <Link href={`/presupuestos/${encodeURIComponent(p.presupuestoId)}`} className="text-[var(--fo-accent)] hover:underline">Ver o corregir la cotización</Link>
-                    ) : null}
-                    <Link href={`/consultas/${encodeURIComponent(p.leadId)}`} className="text-[var(--fo-accent)] hover:underline">Abrir la consulta</Link>
-                  </p>
-                </div>
-                {p.presupuestoId && (p.status === "AVISADO" || p.status === "AVISO_FALLIDO") ? <AprobarForm aprobacionId={p.id} cliente={p.cliente} /> : null}
-              </li>
-            ))}
-          </ul>
-        )}
+        <p className="text-[var(--fo-muted)]">Las cotizaciones que esperan tu aprobación están en Cotizaciones, con su botón para aprobar, abrir o descartar.</p>
+        <Link href="/presupuestos/por-aprobar" className="text-[var(--fo-accent)] hover:underline">
+          Ver las cotizaciones por aprobar
+        </Link>
       </section>
 
       {estado.conectado ? (

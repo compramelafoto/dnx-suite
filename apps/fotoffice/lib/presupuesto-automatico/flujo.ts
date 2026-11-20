@@ -210,7 +210,7 @@ export async function datosDelResumen(workspaceId: string, aprobacionId: string,
 }
 
 /** Ítems, total, costo, horas y margen de la versión a enviar (el borrador o, si no hay, la vigente). */
-async function presupuestoDelResumen(workspaceId: string, presupuestoId: string): Promise<PresupuestoDelResumen | null> {
+export async function presupuestoDelResumen(workspaceId: string, presupuestoId: string): Promise<PresupuestoDelResumen | null> {
   const p = await prisma.fotofficePresupuesto.findFirst({ where: { id: presupuestoId, workspaceId }, select: { currentVersionId: true } });
   if (!p) return null;
   const v =
@@ -285,7 +285,7 @@ export type ViaAprobacion = { tipo: "TELEGRAM" } | { tipo: "PANEL"; userId: numb
 
 export type ResultadoAprobar =
   | { ok: true; canales: ResultadoCanales; texto: string }
-  | { ok: false; codigo: "NO_EXISTE" | "YA_ENVIADO" | "EN_CURSO" | "SIN_PRESUPUESTO" | "SIN_CANAL" | "NO_SALIO" | "ERROR"; texto: string };
+  | { ok: false; codigo: "NO_EXISTE" | "YA_ENVIADO" | "EN_CURSO" | "SIN_PRESUPUESTO" | "SIN_CANAL" | "NO_SALIO" | "ARCHIVADO" | "ERROR"; texto: string };
 
 export const TEXTOS_APROBAR = {
   NO_EXISTE: "No encontramos esa cotización.",
@@ -294,6 +294,7 @@ export const TEXTOS_APROBAR = {
   SIN_PRESUPUESTO: "Esta consulta no tiene cotización armada: abrila y respondé a mano.",
   SIN_CANAL: "No dejó correo y no se le puede escribir por WhatsApp: cargale un correo en la consulta y volvé a aprobar.",
   NO_SALIO: "No se pudo enviar. Revisalo en FOTOFFICE y volvé a aprobar.",
+  ARCHIVADO: "Esta cotización se archivó (la descartaron o tenía más de 14 días): no se manda.",
   ERROR: "Algo falló. Probá de nuevo en un rato.",
 } as const;
 
@@ -402,6 +403,7 @@ export async function aprobarYEnviar(
       if (actual.status === "ENVIADO") return falla("YA_ENVIADO");
       if (actual.status === "ENVIANDO") return falla("EN_CURSO");
       if (actual.status === "SIN_PROPUESTA") return falla("SIN_PRESUPUESTO");
+      if (actual.status === "ARCHIVADO") return falla("ARCHIVADO");
       return falla("ERROR");
     }
     reclamada = true;

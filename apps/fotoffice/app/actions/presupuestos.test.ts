@@ -13,6 +13,7 @@ vi.mock("@/lib/presupuestos/presupuestos", () => ({
 vi.mock("@/lib/presupuestos/ajustes", () => ({ guardarAjustes: vi.fn() }));
 vi.mock("@/lib/presupuestos/versiones", () => ({ crearNuevaVersion: vi.fn() }));
 vi.mock("@/lib/presupuestos/envio", () => ({ enviarPresupuesto: vi.fn() }));
+vi.mock("@/lib/presupuesto-automatico/por-aprobar", () => ({ aprobarDesdeElPanel: vi.fn(), descartarAprobacion: vi.fn() }));
 
 const { guardarBorradorAction } = await import("./presupuestos");
 
