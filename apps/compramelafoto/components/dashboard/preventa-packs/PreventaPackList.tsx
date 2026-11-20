@@ -1,5 +1,6 @@
 "use client";
 
+import { faltaFechaMaxima } from "@/lib/preventa-canjeable/fecha-maxima-compra";
 import { useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
 import DragGrip from "./DragGrip";
@@ -215,6 +216,12 @@ export default function PreventaPackList({
                       <p className="text-xs text-amber-700 m-0">
                         Este pack está publicado pero no tiene productos incluidos. Despublicalo o agregá
                         productos incluidos.
+                      </p>
+                    ) : null}
+                    {p.isActive && faltaFechaMaxima(p) ? (
+                      <p className="text-xs text-amber-700 m-0">
+                        Falta la fecha máxima de compra. Editá el pack y ponela: hasta entonces la preventa
+                        sólo se cierra cuando subas la primera foto.
                       </p>
                     ) : null}
                     <p className="text-xs text-[#6b7280] m-0">

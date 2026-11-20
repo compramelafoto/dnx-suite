@@ -1,5 +1,6 @@
 "use client";
 
+import { FALTA_FECHA_MAXIMA } from "@/lib/preventa-canjeable/fecha-maxima-compra";
 import { useEffect, useMemo, useState } from "react";
 import AppModal from "@/components/ui/AppModal";
 import Button from "@/components/ui/Button";
@@ -144,6 +145,10 @@ export default function PreventaPackFormModal({
     const price = Number(priceClientArs);
     if (!Number.isFinite(price) || price < 0) {
       setLocalError("El precio debe ser un número mayor o igual a 0.");
+      return;
+    }
+    if (availabilityPhase !== "POST_UPLOAD" && !validUntil) {
+      setLocalError(FALTA_FECHA_MAXIMA);
       return;
     }
     if (isActive && cannotPublish) {
@@ -381,14 +386,21 @@ export default function PreventaPackFormModal({
           </div>
           <div>
             <label className="block text-sm font-medium text-[#1a1a1a] mb-1">
-              Válido hasta (opcional)
+              {availabilityPhase === "POST_UPLOAD" ? "Válido hasta (opcional)" : "Fecha máxima de compra"}
             </label>
             <Input
               type="datetime-local"
               value={validUntil}
               onChange={(e) => setValidUntil(e.target.value)}
               disabled={saving}
+              required={availabilityPhase !== "POST_UPLOAD"}
             />
+            {availabilityPhase !== "POST_UPLOAD" ? (
+              <p className="m-0 mt-1 text-xs text-[#6b7280]">
+                La preventa de este pack cierra en esta fecha o cuando subas la primera foto del álbum, lo que
+                pase primero. Después, las familias compran en la galería.
+              </p>
+            ) : null}
           </div>
           <div>
             <label className="block text-sm font-medium text-[#1a1a1a] mb-1">

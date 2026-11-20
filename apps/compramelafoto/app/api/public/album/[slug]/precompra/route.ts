@@ -164,8 +164,16 @@ export async function GET(
     });
 
     if (packs.length === 0) {
+      // La preventa cerró (venció la fecha máxima o ya se subieron las fotos): la familia
+      // compra en la galería. La página muestra eso en vez de un error.
       return NextResponse.json(
-        { error: "No hay packs de preventa disponibles para este álbum" },
+        {
+          error: "La preventa de este álbum ya cerró",
+          preventaCerrada: true,
+          motivo: hasPhotos ? "fotos" : "fecha",
+          albumTitle: album.title,
+          galeriaUrl: album.publicSlug ? `/album/${album.publicSlug}` : null,
+        },
         { status: 404 }
       );
     }

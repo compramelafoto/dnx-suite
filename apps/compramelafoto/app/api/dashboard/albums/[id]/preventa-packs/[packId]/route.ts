@@ -1,6 +1,7 @@
+import { FALTA_FECHA_MAXIMA, faltaFechaMaxima } from "@/lib/preventa-canjeable/fecha-maxima-compra";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
-import { Role } from "@/lib/prisma";
+import { Role, prisma } from "@/lib/prisma";
 import {
   deletePackDefinition,
   updatePackDefinition,
@@ -162,6 +163,25 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
 
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: "No hay campos para actualizar" }, { status: 400 });
+    }
+
+    // Fecha máxima de compra: se exige al activar, al cambiar la fecha o la fase. Lo demás
+    // (precio, estrella de recomendado) se puede editar aunque un pack viejo no la tenga.
+    if (data.isActive === true || "validUntil" in data || "availabilityPhase" in data) {
+      const actual = await prisma.packDefinition.findFirst({
+        where: { id: packId, albumId },
+        select: { availabilityPhase: true, validUntil: true, isActive: true },
+      });
+      if (actual) {
+        const resultado = {
+          availabilityPhase: "availabilityPhase" in data ? data.availabilityPhase : actual.availabilityPhase,
+          validUntil: "validUntil" in data ? data.validUntil : actual.validUntil,
+        };
+        const quedaActivo = data.isActive ?? actual.isActive;
+        if (quedaActivo && faltaFechaMaxima(resultado)) {
+          return NextResponse.json({ error: FALTA_FECHA_MAXIMA, code: "falta_fecha_maxima" }, { status: 400 });
+        }
+      }
     }
 
     try {

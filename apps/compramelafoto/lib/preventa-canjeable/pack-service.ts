@@ -42,12 +42,10 @@ function buildAvailabilityWhere(hasPhotos?: boolean): Prisma.PackDefinitionWhere
   if (hasPhotos == null) {
     return { availabilityPhase: null };
   }
-  return {
-    OR: [
-      { availabilityPhase: null },
-      { availabilityPhase: hasPhotos ? "POST_UPLOAD" : "PRE_UPLOAD" },
-    ],
-  };
+  // Con fotos subidas, la preventa cerró: sólo quedan los packs pensados para después de subir
+  // (POST_UPLOAD). Un pack sin fase cuenta como de preventa: antes seguía a la venta con fotos.
+  if (hasPhotos) return { availabilityPhase: "POST_UPLOAD" };
+  return { OR: [{ availabilityPhase: null }, { availabilityPhase: "PRE_UPLOAD" }] };
 }
 
 async function resolveHasPhotos(albumId: number): Promise<boolean> {
