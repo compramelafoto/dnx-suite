@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { lineasDelEvento, respuestasDelFormulario, resumirVistas, textoCortoDeVistas, textoDeFechaDelEvento, textoDeVistas, type EventoDeCotizacion } from "./evento-vista";
+import { hojaDeCalendario, lineasDelEvento, respuestasDelFormulario, textoDeCuantoFalta, resumirVistas, textoCortoDeVistas, textoDeFechaDelEvento, textoDeVistas, type EventoDeCotizacion } from "./evento-vista";
 
 const VACIO: EventoDeCotizacion = {
   tipo: null, fecha: null, horaConocida: false, lugar: null, ceremonia: null, recepcion: null, ciudad: null,
@@ -63,5 +63,21 @@ describe("aperturas del cliente", () => {
     expect(textoCortoDeVistas(null)).toBeNull();
     expect(textoCortoDeVistas({ veces: 1, primera: a, ultima: a })).toBe("Abierta el 15/11");
     expect(textoCortoDeVistas({ veces: 3, primera: a, ultima: b })).toBe("3 veces · última 17/11");
+  });
+});
+
+describe("hoja de calendario del encabezado", () => {
+  it("fecha sin hora: el día no se corre; con hora, en hora argentina", () => {
+    expect(hojaDeCalendario(new Date("2028-07-29T00:00:00.000Z"), false)).toEqual({ ymd: "2028-07-29", diaSemana: "sábado", dia: "29", mes: "jul", anio: "2028", hora: null });
+    const h = hojaDeCalendario(new Date("2026-12-13T00:30:00.000Z"), true);
+    expect([h.ymd, h.dia, h.mes, h.hora]).toEqual(["2026-12-12", "12", "dic", "21:30 h"]);
+  });
+
+  it("cuánto falta", () => {
+    expect(textoDeCuantoFalta("2026-11-20", "2026-11-20")).toBe("Es hoy");
+    expect(textoDeCuantoFalta("2026-11-21", "2026-11-20")).toBe("Es mañana");
+    expect(textoDeCuantoFalta("2026-11-19", "2026-11-20")).toBe("Fue ayer");
+    expect(textoDeCuantoFalta("2026-12-20", "2026-11-20")).toBe("Faltan 30 días");
+    expect(textoDeCuantoFalta("2026-11-10", "2026-11-20")).toBe("Fue hace 10 días");
   });
 });

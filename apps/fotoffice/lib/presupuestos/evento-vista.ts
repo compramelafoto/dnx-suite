@@ -109,3 +109,43 @@ export function textoCortoDeVistas(r: ResumenDeVistas | null): string | null {
   if (!r) return null;
   return r.veces === 1 ? `Abierta el ${diaMesAR.format(r.primera)}` : `${vecesTexto(r.veces)} · última ${diaMesAR.format(r.ultima)}`;
 }
+
+const MESES_CORTOS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"] as const;
+const ymdAR = new Intl.DateTimeFormat("en-CA", { timeZone: ZONA, year: "numeric", month: "2-digit", day: "2-digit" });
+const ymdUTC = new Intl.DateTimeFormat("en-CA", { timeZone: "UTC", year: "numeric", month: "2-digit", day: "2-digit" });
+
+/** La fecha del evento partida para la hoja de calendario del encabezado de la cotización. */
+export type HojaDeCalendario = {
+  /** "aaaa-mm-dd" del evento en Argentina. */
+  ymd: string;
+  diaSemana: string;
+  dia: string;
+  mes: string;
+  anio: string;
+  /** "21:30 h", sólo si la hora es conocida. */
+  hora: string | null;
+};
+
+/** Puro: la fecha del evento como hoja de calendario (sin correr el día de las fechas sin hora). */
+export function hojaDeCalendario(fecha: Date, horaConocida: boolean): HojaDeCalendario {
+  const ymd = (horaConocida ? ymdAR : ymdUTC).format(fecha);
+  const [anio, mes, dia] = ymd.split("-") as [string, string, string];
+  return {
+    ymd,
+    diaSemana: (horaConocida ? diaSemanaAR : diaSemanaUTC).format(fecha),
+    dia: String(Number(dia)),
+    mes: MESES_CORTOS[Number(mes) - 1] ?? mes,
+    anio,
+    hora: horaConocida ? `${horaAR.format(fecha)} h` : null,
+  };
+}
+
+/** Puro: cuánto falta para el evento, entre dos "aaaa-mm-dd" (el de hoy en Argentina). */
+export function textoDeCuantoFalta(ymdEvento: string, ymdHoy: string): string {
+  const dias = Math.round((Date.parse(`${ymdEvento}T00:00:00Z`) - Date.parse(`${ymdHoy}T00:00:00Z`)) / 86_400_000);
+  if (!Number.isFinite(dias)) return "";
+  if (dias === 0) return "Es hoy";
+  if (dias === 1) return "Es mañana";
+  if (dias === -1) return "Fue ayer";
+  return dias > 0 ? `Faltan ${dias} días` : `Fue hace ${-dias} días`;
+}
