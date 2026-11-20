@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { esVistaFicha } from "@/lib/ficha/detalle-en-ficha";
 import { notFound } from "next/navigation";
 import { ConfirmarPedido } from "@/components/pedidos/confirmar-pedido";
 import { AccionesPresupuesto } from "@/components/presupuestos/acciones-presupuesto";
@@ -58,7 +59,15 @@ function alternativasParaVista(totals: unknown, costos: CostosConAlternativas | 
   }));
 }
 
-export default async function PresupuestoPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PresupuestoPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ vista?: string | string[] }>;
+}) {
+  // Adentro de la ficha del cliente (`?vista=ficha`): sin los botones para volver al listado.
+  const incrustada = esVistaFicha(await searchParams);
   const { workspace, ctx } = await requirePresupuestos("ver");
   const { id } = await params;
   if (!ID_VALIDO.test(id)) notFound();
@@ -161,6 +170,7 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
   return (
     <div className="space-y-6">
       <CabeceraCotizacion
+        nivel={incrustada ? "h2" : "h1"}
         titulo={titulo}
         estado={ETIQUETA_ESTADO[detalle.estado]}
         claseEstado={claseDeEstado(detalle.estado)}
@@ -180,9 +190,11 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
             <Link href={consultaHref} className="fo-btn fo-btn-secondary text-sm">
               Ver la consulta
             </Link>
-            <Link href="/presupuestos" className="fo-btn fo-btn-ghost text-sm">
-              Volver a Cotizaciones
-            </Link>
+            {incrustada ? null : (
+              <Link href="/presupuestos" className="fo-btn fo-btn-ghost text-sm">
+                Volver a Cotizaciones
+              </Link>
+            )}
           </>
         }
         acciones={pie}

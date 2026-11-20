@@ -4,7 +4,7 @@ import { puedeEnContexto } from "@/lib/access/policy";
 import { moduloDeTipo } from "@/lib/access/modulos-crm";
 import { moduloDeRegistroEncendido } from "@/lib/campos/modulos";
 import { registroDelWorkspace } from "@/lib/campos/valores";
-import { normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
+import { waIdDe } from "@/lib/bandeja/telefono";
 import { contextoDePlantillas, type ContextoPlantillas } from "./acceso";
 import { correoValido, destinoDe, esTipoFichaMensaje, type TipoFichaMensaje } from "./contexto";
 import { listarPlantillas } from "./definiciones";
@@ -48,7 +48,7 @@ export async function cargarPanelMensaje(entityType: TipoFichaMensaje, entityId:
   const opciones = (ps: typeof deCorreo): PlantillaOpcion[] =>
     ps.map((p) => ({ id: p.id, nombre: p.name, general: p.entityType === "GENERAL" }));
   const correo = correoValido(destino.email) ? destino.email : null;
-  const telefono = normalizeWhatsappNumber(destino.telefono) ? destino.telefono : null;
+  const telefono = waIdDe(destino.telefono) ? destino.telefono : null;
   return {
     correo: { destino: correo, motivo: correo ? null : MENSAJES_ENVIO.sinCorreo, plantillas: opciones(deCorreo) },
     whatsapp: { destino: telefono, motivo: telefono ? null : MENSAJES_ENVIO.sinWhatsapp, plantillas: opciones(deWhatsapp) },

@@ -13,15 +13,18 @@ export async function PedirTestimonioFicha({
   clientId,
   proyectoId = null,
   conTarjeta = false,
+  compacto = false,
 }: {
   clientId: string;
   proyectoId?: string | null;
   /** En la ficha del proyecto va en su propia tarjeta; en la del cliente, dentro de «Mensaje». */
   conTarjeta?: boolean;
+  /** Botón de ícono para el encabezado de la ficha. */
+  compacto?: boolean;
 }) {
   const ctx = await contextoDelPanelMensaje("CLIENTE", clientId);
   if (!ctx || !(await isModuleEnabledForWorkspace(ctx.workspaceId, WEBSITE_MODULE_KEY))) return null;
-  const boton = <PedirTestimonio clientId={clientId} proyectoId={proyectoId} />;
+  const boton = <PedirTestimonio clientId={clientId} proyectoId={proyectoId} compacto={compacto} />;
   if (!conTarjeta) return boton;
   return (
     <section className="fo-card space-y-2 p-4" aria-labelledby={`testimonio-${proyectoId ?? clientId}`}>

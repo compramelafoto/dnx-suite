@@ -14,8 +14,20 @@ import type { CuadroDeResumen, PanelDeResumen } from "@/lib/clients/resumen";
  * Los paneles llegan ya armados desde el servidor (`paneles`); acá sólo se elige cuál se ve.
  * Un enlace con `#pedidos` (o cualquier panel) lo abre al entrar.
  */
-export function ResumenDesplegable({ cuadros, paneles }: { cuadros: CuadroDeResumen[]; paneles: Partial<Record<PanelDeResumen, ReactNode>> }) {
-  const [abierto, setAbierto] = useState<{ panel: PanelDeResumen; desde: string } | null>(null);
+export function ResumenDesplegable({
+  cuadros,
+  paneles,
+  inicial,
+}: {
+  cuadros: CuadroDeResumen[];
+  paneles: Partial<Record<PanelDeResumen, ReactNode>>;
+  /** El panel abierto al entrar (el del elemento que se está viendo adentro de la ficha). */
+  inicial?: PanelDeResumen;
+}) {
+  const [abierto, setAbierto] = useState<{ panel: PanelDeResumen; desde: string } | null>(() => {
+    const cuadro = inicial ? cuadros.find((c) => c.panel === inicial) : undefined;
+    return cuadro && inicial && paneles[inicial] ? { panel: inicial, desde: cuadro.entidad } : null;
+  });
   const id = useId();
 
   useEffect(() => {

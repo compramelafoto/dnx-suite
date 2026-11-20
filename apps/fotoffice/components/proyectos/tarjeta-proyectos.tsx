@@ -1,5 +1,6 @@
 import { claseTarjetaEntidad, TituloEntidad } from "@/components/entidades/entidad";
 import { estiloDeEntidad } from "@/lib/entidades/colores";
+import { hrefVerEnFicha } from "@/lib/ficha/detalle-en-ficha";
 import Link from "next/link";
 import { claseDeColorEtiqueta } from "@/lib/ficha/formato";
 import { fechaCorta } from "@/lib/pedidos/pantalla";
@@ -21,7 +22,16 @@ const COLOR: Record<EstadoDeProyecto, string> = { EN_CURSO: "azul", SUSPENDIDO: 
  * Tarjeta "Proyectos" de la ficha de la consulta y del contacto: número, nombre, etapa y fecha
  * final, con enlace al proyecto. Es de lectura: los proyectos se crean desde el pedido.
  */
-export function TarjetaProyectos({ proyectos, vacio = "Todavía no hay proyectos." }: { proyectos: ProyectoDeTarjetaVista[]; vacio?: string }) {
+export function TarjetaProyectos({
+  proyectos,
+  vacio = "Todavía no hay proyectos.",
+  enFicha = null,
+}: {
+  proyectos: ProyectoDeTarjetaVista[];
+  vacio?: string;
+  /** En la ficha del cliente (su id): cada elemento se abre ahí mismo, debajo, sin cambiar de pantalla. */
+  enFicha?: string | null;
+}) {
   return (
     <section id="proyectos" aria-labelledby="tarjeta-proyectos-titulo" style={estiloDeEntidad("proyecto")} className={`scroll-mt-24 ${claseTarjetaEntidad()}`}>
       <TituloEntidad entidad="proyecto" id="tarjeta-proyectos-titulo" cantidad={proyectos.length} />
@@ -31,7 +41,7 @@ export function TarjetaProyectos({ proyectos, vacio = "Todavía no hay proyectos
         <ul className="divide-y divide-[var(--fo-border)] text-sm">
           {proyectos.map((p) => (
             <li key={p.id} className="py-2 first:pt-0 last:pb-0">
-              <Link href={`/proyectos/${encodeURIComponent(p.id)}`} className="block rounded-[var(--fo-radius-sm)] hover:bg-[var(--fo-surface-hover)]">
+              <Link href={enFicha ? hrefVerEnFicha(enFicha, "proyecto", p.id) : `/proyectos/${encodeURIComponent(p.id)}`} className="block rounded-[var(--fo-radius-sm)] hover:bg-[var(--fo-surface-hover)]">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="min-w-0 truncate font-medium text-[var(--fo-text)]">{p.nombre}</span>
                   <span className="shrink-0 text-xs tabular-nums text-[var(--fo-muted)]">N° {p.numero}</span>

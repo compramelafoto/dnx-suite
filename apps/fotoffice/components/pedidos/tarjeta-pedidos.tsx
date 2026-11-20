@@ -1,5 +1,6 @@
 import { claseTarjetaEntidad, TituloEntidad } from "@/components/entidades/entidad";
 import { estiloDeEntidad } from "@/lib/entidades/colores";
+import { hrefVerEnFicha } from "@/lib/ficha/detalle-en-ficha";
 import Link from "next/link";
 import { claseDeColorEtiqueta } from "@/lib/ficha/formato";
 import { ETIQUETA_ESTADO_PEDIDO, type EstadoPedido } from "@/lib/pedidos/constantes";
@@ -47,11 +48,14 @@ export function TarjetaPedidos({
   pedidos,
   hrefNuevo = null,
   vacio = "Todavía no hay pedidos.",
+  enFicha = null,
 }: {
   pedidos: PedidoDeTarjeta[];
   /** null: sin botón "Nuevo pedido". */
   hrefNuevo?: string | null;
   vacio?: string;
+  /** En la ficha del cliente (su id): cada elemento se abre ahí mismo, debajo, sin cambiar de pantalla. */
+  enFicha?: string | null;
 }) {
   return (
     <section id="pedidos" aria-labelledby="tarjeta-pedidos-titulo" style={estiloDeEntidad("pedido")} className={`scroll-mt-24 ${claseTarjetaEntidad()}`}>
@@ -62,7 +66,7 @@ export function TarjetaPedidos({
         <ul className="divide-y divide-[var(--fo-border)] text-sm">
           {pedidos.map((p) => (
             <li key={p.id} className="py-2 first:pt-0 last:pb-0">
-              <Link href={`/pedidos/${encodeURIComponent(p.id)}`} className="block rounded-[var(--fo-radius-sm)] hover:bg-[var(--fo-surface-hover)]">
+              <Link href={enFicha ? hrefVerEnFicha(enFicha, "pedido", p.id) : `/pedidos/${encodeURIComponent(p.id)}`} className="block rounded-[var(--fo-radius-sm)] hover:bg-[var(--fo-surface-hover)]">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="font-medium text-[var(--fo-text)]">N° {p.numero}</span>
                   <span className="shrink-0 tabular-nums text-[var(--fo-text)]">{pesosPedido(p.total)}</span>

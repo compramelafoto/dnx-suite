@@ -7,11 +7,20 @@ import { ListaContratos } from "./lista-contratos";
  * Tarjeta "Contratos" de la ficha del contacto: sus contratos con el estado de cada uno. Los
  * contratos se generan desde el pedido, así que acá no hay botón de alta.
  */
-export function TarjetaContratos({ contratos, vacio = "Todavía no tiene contratos." }: { contratos: ContratoDeTarjeta[]; vacio?: string }) {
+export function TarjetaContratos({
+  contratos,
+  vacio = "Todavía no tiene contratos.",
+  enFicha = null,
+}: {
+  contratos: ContratoDeTarjeta[];
+  vacio?: string;
+  /** En la ficha del cliente (su id): cada contrato se abre ahí mismo, debajo. */
+  enFicha?: string | null;
+}) {
   return (
     <section id="contratos" aria-labelledby="tarjeta-contratos-titulo" style={estiloDeEntidad("contrato")} className={`scroll-mt-24 ${claseTarjetaEntidad()}`}>
       <TituloEntidad entidad="contrato" id="tarjeta-contratos-titulo" cantidad={contratos.length} />
-      <ListaContratos contratos={contratos} mostrarPedido vacio={vacio} />
+      <ListaContratos contratos={contratos} mostrarPedido vacio={vacio} enFicha={enFicha} />
     </section>
   );
 }

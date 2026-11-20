@@ -1,4 +1,5 @@
 import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
+import { esVistaFicha } from "@/lib/ficha/detalle-en-ficha";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
@@ -56,7 +57,15 @@ const ID_VALIDO = /^[A-Za-z0-9_-]{1,64}$/;
  * "Gestionar" se edita, se mueve, se suspende y se arma el equipo; el servidor lo vuelve a decidir
  * en cada acción.
  */
-export default async function FichaProyectoPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function FichaProyectoPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ vista?: string | string[] }>;
+}) {
+  // Adentro de la ficha del cliente (`?vista=ficha`): sin los botones para volver al listado.
+  const incrustada = esVistaFicha(await searchParams);
   const { user, workspace, ctx } = await requireProyectos("ver");
   const { id } = await params;
   if (!ID_VALIDO.test(id)) notFound();
@@ -108,6 +117,7 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
   return (
     <div className="space-y-6">
       <PageHeader entidad="proyecto"
+        nivel={incrustada ? "h2" : "h1"}
         title={ficha.nombre}
         description={
           <>
@@ -115,9 +125,11 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
           </>
         }
         actions={
-          <Link href="/proyectos" className="fo-btn fo-btn-secondary text-sm">
-            Volver a Proyectos
-          </Link>
+          incrustada ? null : (
+            <Link href="/proyectos" className="fo-btn fo-btn-secondary text-sm">
+              Volver a Proyectos
+            </Link>
+          )
         }
       />
 

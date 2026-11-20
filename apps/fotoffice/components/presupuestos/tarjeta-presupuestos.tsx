@@ -1,5 +1,6 @@
 import { claseTarjetaEntidad, TituloEntidad } from "@/components/entidades/entidad";
 import { estiloDeEntidad } from "@/lib/entidades/colores";
+import { hrefVerEnFicha } from "@/lib/ficha/detalle-en-ficha";
 import Link from "next/link";
 import { claseDeColorEtiqueta } from "@/lib/ficha/formato";
 import { ETIQUETA_ESTADO, type EstadoPresupuesto } from "@/lib/presupuestos/constantes";
@@ -39,11 +40,14 @@ export function TarjetaPresupuestos({
   hrefNuevo,
   puedeCrear,
   vacio = "Todavía no hay cotizaciones.",
+  enFicha = null,
 }: {
   presupuestos: PresupuestoDeTarjeta[];
   hrefNuevo: string;
   puedeCrear: boolean;
   vacio?: string;
+  /** En la ficha del cliente (su id): cada elemento se abre ahí mismo, debajo, sin cambiar de pantalla. */
+  enFicha?: string | null;
 }) {
   return (
     <section id="cotizaciones" aria-labelledby="tarjeta-presupuestos-titulo" style={estiloDeEntidad("cotizacion")} className={`scroll-mt-24 ${claseTarjetaEntidad()}`}>
@@ -54,7 +58,7 @@ export function TarjetaPresupuestos({
         <ul className="divide-y divide-[var(--fo-border)] text-sm">
           {presupuestos.map((p) => (
             <li key={p.id} className="py-2 first:pt-0 last:pb-0">
-              <Link href={`/presupuestos/${encodeURIComponent(p.id)}`} className="block rounded-[var(--fo-radius-sm)] hover:bg-[var(--fo-surface-hover)]">
+              <Link href={enFicha ? hrefVerEnFicha(enFicha, "cotizacion", p.id) : `/presupuestos/${encodeURIComponent(p.id)}`} className="block rounded-[var(--fo-radius-sm)] hover:bg-[var(--fo-surface-hover)]">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="font-medium text-[var(--fo-text)]">
                     {p.numero ? `N° ${p.numero}` : "Sin enviar"}

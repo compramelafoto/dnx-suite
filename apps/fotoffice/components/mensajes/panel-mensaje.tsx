@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { tomarMensajePrecargado } from "@repo/dnx-bot/ui";
-import { Mail, MessageCircle } from "lucide-react";
+import { Mail, MessageSquareText } from "lucide-react";
 import { abrirWhatsappAction, enviarCorreoAction, prepararMensajeAction } from "@/app/actions/mensajes";
 import { ETIQUETA_CANAL, type Canal } from "@/lib/plantillas/constantes";
 import { tieneMarcadorSinCompletar } from "@/lib/plantillas/motor";
@@ -21,7 +21,18 @@ const ERROR_CONEXION = "No pudimos conectar con el servidor. Probá de nuevo.";
  * la persona no tiene adónde recibirlos) y el panel para elegir plantilla, retocar el texto y
  * enviarlo o abrir WhatsApp. Recibe objetos planos; todo se vuelve a validar en el servidor.
  */
-export function PanelMensaje({ entityType, entityId, panel }: { entityType: TipoFicha; entityId: string; panel: DatosPanel }) {
+export function PanelMensaje({
+  entityType,
+  entityId,
+  panel,
+  compacto = false,
+}: {
+  entityType: TipoFicha;
+  entityId: string;
+  panel: DatosPanel;
+  /** Sólo los botones de ícono (con su leyenda al pasar el mouse), para el encabezado de la ficha. */
+  compacto?: boolean;
+}) {
   const router = useRouter();
   const [canal, setCanal] = useState<Canal | null>(null);
   const [plantilla, setPlantilla] = useState("");
@@ -170,13 +181,13 @@ export function PanelMensaje({ entityType, entityId, panel }: { entityType: Tipo
   }
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap gap-2">
-        <BotonCanal canal="EMAIL" datos={panel.correo} onAbrir={abrir} />
-        <BotonCanal canal="WHATSAPP" datos={panel.whatsapp} onAbrir={abrir} />
+    <div className={compacto ? "contents" : "space-y-2"}>
+      <div className={compacto ? "contents" : "flex flex-wrap gap-2"}>
+        <BotonCanal canal="EMAIL" datos={panel.correo} onAbrir={abrir} compacto={compacto} />
+        <BotonCanal canal="WHATSAPP" datos={panel.whatsapp} onAbrir={abrir} compacto={compacto} />
       </div>
       {[panel.correo, panel.whatsapp].map((d, i) =>
-        d.motivo ? (
+        d.motivo && !compacto ? (
           <p key={i} className="text-xs text-[var(--fo-muted)]">
             {i === 0 ? "Correo" : "WhatsApp"}: {d.motivo}
           </p>
@@ -262,9 +273,36 @@ export function PanelMensaje({ entityType, entityId, panel }: { entityType: Tipo
   );
 }
 
-function BotonCanal({ canal, datos, onAbrir }: { canal: Canal; datos: CanalDelPanel; onAbrir: (c: Canal) => void }) {
-  const Icono = canal === "EMAIL" ? Mail : MessageCircle;
+function BotonCanal({
+  canal,
+  datos,
+  onAbrir,
+  compacto,
+}: {
+  canal: Canal;
+  datos: CanalDelPanel;
+  onAbrir: (c: Canal) => void;
+  compacto: boolean;
+}) {
+  const Icono = canal === "EMAIL" ? Mail : MessageSquareText;
   const deshabilitado = datos.destino === null;
+  if (compacto) {
+    const leyenda = canal === "EMAIL" ? "Enviar correo desde FOTOFFICE" : "WhatsApp con plantilla";
+    // Sin adónde mandarlo, el motivo va en la leyenda (no hay espacio para el texto debajo).
+    const tip = deshabilitado && datos.motivo ? `${leyenda}: ${datos.motivo}` : leyenda;
+    return (
+      <button
+          type="button"
+          className="fo-icon-btn"
+          data-tip={tip}
+          aria-label={tip}
+          disabled={deshabilitado}
+          onClick={() => onAbrir(canal)}
+        >
+          <Icono className="size-4" aria-hidden />
+        </button>
+    );
+  }
   return (
     <button
       type="button"

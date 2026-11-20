@@ -1,4 +1,5 @@
 import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
+import { esVistaFicha } from "@/lib/ficha/detalle-en-ficha";
 import { prisma } from "@repo/db";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -82,7 +83,15 @@ type Hito = { clave: string; fecha: string; texto: string };
  * quien no lo tiene no le llega ningún costo. Lo mismo "Costos y pagos" (cuentas a pagar, margen
  * previsto y margen real, Entrega B1): sólo se lee y se monta con `detalle.veCostos`.
  */
-export default async function PedidoPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function PedidoPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ vista?: string | string[] }>;
+}) {
+  // Adentro de la ficha del cliente (`?vista=ficha`): sin los botones para volver al listado.
+  const incrustada = esVistaFicha(await searchParams);
   const { user, workspace, ctx } = await requirePedidos("ver");
   const { id } = await params;
   if (!ID_VALIDO.test(id)) notFound();
@@ -196,6 +205,7 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
   return (
     <div className="space-y-6">
       <PageHeader entidad="pedido"
+        nivel={incrustada ? "h2" : "h1"}
         title={`Pedido N° ${detalle.numero}`}
         description={
           <>
@@ -205,7 +215,7 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
         }
         actions={
           <div className="flex flex-wrap gap-2">
-            {veContacto ? (
+            {veContacto && !incrustada ? (
               <Link href={`/clientes/${encodeURIComponent(detalle.clientId)}`} className="fo-btn fo-btn-secondary text-sm">
                 Ver el contacto
               </Link>
@@ -220,9 +230,11 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
                 Ver la consulta
               </Link>
             ) : null}
-            <Link href="/pedidos" className="fo-btn fo-btn-secondary text-sm">
-              Volver a Pedidos
-            </Link>
+            {incrustada ? null : (
+              <Link href="/pedidos" className="fo-btn fo-btn-secondary text-sm">
+                Volver a Pedidos
+              </Link>
+            )}
           </div>
         }
       />

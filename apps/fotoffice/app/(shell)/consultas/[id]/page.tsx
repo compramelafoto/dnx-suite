@@ -44,6 +44,8 @@ import { botEnPanel } from "@/lib/dnx-bot/panel";
 import { PreguntaleAlBot } from "@/components/dnx-bot/preguntale-al-bot";
 import { listarPresupuestos } from "@/lib/presupuestos/presupuestos";
 import { eventosDePresupuestos } from "@/lib/presupuestos/historial";
+import { esVistaFicha } from "@/lib/ficha/detalle-en-ficha";
+import { Desplegable } from "@/components/ficha/desplegable";
 
 export const dynamic = "force-dynamic";
 
@@ -64,10 +66,19 @@ function respuestasComoDatos(r: { horas: number | null; km: number | null; segun
   return out;
 }
 
-export default async function FichaConsultaPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function FichaConsultaPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams?: Promise<{ vista?: string | string[] }>;
+}) {
   const { user, workspace } = await requireServiceLeadsStaff();
   if (!workspace) redirect("/workspace");
   const { id } = await params;
+  // Adentro de la ficha del cliente (`?vista=ficha`): sin «Volver a Consultas» ni la tarjeta del
+  // contacto (ya estamos en su ficha), y el título como `h2`.
+  const incrustada = esVistaFicha(await searchParams);
   if (!ID_VALIDO.test(id)) notFound();
 
   const [ficha, role, bot] = await Promise.all([cargarFicha(workspace.id, id, new Date()), resolveWorkspaceRole(user.id, workspace.id), botEnPanel()]);
@@ -168,9 +179,12 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
     { termino: "Alta", valor: fechaHoraBA(consulta.alta) },
   ].filter((d) => !yaEnConsulta.has(d.termino));
 
+  const relacionados = [presupuestos?.length ?? 0, pedidos?.length ?? 0, proyectos?.length ?? 0, citas ? citas.proximas.length + citas.recientes.length : 0].reduce((a, b) => a + b, 0);
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader entidad="consulta"
+        nivel={incrustada ? "h2" : "h1"}
         title={tituloDeConsulta(consulta.nombre, numeros.get(id))}
         description={datosConsulta ? datosConsulta.categoria.nombre : evento}
         actions={
@@ -183,9 +197,11 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
                 contexto={{ pantalla: "consulta", consultaLeadId: id }}
               />
             ) : null}
-            <Link href="/consultas" className="fo-btn fo-btn-secondary text-sm">
-              Volver a Consultas
-            </Link>
+            {incrustada ? null : (
+              <Link href="/consultas" className="fo-btn fo-btn-secondary text-sm">
+                Volver a Consultas
+              </Link>
+            )}
           </div>
         }
       />
@@ -208,93 +224,102 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
         />
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-        <div className="min-w-0 space-y-4 self-start">
+      {/* Lo de todos los días, a la vista: en qué etapa está y qué hacer (Ganada / Perdida). */}
+      {recorrido ? (
+        <Recorrido
+          key={claveDeRecorrido(recorrido)}
+          recorrido={recorrido}
+          titulo={consulta.nombre}
+          motivos={ficha.motivos}
+          responsables={ficha.responsables}
+          puedePasarIgual={puede(role, "configurar")}
+        />
+      ) : (
+        <p className="fo-card text-sm text-[var(--fo-muted)]">
+          Esta consulta todavía no está en ningún circuito. Se ordena sola al abrir el tablero de Consultas.
+        </p>
+      )}
+
+      <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
+        <div className="min-w-0 space-y-4">
           {datosConsulta && opciones ? (
-            <>
-              <DatosConsulta
-                key={`${datosConsulta.consultaId}:${recorridoAbierto?.stageDueAt ?? ""}:${responsableId ?? ""}`}
-                leadId={id}
-                datos={datosConsulta}
-                categorias={opciones.categorias}
-                origenes={opciones.origenes}
-                responsables={responsablesConsultas}
-                responsableId={responsableId}
-                nombreResponsable={responsableId !== null ? (ficha.responsables.find((r) => r.id === responsableId)?.nombre ?? null) : null}
-                siguienteAccion={recorridoAbierto?.stageDueAt ?? null}
-                recorridoAbierto={recorridoAbierto !== null}
-                puedeEditar={puedeEditar}
-                veContactos={veContacto}
-              />
-              <Participantes
-                leadId={id}
-                participantes={datosConsulta.participantes}
-                roles={opciones.roles}
-                puedeEditar={puedeEditar && veContacto}
-              />
-            </>
-          ) : null}
-          {presupuestos ? (
-            <TarjetaPresupuestos
-              presupuestos={presupuestos}
-              hrefNuevo={`/presupuestos/nuevo?consulta=${encodeURIComponent(id)}`}
-              puedeCrear={puede(acceso, "operar", QUOTES_MODULE_KEY) && datosConsulta !== null}
-              vacio="Esta consulta todavía no tiene cotizaciones."
+            <DatosConsulta
+              key={`${datosConsulta.consultaId}:${recorridoAbierto?.stageDueAt ?? ""}:${responsableId ?? ""}`}
+              leadId={id}
+              datos={datosConsulta}
+              categorias={opciones.categorias}
+              origenes={opciones.origenes}
+              responsables={responsablesConsultas}
+              responsableId={responsableId}
+              nombreResponsable={responsableId !== null ? (ficha.responsables.find((r) => r.id === responsableId)?.nombre ?? null) : null}
+              siguienteAccion={recorridoAbierto?.stageDueAt ?? null}
+              recorridoAbierto={recorridoAbierto !== null}
+              puedeEditar={puedeEditar}
+              veContactos={veContacto}
             />
           ) : null}
-          {pedidos ? <TarjetaPedidos pedidos={pedidos} vacio="Esta consulta todavía no tiene pedidos." /> : null}
-          {proyectos ? <TarjetaProyectos proyectos={proyectos} vacio="Esta consulta todavía no tiene proyectos." /> : null}
-          {citas ? <TarjetaCitas citas={citas} nueva={`consulta=${encodeURIComponent(id)}`} vacio="Esta consulta todavía no tiene citas." /> : null}
-          <section aria-labelledby="datos-titulo" className="fo-card space-y-3">
-            <h2 id="datos-titulo" className="text-base font-semibold text-[var(--fo-text)]">
-              {datosConsulta ? "Contacto y mensaje" : "Datos de la consulta"}
-            </h2>
-            <dl className="space-y-2 text-sm">
-              {datos.map((d) => (
-                <div key={d.termino}>
-                  <dt className="text-xs text-[var(--fo-muted)]">{d.termino}</dt>
-                  <dd className="break-words text-[var(--fo-text)]">{d.valor || "—"}</dd>
-                </div>
-              ))}
-            </dl>
-            {consulta.mensaje ? (
-              <div className="space-y-1 border-t border-[var(--fo-border)] pt-3">
-                <p className="text-xs text-[var(--fo-muted)]">Mensaje</p>
-                <p className="whitespace-pre-line break-words text-sm text-[var(--fo-text)]">{consulta.mensaje}</p>
-              </div>
-            ) : null}
-          </section>
-          {datosConsulta && resumenContacto ? <ContactoDeConsulta clientId={datosConsulta.contacto.id} resumen={resumenContacto} /> : null}
-          <Mensaje entityType="CONSULTA" entityId={id} />
-          <MasDatos entityType="CONSULTA" entityId={id} />
         </div>
+        <div className="min-w-0 space-y-4">
+          {recorrido ? <Tareas key={recorrido.id} journeyId={recorrido.id} tareas={ficha.tareas} abierto={recorrido.abierto} /> : null}
+          {recorrido && ficha.proyeccion ? <Proyeccion proyeccion={ficha.proyeccion} /> : null}
+        </div>
+      </div>
 
-        <div className="space-y-6">
-          {recorrido ? (
-            <>
-              <Recorrido
-                key={claveDeRecorrido(recorrido)}
-                recorrido={recorrido}
-                titulo={consulta.nombre}
-                motivos={ficha.motivos}
-                responsables={ficha.responsables}
-                puedePasarIgual={puede(role, "configurar")}
-              />
-              <Tareas key={recorrido.id} journeyId={recorrido.id} tareas={ficha.tareas} abierto={recorrido.abierto} />
-              {ficha.proyeccion ? <Proyeccion proyeccion={ficha.proyeccion} /> : null}
-              <Historial pasos={ficha.historial} cambios={cambios} mensajes={mensajes} presupuestos={eventosPresupuestos} />
-            </>
-          ) : (
-            <>
-              <p className="fo-card text-sm text-[var(--fo-muted)]">
-                Esta consulta todavía no está en ningún circuito. Se ordena sola al abrir el tablero de Consultas.
-              </p>
-              {cambios.length > 0 || mensajes.length > 0 || eventosPresupuestos.length > 0 ? (
-                <Historial pasos={[]} cambios={cambios} mensajes={mensajes} presupuestos={eventosPresupuestos} />
+      {/* Lo demás, plegado: se abre al tocarlo. */}
+      <div className="space-y-3">
+        {presupuestos || pedidos || proyectos || citas ? (
+          <Desplegable titulo="Cotizaciones, pedidos, proyectos y citas" detalle={relacionados > 0 ? String(relacionados) : "Ninguno"}>
+            <div className="grid gap-4 md:grid-cols-2">
+              {presupuestos ? (
+                <TarjetaPresupuestos
+                  presupuestos={presupuestos}
+                  hrefNuevo={`/presupuestos/nuevo?consulta=${encodeURIComponent(id)}`}
+                  puedeCrear={puede(acceso, "operar", QUOTES_MODULE_KEY) && datosConsulta !== null}
+                  vacio="Esta consulta todavía no tiene cotizaciones."
+                />
               ) : null}
-            </>
-          )}
-        </div>
+              {pedidos ? <TarjetaPedidos pedidos={pedidos} vacio="Esta consulta todavía no tiene pedidos." /> : null}
+              {proyectos ? <TarjetaProyectos proyectos={proyectos} vacio="Esta consulta todavía no tiene proyectos." /> : null}
+              {citas ? <TarjetaCitas citas={citas} nueva={`consulta=${encodeURIComponent(id)}`} vacio="Esta consulta todavía no tiene citas." /> : null}
+            </div>
+          </Desplegable>
+        ) : null}
+        {datosConsulta && opciones ? (
+          <Desplegable titulo="Participantes" detalle={String(datosConsulta.participantes.length)}>
+            <Participantes
+              leadId={id}
+              participantes={datosConsulta.participantes}
+              roles={opciones.roles}
+              puedeEditar={puedeEditar && veContacto}
+            />
+          </Desplegable>
+        ) : null}
+        <Desplegable titulo={datosConsulta ? "Contacto y mensaje" : "Datos de la consulta"}>
+          <dl className="grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+            {datos.map((d) => (
+              <div key={d.termino}>
+                <dt className="text-xs text-[var(--fo-muted)]">{d.termino}</dt>
+                <dd className="break-words text-[var(--fo-text)]">{d.valor || "—"}</dd>
+              </div>
+            ))}
+          </dl>
+          {consulta.mensaje ? (
+            <div className="space-y-1 border-t border-[var(--fo-border)] pt-3">
+              <p className="text-xs text-[var(--fo-muted)]">Mensaje</p>
+              <p className="whitespace-pre-line break-words text-sm text-[var(--fo-text)]">{consulta.mensaje}</p>
+            </div>
+          ) : null}
+          {!incrustada && datosConsulta && resumenContacto ? <ContactoDeConsulta clientId={datosConsulta.contacto.id} resumen={resumenContacto} /> : null}
+          <Mensaje entityType="CONSULTA" entityId={id} />
+        </Desplegable>
+        <Desplegable titulo="Más datos">
+          <MasDatos entityType="CONSULTA" entityId={id} />
+        </Desplegable>
+        {recorrido || cambios.length > 0 || mensajes.length > 0 || eventosPresupuestos.length > 0 ? (
+          <Desplegable titulo="Historial">
+            <Historial pasos={recorrido ? ficha.historial : []} cambios={cambios} mensajes={mensajes} presupuestos={eventosPresupuestos} />
+          </Desplegable>
+        ) : null}
       </div>
     </div>
   );

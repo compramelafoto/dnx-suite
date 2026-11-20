@@ -372,7 +372,8 @@ describe("abrirWhatsapp", () => {
 
   it("sin teléfono válido: error, sin registrar", async () => {
     cliente({ id: "c2", phone: null });
-    cliente({ id: "c3", phone: "3415550000" });
+    // Un número que no es de WhatsApp (los locales argentinos de 10 dígitos sí sirven: `waIdDe`).
+    cliente({ id: "c3", phone: "12345" });
     for (const entityId of ["c2", "c3"]) {
       expect(await E.abrirWhatsapp(CTX, { entityType: "CLIENTE", entityId, cuerpo: "Hola" })).toEqual({ ok: false, error: M.sinWhatsapp });
     }

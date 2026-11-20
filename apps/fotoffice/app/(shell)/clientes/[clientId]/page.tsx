@@ -13,7 +13,7 @@ import {
 import { clientDisplayName } from "@/lib/clients/display";
 import { resolverPersonaPorCliente } from "@/lib/ficha/persona";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
-import { CLIENTS_MODULE_KEY, IVA_CONDITION_LABELS, type IvaCondition } from "@/lib/clients/constants";
+import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 import { puede } from "@/lib/access/policy";
 import { resolverAcceso } from "@/lib/access/acceso";
 import { getModuleLevel } from "@/lib/permissions/module-access";
@@ -42,6 +42,16 @@ import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { ResumenDesplegable } from "@/components/entidades/resumen-desplegable";
 import { cuadrosDelResumen } from "@/lib/clients/resumen";
 import { pesosPedido } from "@/lib/pedidos/pantalla";
+import { destinoWhatsappDeCliente } from "@/lib/bandeja/destino-whatsapp-servidor";
+import { DetalleIncrustado } from "@/components/ficha/detalle-incrustado";
+import { Desplegable } from "@/components/ficha/desplegable";
+import { hrefFichaCliente } from "@/components/entidades/enlace-cliente";
+import { leerDetallePedido, PANEL_DE_DETALLE, VISTA_FICHA, type DetallePedido } from "@/lib/ficha/detalle-en-ficha";
+import FichaConsultaPage from "../../consultas/[id]/page";
+import PresupuestoPage from "../../presupuestos/[id]/page";
+import PedidoPage from "../../pedidos/[id]/page";
+import FichaContratoPage from "../../contratos/[id]/page";
+import FichaProyectoPage from "../../proyectos/[id]/page";
 import { ClientForm } from "../client-form";
 import { linkClientToMemberAction } from "../actions";
 
@@ -64,9 +74,9 @@ function inicialesDe(c: { kind: string; firstName: string | null; lastName: stri
 }
 
 /**
- * Ficha del cliente sobre la ficha estándar: encabezado con contacto y etiquetas, notas y
- * línea de tiempo al centro (los movimientos de caja aparecen ahí, como Plata), y a la
- * derecha los datos editables, el enlace con el socio, las relaciones y los adjuntos.
+ * Ficha del cliente sobre la ficha estándar: encabezado con contacto (íconos) y el lápiz que abre
+ * todos los datos para editar; los cuadros del resumen; el elemento abierto (`?ver=consulta:<id>`)
+ * debajo, sin salir de la ficha; y la historia con sus accesos directos (Notas, Archivos, Plata…).
  * Las categorías de notas las asegura `<Ficha>` después de su propio control de acceso.
  */
 export default async function ClientePage({
@@ -74,11 +84,13 @@ export default async function ClientePage({
   searchParams,
 }: {
   params: Promise<{ clientId: string }>;
-  searchParams: Promise<{ error?: string; ok?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; ver?: string | string[] }>;
 }) {
   const { user, workspace, canEdit } = await requireClientsViewer();
   const { clientId } = await params;
   const query = await searchParams;
+  // El elemento abierto adentro de la ficha (consulta, cotización…), si lo hay.
+  const detalle = leerDetallePedido(query.ver);
 
   const persona = await resolverPersonaPorCliente(workspace.id, clientId);
   if (!persona) notFound();
@@ -93,6 +105,7 @@ export default async function ClientePage({
   // en Consultas; el nivel ya incluye que el módulo esté encendido). Crear una consulta para
   // este contacto pide Gestionar en Consultas.
   const acceso = await resolverAcceso(user.id, workspace.id);
+  const whatsapp = await destinoWhatsappDeCliente({ workspaceId: workspace.id, acceso, clientId: cliente.id, telefono: cliente.phone });
   const veConsultas = puede(acceso, "ver", SERVICE_LEADS_MODULE_KEY);
   const creaConsultas = puede(acceso, "operar", SERVICE_LEADS_MODULE_KEY);
   const [perfiles, delContacto] = await Promise.all([
@@ -209,14 +222,28 @@ export default async function ClientePage({
           insignias,
           telefono: cliente.phone,
           correo: cliente.email,
+          whatsapp,
+          // Correo desde FOTOFFICE, WhatsApp con plantilla y pedir testimonio, como íconos. Sin
+          // «Gestionar» no se dibujan y queda el correo común (`mailto:`).
+          herramientas: <Mensaje entityType="CLIENTE" entityId={cliente.id} compacto correoAlternativo={cliente.email} />,
+          correoEnHerramientas: true,
         }}
+        edicionAbierta={Boolean(query.error)}
+        detalle={
+          detalle ? (
+            <DetalleIncrustado tipo={detalle.tipo} id={detalle.id} hrefCerrar={hrefFichaCliente(cliente.id)}>
+              {pantallaDelDetalle(detalle)}
+            </DetalleIncrustado>
+          ) : null
+        }
         resumen={
           cuadros.length > 0 ? (
             <ResumenDesplegable
               cuadros={cuadros}
+              inicial={detalle ? PANEL_DE_DETALLE[detalle.tipo] : undefined}
               paneles={{
                 consultas: delContacto ? (
-                  <ConsultasDelContacto clientId={cliente.id} consultas={delContacto.consultas} hayMas={delContacto.hayMas} puedeCrear={creaConsultas} />
+                  <ConsultasDelContacto clientId={cliente.id} consultas={delContacto.consultas} hayMas={delContacto.hayMas} puedeCrear={creaConsultas} enFicha />
                 ) : null,
                 cotizaciones: presupuestos ? (
                   <TarjetaPresupuestos
@@ -224,6 +251,7 @@ export default async function ClientePage({
                     hrefNuevo={`/presupuestos/nuevo?contacto=${encodeURIComponent(cliente.id)}`}
                     puedeCrear={puede(acceso, "operar", QUOTES_MODULE_KEY)}
                     vacio="Todavía no tiene cotizaciones."
+                    enFicha={cliente.id}
                   />
                 ) : null,
                 pedidos: pedidos ? (
@@ -231,43 +259,23 @@ export default async function ClientePage({
                     pedidos={pedidos}
                     hrefNuevo={puede(acceso, "operar", ORDERS_MODULE_KEY) ? `/pedidos/nuevo?contacto=${encodeURIComponent(cliente.id)}` : null}
                     vacio="Todavía no tiene pedidos."
+                    enFicha={cliente.id}
                   />
                 ) : null,
-                proyectos: proyectos ? <TarjetaProyectos proyectos={proyectos} vacio="Todavía no tiene proyectos." /> : null,
-                contratos: contratos ? <TarjetaContratos contratos={contratos} vacio="Todavía no tiene contratos." /> : null,
+                proyectos: proyectos ? <TarjetaProyectos proyectos={proyectos} vacio="Todavía no tiene proyectos." enFicha={cliente.id} /> : null,
+                contratos: contratos ? <TarjetaContratos contratos={contratos} vacio="Todavía no tiene contratos." enFicha={cliente.id} /> : null,
               }}
             />
           ) : null
         }
         datos={
           <>
-            <Mensaje entityType="CLIENTE" entityId={cliente.id} />
-            <DatosFicha
-              titulo="Datos"
-              filas={[
-                { etiqueta: "Tipo", valor: TIPO[cliente.kind] ?? cliente.kind },
-                ...(cliente.kind === "EMPRESA" ? [{ etiqueta: "Razón social", valor: cliente.businessName }] : []),
-                { etiqueta: "Documento", valor: cliente.docType ? `${cliente.docType} ${cliente.docNumber ?? ""}`.trim() : null },
-                { etiqueta: "IVA", valor: IVA_CONDITION_LABELS[cliente.ivaCondition as IvaCondition] ?? cliente.ivaCondition },
-                { etiqueta: "Dirección", valor: cliente.address },
-                { etiqueta: "Ciudad", valor: cliente.city },
-                { etiqueta: "Estado", valor: cliente.status === "INACTIVO" ? "Inactivo" : "Activo" },
-              ]}
-            >
-              {/* El formulario completo, plegado: se abre solo si el guardado volvió con error. */}
-              <details open={Boolean(query.error)} className="group border-t border-[var(--fo-border)] pt-3">
-                <summary className="fo-btn fo-btn-secondary w-full cursor-pointer list-none justify-center text-sm [&::-webkit-details-marker]:hidden">
-                  <span className="group-open:hidden">{canEdit ? "Editar datos" : "Ver todos los datos"}</span>
-                  <span className="hidden group-open:inline">Cerrar</span>
-                </summary>
-                <div className="pt-4">
-                  {/* Sin MANAGE la ficha se ve igual, pero deshabilitada: `fieldset disabled` apaga
-                      cada campo y el botón de guardar. La acción igual rebota del lado del servidor. */}
-                  <fieldset disabled={!canEdit} className="contents">
-                    <ClientForm client={cliente} enColumna />
-                  </fieldset>
-                </div>
-              </details>
+            <DatosFicha titulo="Datos">
+              {/* Sin MANAGE se ve igual, pero deshabilitado: `fieldset disabled` apaga cada campo y el
+                  botón de guardar. La acción igual rebota del lado del servidor. */}
+              <fieldset disabled={!canEdit} className="contents">
+                <ClientForm client={cliente} enColumna />
+              </fieldset>
             </DatosFicha>
             <PerfilContactoTarjeta clientId={cliente.id} perfil={perfil} puedeEditar={canEdit} />
             <MasDatos entityType="CLIENTE" entityId={cliente.id} />
@@ -324,14 +332,37 @@ export default async function ClientePage({
                 </form>
               ) : null}
             </DatosFicha>
-            {cajaHabilitada ? (
-              <DatosFicha titulo="Consumo">
-                <MovementsTable movements={movimientos} showAccount />
-              </DatosFicha>
-            ) : null}
           </>
+        }
+        principal={
+          cajaHabilitada ? (
+            <Desplegable titulo="Consumo" detalle={movimientos.length > 0 ? `${movimientos.length} movimientos` : "Sin movimientos"}>
+              <MovementsTable movements={movimientos} showAccount />
+            </Desplegable>
+          ) : undefined
         }
       />
     </div>
   );
+}
+
+/**
+ * La pantalla de un elemento, dibujada adentro de la ficha. Es la misma página de siempre (con sus
+ * guardas y sus permisos) en modo `vista=ficha`: todo lo que se puede hacer ahí se hace acá.
+ */
+function pantallaDelDetalle(d: DetallePedido) {
+  const params = Promise.resolve({ id: d.id });
+  const searchParams = Promise.resolve({ vista: VISTA_FICHA });
+  switch (d.tipo) {
+    case "consulta":
+      return <FichaConsultaPage params={params} searchParams={searchParams} />;
+    case "cotizacion":
+      return <PresupuestoPage params={params} searchParams={searchParams} />;
+    case "pedido":
+      return <PedidoPage params={params} searchParams={searchParams} />;
+    case "contrato":
+      return <FichaContratoPage params={params} searchParams={searchParams} />;
+    case "proyecto":
+      return <FichaProyectoPage params={params} searchParams={searchParams} />;
+  }
 }

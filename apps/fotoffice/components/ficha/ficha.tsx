@@ -26,9 +26,13 @@ export type EncabezadoDeFicha = Omit<EncabezadoFichaProps, "etiquetas">;
  * pasó el guarda de su módulo; acá se vuelve a resolver el contexto (sesión, workspace,
  * módulo, `operar`, persona del workspace) ANTES de leer notas, etiquetas, adjuntos o historia.
  *
+ * Diseño: una sola columna, limpia. Arriba el nombre con su lápiz y los botones de ícono de
+ * contacto; debajo los cuadros del resumen y la historia con sus accesos directos (Notas abre la
+ * caja para escribir; Archivos, los adjuntos).
+ *
  * - `encabezado`: nombre, tipo, contacto y botones del módulo (las etiquetas las pone la ficha).
- * - `datos`: los datos de la persona (`DatosFicha`, formularios), arriba de la columna lateral.
- * - `lateral`: tarjetas propias del módulo, debajo de los datos.
+ * - `datos` y `lateral`: todo lo que se edita de la persona (datos, contacto, más datos, socio…).
+ *   Viven en la ventana del lápiz, junto con las personas relacionadas.
  */
 export async function Ficha({
   persona,
@@ -37,6 +41,8 @@ export async function Ficha({
   lateral,
   resumen,
   principal,
+  edicionAbierta = false,
+  detalle,
 }: {
   persona: PersonaPedida;
   encabezado: EncabezadoDeFicha;
@@ -45,10 +51,14 @@ export async function Ficha({
   /** Cuadros de colores debajo del encabezado (consultas, cotizaciones, pedidos, saldos…). */
   resumen?: ReactNode;
   /**
-   * Lo más importante de la persona (consultas, cotizaciones, pedidos…), arriba de la columna
-   * ancha. Con esto, las notas y el historial pasan debajo, con su título.
+   * Lo más importante de la persona (consultas, cotizaciones, pedidos…), arriba de la historia.
+   * Con esto, las notas y el historial pasan debajo, con su título.
    */
   principal?: ReactNode;
+  /** La ventana del lápiz se abre sola al entrar (un guardado de datos volvió con error). */
+  edicionAbierta?: boolean;
+  /** Un elemento (consulta, cotización…) abierto adentro de la ficha, debajo del resumen. */
+  detalle?: ReactNode;
 }) {
   const ctx = await contextoDeFicha(persona);
   // A los componentes de cliente viaja sólo esto: el tipo y el id que ya están en la URL.
@@ -60,21 +70,20 @@ export async function Ficha({
     const notas = lectura ? await listarNotas(lectura.workspaceId, lectura.persona, { take: 100 }) : [];
     return (
       <div className="space-y-6">
-        <EncabezadoFicha {...encabezado} />
+        <EncabezadoFicha
+          {...encabezado}
+          edicion={datos || lateral ? <ContenidoEdicion>{datos}{lateral}</ContenidoEdicion> : undefined}
+          edicionAbierta={edicionAbierta}
+        />
         {resumen}
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
-          <div className="min-w-0 space-y-4">
-            {principal}
-            {lectura ? (
-              <NotasSoloLectura notas={notas} />
-            ) : (
-              <p className="fo-card p-4 text-sm text-[var(--fo-muted)]">No tenés acceso a la historia de esta ficha.</p>
-            )}
-          </div>
-          <aside className="space-y-4">
-            {datos}
-            {lateral}
-          </aside>
+        {detalle}
+        <div className="min-w-0 space-y-4">
+          {principal}
+          {lectura ? (
+            <NotasSoloLectura notas={notas} />
+          ) : (
+            <p className="fo-card p-4 text-sm text-[var(--fo-muted)]">No tenés acceso a la historia de esta ficha.</p>
+          )}
         </div>
       </div>
     );
@@ -131,41 +140,46 @@ export async function Ficha({
 
   return (
     <div className="space-y-6">
-      <EncabezadoFicha {...encabezado} etiquetas={<Etiquetas persona={ref} etiquetas={etiquetas} />} />
+      <EncabezadoFicha
+        {...encabezado}
+        etiquetas={<Etiquetas persona={ref} etiquetas={etiquetas} />}
+        edicionAbierta={edicionAbierta}
+        edicion={
+          <ContenidoEdicion>
+            {datos}
+            {lateral}
+            <PersonasRelacionadas persona={ref} nombre={encabezado.titulo} relaciones={relaciones} palabraSocio={vocabulario.singular} />
+          </ContenidoEdicion>
+        }
+      />
       {resumen}
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
-        <div className="min-w-0 space-y-4">
-          {principal ? (
-            <>
-              {principal}
-              <h2 className="pt-2 text-lg font-semibold text-[var(--fo-text)]">Notas e historial</h2>
-            </>
-          ) : null}
-          <CajaDeNota persona={ref} categorias={categorias} />
-          <LineaDeTiempo
-            persona={ref}
-            inicial={serializarPagina(pagina)}
-            fijadas={fijadas}
-            categorias={categorias}
-            userId={ctx.userId}
-            esConfigurador={esConfigurador}
-            veDinero={veDinero}
-          />
-        </div>
-        <aside className="min-w-0 space-y-4" aria-label="Datos de la persona">
-          {datos}
-          {lateral}
-          <PersonasRelacionadas
-            persona={ref}
-            nombre={encabezado.titulo}
-            relaciones={relaciones}
-            palabraSocio={vocabulario.singular}
-          />
-          <Adjuntos persona={ref} adjuntos={adjuntosVista} habilitados={adjuntosR2Configurado()} esConfigurador={esConfigurador} />
-        </aside>
+      {detalle}
+      <div className="min-w-0 space-y-4">
+        {principal ? (
+          <>
+            {principal}
+            <h2 className="pt-2 text-lg font-semibold text-[var(--fo-text)]">Notas e historial</h2>
+          </>
+        ) : null}
+        <LineaDeTiempo
+          persona={ref}
+          inicial={serializarPagina(pagina)}
+          fijadas={fijadas}
+          categorias={categorias}
+          userId={ctx.userId}
+          esConfigurador={esConfigurador}
+          veDinero={veDinero}
+          cajaDeNota={<CajaDeNota persona={ref} categorias={categorias} />}
+          archivos={<Adjuntos persona={ref} adjuntos={adjuntosVista} habilitados={adjuntosR2Configurado()} esConfigurador={esConfigurador} />}
+        />
       </div>
     </div>
   );
+}
+
+/** Lo de adentro de la ventana del lápiz: las tarjetas en dos columnas en pantallas anchas. */
+function ContenidoEdicion({ children }: { children: ReactNode }) {
+  return <div className="columns-1 gap-4 md:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">{children}</div>;
 }
 
 const fechaNota = new Intl.DateTimeFormat("es-AR", {

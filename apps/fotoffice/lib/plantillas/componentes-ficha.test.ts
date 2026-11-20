@@ -33,7 +33,7 @@ describe("botón «Mensaje»", () => {
     expect(t).not.toMatch(/^["']use client["']/m);
     expect(t).toContain('import "server-only"');
     expect(t).toContain("await cargarPanelMensaje(entityType, entityId)");
-    expect(t).toContain("if (!panel) return null;");
+    expect(t).toContain("if (!panel) {");
     expect(t).not.toContain("@repo/db");
   });
 
@@ -103,7 +103,7 @@ describe("botón «Mensaje»", () => {
     const p = componente("panel-mensaje.tsx");
     expect(p).toContain("const deshabilitado = datos.destino === null;");
     expect(p).toContain("disabled={deshabilitado}");
-    expect(p).toContain("d.motivo ? (");
+    expect(p).toContain("d.motivo && !compacto ? (");
   });
 
   it("la guarda del panel corre antes de sembrar o leer", () => {
@@ -120,8 +120,8 @@ describe("botón «Mensaje»", () => {
   });
 
   it("está en las fichas de Cliente, Socio y Consulta", () => {
-    expect(leer("app", "(shell)", "clientes", "[clientId]", "page.tsx")).toContain('<Mensaje entityType="CLIENTE" entityId={cliente.id} />');
-    expect(leer("app", "(shell)", "members", "[id]", "page.tsx")).toContain('<Mensaje entityType="SOCIO" entityId={member.id} />');
+    expect(leer("app", "(shell)", "clientes", "[clientId]", "page.tsx")).toContain('<Mensaje entityType="CLIENTE" entityId={cliente.id} compacto correoAlternativo={cliente.email} />');
+    expect(leer("app", "(shell)", "members", "[id]", "page.tsx")).toContain('<Mensaje entityType="SOCIO" entityId={member.id} compacto correoAlternativo={member.email} />');
     const consulta = leer("app", "(shell)", "consultas", "[id]", "page.tsx");
     expect(consulta).toContain('<Mensaje entityType="CONSULTA" entityId={id} />');
     // Los mensajes de la consulta, recién después de verificarla en el workspace de la sesión.

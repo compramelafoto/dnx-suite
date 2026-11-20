@@ -54,6 +54,7 @@ export function CabeceraCotizacion({
   totalAclaracion,
   enlaces,
   acciones,
+  nivel = "h1",
 }: {
   titulo: string;
   estado: string;
@@ -75,7 +76,10 @@ export function CabeceraCotizacion({
   enlaces: React.ReactNode;
   /** Enviar, Editar, Rechazar… (van al pie del encabezado). */
   acciones?: React.ReactNode;
+  /** `h2` adentro de la ficha del cliente (que ya tiene su `h1`). */
+  nivel?: "h1" | "h2";
 }) {
+  const Titulo = nivel;
   const hoja = evento?.fecha ? hojaDeCalendario(evento.fecha, evento.horaConocida) : null;
   const detalles = evento ? lineasDelEvento(evento).filter((l) => l.termino !== "Tipo de evento" && l.termino !== "Fecha") : [];
   const mensaje = evento?.mensaje?.trim() || null;
@@ -89,10 +93,10 @@ export function CabeceraCotizacion({
       {/* Franja superior: qué documento es, en qué estado está y hasta cuándo vale. */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--fo-border)] bg-[var(--fo-bg)] px-5 py-3 sm:px-6">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-          <h1 id="cotizacion-titulo" className="flex items-center gap-2 font-semibold text-[var(--fo-text)]">
+          <Titulo id="cotizacion-titulo" className="flex items-center gap-2 font-semibold text-[var(--fo-text)]">
             <IconoEntidad entidad="cotizacion" tamano="sm" />
             {titulo}
-          </h1>
+          </Titulo>
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${claseEstado}`}>{estado}</span>
           <span className="text-[var(--fo-muted)]">{versiones}</span>
           <span className="flex items-center gap-1 text-[var(--fo-muted)]">

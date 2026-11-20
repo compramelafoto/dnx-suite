@@ -19,7 +19,16 @@ const ERROR_CONEXION = "No pudimos conectar con el servidor. Probá de nuevo.";
  * correo con la plantilla «Pedido de testimonio» o por WhatsApp. Si el cliente no tiene correo, sólo
  * se ofrece WhatsApp. Se envía como cualquier mensaje y queda en la línea de tiempo del cliente.
  */
-export function PedirTestimonio({ clientId, proyectoId = null }: { clientId: string; proyectoId?: string | null }) {
+export function PedirTestimonio({
+  clientId,
+  proyectoId = null,
+  compacto = false,
+}: {
+  clientId: string;
+  proyectoId?: string | null;
+  /** Botón de ícono con su leyenda al pasar el mouse. */
+  compacto?: boolean;
+}) {
   const router = useRouter();
   const [pedido, setPedido] = useState<PedidoPreparado | null>(null);
   const [canal, setCanal] = useState<Canal>("EMAIL");
@@ -133,11 +142,24 @@ export function PedirTestimonio({ clientId, proyectoId = null }: { clientId: str
   const ids = idsCompositor("testimonio", clientId);
 
   return (
-    <div className="space-y-2">
-      <button type="button" className="fo-btn fo-btn-secondary text-sm" onClick={pedir} disabled={preparando}>
-        <MessageSquareQuote className="size-4" aria-hidden />
-        {preparando ? "Preparando…" : "Pedir testimonio"}
-      </button>
+    <div className={compacto ? "contents" : "space-y-2"}>
+      {compacto ? (
+        <button
+          type="button"
+          className="fo-icon-btn"
+          data-tip={preparando ? "Preparando…" : "Pedir testimonio"}
+          aria-label="Pedir testimonio"
+          onClick={pedir}
+          disabled={preparando}
+        >
+          <MessageSquareQuote className="size-4" aria-hidden />
+        </button>
+      ) : (
+        <button type="button" className="fo-btn fo-btn-secondary text-sm" onClick={pedir} disabled={preparando}>
+          <MessageSquareQuote className="size-4" aria-hidden />
+          {preparando ? "Preparando…" : "Pedir testimonio"}
+        </button>
+      )}
       {!abierto && error ? (
         <p className="text-sm text-[var(--fo-danger)]" role="alert">
           {error}
