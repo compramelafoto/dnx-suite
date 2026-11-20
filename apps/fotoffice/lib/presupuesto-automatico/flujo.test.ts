@@ -13,6 +13,8 @@ type DepsFlujo = NonNullable<Parameters<typeof F.aprobarYEnviar>[3]>;
 
 const WS = "ws-1";
 const AHORA = new Date("2026-10-25T23:10:00.000Z");
+/** Cuando se envió (congeló) la versión vigente desde el panel. */
+const ANTES = new Date(AHORA.getTime() - 3_600_000);
 
 function sembrar(lead: { email?: string | null; phone?: string | null } = {}) {
   B.vaciar();
@@ -41,7 +43,7 @@ const armar: DepsFlujo["armar"] = async (workspaceId, leadId) => {
 function deps(extra: Partial<DepsFlujo> = {}) {
   const avisos: string[] = [];
   const ediciones: string[] = [];
-  const envios: { sinCorreo: boolean }[] = [];
+  const envios: { sinCorreo: boolean; reenviar?: true }[] = [];
   const whatsapps: string[] = [];
   const d: DepsFlujo = {
     ahora: () => AHORA,
@@ -55,7 +57,7 @@ function deps(extra: Partial<DepsFlujo> = {}) {
       ediciones.push(html);
     },
     enviarPresupuesto: async (_ws, presupuestoId, _tpl, _deps, op) => {
-      envios.push({ sinCorreo: op?.sinCorreo === true });
+      envios.push({ sinCorreo: op?.sinCorreo === true, ...(op?.reenviar ? { reenviar: true as const } : {}) });
       // Congela la versión, como el envío real.
       await B.tablas.fotofficePresupuestoVersion.updateMany({ where: { presupuestoId }, data: { sentAt: AHORA } });
       return { ok: true, repetido: false, versionId: "ver-1", numero: "P-1", enlace: "https://dnx.com.ar/p/tok", whatsappUrl: null };
@@ -259,13 +261,93 @@ describe("aprobarYEnviar: nunca dos envíos del mismo presupuesto", () => {
     expect(intentos).toBe(2);
   });
 
-  it("si ya lo mandaron a mano desde FOTOFFICE, no se manda de nuevo", async () => {
+  it("si ya lo mandaron a mano desde FOTOFFICE (y le llegó el correo), no se manda de nuevo", async () => {
     const { d, envios } = deps();
     await F.alLlegarConsulta(WS, "lead-1", "WEB", {}, d);
-    await B.tablas.fotofficePresupuestoVersion.updateMany({ where: { presupuestoId: "pres-1" }, data: { sentAt: AHORA } });
-    expect(await F.aprobarYEnviar(WS, (await fila())!.id as string, { tipo: "TELEGRAM" }, d)).toMatchObject({ ok: false, codigo: "YA_ENVIADO" });
+    await B.tablas.fotofficePresupuestoVersion.updateMany({ where: { presupuestoId: "pres-1" }, data: { sentAt: ANTES } });
+    B.agregar("fotofficeMessage", { id: "msg-1", workspaceId: WS, channel: "EMAIL", entityType: "CONSULTA", entityId: "lead-1", toAddress: "x", body: "x", status: "SENT", createdAt: new Date(ANTES.getTime() + 1_000) });
+    expect(await F.aprobarYEnviar(WS, (await fila())!.id as string, { tipo: "TELEGRAM" }, d)).toMatchObject({ ok: false, codigo: "YA_ENVIADO", texto: F.TEXTO_YA_LE_LLEGO });
     expect(envios).toHaveLength(0);
     expect(await fila()).toMatchObject({ status: "ENVIADO", errorCode: "ENVIADO_A_MANO" });
+  });
+});
+
+describe("aprobarYEnviar: corregida y «enviada» desde el panel sin que le llegue nada", () => {
+  const WA = "5493415551234";
+  /** El dueño corrigió y apretó «Enviar» por WhatsApp en el panel: se congeló y sólo se abrió wa.me. */
+  async function corregidaEnElPanel() {
+    await B.tablas.fotofficePresupuestoVersion.updateMany({ where: { presupuestoId: "pres-1" }, data: { sentAt: ANTES } });
+    B.agregar("fotofficeMessage", { id: "msg-wa", workspaceId: WS, channel: "WHATSAPP", entityType: "CONSULTA", entityId: "lead-1", toAddress: WA, body: "x", status: "OPENED_WHATSAPP", createdAt: new Date(ANTES.getTime() + 1_000) });
+    B.agregar("fotofficeWaChat", { id: "chat-wa", workspaceId: WS, canal: "WHATSAPP", waId: WA, ultimoEntranteEn: new Date(AHORA.getTime() - 3_600_000), estado: "BOT" });
+  }
+  const saliente = (extra: Record<string, unknown>) =>
+    B.agregar("fotofficeWaMensaje", {
+      id: `m-${Math.random()}`, workspaceId: WS, chatId: "chat-wa", direccion: "SALIENTE", autor: "USUARIO", tipo: "TEXTO", texto: "Hola",
+      estadoEnvio: "ENVIADO", createdAt: new Date(ANTES.getTime() + 60_000), ...extra,
+    });
+
+  it("sin borrador y sin nada enviado: el bot manda la versión vigente por WhatsApp", async () => {
+    sembrar({ email: null });
+    const { d, envios, whatsapps } = deps({ estadoWhatsapp: async () => ({ conectado: true, ventanaAbierta: true }) });
+    await F.alLlegarConsulta(WS, "lead-1", "WHATSAPP", { waId: WA }, d);
+    await corregidaEnElPanel();
+    // No cuentan: el que falló, el de antes del envío y el del bot sin enlace (el acuse).
+    saliente({ estadoEnvio: "FALLO" });
+    saliente({ createdAt: new Date(ANTES.getTime() - 60_000) });
+    saliente({ autor: "BOT", texto: "¡Gracias por escribirnos!" });
+    const r = await F.aprobarYEnviar(WS, (await fila())!.id as string, { tipo: "TELEGRAM" }, d);
+    expect(r).toMatchObject({ ok: true, canales: { correo: "SIN_CORREO", whatsapp: "ENVIADO" } });
+    expect(r.texto).toContain("versión corregida");
+    expect(r.texto).toContain("WhatsApp");
+    expect(envios).toEqual([{ sinCorreo: true, reenviar: true }]);
+    expect(whatsapps).toHaveLength(1);
+    expect(whatsapps[0]).toContain("https://dnx.com.ar/p/tok");
+    expect(await fila()).toMatchObject({ status: "ENVIADO", errorCode: null, channels: { correo: "SIN_CORREO", whatsapp: "ENVIADO" } });
+  });
+
+  it("con correo y sin nada enviado: sale también el correo (no se le había mandado)", async () => {
+    const { d, envios } = deps({ estadoWhatsapp: async () => ({ conectado: true, ventanaAbierta: true }) });
+    await F.alLlegarConsulta(WS, "lead-1", "WHATSAPP", { waId: WA }, d);
+    await corregidaEnElPanel();
+    const r = await F.aprobarYEnviar(WS, (await fila())!.id as string, { tipo: "TELEGRAM" }, d);
+    expect(r).toMatchObject({ ok: true, canales: { correo: "ENVIADO", whatsapp: "ENVIADO" } });
+    expect(envios).toEqual([{ sinCorreo: false, reenviar: true }]);
+  });
+
+  it("sin borrador pero con un saliente posterior: ENVIADO_A_MANO sin mandar nada", async () => {
+    const { d, envios, whatsapps } = deps({ estadoWhatsapp: async () => ({ conectado: true, ventanaAbierta: true }) });
+    await F.alLlegarConsulta(WS, "lead-1", "WHATSAPP", { waId: WA }, d);
+    await corregidaEnElPanel();
+    saliente({ autor: "CELULAR", texto: "Te paso la propuesta" });
+    expect(await F.aprobarYEnviar(WS, (await fila())!.id as string, { tipo: "TELEGRAM" }, d)).toMatchObject({ ok: false, codigo: "YA_ENVIADO" });
+    expect(envios).toHaveLength(0);
+    expect(whatsapps).toHaveLength(0);
+    expect(await fila()).toMatchObject({ status: "ENVIADO", errorCode: "ENVIADO_A_MANO" });
+  });
+
+  it("con la ventana de 24 h cerrada y sin correo: lo informa y no la marca enviada", async () => {
+    sembrar({ email: null });
+    const { d, envios, whatsapps } = deps({ estadoWhatsapp: async () => ({ conectado: true, ventanaAbierta: false }) });
+    await F.alLlegarConsulta(WS, "lead-1", "WHATSAPP", { waId: WA }, d);
+    await corregidaEnElPanel();
+    const r = await F.aprobarYEnviar(WS, (await fila())!.id as string, { tipo: "TELEGRAM" }, d);
+    expect(r).toMatchObject({ ok: false, codigo: "SIN_CANAL" });
+    expect(r.texto).toContain("No se pudo enviar");
+    expect(r.texto).toContain("más de 24 h");
+    expect(envios).toHaveLength(0);
+    expect(whatsapps).toHaveLength(0);
+    expect(await fila()).toMatchObject({ status: "AVISADO", errorCode: "SIN_CANAL" });
+  });
+
+  it("si el WhatsApp falla y no hay correo, vuelve a AVISADO para reintentar", async () => {
+    sembrar({ email: null });
+    const { d } = deps({ estadoWhatsapp: async () => ({ conectado: true, ventanaAbierta: true }), enviarWhatsapp: async () => "FALLO" });
+    await F.alLlegarConsulta(WS, "lead-1", "WHATSAPP", { waId: WA }, d);
+    await corregidaEnElPanel();
+    const r = await F.aprobarYEnviar(WS, (await fila())!.id as string, { tipo: "TELEGRAM" }, d);
+    expect(r).toMatchObject({ ok: false, codigo: "NO_SALIO" });
+    expect(r.texto).toContain("Meta lo rechazó");
+    expect(await fila()).toMatchObject({ status: "AVISADO", errorCode: "NINGUN_CANAL" });
   });
 });
 

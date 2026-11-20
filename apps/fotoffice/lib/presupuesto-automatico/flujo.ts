@@ -297,7 +297,64 @@ export const TEXTOS_APROBAR = {
   ERROR: "Algo falló. Probá de nuevo en un rato.",
 } as const;
 
-const falla = (codigo: Exclude<ResultadoAprobar, { ok: true }>["codigo"]): ResultadoAprobar => ({ ok: false, codigo, texto: TEXTOS_APROBAR[codigo] });
+const falla = (codigo: Exclude<ResultadoAprobar, { ok: true }>["codigo"], texto: string = TEXTOS_APROBAR[codigo]): ResultadoAprobar => ({ ok: false, codigo, texto });
+
+/** Sin borrador, y al cliente ya le llegó algo después del envío desde FOTOFFICE. */
+export const TEXTO_YA_LE_LLEGO =
+  "Esta cotización ya se envió desde FOTOFFICE y el cliente ya recibió un mensaje o un correo después. No se manda de nuevo.";
+/** Sin borrador y sin nada que le haya llegado: el bot manda la versión vigente (la corregida). */
+export const PREFIJO_VERSION_CORREGIDA = "Se mandó la versión corregida.";
+
+/** Sin canal: por qué no sale por ninguno, y qué hacer. */
+function textoSinCanal(decision: ReturnType<typeof decidirCanales>): string {
+  const canales: ResultadoCanales = {
+    correo: "SIN_CORREO",
+    whatsapp: decision.motivoSinWhatsapp ?? "FALLO",
+    ...(decision.motivoSinInstagram ? { instagram: decision.motivoSinInstagram } : {}),
+  };
+  return `No se pudo enviar. ${textoDeCanales(canales).replace(/^No salió por ningún canal\. /, "")} Cargale un correo en la consulta (o esperá a que vuelva a escribir) y volvé a aprobar.`;
+}
+
+/** Los mensajes de WhatsApp o Instagram que no le llegaron al cliente (o que no salieron de verdad). */
+const SALIENTE_SIN_LLEGAR = ["FALLO", "SIMULADO"];
+
+/**
+ * ¿Le llegó algo al cliente desde `desde` (el envío de la versión vigente)? Un correo registrado
+ * a la consulta, o un mensaje saliente en su chat de WhatsApp (o Instagram) que no falló: escrito
+ * por una persona (desde la Bandeja o el celular) o del bot con el enlace de una cotización. El
+ * "Enviar por WhatsApp" del panel sólo abre un enlace (`OPENED_WHATSAPP`): eso no cuenta.
+ */
+export async function alClienteLeLlegoAlgo(
+  workspaceId: string,
+  leadId: string,
+  chats: { waId: string | null; igChatId: string | null },
+  desde: Date,
+): Promise<boolean> {
+  const correo = await prisma.fotofficeMessage.findFirst({
+    where: { workspaceId, channel: "EMAIL", entityType: "CONSULTA", entityId: leadId, status: "SENT", createdAt: { gte: desde } },
+    select: { id: true },
+  });
+  if (correo) return true;
+  const ids: string[] = [];
+  if (chats.waId) {
+    const chat = await prisma.fotofficeWaChat.findFirst({ where: { workspaceId, canal: "WHATSAPP", waId: chats.waId }, select: { id: true } });
+    if (chat) ids.push(chat.id);
+  }
+  if (chats.igChatId) ids.push(chats.igChatId);
+  if (ids.length === 0) return false;
+  const saliente = await prisma.fotofficeWaMensaje.findFirst({
+    where: {
+      workspaceId,
+      chatId: { in: ids },
+      direccion: "SALIENTE",
+      estadoEnvio: { notIn: SALIENTE_SIN_LLEGAR },
+      createdAt: { gte: desde },
+      OR: [{ autor: { in: ["USUARIO", "CELULAR"] } }, { texto: { contains: "/presupuesto/" } }],
+    },
+    select: { id: true },
+  });
+  return saliente !== null;
+}
 
 /** La plantilla con la que sale el correo: la de la propuesta modelo o la primera de Presupuesto. */
 async function plantillaDelEnvio(workspaceId: string, categoriaId: string | null): Promise<string | null> {
@@ -358,19 +415,31 @@ export async function aprobarYEnviar(
 
     const [lead, presupuesto, categoria, branding] = await Promise.all([
       prisma.serviceSalesLead.findFirst({ where: { id: a.leadId, workspaceId }, select: { name: true, email: true, phone: true } }),
-      prisma.fotofficePresupuesto.findFirst({ where: { id: a.presupuestoId, workspaceId }, select: { status: true } }),
+      prisma.fotofficePresupuesto.findFirst({ where: { id: a.presupuestoId, workspaceId }, select: { status: true, currentVersionId: true } }),
       a.categoryId ? prisma.fotofficeConsultaCategoria.findFirst({ where: { id: a.categoryId, workspaceId }, select: { name: true } }) : Promise.resolve(null),
       prisma.fotofficeWorkspaceBranding.findUnique({ where: { workspaceId }, select: { commercialName: true } }).catch(() => null),
     ]);
     if (!presupuesto) return await volverAAvisado(workspaceId, aprobacionId, "SIN_PRESUPUESTO");
     const borrador = await prisma.fotofficePresupuestoVersion.findFirst({ where: { workspaceId, presupuestoId: a.presupuestoId, sentAt: null }, select: { id: true } });
+    const waId = a.waId ?? waIdDe(lead?.phone ?? null);
+    // Sin borrador: la corrigieron y la "enviaron" desde FOTOFFICE. Con WhatsApp el panel sólo abre
+    // un enlace que alguien tiene que mandar: si después de eso no le llegó nada al cliente, sale
+    // la versión vigente por acá (como un reenvío). Si le llegó algo, no se manda de nuevo.
+    let reenvio = false;
     if (!borrador) {
-      // Ya lo mandaron a mano desde FOTOFFICE: no se manda de nuevo.
-      await terminar(workspaceId, aprobacionId, { status: "ENVIADO", errorCode: "ENVIADO_A_MANO", sentAt: ahora });
-      return falla("YA_ENVIADO");
+      const vigente = presupuesto.currentVersionId
+        ? await prisma.fotofficePresupuestoVersion.findFirst({
+            where: { id: presupuesto.currentVersionId, workspaceId, presupuestoId: a.presupuestoId },
+            select: { sentAt: true },
+          })
+        : null;
+      if (!vigente?.sentAt || (await alClienteLeLlegoAlgo(workspaceId, a.leadId, { waId, igChatId: a.igChatId }, vigente.sentAt))) {
+        await terminar(workspaceId, aprobacionId, { status: "ENVIADO", errorCode: "ENVIADO_A_MANO", sentAt: ahora });
+        return falla("YA_ENVIADO", TEXTO_YA_LE_LLEGO);
+      }
+      reenvio = true;
     }
 
-    const waId = a.waId ?? waIdDe(lead?.phone ?? null);
     const wa = await (deps.estadoWhatsapp ?? estadoWhatsappDe)(workspaceId, waId, ahora);
     const instagram = a.igChatId ? { chatId: a.igChatId, ...(await (deps.estadoInstagram ?? estadoInstagramDe)(workspaceId, a.igChatId, ahora)) } : undefined;
     const decision = decidirCanales({
@@ -380,13 +449,20 @@ export async function aprobarYEnviar(
       ventanaAbierta: wa.ventanaAbierta,
       ...(instagram ? { instagram } : {}),
     });
-    if (!decision.correo && !decision.whatsapp && !decision.instagram) return await volverAAvisado(workspaceId, aprobacionId, "SIN_CANAL");
+    if (!decision.correo && !decision.whatsapp && !decision.instagram) {
+      return await volverAAvisado(workspaceId, aprobacionId, "SIN_CANAL", "SIN_CANAL", textoSinCanal(decision));
+    }
 
     const plantillaId = await plantillaDelEnvio(workspaceId, a.categoryId);
     if (!plantillaId) return await volverAAvisado(workspaceId, aprobacionId, "NO_SALIO", "SIN_PLANTILLA");
 
     const enviar = deps.enviarPresupuesto ?? enviarPresupuestoDelSistema;
-    const envio = await enviar(workspaceId, a.presupuestoId, plantillaId, deps, decision.correo ? {} : { sinCorreo: true });
+    const envio = await enviar(workspaceId, a.presupuestoId, plantillaId, deps, {
+      ...(decision.correo ? {} : { sinCorreo: true }),
+      ...(reenvio ? { reenviar: true } : {}),
+    });
+    // Otro envío de la misma cotización recién salió (doble toque o el panel): no se manda dos veces.
+    if (envio.ok && envio.repetido) return await volverAAvisado(workspaceId, aprobacionId, "NO_SALIO", "REPETIDO");
     let correo: ResultadoCorreo = decision.correo ? "FALLO" : "SIN_CORREO";
     let enlace: string | null = null;
     if (envio.ok) {
@@ -397,7 +473,7 @@ export async function aprobarYEnviar(
     } else {
       // No se congeló nada: se puede volver a aprobar sin riesgo de un segundo envío.
       console.warn("[presupuesto-automatico] el presupuesto no se pudo enviar", { codigo: "NO_ENVIADO" });
-      return await volverAAvisado(workspaceId, aprobacionId, "NO_SALIO", "NO_ENVIADO");
+      return await volverAAvisado(workspaceId, aprobacionId, "NO_SALIO", "NO_ENVIADO", reenvio ? `No se pudo enviar: ${envio.error}` : undefined);
     }
 
     const textoAlCliente = enlace
@@ -418,6 +494,10 @@ export async function aprobarYEnviar(
       }
     }
     const canales: ResultadoCanales = instagramSalida ? { correo, whatsapp, instagram: instagramSalida } : { correo, whatsapp };
+    if (reenvio && !algunoSalio(canales)) {
+      // El reenvío no congela nada: si no salió por ningún canal, se puede volver a aprobar.
+      return await volverAAvisado(workspaceId, aprobacionId, "NO_SALIO", "NINGUN_CANAL", `No se pudo enviar. ${textoDeCanales(canales).replace(/^No salió por ningún canal\. /, "")}`);
+    }
     await terminar(workspaceId, aprobacionId, {
       status: "ENVIADO",
       channels: canales as unknown as Prisma.InputJsonValue,
@@ -425,7 +505,7 @@ export async function aprobarYEnviar(
       sentAt: ahora,
     });
     await actualizarAviso(workspaceId, aprobacionId, a, { tipo: "ENVIADO", canales, via: via.tipo }, deps);
-    return { ok: true, canales, texto: textoDeCanales(canales) };
+    return { ok: true, canales, texto: reenvio ? `${PREFIJO_VERSION_CORREGIDA} ${textoDeCanales(canales)}` : textoDeCanales(canales) };
   } catch (e) {
     registrar("aprobarYEnviar", e);
     // Si se reclamó y algo lanzó, queda FALLO para revisar a mano (pudo haber salido): nunca se reintenta solo.
@@ -444,9 +524,10 @@ async function volverAAvisado(
   id: string,
   codigo: "SIN_PRESUPUESTO" | "SIN_CANAL" | "NO_SALIO",
   errorCode: string = codigo,
+  texto?: string,
 ): Promise<ResultadoAprobar> {
   await terminar(workspaceId, id, { status: "AVISADO", errorCode, approvedAt: null, approvedVia: null, approvedByUserId: null });
-  return falla(codigo);
+  return falla(codigo, texto);
 }
 
 /** Cambia el mensaje de Telegram (si hay) para que muestre cómo terminó. Nunca lanza. */
