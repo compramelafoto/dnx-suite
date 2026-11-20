@@ -98,7 +98,7 @@ export const NOMBRES_DE_FILTRO: Record<TipoEvento, string> = {
   plata: "Plata",
   portal: "Portal",
   carnets: "Carnets",
-  adjuntos: "Adjuntos",
+  adjuntos: "Archivos",
 };
 
 /** Los filtros que se ofrecen: "Plata" sólo a quien puede ver dinero. */

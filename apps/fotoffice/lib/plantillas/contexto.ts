@@ -3,7 +3,7 @@ import { prisma } from "@repo/db";
 import { listarCampos } from "@/lib/campos/definiciones";
 import { valoresDe } from "@/lib/campos/valores";
 import { textoLegible } from "@/lib/campos/validacion";
-import { normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
+import { waIdDe } from "@/lib/bandeja/telefono";
 import { loadWorkspaceEmailContext } from "@/lib/communications/load-workspace-signature";
 import { ETIQUETA_SALIDA } from "@/lib/circuitos/constantes";
 import { resolverPersonaPorCliente, resolverPersonaPorSocio } from "@/lib/ficha/persona";
@@ -98,7 +98,7 @@ function combinar(principal: DatosPersona | null, otra: DatosPersona | null): Da
   return {
     nombreCompleto: principal?.nombreCompleto ?? otra?.nombreCompleto ?? null,
     email: primeroQueSirve([principal?.email, otra?.email], correoValido),
-    telefono: primeroQueSirve([principal?.telefono, otra?.telefono], (t) => normalizeWhatsappNumber(t) !== null),
+    telefono: primeroQueSirve([principal?.telefono, otra?.telefono], (t) => waIdDe(t) !== null),
   };
 }
 

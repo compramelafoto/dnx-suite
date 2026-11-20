@@ -27,7 +27,7 @@ describe("formato de la ficha", () => {
     expect(claseDeColorEtiqueta("fucsia")).toBe(claseDeColorEtiqueta("gris"));
   });
   it("Plata sólo con verDinero", () => {
-    expect(filtrosVisibles(true).map((f) => f.texto)).toEqual(["Todo", "Notas", "Cambios", "Mensajes", "Plata", "Portal", "Carnets", "Adjuntos"]);
+    expect(filtrosVisibles(true).map((f) => f.texto)).toEqual(["Todo", "Notas", "Cambios", "Mensajes", "Plata", "Portal", "Carnets", "Archivos"]);
     expect(filtrosVisibles(false).map((f) => f.texto)).not.toContain("Plata");
     expect(filtrosVisibles(false)[0]).toEqual({ valor: null, texto: "Todo" });
   });

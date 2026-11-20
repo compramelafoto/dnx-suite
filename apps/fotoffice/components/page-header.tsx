@@ -5,6 +5,7 @@ export function PageHeader({
   description,
   actions,
   entidad,
+  nivel = "h1",
 }: {
   title: string;
   /** Texto o contenido con enlaces (por ejemplo, el nombre del cliente que lleva a su ficha). */
@@ -12,14 +13,17 @@ export function PageHeader({
   actions?: React.ReactNode;
   /** El elemento de la pantalla (consulta, pedido…): el título lleva su ícono y su color. */
   entidad?: Entidad;
+  /** `h2` cuando la pantalla se muestra adentro de otra (la ficha del cliente ya tiene su `h1`). */
+  nivel?: "h1" | "h2";
 }) {
+  const Titulo = nivel;
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div className="space-y-2 min-w-0">
-        <h1 className="flex items-center gap-3 text-2xl font-semibold tracking-tight text-[var(--fo-text)]">
+        <Titulo className={`flex items-center gap-3 font-semibold tracking-tight text-[var(--fo-text)] ${nivel === "h1" ? "text-2xl" : "text-xl"}`}>
           {entidad ? <IconoEntidad entidad={entidad} tamano="lg" /> : null}
           <span className="min-w-0">{title}</span>
-        </h1>
+        </Titulo>
         {description ? (
           <p className="text-sm text-[var(--fo-muted)] max-w-2xl leading-relaxed">{description}</p>
         ) : null}

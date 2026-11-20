@@ -1,6 +1,7 @@
 import { claseTarjetaEntidad, TituloEntidad } from "@/components/entidades/entidad";
 import { estiloDeEntidad } from "@/lib/entidades/colores";
 import Link from "next/link";
+import { hrefVerEnFicha } from "@/lib/ficha/detalle-en-ficha";
 import { claseDeColorEtiqueta } from "@/lib/ficha/formato";
 import type { ConsultaDelContacto } from "@/lib/contactos/consultas-del-contacto";
 
@@ -14,11 +15,14 @@ export function ConsultasDelContacto({
   consultas,
   hayMas,
   puedeCrear,
+  enFicha = false,
 }: {
   clientId: string;
   consultas: ConsultaDelContacto[];
   hayMas: boolean;
   puedeCrear: boolean;
+  /** En la ficha del cliente: cada consulta se abre ahí mismo, debajo, sin cambiar de pantalla. */
+  enFicha?: boolean;
 }) {
   return (
     <section id="consultas" aria-labelledby="contacto-consultas-titulo" style={estiloDeEntidad("consulta")} className={`scroll-mt-24 ${claseTarjetaEntidad()}`}>
@@ -31,7 +35,7 @@ export function ConsultasDelContacto({
         <ul className="divide-y divide-[var(--fo-border)] text-sm">
           {consultas.map((c) => (
             <li key={c.id} className="py-2 first:pt-0 last:pb-0">
-              <Link href={c.href} className="block rounded-[var(--fo-radius-sm)] hover:bg-[var(--fo-surface-hover)]">
+              <Link href={enFicha ? hrefVerEnFicha(clientId, "consulta", c.id) : c.href} className="block rounded-[var(--fo-radius-sm)] hover:bg-[var(--fo-surface-hover)]">
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="font-medium text-[var(--fo-text)]">
                     {c.numero ? `N° ${c.numero}` : "Sin número"}

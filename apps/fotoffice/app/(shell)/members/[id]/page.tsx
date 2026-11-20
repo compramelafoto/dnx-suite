@@ -138,6 +138,9 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
         insignias,
         telefono: member.phone,
         correo: member.email,
+        // Correo desde FOTOFFICE y WhatsApp con plantilla como íconos; sin «Gestionar», el `mailto:`.
+        herramientas: <Mensaje entityType="SOCIO" entityId={member.id} compacto correoAlternativo={member.email} />,
+        correoEnHerramientas: true,
         acciones: (
           <>
             <Link href="/members" className="fo-btn fo-btn-secondary text-sm">
@@ -153,7 +156,6 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
       }}
       datos={
         <>
-          <Mensaje entityType="SOCIO" entityId={member.id} />
           <DatosFicha
             titulo="Identidad"
             filas={[
@@ -193,8 +195,10 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
           <MasDatos entityType="SOCIO" entityId={member.id} />
         </>
       }
-      lateral={
-        <>
+      // Lo del día a día del socio (acceso, recorrido, cobros, pagos, recomendaciones) queda a la
+      // vista en la ficha; los datos para editar, en la ventana del lápiz.
+      principal={
+        <div className="grid gap-4 md:grid-cols-2 md:items-start">
           <DatosFicha titulo="Acceso a FotoOffice">
             {canManage ? (
               <MemberAccessPanel
@@ -311,7 +315,7 @@ export default async function MemberDetailPage({ params }: { params: Promise<{ i
               </div>
             ) : null}
           </DatosFicha>
-        </>
+        </div>
       }
     />
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { verMasAction } from "@/app/actions/ficha";
 import type { EventoFichaWire, PaginaLineaWire, TipoEvento } from "@/lib/ficha/linea-de-tiempo";
 import { filtrosVisibles } from "@/lib/ficha/formato";
@@ -18,6 +18,10 @@ type Props = {
   userId: number;
   esConfigurador: boolean;
   veDinero: boolean;
+  /** La caja para escribir una nota: aparece al elegir «Notas». */
+  cajaDeNota?: ReactNode;
+  /** Los archivos de la persona (subir y ver): aparecen al elegir «Archivos», en lugar de la lista. */
+  archivos?: ReactNode;
 };
 
 /** De un evento de nota a lo que necesita `<Nota>`. */
@@ -36,7 +40,7 @@ function notaDeEvento(e: EventoFichaWire, userId: number, esConfigurador: boolea
   };
 }
 
-export function LineaDeTiempo({ persona, inicial, fijadas, categorias, userId, esConfigurador, veDinero }: Props) {
+export function LineaDeTiempo({ persona, inicial, fijadas, categorias, userId, esConfigurador, veDinero, cajaDeNota, archivos }: Props) {
   const [filtro, setFiltro] = useState<TipoEvento | null>(null);
   const [eventos, setEventos] = useState<EventoFichaWire[]>(inicial.eventos);
   const [siguiente, setSiguiente] = useState<string | null>(inicial.siguiente);
@@ -124,6 +128,11 @@ export function LineaDeTiempo({ persona, inicial, fijadas, categorias, userId, e
         ))}
       </div>
 
+      {filtro === "notas" && cajaDeNota ? <div className="motion-safe:animate-[fo-desplegar_160ms_ease-out]">{cajaDeNota}</div> : null}
+      {filtro === "adjuntos" && archivos ? <div className="motion-safe:animate-[fo-desplegar_160ms_ease-out]">{archivos}</div> : null}
+
+      {filtro === "adjuntos" && archivos ? null : (
+      <>
       {fallaron.length > 0 ? (
         <p role="status" className="rounded-lg border border-[var(--fo-warning-border)] bg-[var(--fo-warning-soft)] px-3 py-2 text-sm text-[var(--fo-warning)]">
           No pudimos traer una parte de la historia; lo que ves puede estar incompleto. Probá de nuevo en un rato.
@@ -172,6 +181,8 @@ export function LineaDeTiempo({ persona, inicial, fijadas, categorias, userId, e
           </button>
         </div>
       ) : null}
+      </>
+      )}
     </section>
   );
 }

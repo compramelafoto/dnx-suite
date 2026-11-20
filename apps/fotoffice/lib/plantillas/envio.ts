@@ -3,7 +3,8 @@ import { prisma, type Prisma } from "@repo/db";
 import { puedeEnContexto, type AccesoEfectivo } from "@/lib/access/policy";
 import { moduloDeTipo } from "@/lib/access/modulos-crm";
 import { sendTransactionalEmail, type OutboundEmail, type SendOutcome } from "@/lib/communications/send-email";
-import { buildWhatsappUrl, normalizeWhatsappNumber } from "@/lib/contact/whatsapp";
+import { buildWhatsappUrl } from "@/lib/contact/whatsapp";
+import { waIdDe } from "@/lib/bandeja/telefono";
 import {
   CARACTER_MARCADOR, CLAVE_FIRMA, CODIGO_ENVIO_EN_CURSO, MARCADOR_FIRMA, MAX_ASUNTO, MAX_CUERPO, TOPE_AUTOMATICOS_DIA, TOPE_CORREOS_DIA,
   VIDA_RESERVA_MS, ZONA_HORARIA, type Canal, type ClaveAutomatico,
@@ -568,7 +569,7 @@ export async function prepararWhatsapp(ctx: CtxEnvio, datos: DatosWhatsapp, opci
   if (!contexto) return no(MENSAJES_ENVIO.noEncontrado);
   const plantilla = await validarPlantilla(ctx.workspaceId, datos.templateId, "WHATSAPP", opciones.tipoPlantilla ?? datos.entityType, false);
   if (!plantilla.ok) return plantilla;
-  const numero = normalizeWhatsappNumber(contexto.destino.telefono);
+  const numero = waIdDe(contexto.destino.telefono);
   if (!numero) return no(MENSAJES_ENVIO.sinWhatsapp);
 
   const texto = textoWhatsapp(fc.texto, contexto.firma.texto);
