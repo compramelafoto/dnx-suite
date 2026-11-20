@@ -179,7 +179,7 @@ export default async function FichaConsultaPage({
     { termino: "Alta", valor: fechaHoraBA(consulta.alta) },
   ].filter((d) => !yaEnConsulta.has(d.termino));
 
-  const relacionados = [presupuestos?.length ?? 0, pedidos?.length ?? 0, proyectos?.length ?? 0, citas?.length ?? 0].reduce((a, b) => a + b, 0);
+  const relacionados = [presupuestos?.length ?? 0, pedidos?.length ?? 0, proyectos?.length ?? 0, citas ? citas.proximas.length + citas.recientes.length : 0].reduce((a, b) => a + b, 0);
 
   return (
     <div className="space-y-5">
