@@ -29,6 +29,9 @@ export const guia: Instructivo = {
         "• «Pedir testimonio»: le manda al cliente el enlace para que deje su opinión en el sitio del estudio.",
         "• «Enviar cuestionario»: el cuestionario de XV, de bodas u otro (ver el paso «Mandarle un cuestionario»).",
       ],
+      imagen: "/instructivos/clientes-ficha/01-encabezado.jpg",
+      imagenAlt:
+        "Ficha de un cliente de prueba: el nombre con el lápiz al lado, la fila de botones redondos (llamar, WhatsApp en verde con su leyenda «Enviar WhatsApp», correo, plantilla, testimonio y cuestionario), los siete cuadros de colores y los accesos directos de la historia.",
       sistema: [
         "Los correos y los WhatsApp que salen de estos botones quedan anotados en la historia del cliente, con la fecha y quién los mandó.",
         "El número no hace falta cargarlo con +54: FOTOFFICE entiende los números argentinos escritos como los dicta la gente (3415551234, 0341 15 555-1234).",
@@ -46,6 +49,9 @@ export const guia: Instructivo = {
         "• «Personas relacionadas»: la mamá que paga el álbum, el novio, la empresa que factura. Tocá «+ Agregar», buscá a la otra persona (o creala) y elegí qué es para este cliente.",
         "Para cerrar la ventana, tocá la cruz o fuera de ella.",
       ],
+      imagen: "/instructivos/clientes-ficha/02-ventana-datos.jpg",
+      imagenAlt:
+        "Ventana «Datos de» con el formulario de identidad y datos fiscales a la izquierda y, a la derecha, las tarjetas Datos de contacto y Más datos con su botón Editar.",
       nota: "Si al guardar falta un dato o hay un error, la ventana se vuelve a abrir sola mostrando el aviso.",
     },
     {
@@ -62,6 +68,9 @@ export const guia: Instructivo = {
         "Tocá un cuadro y se despliega debajo su lista. Tocalo de nuevo y se cierra. Así la ficha queda limpia y ves sólo lo que pediste.",
         "Desde cada lista se crea uno nuevo para este cliente: «Nueva consulta para este contacto», «Nueva cotización» o «Nuevo pedido».",
       ],
+      imagen: "/instructivos/clientes-ficha/03-cuadro-desplegado.jpg",
+      imagenAlt:
+        "El cuadro Consultas tocado, con su borde marcado y la flecha hacia arriba, y debajo su lista desplegada con el botón «Nueva consulta para este contacto».",
     },
     {
       titulo: "Abrir una consulta, cotización o pedido sin salir de la ficha",
@@ -80,6 +89,9 @@ export const guia: Instructivo = {
         "Después elegí cómo mandárselo: «Enviar por WhatsApp» (se abre el chat con el mensaje y el enlace listos), «Enviar por correo» o «Copiar enlace» para pegarlo donde quieras.",
         "El cliente lo completa desde el celular, sin crear ninguna cuenta. Puede volver a entrar con el mismo enlace para corregir sus respuestas.",
       ],
+      imagen: "/instructivos/clientes-ficha/04-enviar-cuestionario.jpg",
+      imagenAlt:
+        "Ventana «Enviar cuestionario» con los botones Cuestionario para quinceañeras y Cuestionario para bodas, y el botón Cerrar.",
       sistema: [
         "Si ya le habías mandado ese cuestionario y no lo respondió, FOTOFFICE reutiliza el mismo enlace en lugar de crear otro.",
         "Cuando el cliente lo envía, las respuestas aparecen solas en «Información adicional» de su ficha.",
@@ -98,6 +110,9 @@ export const guia: Instructivo = {
         "Tocá «Notas»: aparece la caja para escribir una nota nueva. Elegí la «Categoría» (por ejemplo, URGENTE u Observaciones), escribí lo que haya que recordar («prefiere que le escriban a la tarde») y tocá «Guardar nota». Hasta 4.000 caracteres.",
         "Debajo quedan todas las notas. En cada una podés «Editar», «Borrar» o «Fijar arriba» (hasta 3 fijadas, que se ven siempre primero).",
       ],
+      imagen: "/instructivos/clientes-ficha/05-notas.jpg",
+      imagenAlt:
+        "Acceso directo Notas elegido: la caja para escribir una nota con Categoría, el texto de la nota y el botón Guardar nota.",
       sistema: ["Cada nota guarda quién la escribió y cuándo; si se borra, queda registrado quién la borró."],
     },
     {
@@ -106,6 +121,9 @@ export const guia: Instructivo = {
         "Tocá «Archivos» para ver y subir documentos o fotos del cliente: un comprobante, la foto carnet, el contrato firmado.",
         "Tocá «Elegir archivos» o arrastralos al recuadro. Sirven PDF, imágenes, Word o Excel, de hasta 10 MB cada uno. Cada archivo se puede «Descargar» o «Borrar».",
       ],
+      imagen: "/instructivos/clientes-ficha/06-archivos.jpg",
+      imagenAlt:
+        "Acceso directo Archivos elegido: el recuadro para arrastrar archivos con el botón Elegir archivos, que acepta PDF, imágenes, Word o Excel de hasta 10 MB.",
     },
     {
       titulo: "Información adicional",
@@ -114,6 +132,9 @@ export const guia: Instructivo = {
         "Abajo aparecen los cuestionarios enviados que todavía no respondió, con «Reenviar» y «Copiar enlace» para recordárselo.",
         "Si todavía no respondió ninguno, dice «Todavía no respondió ningún cuestionario» y tiene el botón para mandarle uno.",
       ],
+      imagen: "/instructivos/clientes-ficha/07-informacion-adicional.jpg",
+      imagenAlt:
+        "Acceso directo Información adicional elegido, todavía sin respuestas: dice «Todavía no respondió ningún cuestionario» y ofrece el botón Enviar cuestionario.",
     },
     {
       titulo: "Consumo",
