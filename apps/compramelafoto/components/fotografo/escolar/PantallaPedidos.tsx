@@ -129,6 +129,45 @@ const fechaArgentina = (iso: string | null | undefined) =>
 const pesos = (centavos: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 0 }).format(centavos / 100);
 
+/**
+ * Todo lo que se puede buscar de un pedido: alumno, curso, escuela, álbum, familia, correo,
+ * teléfono (con y sin espacios), números de pedido y de canje, tipo, paso, estado del librito,
+ * lote, cambios pedidos, fechas y total. "DEMO" encuentra las pruebas.
+ */
+function textosParaBuscar(t: Tarjeta): Array<string | null | undefined> {
+  const o = t.pedido;
+  const disenos = o.disenos ?? [];
+  const fechas = [
+    o.createdAt,
+    ...disenos.flatMap((d) => [d.sentToPrintAt, d.printedAt, d.deliveredAt]),
+    o.copias?.sentToPrintAt,
+    o.copias?.printedAt,
+    o.copias?.deliveredAt,
+  ].map((f) => fechaArgentina(f));
+  return [
+    t.nombre,
+    t.curso,
+    t.escuela,
+    o.album?.title,
+    o.buyerName,
+    o.buyerEmail,
+    o.buyerPhone,
+    o.buyerPhone?.replace(/\D/g, ""),
+    String(o.id),
+    `#${o.id}`,
+    o.redemptionOrderId ? `${o.redemptionOrderId} #${o.redemptionOrderId} canje` : null,
+    o.kind === "PACK_EXTERNO" ? "Pack cobrado por fuera" : "Tienda escolar",
+    t.demo ? "DEMO prueba" : null,
+    esPasoEmbudo(t.paso) ? `${INFO_PASOS[t.paso].numero}. ${INFO_PASOS[t.paso].titulo}` : INFO_FUERA[t.paso as keyof typeof INFO_FUERA],
+    disenos.length ? "librito" : o.copias ? "copias sueltas" : null,
+    ...disenos.map((d) => `${ESTADO_DISENO[d.status] ?? d.status} ${d.printBatchName ?? ""} ${d.reviewNote ?? ""}`),
+    disenos.some((d) => d.emptySlots > 0) ? "sin foto huecos" : null,
+    o.copias?.printBatchName,
+    ...fechas,
+    typeof o.totalCents === "number" && !o.isDemo ? pesos(o.totalCents) : null,
+  ];
+}
+
 function paraMover(o: Pedido) {
   return {
     paso: o.paso,
@@ -241,7 +280,7 @@ export default function PantallaPedidos() {
   const tarjetas = useMemo(
     () =>
       pedidosParaTarjetas(delCurso.map(aTarjeta), { incluirEntregados: true }).filter((t) =>
-        coincideBusqueda([t.nombre, t.curso, t.escuela, t.pedido.buyerName, t.pedido.buyerEmail], busqueda),
+        coincideBusqueda(textosParaBuscar(t), busqueda),
       ),
     [delCurso, busqueda],
   );
@@ -327,12 +366,12 @@ export default function PantallaPedidos() {
           <p className="text-sm text-white/60">{subtitulo}</p>
         </div>
         <label className="relative order-last w-full sm:order-none sm:ml-auto sm:w-72">
-          <span className="sr-only">Buscar alumno, curso o escuela</span>
+          <span className="sr-only">Buscar por cualquier dato del pedido</span>
           <input
             type="search"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar alumno, curso o escuela…"
+            placeholder="Buscar por cualquier dato del pedido…"
             className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-[#c27b3d] focus:outline-none"
           />
         </label>
@@ -409,16 +448,16 @@ export default function PantallaPedidos() {
                 >
                   <div
                     title={INFO_PASOS[c.paso].ayuda}
-                    className="flex items-end justify-between gap-2 rounded-t-xl px-3 py-2"
+                    className="flex items-end justify-between gap-2 rounded-t-xl px-4 py-3"
                     style={{
                       background: c.cantidad === 0 ? "#1a1d24" : color.fondo,
                       color: c.cantidad === 0 ? "#6b7280" : color.tinta,
                     }}
                   >
-                    <span className="truncate text-sm font-semibold leading-tight">
+                    <span className="truncate text-xl font-bold leading-tight">
                       {c.numero}. {c.titulo}
                     </span>
-                    <span className="text-2xl font-bold leading-none tabular-nums">{c.cantidad}</span>
+                    <span className="text-4xl font-bold leading-none tabular-nums">{c.cantidad}</span>
                   </div>
                   {esAdelante ? (
                     <p className="px-3 pt-2 text-xs font-semibold text-[#e7a86b]">Soltala acá para pasarla a este paso</p>
@@ -655,7 +694,8 @@ function Ventana({
 }) {
   useEffect(() => {
     const tecla = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCerrar();
+      // Con una foto ampliada encima, Escape cierra sólo la foto.
+      if (e.key === "Escape" && !document.querySelector("[data-visor-abierto]")) onCerrar();
     };
     window.addEventListener("keydown", tecla);
     return () => window.removeEventListener("keydown", tecla);
@@ -694,6 +734,173 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactN
     <div className="min-w-0">
       <dt className="text-xs text-white/45">{etiqueta}</dt>
       <dd className="m-0 break-words text-sm">{children}</dd>
+    </div>
+  );
+}
+
+type Imagen = { chica: string; grande: string; texto: string };
+
+/**
+ * Miniaturas de lo que va en el pedido: las caras del librito y las fotos. Se piden recién al
+ * abrir la ficha (nunca en el tablero), así que no lo hacen más lento. La primera vez que se
+ * abre un librito sus caras se generan (unos segundos) y quedan guardadas.
+ */
+function VistaPrevia({ o }: { o: Pedido }) {
+  const disenos = o.disenos ?? [];
+  const [libritos, setLibritos] = useState<Record<number, Imagen[] | "cargando" | "error">>({});
+  const [fotos, setFotos] = useState<Imagen[] | "cargando" | "error" | null>(o.redemptionOrderId ? "cargando" : null);
+  const [visor, setVisor] = useState<{ lista: Imagen[]; i: number } | null>(null);
+  const idsDisenos = disenos.map((d) => d.id).join(",");
+
+  useEffect(() => {
+    let activo = true;
+    const ids = idsDisenos ? idsDisenos.split(",").map(Number) : [];
+    setLibritos(Object.fromEntries(ids.map((id) => [id, "cargando" as const])));
+    for (const id of ids) {
+      fetch(`/api/fotografo/disenos/${id}/miniaturas`, { credentials: "include", cache: "no-store" })
+        .then((r) => r.json().then((d) => ({ r, d })))
+        .then(({ r, d }) => {
+          if (!activo) return;
+          if (!r.ok || !Array.isArray(d.caras)) throw new Error();
+          const caras: Imagen[] = (d.caras as string[]).map((url, i, todas) => ({
+            chica: url,
+            grande: url,
+            texto: todas.length > 1 ? `Cara ${i + 1} de ${todas.length}` : "Diseño",
+          }));
+          setLibritos((v) => ({ ...v, [id]: caras }));
+        })
+        .catch(() => activo && setLibritos((v) => ({ ...v, [id]: "error" })));
+    }
+    return () => {
+      activo = false;
+    };
+  }, [idsDisenos]);
+
+  useEffect(() => {
+    if (!o.redemptionOrderId) return;
+    let activo = true;
+    setFotos("cargando");
+    fetch(`/api/fotografo/escolar/fotos-del-pedido?canje=${o.redemptionOrderId}`, { credentials: "include", cache: "no-store" })
+      .then((r) => r.json().then((d) => ({ r, d })))
+      .then(({ r, d }) => {
+        if (!activo) return;
+        if (!r.ok || !Array.isArray(d.fotos)) throw new Error();
+        setFotos(
+          (d.fotos as Array<{ miniatura: string; grande: string; tipos: string[] }>).map((f) => ({
+            chica: f.miniatura,
+            grande: f.grande,
+            texto: f.tipos.join(" · "),
+          })),
+        );
+      })
+      .catch(() => activo && setFotos("error"));
+    return () => {
+      activo = false;
+    };
+  }, [o.redemptionOrderId]);
+
+  if (disenos.length === 0 && fotos === null) return null;
+  const miniatura = "h-24 w-24 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/5 hover:border-[#c27b3d]";
+
+  return (
+    <div className="border-t border-white/10 pt-4">
+      <h3 className="mb-2 text-sm font-semibold text-white/80">Vista previa</h3>
+      {disenos.map((d, n) => {
+        const estado = libritos[d.id];
+        return (
+          <div key={d.id} className="mb-3">
+            <p className="mb-1 text-xs text-white/50">{disenos.length > 1 ? `Librito ${n + 1}` : "Librito"}</p>
+            {estado === "error" ? (
+              <p className="text-xs text-amber-300">No pude preparar la vista previa del librito.</p>
+            ) : !estado || estado === "cargando" ? (
+              <p className="text-xs text-white/40">Preparando la vista previa del librito… (la primera vez tarda unos segundos)</p>
+            ) : (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {estado.map((img, i) => (
+                  <button
+                    key={img.chica}
+                    type="button"
+                    onClick={() => setVisor({ lista: estado, i })}
+                    title={img.texto}
+                    className="h-28 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/5 hover:border-[#c27b3d]"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.chica} alt={img.texto} loading="lazy" className="h-full w-auto object-contain" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {fotos !== null ? (
+        <div>
+          <p className="mb-1 text-xs text-white/50">Fotos del pedido</p>
+          {fotos === "error" ? (
+            <p className="text-xs text-amber-300">No pude traer las fotos del pedido.</p>
+          ) : fotos === "cargando" ? (
+            <p className="text-xs text-white/40">Cargando fotos…</p>
+          ) : fotos.length === 0 ? (
+            <p className="text-xs text-white/40">El pedido no tiene fotos.</p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {fotos.map((img, i) => (
+                <button key={img.chica} type="button" onClick={() => setVisor({ lista: fotos, i })} title={img.texto} className="text-left">
+                  <span className={`${miniatura} block`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.chica} alt={img.texto} loading="lazy" className="h-full w-full object-cover" />
+                  </span>
+                  <span className="mt-0.5 block w-24 truncate text-[10px] text-white/50">{img.texto}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : null}
+      {visor ? <Visor lista={visor.lista} inicio={visor.i} onCerrar={() => setVisor(null)} /> : null}
+    </div>
+  );
+}
+
+/** Una imagen ampliada, con flechas (y teclado) para pasar a la anterior o la siguiente. */
+function Visor({ lista, inicio, onCerrar }: { lista: Imagen[]; inicio: number; onCerrar: () => void }) {
+  const [i, setI] = useState(inicio);
+  const ir = useCallback((paso: number) => setI((n) => (n + paso + lista.length) % lista.length), [lista.length]);
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCerrar();
+      else if (e.key === "ArrowRight") ir(1);
+      else if (e.key === "ArrowLeft") ir(-1);
+    };
+    window.addEventListener("keydown", tecla);
+    return () => window.removeEventListener("keydown", tecla);
+  }, [onCerrar, ir]);
+  const img = lista[i]!;
+  const flecha =
+    "absolute top-1/2 -translate-y-1/2 rounded-full bg-black/60 px-3 py-2 text-2xl leading-none text-white hover:bg-black/80";
+  return (
+    <div data-visor-abierto className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 p-4" onClick={onCerrar}>
+      <div className="relative flex max-h-full w-full max-w-5xl flex-1 items-center justify-center" onClick={(e) => e.stopPropagation()}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={img.grande} alt={img.texto} className="max-h-[80dvh] max-w-full rounded-lg object-contain" />
+        {lista.length > 1 ? (
+          <>
+            <button type="button" aria-label="Anterior" onClick={() => ir(-1)} className={`${flecha} left-2`}>
+              ‹
+            </button>
+            <button type="button" aria-label="Siguiente" onClick={() => ir(1)} className={`${flecha} right-2`}>
+              ›
+            </button>
+          </>
+        ) : null}
+      </div>
+      <p className="mt-3 text-sm text-white/80">
+        {img.texto}
+        {lista.length > 1 ? ` · ${i + 1} de ${lista.length}` : ""}
+      </p>
+      <button type="button" onClick={onCerrar} className="absolute right-4 top-4 rounded-lg px-3 py-1 text-2xl text-white/80 hover:bg-white/10" aria-label="Cerrar">
+        ✕
+      </button>
     </div>
   );
 }
@@ -800,6 +1007,8 @@ function DetallePedido({ t, onMover }: { t: Tarjeta; onMover: (mov: Movimiento) 
         <Dato etiqueta="Total">{o.isDemo ? "Prueba" : typeof o.totalCents === "number" ? pesos(o.totalCents) : "—"}</Dato>
         {o.album ? <Dato etiqueta="Álbum">{o.album.title}</Dato> : null}
       </dl>
+
+      <VistaPrevia o={o} />
 
       <div className="border-t border-white/10 pt-4">
         <h3 className="mb-2 text-sm font-semibold text-white/80">
