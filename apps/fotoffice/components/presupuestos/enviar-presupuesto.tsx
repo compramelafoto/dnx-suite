@@ -84,9 +84,10 @@ export function EnviarPresupuesto({ presupuestoId, opciones }: { presupuestoId: 
       }).catch(() => ({ ok: false as const, error: "No se pudo enviar. Probá de nuevo." }));
       if (r.ok) {
         if (r.repetido) setHecho("Ya se había enviado hace un momento: no mandamos nada nuevo.");
+        else if (r.enviadoPorBot) setHecho("Enviado por WhatsApp desde el número del estudio.");
         else if (r.whatsappUrl) {
           setWhatsappUrl(r.whatsappUrl);
-          setHecho("Listo. Abrí WhatsApp para mandar el mensaje.");
+          setHecho(r.aviso ?? "Listo. Abrí WhatsApp para mandar el mensaje.");
           window.open(r.whatsappUrl, "_blank", "noopener,noreferrer");
         } else setHecho("Listo: la cotización salió por correo.");
         setAbierto(false);

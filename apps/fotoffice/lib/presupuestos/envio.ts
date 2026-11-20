@@ -7,9 +7,12 @@ import { numeroDe } from "@/lib/numeracion/asignar";
 import { CANALES, MAX_ASUNTO, TOPE_AUTOMATICOS_DIA, TOPE_CORREOS_DIA, type Canal } from "@/lib/plantillas/constantes";
 import { conListaDePrecios, contextoDe, correoValido, type ContextoMensaje } from "@/lib/plantillas/contexto";
 import { listarPlantillas, plantillaParaUsar } from "@/lib/plantillas/definiciones";
+import { estadoWhatsappDe, enviarAvisoPorWhatsapp } from "@/lib/bandeja/aviso-sistema";
+import { waIdDe } from "@/lib/bandeja/telefono";
 import {
-  abrirWhatsapp,
   completarTextos,
+  prepararWhatsapp,
+  registrarWhatsapp,
   correosEnviadosHoy,
   enviarCorreo,
   MENSAJES_ENVIO,
@@ -44,7 +47,8 @@ import { alternativasGuardadas, itemsDeAlternativa, MENSAJES_ALTERNATIVAS, total
  *   token (validez + 30 días), se revocan los tokens de las versiones anteriores, se le da número
  *   (el primer envío) y el presupuesto pasa a ENVIADO con la validez renovada (`datosDeEnvio`) y
  *   la versión como vigente. Después, afuera de la transacción, sale el mensaje (correo con
- *   `enviarCorreo` o enlace de WhatsApp con `abrirWhatsapp`, los dos con su registro y sus topes) y
+ *   `enviarCorreo`; WhatsApp desde el número del estudio si la conexión con Meta está activa y la
+ *   ventana de 24 h abierta, si no el enlace `wa.me`; todo con su registro y sus topes) y
  *   se avisa al motor `PRESUPUESTO_ENVIADO`.
  * - **No hay borrador** (`reenviar`): se vuelve a mandar el mensaje con el enlace de la vigente, sin
  *   tocar estado, número ni validez. Un vencido o rechazado no se reenvía: necesita versión nueva.
@@ -74,6 +78,7 @@ export const MENSAJES_ENVIO_PRESUPUESTO = {
   noReenviable: "Esta cotización está vencida o rechazada: creá una versión nueva para volver a enviarla.",
   sinVigente: "Esta cotización todavía no se envió.",
   canal: "Elegí correo o WhatsApp.",
+  botNoSalio: "No se pudo mandar desde el número del estudio: abrí WhatsApp y mandalo vos.",
 } as const;
 
 export type DatosEnvioPresupuesto = {
@@ -96,6 +101,10 @@ export type ResultadoEnvioPresupuesto =
       enlace: string | null;
       /** WhatsApp: el enlace `wa.me` para abrir. */
       whatsappUrl: string | null;
+      /** WhatsApp: salió desde el número del estudio (la conexión con Meta); no hay nada que abrir. */
+      enviadoPorBot?: boolean;
+      /** Algo para avisar aunque salió bien (p. ej. el número del estudio no pudo y queda el `wa.me`). */
+      aviso?: string;
     }
   | {
       ok: false;
@@ -106,6 +115,10 @@ export type ResultadoEnvioPresupuesto =
     };
 
 export type DepsEnvioPresupuesto = DepsEnvio & {
+  /** ¿WhatsApp conectado y la ventana de 24 h de ese chat abierta? (undefined: la de la Bandeja). */
+  estadoWhatsapp?: typeof estadoWhatsappDe;
+  /** El envío desde el número del estudio (undefined: el de la Bandeja). */
+  enviarWhatsapp?: typeof enviarAvisoPorWhatsapp;
   /** La clave de los enlaces (undefined: la del entorno). */
   clave?: string | null;
   /** Dirección de FOTOFFICE (undefined: la del entorno). */
@@ -424,9 +437,30 @@ async function enviarComo(
     if (!r.ok) return quedoEnviado(r.error);
     return { ok: true, repetido: false, versionId: hecho.versionId, numero, enlace, whatsappUrl: null };
   }
-  const r = await abrirWhatsapp(ctxEnvio, { entityType: "CONSULTA", entityId: p.consultaLeadId, templateId: fuente.templateId, cuerpo: textos.cuerpo }, opciones);
+  const datosWa = { entityType: "CONSULTA" as const, entityId: p.consultaLeadId, templateId: fuente.templateId, cuerpo: textos.cuerpo };
+  const preparado = await prepararWhatsapp(ctxEnvio, datosWa, opciones);
+  if (!preparado.ok) return quedoEnviado(preparado.error);
+  const base = { ok: true as const, repetido: false, versionId: hecho.versionId, numero, enlace };
+  // Con la conexión con Meta activa y la ventana de 24 h abierta, sale desde el número del estudio
+  // (queda en la Bandeja con el nombre de quien envió). Si no, como siempre: el enlace `wa.me`.
+  const waId = waIdDe(contexto.destino.telefono) ?? preparado.numero;
+  const estado = await (deps.estadoWhatsapp ?? estadoWhatsappDe)(workspaceId, waId, ahora);
+  let aviso: string | undefined;
+  if (estado.conectado && estado.ventanaAbierta) {
+    const salida = await (deps.enviarWhatsapp ?? enviarAvisoPorWhatsapp)(workspaceId, waId, preparado.texto, {
+      ahora,
+      autor: emisor.nombre ?? "FOTOFFICE",
+    });
+    if (salida === "ENVIADO") {
+      await registrarWhatsapp(ctxEnvio, datosWa, preparado, "SENT", opciones);
+      return { ...base, whatsappUrl: null, enviadoPorBot: true };
+    }
+    // Ya está congelado: que no quede mudo. Se abre el `wa.me` para mandarlo a mano.
+    aviso = MENSAJES_ENVIO_PRESUPUESTO.botNoSalio;
+  }
+  const r = await registrarWhatsapp(ctxEnvio, datosWa, preparado, "OPENED_WHATSAPP", opciones);
   if (!r.ok) return quedoEnviado(r.error);
-  return { ok: true, repetido: false, versionId: hecho.versionId, numero, enlace, whatsappUrl: r.url };
+  return { ...base, whatsappUrl: preparado.url, ...(aviso ? { aviso } : {}) };
 }
 
 // --- Lo que necesita la pantalla para enviar ------------------------------------------------------
