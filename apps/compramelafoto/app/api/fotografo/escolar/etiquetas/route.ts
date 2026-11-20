@@ -5,6 +5,7 @@ import { cargarPedidosDeCopias } from "@/lib/design-v2/copias-en-produccion";
 import { ordenDeImpresion } from "@/lib/design-v2/produccion-reglas";
 import { filtroDeLibritos, respuestaDeError } from "@/lib/design-v2/produccion-http";
 import { safeFilename } from "@/lib/safe-filename";
+import { codigoDeCanje, secretoDeEntrega } from "@/lib/school-fulfillment/codigo-de-canje";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,9 +25,13 @@ export async function GET(req: NextRequest) {
       copias: sp.get("copias") ?? undefined,
     });
     const libros = filtro.ids || filtro.lote ? await conCodigoDeEntrega(await cargarLibritos(actor, filtro)) : [];
-    // Los pedidos de sólo copias también se embolsan: etiqueta sin QR, con el número del pedido.
+    // Los pedidos de sólo copias también se embolsan: su QR es el número del pedido de canje firmado.
     const copias = filtro.copias || filtro.lote ? await cargarPedidosDeCopias(actor, filtro) : [];
-    const todos = ordenDeImpresion([...libros, ...copias.map((c) => ({ ...c, qrToken: null }))]);
+    const secreto = secretoDeEntrega();
+    const todos = ordenDeImpresion([
+      ...libros,
+      ...copias.map((c) => ({ ...c, qrToken: secreto ? codigoDeCanje(c.orderId, secreto) : null })),
+    ]);
     if (todos.length === 0) return NextResponse.json({ error: "No hay pedidos para etiquetar." }, { status: 400 });
     const bytes = await etiquetas(todos);
     const nombre = safeFilename(`Etiquetas ${filtro.lote ?? ""}`.trim(), "etiquetas");
