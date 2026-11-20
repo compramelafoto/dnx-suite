@@ -43,6 +43,7 @@ export async function Ficha({
   principal,
   edicionAbierta = false,
   detalle,
+  accesos,
 }: {
   persona: PersonaPedida;
   encabezado: EncabezadoDeFicha;
@@ -59,6 +60,8 @@ export async function Ficha({
   edicionAbierta?: boolean;
   /** Un elemento (consulta, cotización…) abierto adentro de la ficha, debajo del resumen. */
   detalle?: ReactNode;
+  /** Accesos directos propios del módulo en la historia (p. ej. «Información adicional»). */
+  accesos?: { clave: string; texto: string; contenido: ReactNode }[];
 }) {
   const ctx = await contextoDeFicha(persona);
   // A los componentes de cliente viaja sólo esto: el tipo y el id que ya están en la URL.
@@ -170,6 +173,7 @@ export async function Ficha({
           esConfigurador={esConfigurador}
           veDinero={veDinero}
           cajaDeNota={<CajaDeNota persona={ref} categorias={categorias} />}
+          accesos={accesos}
           archivos={<Adjuntos persona={ref} adjuntos={adjuntosVista} habilitados={adjuntosR2Configurado()} esConfigurador={esConfigurador} />}
         />
       </div>
