@@ -1,9 +1,10 @@
-import { OrderOrigin, OrderStatus, Prisma, prisma } from "@/lib/prisma";
+import { Prisma, prisma } from "@/lib/prisma";
 import { queueEmail } from "@/lib/email-queue";
 import { getAlbumsReadiness } from "@/lib/analysis/album-analysis-readiness";
 import { computeAlbumHideAt } from "@/lib/album-cleanup/eligibility";
 import { getAlbumCleanupConfig } from "@/lib/album-cleanup/config";
-import { AVISO_FOTOS_LISTAS_KEY } from "@/lib/preventa-canjeable/aviso-fotos-listas";
+import { marcasDeCurso, packsConCurso } from "@/lib/preventa-canjeable/cursos-publicados";
+import { anotadosEsperan } from "@/lib/preventa-canjeable/cursos-publicados-reglas";
 
 type RunOptions = {
   dryRun?: boolean;
@@ -12,27 +13,19 @@ type RunOptions = {
 };
 
 /**
- * Álbumes con preventa paga en los que el fotógrafo todavía no mandó «Avisar a las familias».
- * Ahí las fotos se suben curso por curso: avisar con la primera tanda hace entrar a familias
- * cuyo curso no está (álbum 1075, octubre de 2026). El aviso a los anotados espera al del fotógrafo.
+ * Álbumes con preventa paga cuyos anotados todavía no tienen que recibir «ya están las fotos».
+ * Ahí las fotos se suben curso por curso: avisar con la primera tanda hace entrar a gente cuyo
+ * curso no está (álbum 1075, octubre de 2026). Esperan a que el fotógrafo haya avisado y, si los
+ * packs tienen curso, a que estén todos los cursos con packs (`anotadosEsperan`).
  */
 export async function albumesQueEsperanElAvisoDelFotografo(albumIds: number[]): Promise<Set<number>> {
   if (albumIds.length === 0) return new Set();
-  const packsPagos = {
-    albumId: { in: albumIds },
-    origin: OrderOrigin.PREVENTA_PACK,
-    status: OrderStatus.PAID,
-    isTest: false,
-  } satisfies Prisma.OrderWhereInput;
-  const [conPacks, avisados] = await Promise.all([
-    prisma.order.groupBy({ by: ["albumId"], where: packsPagos }),
-    prisma.order.groupBy({
-      by: ["albumId"],
-      where: { ...packsPagos, redemptionPaymentRefsJson: { path: [AVISO_FOTOS_LISTAS_KEY], not: Prisma.AnyNull } },
-    }),
-  ]);
-  const yaAvisaron = new Set(avisados.map((o) => o.albumId));
-  return new Set(conPacks.map((o) => o.albumId).filter((id) => !yaAvisaron.has(id)));
+  const [packs, marcas] = await Promise.all([packsConCurso(albumIds), marcasDeCurso(albumIds)]);
+  const out = new Set<number>();
+  for (const id of albumIds) {
+    if (anotadosEsperan(packs.get(id) ?? [], marcas.get(id) ?? new Map())) out.add(id);
+  }
+  return out;
 }
 
 type Recordatorio = {

@@ -3,6 +3,7 @@ import { runSendAlbumNotifications } from "@/lib/cron/send-album-notifications";
 import { runAlbumInterestDigest } from "@/lib/cron/album-interest-digest";
 import { runReencolarConfirmacionesPedido } from "@/lib/cron/reencolar-confirmaciones-pedido";
 import { runControlarPacksConUnidades } from "@/lib/cron/controlar-packs-con-unidades";
+import { avisarCursosPendientes } from "@/lib/preventa-canjeable/cursos-publicados";
 import { assertCronAuth } from "@/lib/cron-auth";
 import { logCronMetrics } from "@/lib/cron-metrics";
 
@@ -18,6 +19,7 @@ export const maxDuration = 300;
  * - Emails de interés en álbum (digest agrupado, límite batch)
  * - Comprobantes de pedido que no llegaron a la cola (pedidos pagados de los últimos 3 días)
  * - Packs de preventa sin canjear con menos unidades de las que se pagaron (aviso al admin)
+ * - Aviso «ya están las fotos» de los cursos escolares que el fotógrafo marcó como subidos
  *
  * Protegido: Authorization: Bearer <CRON_SECRET>
  */
@@ -28,7 +30,8 @@ export async function GET(req: NextRequest) {
   const started = Date.now();
   const dryRun = req.nextUrl.searchParams.get("dry") === "1";
 
-  const [albumNotifications, albumInterest, orderConfirmations, packsConUnidades] = await Promise.all([
+  const baseUrl = (process.env.APP_URL || req.nextUrl.origin).replace(/\/+$/, "");
+  const [albumNotifications, albumInterest, orderConfirmations, packsConUnidades, avisoPorCurso] = await Promise.all([
     runSendAlbumNotifications({ dryRun }),
     runAlbumInterestDigest({ dryRun }),
     runReencolarConfirmacionesPedido({ dryRun }),
@@ -37,12 +40,18 @@ export async function GET(req: NextRequest) {
       console.error("[cron:hourly] controlar-packs-con-unidades", err);
       return null;
     }),
+    avisarCursosPendientes({ baseUrl, dryRun }).catch((err) => {
+      console.error("[cron:hourly] aviso-por-curso", err);
+      return null;
+    }),
   ]);
+  const enviadosPorCurso = avisoPorCurso?.avisados.reduce((n, a) => n + a.enviados, 0) ?? 0;
 
   const jobsOk =
     (albumNotifications.total ?? 0) +
     (albumInterest.sent ?? 0) +
-    orderConfirmations.reencolados;
+    orderConfirmations.reencolados +
+    enviadosPorCurso;
   const jobsFailed =
     (albumNotifications.failed ?? 0) +
     (albumInterest.failed ?? 0) +
@@ -56,6 +65,7 @@ export async function GET(req: NextRequest) {
     albumInterest,
     orderConfirmations,
     packsConUnidades,
+    avisoPorCurso,
   };
 
   logCronMetrics({

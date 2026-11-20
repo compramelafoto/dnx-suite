@@ -286,6 +286,9 @@ export default function FotografoEscuelasPedidosPage() {
         `Vamos a mandarle un correo a ${plural(pendientes, "familia", "familias")} de esta lista` +
           (filterCurso ? ` (${filterCurso})` : "") +
           " con su link para elegir las fotos del pack. Sólo a las de esta lista que todavía no canjearon." +
+          (filterCurso
+            ? ""
+            : " Ojo: no elegiste un curso, así que les llega a todos los cursos de esta lista. Si todavía te faltan cursos por subir, filtrá primero por curso.") +
           (yaAvisadas ? " Si ya les avisaste antes, les va a llegar otro correo." : "") +
           " Las pruebas DEMO y las familias sin email no reciben nada. ¿Seguimos?",
       );

@@ -80,14 +80,8 @@ export function EnviarCuestionario({ clientId, telefono, correo, nombre, cuestio
           Enviar cuestionario
         </button>
       ) : (
-        <button
-          type="button"
-          className="fo-btn fo-btn-ghost inline-flex h-9 w-9 items-center justify-center p-0"
-          onClick={abrir}
-          title="Enviar cuestionario"
-          aria-label="Enviar cuestionario"
-        >
-          <ClipboardList className="h-4 w-4" aria-hidden />
+        <button type="button" className="fo-icon-btn" onClick={abrir} data-tip="Enviar cuestionario" aria-label="Enviar cuestionario">
+          <ClipboardList className="size-4" aria-hidden />
         </button>
       )}
 
