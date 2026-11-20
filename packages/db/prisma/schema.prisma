@@ -21515,12 +21515,17 @@ model FotofficeMessage {
   actorUserId Int?
   actorLabel  String?
   createdAt   DateTime @default(now())
+  /// Aviso de Resend: el correo llegó a la casilla (primera vez).
+  deliveredAt DateTime?
+  /// Aviso de Resend: el cliente lo abrió (primera vez; aproximado: algunos programas lo abren solos).
+  openedAt    DateTime?
 
   workspace Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   template  FotofficeMessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, entityType, entityId, createdAt])
   @@index([workspaceId, channel, createdAt])
+  @@index([providerId])
 }
 
 // ---------------------------------------------------------------------------

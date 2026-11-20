@@ -39,3 +39,19 @@ describe("vista de un mensaje registrado", () => {
     expect(recortar("x".repeat(400))).toBe(`${"x".repeat(LARGO_RECORTE)}…`);
   });
 });
+
+describe("seguimiento del correo (avisos de Resend)", () => {
+  const base = {
+    id: "m1", channel: "EMAIL", status: "SENT", automatic: true, toAddress: "a@b.com", subject: "Hola", body: "x", errorCode: null, actorLabel: null,
+    createdAt: new Date("2026-11-20T12:00:00Z"),
+  };
+  it("dice si lo abrió (con día y hora de Argentina) o si sólo le llegó", () => {
+    expect(vistaDeMensaje({ ...base, openedAt: new Date("2026-11-21T18:30:00Z") }, null).estado).toBe("Enviado · lo abrió el 21/11 a las 15:30");
+    expect(vistaDeMensaje({ ...base, deliveredAt: new Date("2026-11-20T12:01:00Z") }, null).estado).toBe("Enviado · le llegó, todavía sin abrir");
+    expect(vistaDeMensaje(base, null).estado).toBe("Enviado");
+  });
+  it("un correo que falló o un WhatsApp no llevan esa aclaración", () => {
+    expect(vistaDeMensaje({ ...base, status: "FAILED", openedAt: new Date() }, null).estado).not.toMatch(/abrió/);
+    expect(vistaDeMensaje({ ...base, channel: "WHATSAPP", status: "OPENED_WHATSAPP", openedAt: new Date() }, null).estado).toBe("Abierto en WhatsApp");
+  });
+});

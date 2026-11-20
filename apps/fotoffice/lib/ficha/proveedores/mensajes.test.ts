@@ -46,6 +46,23 @@ beforeEach(() => {
 });
 
 describe("proveedor mensajes — correos y WhatsApp en la línea de tiempo", () => {
+  it("suma los correos de las consultas y cotizaciones del cliente (seguimientos), no los de otros ni las reservas", async () => {
+    B.agregar("fotofficeConsulta", { id: "k1", workspaceId: "ws-1", leadId: "l1", clientId: "c1", categoryId: "cat" });
+    B.agregar("fotofficeConsulta", { id: "k2", workspaceId: "ws-1", leadId: "l2", clientId: "c2", categoryId: "cat" });
+    B.agregar("fotofficePresupuesto", { id: "pr1", workspaceId: "ws-1", consultaLeadId: "l1" });
+    mensaje("s1", { entityType: "PRESUPUESTO", entityId: "pr1", automatic: true, openedAt: new Date("2026-11-21T18:30:00Z"), createdAt: T(8) });
+    mensaje("s2", { entityType: "CONSULTA", entityId: "l1", automatic: true, createdAt: T(9) });
+    mensaje("s3", { entityType: "CONSULTA", entityId: "l2", createdAt: T(10) });
+    mensaje("s4", { entityType: "PRESUPUESTO", entityId: "pr1", errorCode: "EN_CURSO", createdAt: T(11) });
+    const ev = await proveedorMensajes.traer(WS, { clientId: "c1", memberId: null }, null, 20);
+    const ids = ev.map((e) => e.id);
+    expect(ids).toContain("mensajes:s1");
+    expect(ids).toContain("mensajes:s2");
+    expect(ids).not.toContain("mensajes:s3");
+    expect(ids).not.toContain("mensajes:s4");
+    expect(ev.find((e) => e.id === "mensajes:s1")?.mensaje?.estado).toBe("Enviado · lo abrió el 21/11 a las 15:30");
+  });
+
   it("es de tipo mensajes", () => {
     expect(proveedorMensajes.clave).toBe("mensajes");
     expect(proveedorMensajes.tipo).toBe("mensajes");

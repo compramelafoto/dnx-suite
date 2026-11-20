@@ -6,7 +6,7 @@ import { vistaDeMensaje, type MensajeVista } from "./vista-mensaje";
 /** Lo que se lee de un mensaje registrado para mostrarlo (línea de tiempo e historial). */
 export const SELECT_MENSAJE = {
   id: true, channel: true, status: true, automatic: true, toAddress: true, subject: true, body: true, errorCode: true,
-  actorLabel: true, createdAt: true, templateId: true,
+  actorLabel: true, createdAt: true, templateId: true, deliveredAt: true, openedAt: true,
 } as const;
 
 /** Nombre de las plantillas usadas, sólo del workspace (una plantilla borrada no tiene nombre). */
