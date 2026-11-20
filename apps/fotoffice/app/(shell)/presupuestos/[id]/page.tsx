@@ -194,7 +194,7 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
         >
           <div className="space-y-1">
             <h2 id="por-aprobar-titulo" className="text-base font-semibold text-[var(--fo-text)]">
-              La armó el bot y espera tu aprobación
+              Esta cotización la armó el bot y espera tu aprobación
             </h2>
             <p className="max-w-2xl text-[var(--fo-text-secondary)]">
               Revisá lo cotizado acá abajo y, si cambiás algo, guardá. Al aprobar, al cliente le llega el enlace por WhatsApp (si se puede) y por correo.
