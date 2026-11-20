@@ -29,6 +29,7 @@ import { guia as mostradorPedidosAProveedores } from "./guias/mostrador-pedidos-
 import { guia as mostradorRecorteDeFotos } from "./guias/mostrador-recorte-de-fotos";
 import { guia as ventasPortfoliosDelEstudio } from "./guias/ventas-portfolios-del-estudio";
 import { guia as clientesBuscarYAlta } from "./guias/clientes-buscar-y-alta";
+import { guia as clientesFicha } from "./guias/clientes-ficha";
 import { guia as pedidosNuevoYConfirmar } from "./guias/pedidos-nuevo-y-confirmar";
 import { guia as pedidosFichaYCobros } from "./guias/pedidos-ficha-y-cobros";
 import { guia as pedidosCuotasEstadoYEnvios } from "./guias/pedidos-cuotas-estado-y-envios";
@@ -91,6 +92,7 @@ export const INSTRUCTIVOS: readonly Instructivo[] = [
   stockAvisosYCompras,
   // Clientes y pedidos
   clientesBuscarYAlta,
+  clientesFicha,
   pedidosNuevoYConfirmar,
   pedidosFichaYCobros,
   pedidosCuotasEstadoYEnvios,
