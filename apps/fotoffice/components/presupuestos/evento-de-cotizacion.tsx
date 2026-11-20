@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Building2, CalendarClock, Camera, Church, Clock, Eye, EyeOff, Heart, MapPin, Megaphone, Navigation, PartyPopper, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { IconoEntidad } from "@/components/entidades/entidad";
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import {
   hojaDeCalendario,
   lineasDelEvento,
@@ -43,6 +44,7 @@ export function CabeceraCotizacion({
   versiones,
   vence,
   contacto,
+  clientId,
   evento,
   vistas,
   enviada,
@@ -59,6 +61,8 @@ export function CabeceraCotizacion({
   versiones: string;
   vence: string;
   contacto: string;
+  /** El cliente: su nombre lleva a la ficha. */
+  clientId: string;
   evento: EventoDeCotizacion | null;
   vistas: ResumenDeVistas | null;
   enviada: boolean;
@@ -128,7 +132,9 @@ export function CabeceraCotizacion({
         {/* Quién y qué. */}
         <div className="min-w-0 space-y-4">
           <div className="space-y-1">
-            <p className="break-words text-2xl font-semibold tracking-tight text-[var(--fo-text)] sm:text-3xl">{contacto}</p>
+            <p className="break-words text-2xl font-semibold tracking-tight text-[var(--fo-text)] sm:text-3xl">
+              <EnlaceCliente clientId={clientId}>{contacto}</EnlaceCliente>
+            </p>
             {tipo ? <p className="text-base text-[var(--fo-text-secondary)]">{tipo}</p> : null}
           </div>
 

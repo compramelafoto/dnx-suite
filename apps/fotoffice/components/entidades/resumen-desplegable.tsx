@@ -47,9 +47,8 @@ export function ResumenDesplegable({ cuadros, paneles }: { cuadros: CuadroDeResu
               className={[
                 "group flex min-h-[5.5rem] flex-col justify-between gap-2 rounded-[var(--fo-radius)] p-3.5 text-left transition",
                 "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ent)] disabled:cursor-default",
-                c.vacio
-                  ? "bg-[color-mix(in_srgb,var(--ent)_8%,var(--fo-surface))] text-[var(--ent)] ring-1 ring-inset ring-[color-mix(in_srgb,var(--ent)_18%,transparent)] hover:bg-[color-mix(in_srgb,var(--ent)_14%,var(--fo-surface))]"
-                  : "bg-[var(--ent)] text-white shadow-[var(--fo-shadow-sm)] hover:brightness-110",
+                // Todos con el color lleno de su elemento, también los que están en cero.
+                "bg-[var(--ent)] text-white shadow-[var(--fo-shadow-sm)] hover:brightness-110",
                 activo ? "ring-2 ring-[var(--ent)] ring-offset-2 ring-offset-[var(--fo-bg)]" : "",
               ].join(" ")}
             >
@@ -57,7 +56,7 @@ export function ResumenDesplegable({ cuadros, paneles }: { cuadros: CuadroDeResu
                 <span className="flex min-w-0 items-center gap-2 text-sm font-medium">
                   <span
                     aria-hidden
-                    className={`flex size-7 shrink-0 items-center justify-center rounded-lg ${c.vacio ? "bg-[color-mix(in_srgb,var(--ent)_14%,transparent)]" : "bg-white/20"}`}
+                    className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-white/20"
                   >
                     <Icono className="size-4" />
                   </span>
@@ -69,7 +68,7 @@ export function ResumenDesplegable({ cuadros, paneles }: { cuadros: CuadroDeResu
               </span>
               <span className="block">
                 <span className="block text-2xl font-bold leading-tight tabular-nums">{c.valor}</span>
-                {c.detalle ? <span className={`block text-xs font-medium ${c.vacio ? "opacity-80" : "text-white/85"}`}>{c.detalle}</span> : null}
+                {c.detalle ? <span className="block text-xs font-medium text-white/85">{c.detalle}</span> : null}
               </span>
             </button>
           );
