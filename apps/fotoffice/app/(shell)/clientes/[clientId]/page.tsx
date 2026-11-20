@@ -52,6 +52,9 @@ import PresupuestoPage from "../../presupuestos/[id]/page";
 import PedidoPage from "../../pedidos/[id]/page";
 import FichaContratoPage from "../../contratos/[id]/page";
 import FichaProyectoPage from "../../proyectos/[id]/page";
+import { datosDeCuestionariosDelCliente } from "@/lib/cuestionarios/cuestionarios-servidor";
+import { EnviarCuestionario } from "@/components/cuestionarios/enviar-cuestionario";
+import { InformacionAdicional } from "@/components/cuestionarios/informacion-adicional";
 import { ClientForm } from "../client-form";
 import { linkClientToMemberAction } from "../actions";
 
@@ -105,6 +108,8 @@ export default async function ClientePage({
   // en Consultas; el nivel ya incluye que el módulo esté encendido). Crear una consulta para
   // este contacto pide Gestionar en Consultas.
   const acceso = await resolverAcceso(user.id, workspace.id);
+  // Cuestionarios (XV, bodas…): enviar uno y ver lo que respondió, en «Información adicional».
+  const cuestionarios = await datosDeCuestionariosDelCliente(workspace.id, cliente.id);
   const whatsapp = await destinoWhatsappDeCliente({ workspaceId: workspace.id, acceso, clientId: cliente.id, telefono: cliente.phone });
   const veConsultas = puede(acceso, "ver", SERVICE_LEADS_MODULE_KEY);
   const creaConsultas = puede(acceso, "operar", SERVICE_LEADS_MODULE_KEY);
@@ -225,10 +230,30 @@ export default async function ClientePage({
           whatsapp,
           // Correo desde FOTOFFICE, WhatsApp con plantilla y pedir testimonio, como íconos. Sin
           // «Gestionar» no se dibujan y queda el correo común (`mailto:`).
-          herramientas: <Mensaje entityType="CLIENTE" entityId={cliente.id} compacto correoAlternativo={cliente.email} />,
+          herramientas: (
+            <>
+              <Mensaje entityType="CLIENTE" entityId={cliente.id} compacto correoAlternativo={cliente.email} />
+              {canEdit && cuestionarios.disponible && cuestionarios.cuestionarios.length > 0 ? (
+                <EnviarCuestionario
+                  clientId={cliente.id}
+                  telefono={cuestionarios.cliente.telefono}
+                  correo={cuestionarios.cliente.correo}
+                  nombre={cuestionarios.cliente.nombre}
+                  cuestionarios={cuestionarios.cuestionarios}
+                />
+              ) : null}
+            </>
+          ),
           correoEnHerramientas: true,
         }}
         edicionAbierta={Boolean(query.error)}
+        accesos={[
+          {
+            clave: "informacion-adicional",
+            texto: "Información adicional",
+            contenido: <InformacionAdicional clientId={cliente.id} datos={cuestionarios} puedeEnviar={canEdit} />,
+          },
+        ]}
         detalle={
           detalle ? (
             <DetalleIncrustado tipo={detalle.tipo} id={detalle.id} hrefCerrar={hrefFichaCliente(cliente.id)}>

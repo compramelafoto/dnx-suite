@@ -22,6 +22,8 @@ type Props = {
   cajaDeNota?: ReactNode;
   /** Los archivos de la persona (subir y ver): aparecen al elegir «Archivos», en lugar de la lista. */
   archivos?: ReactNode;
+  /** Accesos directos propios del módulo (p. ej. «Información adicional»): muestran su contenido en lugar de la lista. */
+  accesos?: { clave: string; texto: string; contenido: ReactNode }[];
 };
 
 /** De un evento de nota a lo que necesita `<Nota>`. */
@@ -40,8 +42,10 @@ function notaDeEvento(e: EventoFichaWire, userId: number, esConfigurador: boolea
   };
 }
 
-export function LineaDeTiempo({ persona, inicial, fijadas, categorias, userId, esConfigurador, veDinero, cajaDeNota, archivos }: Props) {
+export function LineaDeTiempo({ persona, inicial, fijadas, categorias, userId, esConfigurador, veDinero, cajaDeNota, archivos, accesos = [] }: Props) {
   const [filtro, setFiltro] = useState<TipoEvento | null>(null);
+  /** El acceso directo propio abierto (su clave); mientras hay uno, no se ve la lista. */
+  const [acceso, setAcceso] = useState<string | null>(null);
   const [eventos, setEventos] = useState<EventoFichaWire[]>(inicial.eventos);
   const [siguiente, setSiguiente] = useState<string | null>(inicial.siguiente);
   const [fallaron, setFallaron] = useState<string[]>(inicial.fallaron);
@@ -115,10 +119,13 @@ export function LineaDeTiempo({ persona, inicial, fijadas, categorias, userId, e
           <button
             key={f.texto}
             type="button"
-            aria-pressed={filtro === f.valor}
-            onClick={() => elegir(f.valor)}
+            aria-pressed={acceso === null && filtro === f.valor}
+            onClick={() => {
+              setAcceso(null);
+              elegir(f.valor);
+            }}
             className={`rounded-full border px-3 py-1 text-sm transition ${
-              filtro === f.valor
+              acceso === null && filtro === f.valor
                 ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]"
                 : "border-[var(--fo-border)] bg-[var(--fo-surface)] text-[var(--fo-text-secondary)] hover:bg-[var(--fo-surface-hover)]"
             }`}
@@ -126,12 +133,31 @@ export function LineaDeTiempo({ persona, inicial, fijadas, categorias, userId, e
             {f.texto}
           </button>
         ))}
+        {accesos.map((a) => (
+          <button
+            key={a.clave}
+            type="button"
+            aria-pressed={acceso === a.clave}
+            onClick={() => setAcceso(acceso === a.clave ? null : a.clave)}
+            className={`rounded-full border px-3 py-1 text-sm transition ${
+              acceso === a.clave
+                ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-[var(--fo-on-accent,#fff)]"
+                : "border-[var(--fo-border)] bg-[var(--fo-surface)] text-[var(--fo-text-secondary)] hover:bg-[var(--fo-surface-hover)]"
+            }`}
+          >
+            {a.texto}
+          </button>
+        ))}
       </div>
 
-      {filtro === "notas" && cajaDeNota ? <div className="motion-safe:animate-[fo-desplegar_160ms_ease-out]">{cajaDeNota}</div> : null}
-      {filtro === "adjuntos" && archivos ? <div className="motion-safe:animate-[fo-desplegar_160ms_ease-out]">{archivos}</div> : null}
+      {acceso !== null ? (
+        <div className="motion-safe:animate-[fo-desplegar_160ms_ease-out]">{accesos.find((a) => a.clave === acceso)?.contenido}</div>
+      ) : null}
 
-      {filtro === "adjuntos" && archivos ? null : (
+      {acceso === null && filtro === "notas" && cajaDeNota ? <div className="motion-safe:animate-[fo-desplegar_160ms_ease-out]">{cajaDeNota}</div> : null}
+      {acceso === null && filtro === "adjuntos" && archivos ? <div className="motion-safe:animate-[fo-desplegar_160ms_ease-out]">{archivos}</div> : null}
+
+      {acceso !== null || (filtro === "adjuntos" && archivos) ? null : (
       <>
       {fallaron.length > 0 ? (
         <p role="status" className="rounded-lg border border-[var(--fo-warning-border)] bg-[var(--fo-warning-soft)] px-3 py-2 text-sm text-[var(--fo-warning)]">
