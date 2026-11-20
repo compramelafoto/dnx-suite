@@ -129,6 +129,45 @@ const fechaArgentina = (iso: string | null | undefined) =>
 const pesos = (centavos: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 0 }).format(centavos / 100);
 
+/**
+ * Todo lo que se puede buscar de un pedido: alumno, curso, escuela, álbum, familia, correo,
+ * teléfono (con y sin espacios), números de pedido y de canje, tipo, paso, estado del librito,
+ * lote, cambios pedidos, fechas y total. "DEMO" encuentra las pruebas.
+ */
+function textosParaBuscar(t: Tarjeta): Array<string | null | undefined> {
+  const o = t.pedido;
+  const disenos = o.disenos ?? [];
+  const fechas = [
+    o.createdAt,
+    ...disenos.flatMap((d) => [d.sentToPrintAt, d.printedAt, d.deliveredAt]),
+    o.copias?.sentToPrintAt,
+    o.copias?.printedAt,
+    o.copias?.deliveredAt,
+  ].map((f) => fechaArgentina(f));
+  return [
+    t.nombre,
+    t.curso,
+    t.escuela,
+    o.album?.title,
+    o.buyerName,
+    o.buyerEmail,
+    o.buyerPhone,
+    o.buyerPhone?.replace(/\D/g, ""),
+    String(o.id),
+    `#${o.id}`,
+    o.redemptionOrderId ? `${o.redemptionOrderId} #${o.redemptionOrderId} canje` : null,
+    o.kind === "PACK_EXTERNO" ? "Pack cobrado por fuera" : "Tienda escolar",
+    t.demo ? "DEMO prueba" : null,
+    esPasoEmbudo(t.paso) ? `${INFO_PASOS[t.paso].numero}. ${INFO_PASOS[t.paso].titulo}` : INFO_FUERA[t.paso as keyof typeof INFO_FUERA],
+    disenos.length ? "librito" : o.copias ? "copias sueltas" : null,
+    ...disenos.map((d) => `${ESTADO_DISENO[d.status] ?? d.status} ${d.printBatchName ?? ""} ${d.reviewNote ?? ""}`),
+    disenos.some((d) => d.emptySlots > 0) ? "sin foto huecos" : null,
+    o.copias?.printBatchName,
+    ...fechas,
+    typeof o.totalCents === "number" && !o.isDemo ? pesos(o.totalCents) : null,
+  ];
+}
+
 function paraMover(o: Pedido) {
   return {
     paso: o.paso,
@@ -241,7 +280,7 @@ export default function PantallaPedidos() {
   const tarjetas = useMemo(
     () =>
       pedidosParaTarjetas(delCurso.map(aTarjeta), { incluirEntregados: true }).filter((t) =>
-        coincideBusqueda([t.nombre, t.curso, t.escuela, t.pedido.buyerName, t.pedido.buyerEmail], busqueda),
+        coincideBusqueda(textosParaBuscar(t), busqueda),
       ),
     [delCurso, busqueda],
   );
@@ -327,12 +366,12 @@ export default function PantallaPedidos() {
           <p className="text-sm text-white/60">{subtitulo}</p>
         </div>
         <label className="relative order-last w-full sm:order-none sm:ml-auto sm:w-72">
-          <span className="sr-only">Buscar alumno, curso o escuela</span>
+          <span className="sr-only">Buscar por cualquier dato del pedido</span>
           <input
             type="search"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar alumno, curso o escuela…"
+            placeholder="Buscar por cualquier dato del pedido…"
             className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-[#c27b3d] focus:outline-none"
           />
         </label>
@@ -409,16 +448,16 @@ export default function PantallaPedidos() {
                 >
                   <div
                     title={INFO_PASOS[c.paso].ayuda}
-                    className="flex items-end justify-between gap-2 rounded-t-xl px-3 py-2"
+                    className="flex items-end justify-between gap-2 rounded-t-xl px-4 py-3"
                     style={{
                       background: c.cantidad === 0 ? "#1a1d24" : color.fondo,
                       color: c.cantidad === 0 ? "#6b7280" : color.tinta,
                     }}
                   >
-                    <span className="truncate text-sm font-semibold leading-tight">
+                    <span className="truncate text-xl font-bold leading-tight">
                       {c.numero}. {c.titulo}
                     </span>
-                    <span className="text-2xl font-bold leading-none tabular-nums">{c.cantidad}</span>
+                    <span className="text-4xl font-bold leading-none tabular-nums">{c.cantidad}</span>
                   </div>
                   {esAdelante ? (
                     <p className="px-3 pt-2 text-xs font-semibold text-[#e7a86b]">Soltala acá para pasarla a este paso</p>
