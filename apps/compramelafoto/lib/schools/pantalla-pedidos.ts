@@ -245,3 +245,53 @@ export function coincideBusqueda(textos: Array<string | null | undefined>, busqu
   const todo = normalizarBusqueda(textos.filter(Boolean).join(" "));
   return palabras.every((w) => todo.includes(w));
 }
+
+/** A qué paso vuelve cada uno ("Para imprimir" vuelve a revisión, no a "Cambios pedidos"). */
+export const PASO_ANTERIOR: Partial<Record<PasoEmbudo, PasoEmbudo>> = {
+  CAMBIOS_PEDIDOS: "REVISAR_DISENO",
+  PARA_IMPRIMIR: "REVISAR_DISENO",
+  EN_IMPRENTA: "PARA_IMPRIMIR",
+  PARA_ENTREGAR: "EN_IMPRENTA",
+  ENTREGADO: "PARA_ENTREGAR",
+};
+
+const AL_VOLVER: Partial<Record<PasoEmbudo, string>> = {
+  CAMBIOS_PEDIDOS: "Se retira el pedido de cambios: el diseño vuelve a esperar tu revisión.",
+  PARA_IMPRIMIR: "Se des-aprueba el librito: lo revisás y lo aprobás de nuevo (se rehace el PDF).",
+  EN_IMPRENTA: "Sale del lote de impresión.",
+  PARA_ENTREGAR: "Se borra la marca de impreso.",
+  ENTREGADO: "Se borra la marca de entregado.",
+};
+
+/**
+ * Cómo se vuelve un pedido al paso anterior, con la misma acción que «Volver a …» de Pedidos
+ * escolares (`/api/fotografo/escolar/volver-paso`). Se mandan todas sus piezas: el servidor mueve
+ * sólo las que están en ese paso. Nunca le avisa nada a la familia.
+ */
+export function planDeRetroceso(p: PedidoParaAdelantar): PlanDeAdelanto {
+  if (!esPasoEmbudo(p.paso)) return { puede: false, motivo: "Está fuera de la línea de producción." };
+  const anterior = PASO_ANTERIOR[p.paso];
+  if (!anterior) {
+    return {
+      puede: false,
+      motivo: p.paso === "POR_CANJEAR" ? "Es el primer paso." : "Antes de este paso, el pedido dependía de la familia.",
+    };
+  }
+  const disenos = p.disenos.map((d) => d.id);
+  const copias = p.copias && p.redemptionOrderId ? [p.redemptionOrderId] : [];
+  const items = (p.items ?? []).map((i) => i.id);
+  // Un pedido de sólo copias no se revisa: no tiene a dónde volver desde "Para imprimir".
+  if (p.paso === "PARA_IMPRIMIR" && disenos.length === 0 && items.length === 0) {
+    return { puede: false, motivo: "Son copias sueltas sin librito: no hay diseño para volver a revisar." };
+  }
+  if (disenos.length + copias.length + items.length === 0) {
+    return { puede: false, motivo: "No encontré qué volver atrás: revisalo en Pedidos escolares." };
+  }
+  return {
+    puede: true,
+    destino: anterior,
+    explicacion: `${AL_VOLVER[p.paso] ?? ""} A la familia no le llega ningún aviso.`.trim(),
+    aviso: null,
+    llamadas: [{ url: "/api/fotografo/escolar/volver-paso", body: { desde: p.paso, disenos, copias, items } }],
+  };
+}

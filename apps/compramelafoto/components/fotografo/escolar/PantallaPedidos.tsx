@@ -20,6 +20,7 @@ import {
   contadoresPorPaso,
   pedidosParaTarjetas,
   planDeAdelanto,
+  planDeRetroceso,
   type PlanDeAdelanto,
 } from "@/lib/schools/pantalla-pedidos";
 
@@ -76,8 +77,14 @@ type Tarjeta = {
   paso: UbicacionEnEmbudo;
   demo: boolean;
   pedido: Pedido;
+  /** Cómo pasa al paso siguiente. */
   plan: PlanDeAdelanto;
+  /** Cómo vuelve al paso anterior. */
+  vuelta: PlanDeAdelanto;
 };
+
+/** Un movimiento posible (adelante o atrás) de una tarjeta. */
+type Movimiento = Extract<PlanDeAdelanto, { puede: true }>;
 
 /** Cuántas tarjetas se dibujan por columna antes de pedir "mostrar más" (hay columnas de cientos). */
 const TANDA = 60;
@@ -122,6 +129,17 @@ const fechaArgentina = (iso: string | null | undefined) =>
 const pesos = (centavos: number) =>
   new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 0 }).format(centavos / 100);
 
+function paraMover(o: Pedido) {
+  return {
+    paso: o.paso,
+    isDemo: o.isDemo,
+    disenos: o.disenos ?? [],
+    items: o.items,
+    redemptionOrderId: o.redemptionOrderId,
+    copias: o.copias,
+  };
+}
+
 function aTarjeta(o: Pedido): Tarjeta {
   const nombre =
     [o.studentFirstName, o.studentLastName].filter(Boolean).join(" ").trim() ||
@@ -136,14 +154,8 @@ function aTarjeta(o: Pedido): Tarjeta {
     paso: o.paso,
     demo: Boolean(o.isDemo),
     pedido: o,
-    plan: planDeAdelanto({
-      paso: o.paso,
-      isDemo: o.isDemo,
-      disenos: o.disenos ?? [],
-      items: o.items,
-      redemptionOrderId: o.redemptionOrderId,
-      copias: o.copias,
-    }),
+    plan: planDeAdelanto(paraMover(o)),
+    vuelta: planDeRetroceso(paraMover(o)),
   };
 }
 
@@ -168,7 +180,7 @@ export default function PantallaPedidos() {
   const [abierta, setAbierta] = useState<string | null>(null);
   const [arrastrando, setArrastrando] = useState<Tarjeta | null>(null);
   const [sobre, setSobre] = useState<PasoEmbudo | null>(null);
-  const [aConfirmar, setAConfirmar] = useState<Tarjeta | null>(null);
+  const [aConfirmar, setAConfirmar] = useState<{ t: Tarjeta; mov: Movimiento } | null>(null);
   const [moviendo, setMoviendo] = useState(false);
   const [aviso, setAviso] = useState<{ tono: "ok" | "error"; texto: string } | null>(null);
 
@@ -255,11 +267,10 @@ export default function PantallaPedidos() {
     }
   }, []);
 
-  async function adelantar(t: Tarjeta) {
-    if (!t.plan.puede) return;
+  async function mover(t: Tarjeta, mov: Movimiento) {
     setMoviendo(true);
     try {
-      for (const l of t.plan.llamadas) {
+      for (const l of mov.llamadas) {
         const r = await fetch(l.url, {
           method: "POST",
           credentials: "include",
@@ -271,8 +282,12 @@ export default function PantallaPedidos() {
           const texto = [d.message, d.reason, d.error].find((v) => typeof v === "string" && v.trim());
           throw new Error(typeof texto === "string" ? texto : `Error (${r.status})`);
         }
+        // «Volver un paso» responde cuántas piezas movió: cero es que no se pudo.
+        if (typeof d.actualizados === "number" && d.actualizados === 0) {
+          throw new Error("ya no estaba en ese paso");
+        }
       }
-      setAviso({ tono: "ok", texto: `${t.nombre} pasó a «${INFO_PASOS[t.plan.destino].titulo}».` });
+      setAviso({ tono: "ok", texto: `${t.nombre} pasó a «${INFO_PASOS[mov.destino].titulo}».` });
     } catch (e) {
       setAviso({ tono: "error", texto: `No pude mover a ${t.nombre}: ${e instanceof Error ? e.message : "error"}` });
     } finally {
@@ -285,7 +300,10 @@ export default function PantallaPedidos() {
 
   const boton =
     "rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-sm font-semibold text-white hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#c27b3d]";
-  const destinoArrastre = arrastrando && arrastrando.plan.puede ? arrastrando.plan.destino : null;
+  const destinoAdelante = arrastrando?.plan.puede ? arrastrando.plan.destino : null;
+  const destinoAtras = arrastrando?.vuelta.puede ? arrastrando.vuelta.destino : null;
+  const movimientoHacia = (t: Tarjeta, paso: PasoEmbudo): Movimiento | null =>
+    t.plan.puede && t.plan.destino === paso ? t.plan : t.vuelta.puede && t.vuelta.destino === paso ? t.vuelta : null;
 
   return (
     <div
@@ -325,7 +343,7 @@ export default function PantallaPedidos() {
       </header>
 
       <p className="px-4 pt-2 text-xs text-white/40 sm:px-6">
-        Tocá una tarjeta para ver todo el pedido. Arrastrala a la columna siguiente para adelantarla (sólo en los pasos que dependen de vos).
+        Tocá una tarjeta para ver todo el pedido. Arrastrala a la columna siguiente para adelantarla, o a la anterior para volverla atrás.
       </p>
 
       {/* El tablero: una columna por paso. Se desplaza de costado si la ventana es angosta. */}
@@ -352,7 +370,9 @@ export default function PantallaPedidos() {
               const lista = porPaso[c.paso];
               const color = COLOR_PASO[c.paso];
               const cuantas = visibles[c.paso] ?? TANDA;
-              const esDestino = destinoArrastre === c.paso;
+              const esAdelante = destinoAdelante === c.paso;
+              const esAtras = destinoAtras === c.paso;
+              const esDestino = esAdelante || esAtras;
               const apagada = arrastrando !== null && !esDestino && arrastrando.paso !== c.paso;
               return (
                 <section
@@ -371,15 +391,20 @@ export default function PantallaPedidos() {
                   onDrop={(e) => {
                     e.preventDefault();
                     setSobre(null);
-                    if (esDestino && arrastrando) setAConfirmar(arrastrando);
+                    const mov = arrastrando ? movimientoHacia(arrastrando, c.paso) : null;
+                    if (arrastrando && mov) setAConfirmar({ t: arrastrando, mov });
                     setArrastrando(null);
                   }}
                   className={`flex w-[300px] shrink-0 flex-col rounded-xl border transition 2xl:w-auto 2xl:min-w-[300px] 2xl:flex-1 ${
-                    esDestino
+                    esAdelante
                       ? sobre === c.paso
                         ? "border-[#c27b3d] bg-[#c27b3d]/15"
                         : "border-dashed border-[#c27b3d]/70 bg-[#c27b3d]/5"
-                      : "border-white/5 bg-white/[0.02]"
+                      : esAtras
+                        ? sobre === c.paso
+                          ? "border-sky-400 bg-sky-400/15"
+                          : "border-dashed border-sky-400/60 bg-sky-400/5"
+                        : "border-white/5 bg-white/[0.02]"
                   } ${apagada ? "opacity-40" : ""}`}
                 >
                   <div
@@ -395,8 +420,10 @@ export default function PantallaPedidos() {
                     </span>
                     <span className="text-2xl font-bold leading-none tabular-nums">{c.cantidad}</span>
                   </div>
-                  {esDestino ? (
+                  {esAdelante ? (
                     <p className="px-3 pt-2 text-xs font-semibold text-[#e7a86b]">Soltala acá para pasarla a este paso</p>
+                  ) : esAtras ? (
+                    <p className="px-3 pt-2 text-xs font-semibold text-sky-300">← Soltala acá para volverla a este paso</p>
                   ) : null}
                   <ol className="m-0 flex min-h-0 flex-1 list-none flex-col gap-2 overflow-y-auto p-2">
                     {lista.length === 0 ? (
@@ -412,8 +439,10 @@ export default function PantallaPedidos() {
                         onAbrir={() => setAbierta(t.clave)}
                         onEmpezar={() => {
                           setArrastrando(t);
-                          if (!t.plan.puede) return;
-                          const idDestino = `columna-${t.plan.destino}`;
+                          // Se lleva a la vista la columna siguiente (o, si no avanza, la anterior).
+                          const hacia = t.plan.puede ? t.plan.destino : t.vuelta.puede ? t.vuelta.destino : null;
+                          if (!hacia) return;
+                          const idDestino = `columna-${hacia}`;
                           // Después de dibujar el arrastre: si la columna de destino no se ve entera, se corre el tablero.
                           window.setTimeout(() => {
                             const el = tableroRef.current;
@@ -453,20 +482,20 @@ export default function PantallaPedidos() {
       {tarjetaAbierta ? (
         // Con la confirmación encima, Escape (o tocar afuera) cierra sólo la confirmación.
         <Ventana onCerrar={() => (aConfirmar ? undefined : setAbierta(null))} titulo={tarjetaAbierta.nombre}>
-          <DetallePedido t={tarjetaAbierta} onAdelantar={() => setAConfirmar(tarjetaAbierta)} />
+          <DetallePedido t={tarjetaAbierta} onMover={(mov) => setAConfirmar({ t: tarjetaAbierta, mov })} />
         </Ventana>
       ) : null}
 
-      {aConfirmar && aConfirmar.plan.puede ? (
+      {aConfirmar ? (
         <Ventana
           onCerrar={() => (moviendo ? undefined : setAConfirmar(null))}
-          titulo={`¿Pasar a «${INFO_PASOS[aConfirmar.plan.destino].titulo}»?`}
+          titulo={`¿${aConfirmar.mov === aConfirmar.t.vuelta ? "Volver" : "Pasar"} a «${INFO_PASOS[aConfirmar.mov.destino].titulo}»?`}
           chica
         >
-          <p className="text-base font-semibold">{aConfirmar.nombre}</p>
-          <p className="mt-2 text-sm text-white/80">{aConfirmar.plan.explicacion}</p>
-          {aConfirmar.plan.aviso ? (
-            <p className="mt-2 rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-300">{aConfirmar.plan.aviso}</p>
+          <p className="text-base font-semibold">{aConfirmar.t.nombre}</p>
+          <p className="mt-2 text-sm text-white/80">{aConfirmar.mov.explicacion}</p>
+          {aConfirmar.mov.aviso ? (
+            <p className="mt-2 rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-300">{aConfirmar.mov.aviso}</p>
           ) : null}
           <div className="mt-5 flex flex-wrap justify-end gap-2">
             <button type="button" disabled={moviendo} onClick={() => setAConfirmar(null)} className={boton}>
@@ -475,10 +504,12 @@ export default function PantallaPedidos() {
             <button
               type="button"
               disabled={moviendo}
-              onClick={() => void adelantar(aConfirmar)}
+              onClick={() => void mover(aConfirmar.t, aConfirmar.mov)}
               className="rounded-lg bg-[#c27b3d] px-4 py-1.5 text-sm font-semibold text-white hover:bg-[#d08a4b] disabled:opacity-60"
             >
-              {moviendo ? "Moviendo…" : `Sí, pasar a «${INFO_PASOS[aConfirmar.plan.destino].titulo}»`}
+              {moviendo
+                ? "Moviendo…"
+                : `Sí, ${aConfirmar.mov === aConfirmar.t.vuelta ? "volver" : "pasar"} a «${INFO_PASOS[aConfirmar.mov.destino].titulo}»`}
             </button>
           </div>
         </Ventana>
@@ -522,6 +553,7 @@ function TarjetaPedido({
   const o = t.pedido;
   const disenos = o.disenos ?? [];
   const sePuede = t.plan.puede;
+  const seMueve = t.plan.puede || t.vuelta.puede;
   const huecos = disenos.reduce((n, d) => n + (d.status === "PENDING_PHOTOGRAPHER_APPROVAL" ? d.emptySlots : 0), 0);
   const nota = disenos.find((d) => d.status === "NEEDS_ADJUSTMENT" && d.reviewNote)?.reviewNote ?? null;
   const lote = disenos.find((d) => d.printBatchName)?.printBatchName ?? o.copias?.printBatchName ?? null;
@@ -542,7 +574,7 @@ function TarjetaPedido({
   // Safari no arrastran un <button>.
   return (
     <li
-      draggable={sePuede}
+      draggable={seMueve}
       onDragStart={(e) => {
         e.dataTransfer.effectAllowed = "move";
         e.dataTransfer.setData("text/plain", t.clave);
@@ -561,9 +593,9 @@ function TarjetaPedido({
             onAbrir();
           }
         }}
-        title={sePuede ? "Tocá para ver el pedido · arrastrá para adelantarlo" : "Tocá para ver el pedido"}
+        title={seMueve ? "Tocá para ver el pedido · arrastralo para moverlo de paso" : "Tocá para ver el pedido"}
         className={`group flex w-full select-none items-stretch rounded-lg border border-white/10 bg-[#161a22] text-left transition hover:border-white/25 hover:bg-[#1c212b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#c27b3d] ${
-          sePuede ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
+          seMueve ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
         }`}
       >
         <span aria-hidden className="w-1.5 shrink-0 rounded-l-lg" style={{ background: COLOR_PASO[paso].fondo }} />
@@ -598,7 +630,7 @@ function TarjetaPedido({
             ) : (
               <span className="text-white/35">{ESPERA_CORTA[paso] ?? "Se mueve desde Pedidos escolares"}</span>
             )}
-            {sePuede ? (
+            {seMueve ? (
               <span aria-hidden className="text-sm text-white/30 group-hover:text-[#e7a86b]">
                 ⠿
               </span>
@@ -711,7 +743,7 @@ function Descargas({ o }: { o: Pedido }) {
   );
 }
 
-function DetallePedido({ t, onAdelantar }: { t: Tarjeta; onAdelantar: () => void }) {
+function DetallePedido({ t, onMover }: { t: Tarjeta; onMover: (mov: Movimiento) => void }) {
   const o = t.pedido;
   const paso = esPasoEmbudo(t.paso) ? t.paso : null;
   const telefono = o.buyerPhone?.replace(/\D/g, "") ?? "";
@@ -808,7 +840,10 @@ function DetallePedido({ t, onAdelantar }: { t: Tarjeta; onAdelantar: () => void
                   </span>
                 </div>
                 {d.emptySlots > 0 ? <p className="mt-1 text-xs text-amber-300">{d.emptySlots} lugar(es) sin foto</p> : null}
-                {d.reviewNote ? <p className="mt-1 text-xs text-sky-300">Cambio pedido: “{d.reviewNote}”</p> : null}
+                {/* La nota sólo vale mientras se esperan los cambios: aprobado, ya quedó atrás. */}
+                {d.reviewNote && d.status === "NEEDS_ADJUSTMENT" ? (
+                  <p className="mt-1 text-xs text-sky-300">Cambio pedido: “{d.reviewNote}”</p>
+                ) : null}
                 {d.printBatchName || d.sentToPrintAt || d.printedAt || d.deliveredAt ? (
                   <p className="mt-1 text-xs text-white/50">
                     {[
@@ -849,20 +884,31 @@ function DetallePedido({ t, onAdelantar }: { t: Tarjeta; onAdelantar: () => void
         >
           Ver en Pedidos escolares
         </Link>
-        {t.plan.puede ? (
-          <button
-            type="button"
-            onClick={onAdelantar}
-            className="rounded-lg bg-[#c27b3d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d08a4b]"
-          >
-            Pasar a «{INFO_PASOS[t.plan.destino].titulo}» →
-          </button>
-        ) : (
-          <p className="max-w-xs text-right text-xs text-white/45">
-            {siguiente ? `No se puede pasar a «${INFO_PASOS[siguiente].titulo}» desde acá: ` : ""}
-            {t.plan.motivo}
-          </p>
-        )}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {t.vuelta.puede ? (
+            <button
+              type="button"
+              onClick={() => t.vuelta.puede && onMover(t.vuelta)}
+              className="rounded-lg border border-sky-400/40 px-3 py-2 text-sm font-semibold text-sky-300 hover:bg-sky-400/10"
+            >
+              ← Volver a «{INFO_PASOS[t.vuelta.destino].titulo}»
+            </button>
+          ) : null}
+          {t.plan.puede ? (
+            <button
+              type="button"
+              onClick={() => t.plan.puede && onMover(t.plan)}
+              className="rounded-lg bg-[#c27b3d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d08a4b]"
+            >
+              Pasar a «{INFO_PASOS[t.plan.destino].titulo}» →
+            </button>
+          ) : (
+            <p className="max-w-xs text-right text-xs text-white/45">
+              {siguiente ? `No se puede pasar a «${INFO_PASOS[siguiente].titulo}» desde acá: ` : ""}
+              {t.plan.motivo}
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
