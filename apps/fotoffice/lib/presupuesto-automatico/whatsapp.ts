@@ -125,7 +125,7 @@ export async function prepararDesdeWhatsapp(
         deps,
       );
       return r.ok
-        ? { ok: true, message: `Listo: la cotización${opciones.paquete.nombre ? ` del paquete ${opciones.paquete.nombre}` : ""} ya le salió al cliente (${r.texto}) con el botón para reservar la fecha. Decile que ahí la tiene. No digas otros precios.` }
+        ? { ok: true, message: `Listo: la cotización${opciones.paquete.nombre ? ` del paquete ${opciones.paquete.nombre}` : ""} ya le salió al cliente (${r.texto}); desde ese enlace puede reservar la fecha. Decile que ahí la tiene, sin hablar de botones. No digas otros precios.` }
         : { ok: false, message: "La consulta quedó registrada, pero la cotización no se pudo enviar sola. Decile que en un rato se la mandamos y usá pasar_a_persona con el motivo \"cotización del paquete sin enviar\"." };
     }
     const llegada = esInstagram

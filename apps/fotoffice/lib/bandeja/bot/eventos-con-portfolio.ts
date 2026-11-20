@@ -99,7 +99,7 @@ export function textoDePaquetes(evento: EventoConPortfolio, paquetes: readonly P
     `Paquetes: ${validos.map((p) => p.nombre).join(", ")}.`,
     "Precios vigentes del estudio (ya aprobados; no los digas hasta que elija uno, y entonces sólo el de ese):",
     ...validos.map((p) => `- ${p.nombre}: ${pesosConPunto(p.total)}`),
-    "Cuando elija uno, decile su precio y ofrecele dejarle la cotización con el botón para reservar la fecha. Si dice que sí, usá enviar_cotizacion_del_paquete. Si lo quiere con agregados o cambios, usá preparar_presupuesto con el paquete y los cambios en detalle.",
+    "Cuando elija uno, decile su precio y ofrecele pasarle la cotización para que pueda reservar la fecha (sin hablar de botones). Si dice que sí, usá enviar_cotizacion_del_paquete. Si lo quiere con agregados o cambios, usá preparar_presupuesto con el paquete y los cambios en detalle.",
   ].join("\n");
 }
 

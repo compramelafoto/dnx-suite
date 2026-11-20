@@ -125,7 +125,7 @@ describe("responderConBot", () => {
       });
       return { ok: true, message: "Listo: salió." };
     };
-    const t = turnoQue("¡Listo! Ahí te dejé la cotización con el botón para reservar la fecha. Te dejo con Giuli, de nuestro equipo de ventas, que te va a acompañar para cerrar todo 😊", [
+    const t = turnoQue("¡Listo! Ahí te dejé la cotización para que reserves la fecha. Te dejo con Giuli, de nuestro equipo de ventas, que te va a acompañar para cerrar todo 😊", [
       { name: "enviar_cotizacion_del_paquete", input: { evento: "boda", paquete: "Intermedio", nombre: "Laura Gómez", fecha: "2027-03-13", lugar: "Salón, Funes", horario: "21 a 5" } },
     ]);
     const herramientas = { ...CATALOGO, paquetesDelEvento: async () => PAQ, vendedora: async () => ({ userId: 7, nombre: "Giuli", esResponsable: true }), enviarCotizacionDelPaquete };
