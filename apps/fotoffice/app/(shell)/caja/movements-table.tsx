@@ -1,3 +1,4 @@
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import { formatMinorArs } from "@/lib/membership/money";
 import type { MovementRow } from "@/lib/cash/repository";
 import { reverseMovementAction } from "./actions";
@@ -87,7 +88,7 @@ export function MovementsTable({
               {showAccount ? <td className="px-4 py-3">{m.accountName}</td> : null}
               <td className="px-4 py-3 text-[var(--fo-muted)]">{m.categoryName ?? "Sin categoría"}</td>
               <td className="px-4 py-3 text-[var(--fo-muted)]">{ETIQUETA_METODO[m.paymentMethod] ?? m.paymentMethod}</td>
-              <td className="px-4 py-3 text-[var(--fo-muted)]">{m.clientName ?? "—"}</td>
+              <td className="px-4 py-3 text-[var(--fo-muted)]">{m.clientName ? <EnlaceCliente clientId={m.clientId}>{m.clientName}</EnlaceCliente> : "—"}</td>
               <td className="px-4 py-3">
                 {m.description}
                 {m.reverseReason ? (

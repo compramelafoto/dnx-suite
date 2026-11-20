@@ -90,6 +90,8 @@ export type FilaDetalleVentas = {
   /** "AAAA-MM-DD" (día de Buenos Aires). */
   confirmado: string;
   cliente: string;
+  /** Para que el nombre lleve a la ficha del cliente. */
+  clientId?: string | null;
   fechaEvento: string | null;
   categoria: string;
   vendedor: string;
@@ -217,6 +219,7 @@ export function detalleDeVentas(pedidos: readonly PedidoVenta[], f: FiltroVentas
       numero: p.numero,
       confirmado: fechaDe(p.confirmadoEn),
       cliente: p.cliente,
+      clientId: p.clienteId,
       fechaEvento: p.fechaEvento,
       categoria: p.tieneConsulta ? (p.categoria ?? "Sin categoría") : SIN_CONSULTA,
       vendedor: p.vendedorId === null ? SIN_VENDEDOR : p.vendedor,

@@ -26,7 +26,7 @@ import {
  * original, fuentes de la base devengada). El total suma todas las filas; se dibujan las primeras 500.
  */
 
-const NOMBRES_CLIENTE = { firstName: true, lastName: true, businessName: true } as const;
+const NOMBRES_CLIENTE = { id: true, firstName: true, lastName: true, businessName: true } as const;
 
 export const ETIQUETAS_ORIGEN_CAJA: Record<string, string> = {
   manual: "Movimiento manual",
@@ -128,7 +128,7 @@ export async function cargarDetalleResultados(
   // Datos de cada movimiento de la celda (descripción, cuenta, contacto, cobro de origen), por lotes.
   const ordenados = delPeriodo;
   const aDibujar = ordenados;
-  const detalleMov = new Map<string, { description: string; sourceRef: string | null; account: { name: string }; client: { firstName: string | null; lastName: string | null; businessName: string | null } | null }>();
+  const detalleMov = new Map<string, { description: string; sourceRef: string | null; account: { name: string }; client: { id: string; firstName: string | null; lastName: string | null; businessName: string | null } | null }>();
   for (let i = 0; i < aDibujar.length; i += 1000) {
     const lote = await prisma.cashMovement.findMany({
       where: { workspaceId, id: { in: aDibujar.slice(i, i + 1000).map((x) => x.m.id) } },
@@ -151,6 +151,7 @@ export async function cargarDetalleResultados(
       fecha: fechaDeInstante(m.occurredAt),
       origen: `${m.reversesMovementId ? "Anulación · " : ""}${etiqueta}${d ? ` (${d.account.name})` : ""}`,
       contacto: d?.client ? nombreDeContacto(d.client) : null,
+      clientId: d?.client?.id ?? null,
       descripcion: d?.description ?? "",
       centavos: m.centavos * signo,
       href: pedidoId ? `/pedidos/${pedidoId}` : null,
@@ -195,6 +196,7 @@ export async function cargarDetalleResultados(
         fecha: fila.eventDate ?? fechaDeInstante(p.createdAt),
         origen: `Pedido ${p.number}`,
         contacto: nombreDeContacto(p.client),
+        clientId: p.client?.id ?? null,
         descripcion: p.eventLabel?.trim() || "Pedido",
         centavos: fila.centavos,
         href: `/pedidos/${p.id}`,
@@ -274,6 +276,7 @@ export async function cargarDetalleFlujo(
             fecha: c.dueDate,
             origen: `Pedido ${p.number}`,
             contacto: nombreDeContacto(p.client),
+            clientId: p.client?.id ?? null,
             descripcion: `Cuota ${c.position} (saldo)`,
             centavos,
             href: `/pedidos/${p.id}`,

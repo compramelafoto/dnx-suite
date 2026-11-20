@@ -1,3 +1,4 @@
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BotonesDelChat } from "@/components/bandeja/botones-del-chat";
@@ -34,7 +35,10 @@ export default async function ChatPage({ params }: { params: Promise<{ chatId: s
         </Link>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 space-y-1">
-            <h1 className="break-words text-2xl font-semibold tracking-tight text-[var(--fo-text)]">{chat.titulo}</h1>
+            <h1 className="break-words text-2xl font-semibold tracking-tight text-[var(--fo-text)]">
+              {/* Con un cliente vinculado, el título es su nombre: lleva a su ficha. */}
+              <EnlaceCliente clientId={chat.cliente?.id}>{chat.titulo}</EnlaceCliente>
+            </h1>
             {chat.canal === "INSTAGRAM" ? (
               <p className="text-sm text-[var(--fo-muted)]">
                 Instagram

@@ -1,3 +1,4 @@
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import Link from "next/link";
 import { fechaLarga, type FilaDetalle } from "@/lib/informes/detalle";
 import { formatMinorArs } from "@/lib/membership/money";
@@ -23,7 +24,7 @@ export function TablaDetalle({ filas, total, cantidad, truncado }: { filas: read
               <tr key={f.clave}>
                 <td className="whitespace-nowrap px-3 py-2">{fechaLarga(f.fecha)}</td>
                 <td className="px-3 py-2">{f.origen}</td>
-                <td className="px-3 py-2 text-[var(--fo-muted)]">{f.contacto ?? "–"}</td>
+                <td className="px-3 py-2 text-[var(--fo-muted)]">{f.contacto ? <EnlaceCliente clientId={f.clientId}>{f.contacto}</EnlaceCliente> : "–"}</td>
                 <td className="px-3 py-2">{f.descripcion || "–"}</td>
                 <td className={`whitespace-nowrap px-3 py-2 text-right tabular-nums ${f.centavos < 0 ? "text-[var(--fo-danger)]" : ""}`}>{formatMinorArs(f.centavos)}</td>
                 <td className="px-3 py-2">

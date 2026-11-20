@@ -7,7 +7,8 @@ export function PageHeader({
   entidad,
 }: {
   title: string;
-  description?: string;
+  /** Texto o contenido con enlaces (por ejemplo, el nombre del cliente que lleva a su ficha). */
+  description?: React.ReactNode;
   actions?: React.ReactNode;
   /** El elemento de la pantalla (consulta, pedido…): el título lleva su ícono y su color. */
   entidad?: Entidad;

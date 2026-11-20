@@ -18,6 +18,8 @@ export type TarjetaTrabajo = {
   numero: string;
   nombre: string;
   cliente: string;
+  /** Para que el nombre lleve a la ficha del cliente. */
+  clientId: string | null;
   telefono: string | null;
   email: string | null;
   producto: string | null;
@@ -72,7 +74,7 @@ export async function cargarTrabajosEnCurso(ctx: CtxProyectos, ahora: Date): Pro
         finalDueDate: true,
         proveedorEnviadoAt: true,
         pedidoId: true,
-        client: { select: { firstName: true, lastName: true, businessName: true, phone: true, email: true } },
+        client: { select: { id: true, firstName: true, lastName: true, businessName: true, phone: true, email: true } },
         product: { select: { name: true } },
         proveedorId: true,
         proveedor: { select: { name: true } },
@@ -144,6 +146,7 @@ export async function cargarTrabajosEnCurso(ctx: CtxProyectos, ahora: Date): Pro
       numero: p.number,
       nombre: p.name,
       cliente: nombreDeContacto(p.client),
+      clientId: p.client?.id ?? null,
       telefono: p.client?.phone ?? null,
       email: p.client?.email ?? null,
       producto: p.product?.name ?? null,

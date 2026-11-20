@@ -1,3 +1,4 @@
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { AprobarCotizacion, UltimoResultadoAprobacion } from "@/components/presupuestos/aprobar-cotizacion";
@@ -44,7 +45,7 @@ export default async function PorAprobarPage() {
             <li key={f.id} className="flex flex-wrap items-start justify-between gap-3 p-4 text-sm">
               <div className="min-w-0 space-y-0.5">
                 <p className="font-medium text-[var(--fo-text)]">
-                  {f.cliente}
+                  <EnlaceCliente clientId={f.clientId}>{f.cliente}</EnlaceCliente>
                   {f.categoria ? <span className="font-normal text-[var(--fo-muted)]"> · {f.categoria}</span> : null}
                 </p>
                 <p className="text-xs text-[var(--fo-muted)]">

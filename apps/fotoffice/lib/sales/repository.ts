@@ -452,6 +452,8 @@ export type SaleRow = {
   saleNumber: number;
   occurredAt: Date;
   clientName: string | null;
+  /** Para que el nombre lleve a la ficha del cliente. */
+  clientId: string | null;
   totalMinor: number;
   paymentMethod: string;
   status: string;
@@ -471,7 +473,7 @@ const SALE_ROW_SELECT = {
   voidedAt: true,
   voidedByUserId: true,
   voidReason: true,
-  client: { select: { kind: true, firstName: true, lastName: true, businessName: true } },
+  client: { select: { id: true, kind: true, firstName: true, lastName: true, businessName: true } },
   items: {
     select: { id: true, description: true, qty: true, unitPriceArs: true, lineTotalArs: true },
   },
@@ -487,7 +489,7 @@ type SaleRowRecord = {
   voidedAt: Date | null;
   voidedByUserId: number | null;
   voidReason: string | null;
-  client: { kind: string; firstName: string | null; lastName: string | null; businessName: string | null } | null;
+  client: { id: string; kind: string; firstName: string | null; lastName: string | null; businessName: string | null } | null;
   items: {
     id: string;
     description: string;
@@ -503,6 +505,7 @@ function toSaleRow(r: SaleRowRecord): SaleRow {
     saleNumber: r.saleNumber,
     occurredAt: r.occurredAt,
     clientName: r.client ? clientDisplayName(r.client) : null,
+    clientId: r.client?.id ?? null,
     totalMinor: decimalArsToMinor(r.totalArs),
     paymentMethod: r.paymentMethod,
     status: r.status,

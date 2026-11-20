@@ -1,5 +1,6 @@
 "use client";
 
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
 import { X } from "lucide-react";
@@ -361,7 +362,7 @@ export function DialogoCita({
                   {participantes.map((p, i) => (
                     <li key={p.id ?? `nuevo-${i}`} className="flex items-center justify-between gap-2">
                       <span className="min-w-0 truncate">
-                        <span className="font-medium text-[var(--fo-text)]">{p.nombre}</span>
+                        <EnlaceCliente clientId={p.clientId} className="font-medium text-[var(--fo-text)]">{p.nombre}</EnlaceCliente>
                         <span className="text-xs text-[var(--fo-muted)]">
                           {" · "}
                           {p.userId !== null ? "Equipo" : "Contacto"}

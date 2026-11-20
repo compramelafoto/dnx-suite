@@ -1,4 +1,5 @@
 // apps/fotoffice/app/(shell)/digitalizacion/page.tsx
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import { vistaPreviaAgotada } from "@/lib/digitalizacion/hls";
 import { PageHeader } from "@/components/page-header";
 import { AccionesGrabacion, AjusteMinutos } from "@/components/digitalizacion/acciones-grabacion";
@@ -81,7 +82,15 @@ export default async function DigitalizacionPage() {
               return (
                 <li key={r.pedidoId} className="space-y-2 p-4">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="font-semibold">Pedido {r.pedidoNumero}{r.cliente ? ` · ${r.cliente}` : ""}</p>
+                    <p className="font-semibold">
+                      Pedido {r.pedidoNumero}
+                      {r.cliente ? (
+                        <>
+                          {" · "}
+                          <EnlaceCliente clientId={r.clientId}>{r.cliente}</EnlaceCliente>
+                        </>
+                      ) : null}
+                    </p>
                     <span className="text-xs text-gray-600">
                       {textoDeCassettes(r.cassettes)} · {r.videos === 1 ? "1 video listo" : `${r.videos} videos listos`}
                     </span>

@@ -116,7 +116,11 @@ export default async function InformesPage({
                   <tbody>
                     {aCobrar.clientes.map((c) => (
                       <tr key={c.clienteId} className="border-t border-[var(--fo-border)]">
-                        <td className="py-2 pr-3">{c.clienteNombre}</td>
+                        <td className="py-2 pr-3">
+                          <Link href={`/clientes/${encodeURIComponent(c.clienteId)}`} className="hover:underline">
+                            {c.clienteNombre}
+                          </Link>
+                        </td>
                         <td className="py-2 pr-3 text-right">{c.pedidos}</td>
                         <td className="py-2 pr-3 text-right">{pesosInforme(c.vencido)}</td>
                         <td className="py-2 pr-3 text-right">{pesosInforme(c.porTramo["0-30"])}</td>

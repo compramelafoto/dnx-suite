@@ -1,3 +1,4 @@
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import "server-only";
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -308,7 +309,7 @@ export const listadoMovimientos: DefinicionListado<MovementRow> = {
         </>
       ),
     },
-    { clave: "cliente", titulo: "Cliente", secundaria: true, celda: (m) => m.clientName ?? "—" },
+    { clave: "cliente", titulo: "Cliente", secundaria: true, celda: (m) => (m.clientName ? <EnlaceCliente clientId={m.clientId}>{m.clientName}</EnlaceCliente> : "—") },
     { clave: "cuenta", titulo: "Cuenta", celda: (m) => m.accountName },
     { clave: "rubro", titulo: "Rubro", celda: (m) => m.categoryName ?? "Sin rubro" },
     { clave: "medio", titulo: "Medio", secundaria: true, celda: (m) => etiquetaMedio(m.paymentMethod) },

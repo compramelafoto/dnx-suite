@@ -1,3 +1,4 @@
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
@@ -103,7 +104,13 @@ export default async function FichaGaleriaPage({
     <div className="space-y-6">
       <PageHeader entidad="galeria"
         title={ficha.nombre}
-        description={`${esEntrega ? "Galería de entrega" : esAlbum ? "Prueba de álbum" : "Galería"} N° ${ficha.numero} · ${ficha.contacto.nombre}${vendido !== null && vendido > 0 ? ` · Vendido ${formatearCentavos(vendido)}` : ""}`}
+        description={
+          <>
+            {esEntrega ? "Galería de entrega" : esAlbum ? "Prueba de álbum" : "Galería"} N° {ficha.numero} ·{" "}
+            <EnlaceCliente clientId={veContactos ? ficha.contacto.id : null}>{ficha.contacto.nombre}</EnlaceCliente>
+            {vendido !== null && vendido > 0 ? ` · Vendido ${formatearCentavos(vendido)}` : null}
+          </>
+        }
         actions={
           <Link href="/galerias" className="fo-btn fo-btn-secondary text-sm">
             Volver a Galerías

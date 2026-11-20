@@ -1,5 +1,6 @@
 "use client";
 
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ArrowRight, CalendarDays, Check, CheckCircle2, ExternalLink, Mail, MessageCircle, PackageCheck, Send, Undo2, Wallet, X } from "lucide-react";
@@ -90,7 +91,7 @@ export function FichaFlotante({
         <header className="flex items-start gap-3">
           <div className="min-w-0 flex-1 space-y-1">
             <h2 id="ficha-flotante-titulo" className="text-xl font-semibold text-[var(--fo-text)]">
-              {t.cliente}
+              <EnlaceCliente clientId={t.clientId}>{t.cliente}</EnlaceCliente>
             </h2>
             <p className="text-sm text-[var(--fo-muted)]">
               {t.nombre} · N° {t.numero}
