@@ -36,6 +36,24 @@ export function MensajeRegistrado({ mensaje, conEncabezado = false }: { mensaje:
         <span className="break-all text-[var(--fo-muted)]">a {mensaje.destino}</span>
         {mensaje.plantilla ? <span className="text-[var(--fo-muted)]">· Plantilla «{mensaje.plantilla}»</span> : null}
       </p>
+      {mensaje.seguimiento?.length ? (
+        <p className="flex flex-wrap items-center gap-1.5 text-xs" aria-label="Seguimiento del correo">
+          {mensaje.seguimiento.map((s) => (
+            <span
+              key={s.texto}
+              className={`rounded-full px-2 py-0.5 ${
+                s.tipo === "problema"
+                  ? "bg-[var(--fo-danger-soft)] text-[var(--fo-danger)]"
+                  : s.tipo === "abierto"
+                    ? "bg-[var(--fo-accent-soft)] text-[var(--fo-accent-hover)]"
+                    : "bg-[var(--fo-surface-muted)] text-[var(--fo-text-secondary)]"
+              }`}
+            >
+              {s.texto}
+            </span>
+          ))}
+        </p>
+      ) : null}
       {mensaje.asunto ? <p className="break-words font-medium text-[var(--fo-text)]">{mensaje.asunto}</p> : null}
       <p className="whitespace-pre-wrap break-words text-[var(--fo-text-secondary)]">{completo || !corto ? mensaje.cuerpo : corto}</p>
       {corto ? (

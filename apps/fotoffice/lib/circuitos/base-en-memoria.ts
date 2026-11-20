@@ -187,7 +187,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   }),
   fotofficeMessage: () => ({
     templateId: null, subject: null, automatic: false, providerId: null, errorCode: null, actorUserId: null, actorLabel: null,
-    createdAt: new Date(),
+    createdAt: new Date(), deliveredAt: null, openedAt: null, clickedAt: null, bouncedAt: null, complainedAt: null,
   }),
   clientAudit: () => ({ actorUserId: null, changesJson: null, createdAt: new Date() }),
   fotofficeContactoPerfil: () => ({

@@ -7,6 +7,7 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/mailing/webhook", () => ({ applyWebhookEvent: async () => h.socios }));
 vi.mock("@/lib/agentes/vendedor/avisos", () => ({ aplicarAvisoVendedor: h.vendedor }));
+vi.mock("@/lib/communications/avisos-de-correo", () => ({ aplicarAvisoDeCorreo: async () => "DESCONOCIDO" }));
 
 const { POST } = await import("./route");
 

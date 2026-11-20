@@ -21491,12 +21491,19 @@ model FotofficeMessage {
   actorUserId Int?
   actorLabel  String?
   createdAt   DateTime @default(now())
+  /// Avisos de Resend (correo): la primera vez que se entregó, se abrió, se hizo clic, rebotó o lo marcaron como spam.
+  deliveredAt  DateTime?
+  openedAt     DateTime?
+  clickedAt    DateTime?
+  bouncedAt    DateTime?
+  complainedAt DateTime?
 
   workspace Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   template  FotofficeMessageTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, entityType, entityId, createdAt])
   @@index([workspaceId, channel, createdAt])
+  @@index([providerId])
 }
 
 // ---------------------------------------------------------------------------
