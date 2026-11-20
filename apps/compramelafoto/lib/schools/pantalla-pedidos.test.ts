@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { coincideBusqueda, contadoresPorPaso, pedidosParaTarjetas, planDeAdelanto } from "./pantalla-pedidos";
+import { coincideBusqueda, contadoresPorPaso, pedidosParaTarjetas, planDeAdelanto, planDeRetroceso } from "./pantalla-pedidos";
 
 describe("contadores de la pantalla", () => {
   it("son los siete pasos en orden, con su cantidad, sin los pedidos fuera de la línea", () => {
@@ -164,5 +164,39 @@ describe("búsqueda", () => {
     assert.equal(coincideBusqueda(textos, "facundo patricio"), true);
     assert.equal(coincideBusqueda(textos, "facundo goethe"), false);
     assert.equal(coincideBusqueda(textos, "  "), true);
+  });
+});
+
+describe("volver un pedido al paso anterior", () => {
+  it("no se vuelve desde por canjear ni desde revisar diseño", () => {
+    assert.equal(planDeRetroceso({ paso: "POR_CANJEAR", disenos: [] }).puede, false);
+    assert.equal(planDeRetroceso({ paso: "REVISAR_DISENO", disenos: [{ id: 1, status: "PENDING_PHOTOGRAPHER_APPROVAL" }] }).puede, false);
+  });
+
+  it("para imprimir vuelve a revisar diseño, con todas sus piezas", () => {
+    const plan = planDeRetroceso({ paso: "PARA_IMPRIMIR", disenos: [{ id: 3, status: "EXPORTED" }], items: [{ id: 9, status: "EXPORTED" }] });
+    assert.ok(plan.puede);
+    assert.equal(plan.destino, "REVISAR_DISENO");
+    assert.deepEqual(plan.llamadas, [
+      { url: "/api/fotografo/escolar/volver-paso", body: { desde: "PARA_IMPRIMIR", disenos: [3], copias: [], items: [9] } },
+    ]);
+    assert.match(plan.explicacion, /ningún aviso/);
+  });
+
+  it("copias sueltas: no vuelven desde para imprimir, sí desde en imprenta", () => {
+    const base = { disenos: [], redemptionOrderId: 4801, copias: { sentToPrintAt: "2026-11-01" } };
+    assert.equal(planDeRetroceso({ ...base, paso: "PARA_IMPRIMIR" }).puede, false);
+    const plan = planDeRetroceso({ ...base, paso: "EN_IMPRENTA" });
+    assert.ok(plan.puede);
+    assert.equal(plan.destino, "PARA_IMPRIMIR");
+    assert.deepEqual(plan.llamadas, [
+      { url: "/api/fotografo/escolar/volver-paso", body: { desde: "EN_IMPRENTA", disenos: [], copias: [4801], items: [] } },
+    ]);
+  });
+
+  it("entregado vuelve a para entregar", () => {
+    const plan = planDeRetroceso({ paso: "ENTREGADO", disenos: [{ id: 5, status: "EXPORTED" }] });
+    assert.ok(plan.puede);
+    assert.equal(plan.destino, "PARA_ENTREGAR");
   });
 });
