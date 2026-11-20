@@ -90,7 +90,11 @@ async function cargarCanje(orderId: number): Promise<EntregaPorQr | null> {
     tieneCopiasFisicas,
     copias:
       tieneCopiasFisicas && disenos.length === 0
-        ? (copias ?? { printBatchName: null, sentToPrintAt: null, printedAt: null, deliveredAt: null })
+        ? {
+            sentToPrintAt: copias?.sentToPrintAt ?? null,
+            printedAt: copias?.printedAt ?? null,
+            deliveredAt: copias?.deliveredAt ?? null,
+          }
         : null,
   });
   return {
