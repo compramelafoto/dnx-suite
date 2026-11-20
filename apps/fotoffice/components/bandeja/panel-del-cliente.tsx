@@ -1,5 +1,6 @@
 "use client";
 
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useId, useState } from "react";
@@ -94,7 +95,9 @@ export function PanelDelCliente({
       </h2>
       {cliente ? (
         <div className="space-y-1 text-sm">
-          <p className="break-words font-medium text-[var(--fo-text)]">{cliente.nombre}</p>
+          <p className="break-words font-medium text-[var(--fo-text)]">
+            <EnlaceCliente clientId={cliente.id}>{cliente.nombre}</EnlaceCliente>
+          </p>
           <Link href={cliente.href} className="text-[var(--fo-accent-hover)] underline">
             Abrir la ficha
           </Link>

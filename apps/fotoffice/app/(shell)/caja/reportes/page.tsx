@@ -1,3 +1,4 @@
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import Link from "next/link";
 import { PageHeader } from "@/components/page-header";
 import { contextoDeInformes } from "@/lib/informes/acceso";
@@ -294,7 +295,7 @@ export default async function ReportesPage({
               <tbody className="divide-y divide-[var(--fo-border)] bg-[var(--fo-surface)]">
                 {clientesTop.map((c) => (
                   <tr key={c.clientId}>
-                    <td className="px-4 py-2">{c.clientName}</td>
+                    <td className="px-4 py-2"><EnlaceCliente clientId={c.clientId}>{c.clientName}</EnlaceCliente></td>
                     <td className="px-4 py-2 text-right font-medium">{formatMinorArs(c.totalMinor)}</td>
                   </tr>
                 ))}

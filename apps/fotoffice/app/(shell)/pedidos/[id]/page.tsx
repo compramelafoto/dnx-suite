@@ -1,3 +1,4 @@
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import { prisma } from "@repo/db";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -196,7 +197,12 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
     <div className="space-y-6">
       <PageHeader entidad="pedido"
         title={`Pedido N° ${detalle.numero}`}
-        description={[detalle.contacto, detalle.eventLabel].filter(Boolean).join(" · ")}
+        description={
+          <>
+            <EnlaceCliente clientId={veContacto ? detalle.clientId : null}>{detalle.contacto}</EnlaceCliente>
+            {detalle.eventLabel ? ` · ${detalle.eventLabel}` : null}
+          </>
+        }
         actions={
           <div className="flex flex-wrap gap-2">
             {veContacto ? (

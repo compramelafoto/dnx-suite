@@ -1,3 +1,4 @@
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/page-header";
@@ -108,7 +109,11 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
     <div className="space-y-6">
       <PageHeader entidad="proyecto"
         title={ficha.nombre}
-        description={`N° ${ficha.numero} · ${ficha.contacto.nombre}`}
+        description={
+          <>
+            N° {ficha.numero} · <EnlaceCliente clientId={veContactos ? ficha.contacto.id : null}>{ficha.contacto.nombre}</EnlaceCliente>
+          </>
+        }
         actions={
           <Link href="/proyectos" className="fo-btn fo-btn-secondary text-sm">
             Volver a Proyectos

@@ -109,7 +109,7 @@ describe("filtro y desglose", () => {
     const d = detalleDeVentas(pedidos, { agrupar: "cliente", grupo: "c:cl1", mes: "2026-10" }, diaEnBuenosAires);
     expect(d.etiqueta).toBe("Ana Gómez");
     expect(d.filas).toEqual([
-      { clave: "1", pedidoId: "1", numero: "P-1", confirmado: "2026-10-05", cliente: "Ana Gómez", fechaEvento: "2026-12-12", categoria: "Bodas", vendedor: "Vera", centavos: 10000 },
+      { clave: "1", pedidoId: "1", numero: "P-1", confirmado: "2026-10-05", cliente: "Ana Gómez", clientId: "cl1", fechaEvento: "2026-12-12", categoria: "Bodas", vendedor: "Vera", centavos: 10000 },
     ]);
   });
 });

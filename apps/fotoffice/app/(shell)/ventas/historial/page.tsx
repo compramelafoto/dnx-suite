@@ -1,3 +1,4 @@
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import { PageHeader } from "@/components/page-header";
 import { formatMinorArs } from "@/lib/membership/money";
 import { requireSalesStaff } from "@/lib/sales/access";
@@ -98,7 +99,9 @@ function SaleCard({ venta, factura, puedeFacturar }: { venta: SaleRow; factura: 
       <summary className="flex cursor-pointer flex-wrap items-center gap-3 px-4 py-3 text-sm marker:content-none">
         <span className="font-semibold text-[var(--fo-text)]">Venta #{venta.saleNumber}</span>
         <span className="text-[var(--fo-muted)]">{fecha(venta.occurredAt)}</span>
-        <span className="text-[var(--fo-muted)]">{venta.clientName ?? "Sin cliente"}</span>
+        <span className="text-[var(--fo-muted)]">
+          {venta.clientName ? <EnlaceCliente clientId={venta.clientId}>{venta.clientName}</EnlaceCliente> : "Sin cliente"}
+        </span>
         <span className="text-[var(--fo-muted)]">{ETIQUETA_PAGO[venta.paymentMethod] ?? venta.paymentMethod}</span>
         {anulada ? (
           <span className="rounded-full border border-[var(--fo-danger)] px-2 py-0.5 text-xs text-[var(--fo-danger)]">

@@ -1,3 +1,4 @@
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import Link from "next/link";
 import { fechaLarga } from "@/lib/informes/detalle";
 import type { FilaDetalleVentas } from "@/lib/informes/ventas";
@@ -29,7 +30,7 @@ export function TablaDetalleVentas({ filas, total, cantidad, truncado }: { filas
                   </Link>
                 </td>
                 <td className="whitespace-nowrap px-3 py-2">{fechaLarga(f.confirmado)}</td>
-                <td className="px-3 py-2">{f.cliente}</td>
+                <td className="px-3 py-2"><EnlaceCliente clientId={f.clientId}>{f.cliente}</EnlaceCliente></td>
                 <td className="whitespace-nowrap px-3 py-2 text-[var(--fo-muted)]">{f.fechaEvento ? fechaLarga(f.fechaEvento) : "–"}</td>
                 <td className="px-3 py-2">{f.categoria}</td>
                 <td className="px-3 py-2">{f.vendedor}</td>

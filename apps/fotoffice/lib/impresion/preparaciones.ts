@@ -822,6 +822,8 @@ export type FilaCola = {
   preparacionId: string;
   producto: string | null;
   cliente: string | null;
+  /** Para que el nombre lleve a la ficha del cliente. */
+  clientId: string | null;
   estado: string;
   hojaId: string | null;
   /** La versión de la hoja (va en el enlace para imprimir): null si no hay hoja. */
@@ -910,6 +912,7 @@ export async function colas(
       preparacionId: p.id,
       producto: p.productId ? (nombreProducto.get(p.productId) ?? null) : null,
       cliente: p.clientId ? (nombreCliente.get(p.clientId) ?? null) : null,
+      clientId: p.clientId ?? null,
       estado: p.estado,
       hojaId: ultima?.id ?? null,
       hojaVersion: ultima ? versionDeHoja(ultima.finalHuella) : null,

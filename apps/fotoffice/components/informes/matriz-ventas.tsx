@@ -1,3 +1,4 @@
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import Link from "next/link";
 import { etiquetaMes } from "@/lib/informes/periodos";
 import { ETIQUETAS_AGRUPAMIENTO, paramsDeCeldaVentas, type FiltroVentas, type MatrizVentas } from "@/lib/informes/ventas";
@@ -41,7 +42,10 @@ export function MatrizVentasTabla({ matriz, periodo }: { matriz: MatrizVentas; p
         <tbody className="divide-y divide-[var(--fo-border)] bg-[var(--fo-surface)]">
           {matriz.filas.map((f) => (
             <tr key={f.clave}>
-              <th scope="row" className="px-3 py-2 text-left font-medium">{f.etiqueta}</th>
+              <th scope="row" className="px-3 py-2 text-left font-medium">
+                {/* Agrupado por cliente, la clave es "c:<id>": el nombre lleva a su ficha. */}
+                {matriz.agrupar === "cliente" && f.clave.startsWith("c:") ? <EnlaceCliente clientId={f.clave.slice(2)}>{f.etiqueta}</EnlaceCliente> : f.etiqueta}
+              </th>
               {matriz.meses.map((m, i) => (
                 <Celda key={m} valor={f.porMes[i]} filtro={{ agrupar: matriz.agrupar, grupo: f.clave, mes: m }} />
               ))}

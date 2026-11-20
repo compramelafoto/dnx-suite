@@ -1,3 +1,4 @@
+import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import "server-only";
 import Link from "next/link";
 import { prisma, type Prisma } from "@repo/db";
@@ -33,6 +34,8 @@ export type FilaGaleria = {
   proyectoNumero: string;
   proyectoNombre: string;
   contacto: string;
+  /** El cliente del proyecto: su nombre lleva a la ficha. */
+  clientId: string;
   estado: EstadoGaleria;
   fotos: number;
   clientes: number;
@@ -49,7 +52,7 @@ const SELECT_GALERIA = {
   status: true,
   kind: true,
   createdAt: true,
-  proyecto: { select: { id: true, number: true, name: true, client: { select: { firstName: true, lastName: true, businessName: true } } } },
+  proyecto: { select: { id: true, number: true, name: true, client: { select: { id: true, firstName: true, lastName: true, businessName: true } } } },
   _count: { select: { fotos: { where: { status: "LISTA" } }, clientes: true } },
 } satisfies Prisma.FotofficeGaleriaSelect;
 
@@ -65,6 +68,7 @@ function aFila(f: FilaBase, enRevision: number, vendidoCentavos: number | null, 
     proyectoNumero: f.proyecto.number,
     proyectoNombre: f.proyecto.name,
     contacto: nombreDeContacto(f.proyecto.client),
+    clientId: f.proyecto.client.id,
     estado: esEstadoGaleria(f.status) ? f.status : "BORRADOR",
     // De un álbum cuentan las láminas de la ronda abierta, no las de todas las rondas.
     fotos: laminas ?? f._count.fotos,
@@ -173,7 +177,7 @@ export const listadoGalerias: DefinicionListado<FilaGaleria> = {
       ),
       secundaria: true,
     },
-    { clave: "contacto", titulo: "Cliente", celda: (f) => <span>{f.contacto}</span>, secundaria: true },
+    { clave: "contacto", titulo: "Cliente", celda: (f) => <EnlaceCliente clientId={f.clientId}>{f.contacto}</EnlaceCliente>, secundaria: true },
     {
       clave: "estado",
       titulo: "Estado",

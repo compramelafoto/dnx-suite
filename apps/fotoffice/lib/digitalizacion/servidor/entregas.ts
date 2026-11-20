@@ -361,6 +361,8 @@ export type ResumenEntrega = {
   pedidoId: string;
   pedidoNumero: string;
   cliente: string | null;
+  /** Para que el nombre lleve a la ficha del cliente. */
+  clientId: string | null;
   tieneEmail: boolean;
   /** El correo que tiene HOY el cliente (null si no tiene uno válido). */
   email: string | null;
@@ -403,7 +405,7 @@ export async function resumenDeEntregas(workspaceId: string, opciones: { pedidoI
     },
     orderBy: [{ createdAt: "desc" }],
     take: PEDIDOS_EN_LA_LISTA,
-    select: { id: true, number: true, status: true, client: { select: { firstName: true, lastName: true, businessName: true, email: true } } },
+    select: { id: true, number: true, status: true, client: { select: { id: true, firstName: true, lastName: true, businessName: true, email: true } } },
   });
   if (pedidos.length === 0) return [];
   const ids = pedidos.map((p) => p.id);
@@ -447,6 +449,7 @@ export async function resumenDeEntregas(workspaceId: string, opciones: { pedidoI
       pedidoId: p.id,
       pedidoNumero: p.number,
       cliente,
+      clientId: c?.id ?? null,
       tieneEmail: correoValido(c?.email?.trim() ?? ""),
       email: correoValido(c?.email?.trim() ?? "") ? c!.email!.trim() : null,
       cancelado: p.status === "CANCELADO",

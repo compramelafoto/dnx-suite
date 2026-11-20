@@ -27,6 +27,8 @@ export type FilaDetalle = {
   fecha: string;
   origen: string;
   contacto: string | null;
+  /** El cliente (no los proveedores): su nombre lleva a la ficha. */
+  clientId?: string | null;
   descripcion: string;
   /** Con signo: una anulación resta. */
   centavos: number;

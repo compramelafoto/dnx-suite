@@ -9,6 +9,7 @@ function tarjeta(journeyId: string, extra: Partial<TarjetaTrabajo> = {}): Tarjet
     numero: "T-1",
     nombre: "Copias",
     cliente: "Ana",
+    clientId: null,
     telefono: null,
     email: null,
     producto: null,

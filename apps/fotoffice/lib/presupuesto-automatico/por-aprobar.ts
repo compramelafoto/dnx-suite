@@ -34,6 +34,8 @@ export type FilaPorAprobar = {
   leadId: string;
   /** Nombre del cliente o, si no hay, su teléfono. */
   cliente: string;
+  /** El cliente de la consulta, para que el nombre lleve a su ficha (null si no tiene). */
+  clientId: string | null;
   categoria: string | null;
   /** Cuándo entró la consulta. */
   fecha: Date;
@@ -83,14 +85,16 @@ export async function listarPorAprobar(workspaceId: string, ahora: Date = new Da
       select: { id: true, leadId: true, presupuestoId: true, categoryId: true, origin: true, status: true, errorCode: true, waId: true, createdAt: true },
     });
     if (filas.length === 0) return [];
-    const [leads, categorias] = await Promise.all([
+    const [leads, categorias, consultas] = await Promise.all([
       prisma.serviceSalesLead.findMany({ where: { workspaceId, id: { in: filas.map((f) => f.leadId) } }, select: { id: true, name: true, phone: true } }),
       prisma.fotofficeConsultaCategoria.findMany({
         where: { workspaceId, id: { in: filas.map((f) => f.categoryId).filter((x): x is string => !!x) } },
         select: { id: true, name: true },
       }),
+      prisma.fotofficeConsulta.findMany({ where: { workspaceId, leadId: { in: filas.map((f) => f.leadId) } }, select: { leadId: true, clientId: true } }),
     ]);
     const lead = new Map(leads.map((l) => [l.id, l]));
+    const clienteDe = new Map(consultas.map((c) => [c.leadId, c.clientId]));
     const cat = new Map(categorias.map((c) => [c.id, c.name]));
     return await Promise.all(
       filas.map(async (f) => {
@@ -101,6 +105,7 @@ export async function listarPorAprobar(workspaceId: string, ahora: Date = new Da
           presupuestoId: f.presupuestoId!,
           leadId: f.leadId,
           cliente: l?.name?.trim() || l?.phone?.trim() || (f.waId ? `+${f.waId}` : "Sin nombre"),
+          clientId: clienteDe.get(f.leadId) ?? null,
           categoria: f.categoryId ? cat.get(f.categoryId) ?? null : null,
           fecha: f.createdAt,
           precio: resumen ? precioDeLaFila(resumen) : null,
