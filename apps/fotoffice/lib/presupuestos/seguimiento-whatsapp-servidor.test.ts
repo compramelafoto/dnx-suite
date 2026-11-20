@@ -9,7 +9,7 @@ type Deps = NonNullable<Parameters<typeof seguirCotizacionesPorWhatsapp>[0]>;
 const AHORA = new Date("2026-11-20T13:00:00Z");
 const hace = (dias: number) => new Date(AHORA.getTime() - dias * 86_400_000);
 const CAND = {
-  aprobacionId: "a1", workspaceId: "w1", leadId: "l1", entroPorElBot: true, waId: "5493410000000", enviadaEn: hace(3), nombre: "Lucía Pérez", categoria: "15 años",
+  aprobacionId: "a1", workspaceId: "w1", leadId: "l1", presupuestoId: "p1", vista: false, entroPorElBot: true, waId: "5493410000000", enviadaEn: hace(3), nombre: "Lucía Pérez", categoria: "15 años",
   abierta: true, ruta: "w/dnx-estudio/presupuesto/tok", chat: { id: "c1", estado: "BOT", ultimoEntranteEn: hace(3.1) }, yaEnviados: 0,
 };
 
@@ -17,8 +17,10 @@ function deps(extra: Partial<Deps> = {}) {
   const plantilla = vi.fn(async () => ({ ok: true as const, simulado: false as const, waMessageId: "wamid" }));
   const marcar = vi.fn(async () => undefined);
   const chatNuevo = vi.fn(async () => ({ id: "c-nuevo", estado: "BOT", ultimoEntranteEn: null as Date | null }));
-  const d: Deps = { ahora: AHORA, candidatos: async () => [CAND], plantilla, marcar, chatNuevo, ...extra };
-  return { d, plantilla, marcar, chatNuevo };
+  const correo = vi.fn(async () => "ENVIADO" as const);
+  const actividadDesde = vi.fn(async () => ({ vio: false, delEquipo: false }));
+  const d: Deps = { ahora: AHORA, candidatos: async () => [CAND], plantilla, marcar, chatNuevo, correo, actividadDesde, ...extra };
+  return { d, plantilla, marcar, chatNuevo, correo };
 }
 
 describe("seguirCotizacionesPorWhatsapp", () => {
@@ -89,5 +91,36 @@ describe("seguirCotizacionesPorWhatsapp", () => {
     expect(await seguirCotizacionesPorWhatsapp(d)).toEqual({ revisadas: 1, enviadas: 0, fallidas: 0 });
     expect(chatNuevo).not.toHaveBeenCalled();
     expect(plantilla).not.toHaveBeenCalled();
+  });
+
+  it("a los 7 días va por correo (nunca otra plantilla de WhatsApp) y lo anota en el chat", async () => {
+    const { d, plantilla, correo, marcar } = deps({ candidatos: async () => [{ ...CAND, enviadaEn: hace(7), chat: { ...CAND.chat, ultimoEntranteEn: hace(7.1) }, yaEnviados: 1 }] });
+    expect(await seguirCotizacionesPorWhatsapp(d)).toEqual({ revisadas: 1, enviadas: 1, fallidas: 0 });
+    expect(plantilla).not.toHaveBeenCalled();
+    expect(correo).toHaveBeenCalledWith("w1", "p1", 0);
+    expect(marcar).toHaveBeenCalledWith("w1", "c1", "Seguimiento de cotización 2 enviado por correo");
+  });
+
+  it("a los 12 días, el segundo correo (con uno previo)", async () => {
+    const { d, correo, marcar } = deps({ candidatos: async () => [{ ...CAND, enviadaEn: hace(12), chat: { ...CAND.chat, ultimoEntranteEn: hace(12.1) }, yaEnviados: 2 }] });
+    await seguirCotizacionesPorWhatsapp(d);
+    expect(correo).toHaveBeenCalledWith("w1", "p1", 1);
+    expect(marcar).toHaveBeenCalledWith("w1", "c1", "Seguimiento de cotización 3 enviado por correo");
+  });
+
+  it("si dio señales de vida (la abrió, o el equipo le escribió o le cargó una cita), no manda el correo", async () => {
+    const base = { ...CAND, enviadaEn: hace(7), chat: { ...CAND.chat, ultimoEntranteEn: hace(7.1) }, yaEnviados: 1 };
+    const vio = deps({ candidatos: async () => [base], actividadDesde: async () => ({ vio: true, delEquipo: false }) });
+    expect(await seguirCotizacionesPorWhatsapp(vio.d)).toMatchObject({ enviadas: 0 });
+    expect(vio.correo).not.toHaveBeenCalled();
+    const equipo = deps({ candidatos: async () => [base], actividadDesde: async () => ({ vio: false, delEquipo: true }) });
+    await seguirCotizacionesPorWhatsapp(equipo.d);
+    expect(equipo.correo).not.toHaveBeenCalled();
+  });
+
+  it("sin correo para mandar (salteado), no lo anota: se vuelve a mirar al día siguiente", async () => {
+    const { d, marcar } = deps({ candidatos: async () => [{ ...CAND, enviadaEn: hace(7), chat: { ...CAND.chat, ultimoEntranteEn: hace(7.1) }, yaEnviados: 1 }], correo: async () => "SALTEADO" as const });
+    expect(await seguirCotizacionesPorWhatsapp(d)).toEqual({ revisadas: 1, enviadas: 0, fallidas: 0 });
+    expect(marcar).not.toHaveBeenCalled();
   });
 });

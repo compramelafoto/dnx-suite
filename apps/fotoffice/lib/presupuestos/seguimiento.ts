@@ -120,7 +120,11 @@ export function correspondeSeguimiento(args: {
 
 type LectorMensajes = Pick<Prisma.TransactionClient, "fotofficeMessage">;
 
-/** ¿Ya hay un seguimiento (enviado, fallido o reservado) de este presupuesto desde el envío de la vigente? */
+/**
+ * ¿Ya hay un seguimiento (enviado, fallido o reservado) de este presupuesto desde el envío de la
+ * vigente? Con `previos` (los correos de los días 7 y 12 de las cotizaciones de eventos): ¿ya hay
+ * más de esa cantidad?
+ */
 export async function yaTieneSeguimiento(
   cliente: LectorMensajes,
   workspaceId: string,
@@ -128,16 +132,16 @@ export async function yaTieneSeguimiento(
   presupuestoId: string,
   sentAt: Date,
   ahora: Date,
+  previos = 0,
 ): Promise<boolean> {
-  const previo = await cliente.fotofficeMessage.findFirst({
+  const hechos = await cliente.fotofficeMessage.count({
     where: {
       workspaceId, channel: "EMAIL", templateId, entityType: "PRESUPUESTO", entityId: presupuestoId, createdAt: { gte: sentAt },
       // Una reserva abandonada (de hace más de una hora) no cuenta: se vuelve a intentar.
       AND: [sinReservasViejas(ahora)],
     },
-    select: { id: true },
   });
-  return previo !== null;
+  return hechos > previos;
 }
 
 function ctxDelSistema(workspaceId: string): CtxEnvio {
@@ -251,6 +255,7 @@ async function seguimientoDe(
   reporte: ReporteSeguimiento,
   contador: Contador,
   deps: DepsSeguimiento,
+  previos = 0,
 ): Promise<"SEGUIR" | "CORTAR"> {
   const leido = await contextoDe(workspaceId, "CONSULTA", p.consultaLeadId, { nombre: null, email: null }, ahora);
   if (!leido || !correoValido(leido.destino.email)) {
@@ -288,7 +293,7 @@ async function seguimientoDe(
     await candadoDeDireccion(tx, workspaceId, email);
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`fotoffice-seguimiento:${p.id}`}))`;
     if (await yaRespondida(workspaceId, email, ahora, { cliente: tx, filtro })) return null;
-    if (await yaTieneSeguimiento(tx, workspaceId, auto.id, p.id, v.sentAt, ahora)) return null;
+    if (await yaTieneSeguimiento(tx, workspaceId, auto.id, p.id, v.sentAt, ahora, previos)) return null;
     return reservarEnvioAutomatico(tx, { workspaceId, entityType: "PRESUPUESTO", entityId: p.id, templateId: auto.id, toAddress: email });
   }, OPCIONES_TRANSACCION);
   if (!reserva) {
@@ -349,4 +354,39 @@ export async function enviarSeguimientos(deps: DepsSeguimiento = {}): Promise<Re
     }
   }
   return reporte;
+}
+
+export type ResultadoCorreoSeguimiento = "ENVIADO" | "SALTEADO" | "FALLO";
+
+/**
+ * Un correo de seguimiento suelto, con la misma plantilla (`PRESUPUESTO_SEGUIMIENTO`), los mismos
+ * candados y topes que la corrida diaria: lo usan los recordatorios de los días 7 y 12 de las
+ * cotizaciones de eventos (`seguimiento-whatsapp-servidor.ts`), aunque el seguimiento diario por correo
+ * esté apagado. `previos`: cuántos correos de seguimiento ya pudo tener esta versión.
+ */
+export async function enviarCorreoDeSeguimiento(
+  workspaceId: string,
+  presupuestoId: string,
+  previos: number,
+  deps: DepsSeguimiento = {},
+): Promise<ResultadoCorreoSeguimiento> {
+  const ahora = (deps.ahora ?? (() => new Date()))();
+  const clave = deps.clave !== undefined ? deps.clave : resolverClaveDeEnlace();
+  if (!clave || !(await isModuleEnabledForWorkspace(workspaceId, QUOTES_MODULE_KEY))) return "SALTEADO";
+  await asegurarPlantillaSeguimiento(workspaceId);
+  const auto = await leerAutomatico(workspaceId, "PRESUPUESTO_SEGUIMIENTO");
+  if (!auto || !auto.enabled || auto.channel !== "EMAIL" || auto.entityType !== "PRESUPUESTO") return "SALTEADO";
+  const sitio = await sitioDelWorkspace(workspaceId);
+  const origen = origenDe(deps);
+  if (!sitio || !urlDelPresupuesto({ ...sitio, appOrigin: origen, token: "x" })) return "SALTEADO";
+  const p = await prisma.fotofficePresupuesto.findFirst({
+    where: { id: presupuestoId, workspaceId },
+    select: { id: true, consultaLeadId: true, validUntil: true, currentVersionId: true },
+  });
+  if (!p?.currentVersionId) return "SALTEADO";
+  const v = await prisma.fotofficePresupuestoVersion.findUnique({ where: { id: p.currentVersionId }, select: { id: true, sentAt: true, totals: true } });
+  if (!v?.sentAt) return "SALTEADO";
+  const reporte: ReporteSeguimiento = { organizaciones: 1, enviados: 0, fallidos: 0, salteados: 0, conTopeDiario: 0, topeCorrida: false };
+  await seguimientoDe(workspaceId, p, { id: v.id, sentAt: v.sentAt, totals: v.totals }, auto, sitio, origen, clave, ahora, reporte, { intentos: 0, tope: 1 }, deps, previos);
+  return reporte.enviados > 0 ? "ENVIADO" : reporte.fallidos > 0 ? "FALLO" : "SALTEADO";
 }

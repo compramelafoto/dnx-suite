@@ -1,6 +1,8 @@
 /**
- * PURO. Seguimiento por WhatsApp de las cotizaciones de eventos que el cliente no respondió (pedido
- * de Daniel, 10/11/2026): recordatorios a los 2, 7 y 12 días de mandada, y nada más.
+ * PURO. Seguimiento de las cotizaciones de eventos que el cliente no respondió (pedido de Daniel,
+ * 10/11/2026; cambiado el 20/11/2026): el 1.º por WhatsApp (dentro de la ventana de 24 h, sin
+ * plantilla; si no llegó a salir, a los 2 días con la plantilla), y a los 7 y 12 días por CORREO,
+ * sólo si el cliente no dio señales de vida (`sinSenalesDeVida`).
  * Se corta si el cliente escribió después de recibirla, si la cotización ya no está abierta
  * (aceptada, rechazada o vencida), si una persona del equipo atiende el chat o a los 30 días.
  */
@@ -67,4 +69,41 @@ export function ultimoSeguimiento(marcas: readonly (string | null)[]): number {
 
 export function marcaDe(numero: NumeroSeguimiento): string {
   return `${MARCA_SEGUIMIENTO} ${numero} enviado por WhatsApp`;
+}
+
+/** El 2.º y el 3.º (días 7 y 12) van por correo; el 1.º, por WhatsApp. */
+export function vaPorCorreo(numero: NumeroSeguimiento): boolean {
+  return numero >= 2;
+}
+
+export function marcaDeCorreo(numero: NumeroSeguimiento): string {
+  return `${MARCA_SEGUIMIENTO} ${numero} enviado por correo`;
+}
+
+/**
+ * ¿El cliente no dio señales de vida desde que recibió la cotización? Señales: la abrió, escribió,
+ * alguien del equipo le escribió o le cargó algo (un mensaje, una cita) o una persona tomó el chat.
+ */
+export function sinSenalesDeVida(s: { vio: boolean; respondio: boolean; delEquipo: boolean; atiendePersona: boolean }): boolean {
+  return !s.vio && !s.respondio && !s.delEquipo && !s.atiendePersona;
+}
+
+/** Horas mínimas entre la cotización y el seguimiento dentro de la ventana (no se insiste el mismo rato). */
+export const HORAS_MINIMAS_EN_VENTANA = 12;
+
+/**
+ * El primer seguimiento puede salir antes, dentro de la ventana de 24 h del último mensaje del cliente
+ * (pedido de Daniel, 20/11/2026): es texto libre, sin plantilla ni botón, y no se cobra. El horario lo
+ * decide `tocaRecordar` (22 h después, de 7 a 21 h). Si no llega a salir, a los 2 días va la plantilla.
+ */
+export function seguirEnLaVentana(e: { ultimoEntranteEn: Date; enviadaEn: Date; ahora: Date; yaEnviados: number; abierta: boolean }): boolean {
+  if (!e.abierta || e.yaEnviados > 0) return false;
+  if (e.enviadaEn.getTime() <= e.ultimoEntranteEn.getTime()) return false;
+  return e.ahora.getTime() - e.enviadaEn.getTime() >= HORAS_MINIMAS_EN_VENTANA * 3_600_000;
+}
+
+export function textoSeguimientoEnVentana(nombre: string | null, categoria: string | null, enlace: string): string {
+  const n = nombreDePila(nombre);
+  const hola = n ? `¡Hola ${n}!` : "¡Hola!";
+  return `${hola} ¿Pudiste ver la cotización para ${tipoDeEvento(categoria)}? Si tenés alguna duda o querés cambiar algo, contame por acá y lo vemos 😊\n${enlace}`;
 }
