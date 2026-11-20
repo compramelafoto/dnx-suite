@@ -218,18 +218,20 @@ export async function enviarPresupuesto(
  * La regla de una respuesta por dirección cada 24 h la mira quien llama, antes de crear nada; con
  * `registroId` el registro completa la reserva que hizo quien llama (`reservarEnvioAutomatico`).
  * Con `sinCorreo` congela la versión y devuelve el enlace sin mandar nada (el presupuesto aprobado
- * por Telegram de un cliente que no dejó correo sale sólo por WhatsApp).
+ * por Telegram de un cliente que no dejó correo sale sólo por WhatsApp). Con `reenviar`, si no hay
+ * borrador vuelve a mandar la versión vigente (la que alguien corrigió y envió desde el panel sin
+ * que le llegara al cliente); con `sinCorreo` además, sólo devuelve su enlace.
  */
 export async function enviarPresupuestoDelSistema(
   workspaceId: string,
   presupuestoId: string,
   templateId: string,
   deps: DepsEnvioPresupuesto = {},
-  opciones: { registroId?: string; sinCorreo?: boolean } = {},
+  opciones: { registroId?: string; sinCorreo?: boolean; reenviar?: boolean } = {},
 ): Promise<ResultadoEnvioPresupuesto> {
   const ctxEnvio: CtxEnvio = { workspaceId, userId: null, userLabel: null, userName: null, userEmail: null, role: null };
   const emisor: Emisor = { workspaceId, ctxEnvio, nombre: null, automatico: true, registroId: opciones.registroId, soloEnlace: opciones.sinCorreo === true };
-  return enviarComo(emisor, presupuestoId, { canal: "EMAIL", templateId }, deps);
+  return enviarComo(emisor, presupuestoId, { canal: "EMAIL", templateId, ...(opciones.reenviar ? { reenviar: true } : {}) }, deps);
 }
 
 async function enviarComo(
