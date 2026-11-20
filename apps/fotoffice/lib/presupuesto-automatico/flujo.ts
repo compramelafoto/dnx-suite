@@ -169,6 +169,58 @@ export async function alLlegarConsulta(
   }
 }
 
+// --- El paquete estándar (spec 2026-11-20) --------------------------------------------------------
+
+export type ResultadoPaquete =
+  | { ok: true; texto: string }
+  | { ok: false; codigo: "APAGADO" | "YA_AVISADO" | "SIN_PRESUPUESTO" | "NO_SALIO" | "ERROR"; texto: string };
+
+/**
+ * XV y bodas por el bot: el cliente eligió un paquete de la propuesta modelo (precios ya aprobados
+ * por el dueño). Se arma la cotización con SÓLO esa opción y sale sola, sin Telegram, por el mismo
+ * camino que la aprobada (`aprobarYEnviar` con la vía BOT). Queda la misma fila de aprobación (el
+ * historial, el panel y los seguimientos la ven). Si no se pudo armar, la fila queda en FALLO (no
+ * frena otra cotización); si se armó pero no salió, vuelve a AVISADO y queda «Por aprobar» en
+ * FOTOFFICE. Nunca lanza.
+ */
+export async function enviarPaqueteEstandar(
+  workspaceId: string,
+  leadId: string,
+  origen: OrigenConsulta,
+  extra: { waId?: string | null; igChatId?: string | null },
+  /** El nombre de la opción elegida; vacío si la propuesta no tiene opciones (va entera). */
+  paquete: string,
+  deps: DepsFlujo = {},
+): Promise<ResultadoPaquete> {
+  try {
+    const ficha = await prisma.fotofficeConsulta.findFirst({ where: { workspaceId, leadId }, select: { categoryId: true } });
+    if (!ficha) return { ok: false, codigo: "APAGADO", texto: "La consulta no tiene ficha." };
+    let filaId: string;
+    try {
+      const f = await prisma.fotofficePresupuestoAprobacion.create({
+        data: { workspaceId, leadId, categoryId: ficha.categoryId, origin: origen, waId: extra.waId ?? null, igChatId: extra.igChatId ?? null, status: "AVISADO" },
+        select: { id: true },
+      });
+      filaId = f.id;
+    } catch (e) {
+      if ((e as { code?: unknown } | null)?.code === "P2002") return { ok: false, codigo: "YA_AVISADO", texto: TEXTOS_APROBAR.YA_ENVIADO };
+      throw e;
+    }
+    const armado = await (deps.armar ?? armarBorradorParaAprobar)(workspaceId, leadId, deps, paquete.trim() ? { soloAlternativa: paquete } : {});
+    if (!armado.presupuestoId || armado.resultado !== "ARMADO") {
+      await terminar(workspaceId, filaId, { status: "FALLO", errorCode: `PAQUETE_${armado.resultado}` });
+      return { ok: false, codigo: "SIN_PRESUPUESTO", texto: TEXTOS_APROBAR.SIN_PRESUPUESTO };
+    }
+    await prisma.fotofficePresupuestoAprobacion.update({ where: { id: filaId }, data: { presupuestoId: armado.presupuestoId }, select: { id: true } });
+    const r = await aprobarYEnviar(workspaceId, filaId, { tipo: "BOT" }, deps);
+    if (r.ok) return { ok: true, texto: r.texto };
+    return { ok: false, codigo: r.codigo === "SIN_PRESUPUESTO" ? "SIN_PRESUPUESTO" : r.codigo === "ERROR" ? "ERROR" : "NO_SALIO", texto: r.texto };
+  } catch (e) {
+    registrar("enviarPaqueteEstandar", e);
+    return { ok: false, codigo: "ERROR", texto: TEXTOS_APROBAR.ERROR };
+  }
+}
+
 // --- El resumen -----------------------------------------------------------------------------------
 
 /** Lo que hace falta para el aviso, leído de la base. null si la fila no existe. */
@@ -281,7 +333,8 @@ function resumenDeItems(items: ItemPresupuesto[], totals: unknown, costSnapshot:
 
 // --- Aprobar y enviar -----------------------------------------------------------------------------
 
-export type ViaAprobacion = { tipo: "TELEGRAM" } | { tipo: "PANEL"; userId: number };
+/** BOT: la cotización del paquete estándar que eligió el cliente por el bot, sin aprobación (spec 2026-11-20). */
+export type ViaAprobacion = { tipo: "TELEGRAM" } | { tipo: "PANEL"; userId: number } | { tipo: "BOT" };
 
 export type ResultadoAprobar =
   | { ok: true; canales: ResultadoCanales; texto: string }

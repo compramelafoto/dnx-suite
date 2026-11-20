@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buscarEnCatalogo, herramientasDeAtencion, textoFotolibro, type ProductoAtencion } from "./herramientas";
 
 const P = (name: string, pesos: number, variantes: { name: string; pesos: number }[] = []): ProductoAtencion => ({
@@ -320,7 +320,10 @@ describe("herramientasDeAtencion en un chat de Instagram", () => {
 
   it("no arma pedidos ni cotiza fotolibros: sólo precios, cursos, datos, cotización de eventos y pasar a persona", () => {
     const { tools } = herramientasDeAtencion("w1", {}, IG);
-    expect(tools.map((t) => t.name)).toEqual(["buscar_productos", "cursos_del_estudio", "datos_del_estudio", "presentacion_xv", "preparar_presupuesto", "pasar_a_persona", "no_responder"]);
+    expect(tools.map((t) => t.name)).toEqual([
+      "buscar_productos", "cursos_del_estudio", "datos_del_estudio", "presentacion_xv", "preparar_presupuesto",
+      "fecha_disponible", "paquetes_del_evento", "enviar_cotizacion_del_paquete", "pasar_a_persona", "no_responder",
+    ]);
   });
 
   it("preparar_presupuesto acepta el WhatsApp que dio el cliente y se lo pasa al estudio", async () => {
@@ -329,7 +332,7 @@ describe("herramientasDeAtencion en un chat de Instagram", () => {
       recibidos.push(d);
       return { ok: true, message: "listo" };
     };
-    const t = herramientasDeAtencion("w1", { prepararPresupuesto }, IG).tools.find((x) => x.name === "preparar_presupuesto")!;
+    const t = herramientasDeAtencion("w1", { prepararPresupuesto, vendedora: async () => null }, IG).tools.find((x) => x.name === "preparar_presupuesto")!;
     const datos = { tipo: "15 años", nombre: "Sofía Rodríguez", horas: 5, whatsapp: "341 555-1234" };
     expect(t.input.safeParse(datos).success).toBe(true);
     expect(t.input.safeParse({ ...datos, whatsapp: "1".repeat(31) }).success).toBe(false);
@@ -344,3 +347,102 @@ describe("herramientasDeAtencion en un chat de Instagram", () => {
   });
 });
 
+
+describe("XV y bodas: fecha, paquetes y pase a ventas (spec 2026-11-20)", () => {
+  const ACTOR = { userId: 0, role: "CLIENTE", email: "", name: null };
+  const CHAT = { id: "c1", waId: "5493410000000", clientId: null, nombre: "Laura" };
+  const PAQ = {
+    categoriaId: "cat-boda", categoria: "Boda", conOpciones: true,
+    paquetes: [{ nombre: "Básico", total: 450000 }, { nombre: "Intermedio", total: 620000 }, { nombre: "Premium", total: 890000 }],
+  };
+  const GIULI = { userId: 7, nombre: "Giuli", esResponsable: true };
+  const DATOS = { evento: "boda", paquete: "intermedio", nombre: "Laura Gómez", fecha: "2027-03-13", lugar: "Salón Los Álamos, Funes", horario: "21 a 5", horas: 8 };
+  const herramienta = (h: ReturnType<typeof herramientasDeAtencion>, nombre: string) => h.tools.find((t) => t.name === nombre)!;
+
+  it("fecha_disponible: libre, el dueño ya tiene un evento (con su nombre) o completa", async () => {
+    const con = (contratados: number) =>
+      herramientasDeAtencion("w1", { ocupacionDelDia: async () => ({ contratados, capacidad: 2, dueno: "Daniel", estudio: "DNX Estudio" }) }, CHAT);
+    const pedir = async (n: number) => (await herramienta(con(n), "fecha_disponible").run({ fecha: "2099-03-13" }, ACTOR)).message;
+    expect(await pedir(0)).toContain("La fecha está libre");
+    expect(await pedir(1)).toContain("Ese día Daniel, el dueño de DNX Estudio, ya tiene un evento.");
+    expect(await pedir(2)).toContain("fecha completa");
+    expect(herramienta(con(0), "fecha_disponible").input.safeParse({ fecha: "13/03/2027" }).success).toBe(false);
+  });
+
+  it("fecha_disponible sin poder leer la agenda no dice nada sobre la fecha", async () => {
+    const h = herramientasDeAtencion("w1", { ocupacionDelDia: async () => null }, CHAT);
+    expect((await herramienta(h, "fecha_disponible").run({ fecha: "2099-03-13" }, ACTOR)).message).toContain("sin decir nada sobre la fecha");
+  });
+
+  it("paquetes_del_evento da el enlace de bodas y los precios de la propuesta modelo", async () => {
+    const pedidos: string[] = [];
+    const h = herramientasDeAtencion("w1", { paquetesDelEvento: async (_w, e) => (pedidos.push(e), PAQ) }, CHAT);
+    const r = await herramienta(h, "paquetes_del_evento").run({ evento: "boda" }, ACTOR);
+    expect(pedidos).toEqual(["BODA"]);
+    expect(r.message).toContain("https://www.compramelafoto.com/dnx/bodas");
+    expect(r.message).toContain("- Premium: $890.000");
+  });
+
+  it("enviar_cotizacion_del_paquete manda el paquete elegido (sin Telegram) y deja el chat para ventas", async () => {
+    const enviados: unknown[] = [];
+    const h = herramientasDeAtencion(
+      "w1",
+      {
+        paquetesDelEvento: async () => PAQ,
+        vendedora: async () => GIULI,
+        enviarCotizacionDelPaquete: async (_w, _c, datos, paquete) => (enviados.push({ datos, paquete }), { ok: true, message: "Listo: salió." }),
+      },
+      CHAT,
+    );
+    const t = herramienta(h, "enviar_cotizacion_del_paquete");
+    expect(t.input.safeParse(DATOS).success).toBe(true);
+    expect(t.input.safeParse({ ...DATOS, evento: "bautismo" }).success).toBe(false);
+    const r = await t.run(DATOS, ACTOR);
+    expect(enviados[0]).toMatchObject({
+      datos: { tipo: "Boda", nombre: "Laura Gómez", fecha: "2027-03-13", lugar: "Salón Los Álamos, Funes", horas: 8, detalle: expect.stringContaining("Horario: 21 a 5.") },
+      paquete: { categoriaId: "cat-boda", categoria: "Boda", nombre: "Intermedio" },
+    });
+    expect(r.message).toContain("Te dejo con Giuli, de nuestro equipo de ventas, que te va a acompañar para cerrar todo 😊");
+    expect(h.paseAVentas()).toEqual({ persona: GIULI, motivo: "le salió la cotización del paquete Intermedio" });
+    expect(h.pedidoDePersona()).toBeNull();
+  });
+
+  it("con un paquete que no existe no manda nada ni pasa el chat", async () => {
+    const enviar = vi.fn();
+    const h = herramientasDeAtencion("w1", { paquetesDelEvento: async () => PAQ, vendedora: async () => GIULI, enviarCotizacionDelPaquete: enviar }, CHAT);
+    const r = await herramienta(h, "enviar_cotizacion_del_paquete").run({ ...DATOS, paquete: "Gold" }, ACTOR);
+    expect(r.message).toContain("Los paquetes son: Básico, Intermedio, Premium");
+    expect(enviar).not.toHaveBeenCalled();
+    expect(h.paseAVentas()).toBeNull();
+  });
+
+  it("si la cotización del paquete no salió, el chat no pasa a ventas", async () => {
+    const h = herramientasDeAtencion(
+      "w1",
+      { paquetesDelEvento: async () => PAQ, vendedora: async () => GIULI, enviarCotizacionDelPaquete: async () => ({ ok: false, message: "usá pasar_a_persona" }) },
+      CHAT,
+    );
+    await herramienta(h, "enviar_cotizacion_del_paquete").run(DATOS, ACTOR);
+    expect(h.paseAVentas()).toBeNull();
+  });
+
+  it("preparar_presupuesto de XV o boda (personalizado) también pasa a ventas; otro evento sigue igual", async () => {
+    const prepararPresupuesto = async () => ({ ok: true, message: "Listo, el estudio ya está armando la cotización." });
+    const xv = herramientasDeAtencion("w1", { prepararPresupuesto, vendedora: async () => ({ userId: 1, nombre: "Daniel", esResponsable: false }) }, CHAT);
+    const r = await herramienta(xv, "preparar_presupuesto").run({ tipo: "15 años", nombre: "Sofía Rodríguez", detalle: "Intermedio con video" }, ACTOR);
+    expect(r.message).toContain("Te dejo con Daniel, que te va a acompañar para cerrar todo 😊");
+    expect(xv.paseAVentas()).toMatchObject({ persona: { userId: 1 } });
+
+    const otro = herramientasDeAtencion("w1", { prepararPresupuesto, vendedora: async () => GIULI }, CHAT);
+    const r2 = await herramienta(otro, "preparar_presupuesto").run({ tipo: "bautismo", nombre: "Ana Pérez" }, ACTOR);
+    expect(r2.message).not.toContain("Te dejo con");
+    expect(otro.paseAVentas()).toBeNull();
+  });
+
+  it("si ya había una cotización en preparación no pasa el chat", async () => {
+    const prepararPresupuesto = async () => ({ ok: true, message: "Ya hay una cotización en preparación para este cliente." });
+    const h = herramientasDeAtencion("w1", { prepararPresupuesto, vendedora: async () => GIULI }, CHAT);
+    await herramienta(h, "preparar_presupuesto").run({ tipo: "boda", nombre: "Ana Pérez" }, ACTOR);
+    expect(h.paseAVentas()).toBeNull();
+  });
+});

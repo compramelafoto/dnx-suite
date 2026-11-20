@@ -24,11 +24,59 @@ describe("guía del bot de atención", () => {
     expect(ejemplo.match(/\?/g)).toHaveLength(1);
   });
 
-  it("XV: nombre y horas después, de a una pregunta por mensaje; el único precio de evento es el desde", () => {
+  it("XV desde un anuncio sigue con XV Y BODAS, de a una pregunta; los únicos precios de evento son el desde y el del paquete", () => {
     const g = guiaDeAtencion();
-    expect(g).toContain("de a una pregunta por mensaje: primero el nombre y apellido, después cuántas horas dura la fiesta");
-    expect(g).toContain('Nunca digas precios de eventos, salvo el "desde" de XV que te da presentacion_xv');
+    expect(g).toContain("Después seguís el camino de XV Y BODAS, de a una pregunta por mensaje.");
+    expect(g).toContain('Nunca digas precios de eventos, salvo el "desde" de XV que te da presentacion_xv y el precio del paquete que eligió en XV y bodas (paquetes_del_evento)');
     expect(g).not.toContain('XV / 15 años u otra fiesta → "¿Para qué fecha es la fiesta? 🎉"');
+  });
+
+  describe("XV Y BODAS (spec 2026-11-20)", () => {
+    const g = guiaDeAtencion();
+    const bloque = g.slice(g.indexOf("XV Y BODAS ("), g.indexOf("COTIZACIONES DE EVENTOS (preparar_presupuesto)"));
+
+    it("vale para XV y bodas; los demás eventos siguen igual", () => {
+      expect(bloque).toContain("Vale para fiestas de XV / 15 años y para bodas o casamientos. Los demás eventos siguen como dice COTIZACIONES DE EVENTOS.");
+      expect(g).toContain("En XV / 15 años y en bodas seguí XV Y BODAS: una sola pregunta por mensaje.");
+    });
+
+    it("junta los datos de a uno y en orden: nombre, fecha, salón y localidad, horario; después la idea y la cobertura", () => {
+      expect(bloque).toContain("de a UNA pregunta por mensaje");
+      const orden = ["el nombre y apellido", "la fecha del evento", "el salón y la localidad", "el horario (de qué hora a qué hora)", "si tiene una idea pensada y qué cobertura busca (fotos, video, sesión previa…)"];
+      const posiciones = orden.map((o) => bloque.indexOf(o));
+      expect(posiciones.every((p) => p >= 0)).toBe(true);
+      expect([...posiciones].sort((a, b) => a - b)).toEqual(posiciones);
+    });
+
+    it("revisa la fecha apenas la tiene y, si el dueño está ocupado, pregunta si avanzamos o pasa a una persona", () => {
+      expect(bloque).toContain("Apenas te da la fecha, usá fecha_disponible antes de seguir");
+      expect(bloque).toMatch(/si acepta, seguí; si duda o dice que no, usá pasar_a_persona/);
+      expect(bloque).toMatch(/si está completa, usá pasar_a_persona/);
+    });
+
+    it("manda el portfolio temprano con la pregunta del paquete, sin repetir el enlace ni escribirlo suelto", () => {
+      expect(bloque).toContain("usá paquetes_del_evento y pasale enseguida el enlace");
+      expect(bloque).toContain("Te paso nuestros trabajos y los paquetes para que vayas viendo: [enlace de la herramienta] ✨ ¿Alguno te gusta más: Básico, Intermedio o Premium?");
+      expect(bloque).toContain("no lo repitas");
+      expect(bloque).not.toContain("compramelafoto.com");
+    });
+
+    it("el precio del paquete sale de la herramienta, sin aprobación, y la cotización estándar va sola", () => {
+      expect(bloque).toContain("decile el precio de ESE paquete tal cual te lo da paquetes_del_evento");
+      expect(bloque).toContain("no hace falta pedir aprobación");
+      expect(bloque).toContain("usá enviar_cotizacion_del_paquete");
+      expect(bloque).not.toMatch(/\$\s?\d/);
+    });
+
+    it("con agregados o cambios arma la personalizada con preparar_presupuesto (va a aprobación)", () => {
+      expect(bloque).toContain("no uses enviar_cotizacion_del_paquete: usá preparar_presupuesto con el paquete y los cambios en detalle");
+      expect(bloque).toContain("la revisa el estudio antes de mandarla");
+    });
+
+    it("cierra con la frase del pase que le da la herramienta; es la única excepción a no decir que deriva", () => {
+      expect(bloque).toContain("terminá tu mensaje con esa frase tal cual");
+      expect(g).toContain('la única excepción es la frase "Te dejo con…" que te da una herramienta en XV Y BODAS');
+    });
   });
 
   it("sabe pedir la foto como Documento cuando no alcanza la calidad", () => {

@@ -8,7 +8,7 @@ import { leerAcuse } from "./ajustes";
 import { asegurarCategoriaEvento } from "./categoria-evento";
 import { guardarPorHorasDeConsulta, leerAjustesPorHoras } from "./por-horas";
 import { horasValidas, porHorasAplica } from "./por-horas-puro";
-import { alLlegarConsulta, condicionEnPreparacionInstagram, enPreparacionParaInstagram, enPreparacionParaWhatsapp, type DepsFlujo } from "./flujo";
+import { alLlegarConsulta, condicionEnPreparacionInstagram, enviarPaqueteEstandar, enPreparacionParaInstagram, enPreparacionParaWhatsapp, type DepsFlujo } from "./flujo";
 import { coincidenciasDelTipo, fechaDelBot } from "./whatsapp-puro";
 
 /**
@@ -57,6 +57,11 @@ export async function prepararDesdeWhatsapp(
   chat: ChatDelBot,
   datos: DatosDelBot,
   deps: DepsFlujo = {},
+  /**
+   * XV y bodas (spec 2026-11-20): el paquete estándar que eligió el cliente. La categoría ya la
+   * sabe la herramienta y la cotización sale sola, sin Telegram (`enviarPaqueteEstandar`).
+   */
+  opciones: { paquete?: { categoriaId: string; categoria: string; nombre: string } } = {},
 ): Promise<ResultadoDelBot> {
   try {
     const esInstagram = chat.canal === "INSTAGRAM";
@@ -68,44 +73,13 @@ export async function prepararDesdeWhatsapp(
       }
       return { ok: true, message: "Ya hay una cotización en preparación para este cliente. Decile que en un rato se la mandamos; no le des precios." };
     }
-    // Presupuesto por horas (spec 2026-10-28): cualquier categoría activa; si ninguna coincide, "Evento".
-    const ajustesPorHoras = await leerAjustesPorHoras(workspaceId);
-    const porHoras = ajustesPorHoras.encendido;
-    const encendidas = porHoras
-      ? null
-      : await prisma.fotofficePresupuestoAutoCategoria.findMany({ where: { workspaceId, telegramEnabled: true }, select: { categoryId: true }, take: 100 });
-    const categorias =
-      encendidas === null || encendidas.length
-        ? await prisma.fotofficeConsultaCategoria.findMany({
-            where: { workspaceId, archivedAt: null, ...(encendidas ? { id: { in: encendidas.map((e) => e.categoryId) } } : {}) },
-            select: { id: true, name: true },
-            take: 200,
-          })
-        : [];
-    if (categorias.length === 0 && !porHoras) {
-      return { ok: false, message: "El estudio todavía no arma cotizaciones automáticas. Usá pasar_a_persona con un resumen de lo que pide." };
-    }
-    const coincidencias = coincidenciasDelTipo(categorias, datos.tipo);
-    if (porHoras && coincidencias.length > 1) {
-      return {
-        ok: false,
-        message: `"${datos.tipo}" puede ser: ${coincidencias.map((c) => c.name).join(", ")}. Preguntale al cliente cuál es y volvé a usar la herramienta con ese nombre.`,
-      };
-    }
-    const categoria =
-      (coincidencias.length === 1 ? coincidencias[0] : null) ?? (porHoras ? { id: await asegurarCategoriaEvento(workspaceId), name: "Evento" } : null);
-    // Categorías que no son coberturas (glitter, 360°, video clip…): las atiende una persona.
-    if (categoria && porHoras && !porHorasAplica(ajustesPorHoras, categoria.id)) {
-      const conInterruptor = await prisma.fotofficePresupuestoAutoCategoria.findFirst({ where: { workspaceId, categoryId: categoria.id, telegramEnabled: true }, select: { id: true } });
-      if (!conInterruptor) {
-        return { ok: false, message: `"${categoria.name}" no se cotiza sola: la arma una persona del estudio. Usá pasar_a_persona con un resumen de lo que pide.` };
-      }
-    }
-    if (!categoria) {
-      return {
-        ok: false,
-        message: `No sé a qué tipo corresponde "${datos.tipo}". Los tipos con cotización automática son: ${categorias.map((c) => c.name).join(", ")}. Si es uno de esos, volvé a usar la herramienta con ese nombre; si no, usá pasar_a_persona.`,
-      };
+    let categoria: { id: string; name: string };
+    if (opciones.paquete) {
+      categoria = { id: opciones.paquete.categoriaId, name: opciones.paquete.categoria };
+    } else {
+      const c = await categoriaDelBot(workspaceId, datos);
+      if (!c.ok) return { ok: false, message: c.message };
+      categoria = c.categoria;
     }
 
     const fecha = fechaDelBot(datos.fecha);
@@ -141,6 +115,19 @@ export async function prepararDesdeWhatsapp(
     }
     const horas = horasValidas(datos.horas);
     if (horas !== null) await guardarPorHorasDeConsulta(workspaceId, alta.leadId, { horas });
+    if (opciones.paquete) {
+      const r = await enviarPaqueteEstandar(
+        workspaceId,
+        alta.leadId,
+        esInstagram ? "INSTAGRAM" : "WHATSAPP",
+        esInstagram ? { waId: telefono, igChatId: chat.id } : { waId: chat.waId },
+        opciones.paquete.nombre,
+        deps,
+      );
+      return r.ok
+        ? { ok: true, message: `Listo: la cotización${opciones.paquete.nombre ? ` del paquete ${opciones.paquete.nombre}` : ""} ya le salió al cliente (${r.texto}) con el botón para reservar la fecha. Decile que ahí la tiene. No digas otros precios.` }
+        : { ok: false, message: "La consulta quedó registrada, pero la cotización no se pudo enviar sola. Decile que en un rato se la mandamos y usá pasar_a_persona con el motivo \"cotización del paquete sin enviar\"." };
+    }
     const llegada = esInstagram
       ? await alLlegarConsulta(workspaceId, alta.leadId, "INSTAGRAM", { waId: telefono, igChatId: chat.id }, deps)
       : await alLlegarConsulta(workspaceId, alta.leadId, "WHATSAPP", { waId: chat.waId }, deps);
@@ -167,6 +154,50 @@ export async function prepararDesdeWhatsapp(
     console.error("[presupuesto-automatico] falló preparar_presupuesto", { codigo: "INTERNO" });
     return { ok: false, message: "No pude registrar la consulta. Usá pasar_a_persona con un resumen de lo que pide." };
   }
+}
+
+/** La categoría de la consulta según el tipo que dijo el bot (con el presupuesto por horas, "Evento" si ninguna coincide). */
+async function categoriaDelBot(workspaceId: string, datos: DatosDelBot): Promise<{ ok: true; categoria: { id: string; name: string } } | { ok: false; message: string }> {
+  // Presupuesto por horas (spec 2026-10-28): cualquier categoría activa; si ninguna coincide, "Evento".
+  const ajustesPorHoras = await leerAjustesPorHoras(workspaceId);
+  const porHoras = ajustesPorHoras.encendido;
+  const encendidas = porHoras
+    ? null
+    : await prisma.fotofficePresupuestoAutoCategoria.findMany({ where: { workspaceId, telegramEnabled: true }, select: { categoryId: true }, take: 100 });
+  const categorias =
+    encendidas === null || encendidas.length
+      ? await prisma.fotofficeConsultaCategoria.findMany({
+          where: { workspaceId, archivedAt: null, ...(encendidas ? { id: { in: encendidas.map((e) => e.categoryId) } } : {}) },
+          select: { id: true, name: true },
+          take: 200,
+        })
+      : [];
+  if (categorias.length === 0 && !porHoras) {
+    return { ok: false as const, message: "El estudio todavía no arma cotizaciones automáticas. Usá pasar_a_persona con un resumen de lo que pide." };
+  }
+  const coincidencias = coincidenciasDelTipo(categorias, datos.tipo);
+  if (porHoras && coincidencias.length > 1) {
+    return {
+      ok: false,
+      message: `"${datos.tipo}" puede ser: ${coincidencias.map((c) => c.name).join(", ")}. Preguntale al cliente cuál es y volvé a usar la herramienta con ese nombre.`,
+    };
+  }
+  const categoria =
+    (coincidencias.length === 1 ? coincidencias[0] : null) ?? (porHoras ? { id: await asegurarCategoriaEvento(workspaceId), name: "Evento" } : null);
+  // Categorías que no son coberturas (glitter, 360°, video clip…): las atiende una persona.
+  if (categoria && porHoras && !porHorasAplica(ajustesPorHoras, categoria.id)) {
+    const conInterruptor = await prisma.fotofficePresupuestoAutoCategoria.findFirst({ where: { workspaceId, categoryId: categoria.id, telegramEnabled: true }, select: { id: true } });
+    if (!conInterruptor) {
+      return { ok: false as const, message: `"${categoria.name}" no se cotiza sola: la arma una persona del estudio. Usá pasar_a_persona con un resumen de lo que pide.` };
+    }
+  }
+  if (!categoria) {
+    return {
+      ok: false,
+      message: `No sé a qué tipo corresponde "${datos.tipo}". Los tipos con cotización automática son: ${categorias.map((c) => c.name).join(", ")}. Si es uno de esos, volvé a usar la herramienta con ese nombre; si no, usá pasar_a_persona.`,
+    };
+  }
+  return { ok: true, categoria };
 }
 
 /**
