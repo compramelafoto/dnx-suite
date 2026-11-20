@@ -29142,3 +29142,50 @@ model DocenteNotaPeriodo {
   @@unique([estudianteId, periodo])
   @@index([cursoId, periodo])
 }
+
+// ---------------------------------------------------------------------------
+// FOTOFFICE · Cuestionarios para clientes (lo que antes se mandaba por Google Forms)
+// Tablas nuevas, sin relaciones a tablas existentes: el SQL se aplica a mano y el código tolera que
+// falten (sin las tablas, la ficha muestra vacío y el enlace público dice «no disponible»).
+// ---------------------------------------------------------------------------
+
+/// Un cuestionario del estudio (p. ej. «Cuestionario para quinceañeras»). Las preguntas son datos
+/// (`definicion`), no código: sumar uno nuevo no pide migración. Los de fábrica se crean solos.
+model FotofficeCuestionario {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// Estable dentro del workspace: `xv`, `bodas`, …
+  clave       String
+  nombre      String
+  /// El texto de bienvenida que lee el cliente arriba de todo.
+  intro       String?
+  /// `{ secciones: [{ id, titulo, descripcion?, preguntas: [{ id, etiqueta, tipo, descripcion? }] }] }`.
+  definicion  Json
+  activo      Boolean  @default(true)
+  orden       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, clave])
+  @@index([workspaceId, activo, orden])
+}
+
+/// Un cuestionario mandado a un cliente. El token del enlace es la única credencial del cliente.
+model FotofficeCuestionarioEnvio {
+  id               String    @id @default(cuid())
+  workspaceId      String
+  cuestionarioId   String
+  clientId         String
+  /// Aleatorio y largo (no se puede adivinar). Va en el enlace `/cuestionario/<token>`.
+  token            String    @unique
+  /// `PENDIENTE` o `RESPONDIDO`.
+  estado           String    @default("PENDIENTE")
+  /// `[{ preguntaId, etiqueta, seccion, valor }]`, con la etiqueta tal como estaba al responder.
+  respuestas       Json?
+  enviadoPorUserId String?
+  createdAt        DateTime  @default(now())
+  respondidoEn     DateTime?
+
+  @@index([workspaceId, clientId, createdAt])
+  @@index([workspaceId, cuestionarioId])
+}
