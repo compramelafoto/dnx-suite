@@ -163,6 +163,12 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /** La preventa cerró (venció la fecha máxima o ya hay fotos): se muestra el camino a la galería. */
+  const [cerrada, setCerrada] = useState<{
+    motivo: "fotos" | "fecha";
+    albumTitle: string | null;
+    galeriaUrl: string | null;
+  } | null>(null);
   const [buyerEmail, setBuyerEmail] = useState("");
   const [buyerName, setBuyerName] = useState("");
   const [buyerPhone, setBuyerPhone] = useState("");
@@ -189,11 +195,20 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
       .then(async (r) => {
         const data = await r.json().catch(() => ({}));
         if (!r.ok) {
+          if (data?.preventaCerrada === true) {
+            setCerrada({
+              motivo: data.motivo === "fotos" ? "fotos" : "fecha",
+              albumTitle: typeof data.albumTitle === "string" ? data.albumTitle : null,
+              galeriaUrl: typeof data.galeriaUrl === "string" ? data.galeriaUrl : null,
+            });
+            return null;
+          }
           throw new Error(typeof data?.error === "string" ? data.error : "No disponible");
         }
         return data as Catalog;
       })
-      .then((data: Catalog) => {
+      .then((data: Catalog | null) => {
+        if (!data) return;
         if (!data.extrasHint) {
           data.extrasHint = { digitalExtraFromArs: null, printExtraFromArs: null };
         }
@@ -467,6 +482,48 @@ export default function PreventaPage({ testClientPreview = false }: PreventaPage
     return (
       <div className="min-h-screen bg-[#fafafa] flex items-center justify-center p-6">
         <p className="text-[#6b7280] text-sm">Cargando…</p>
+      </div>
+    );
+  }
+
+  if (cerrada && !catalog) {
+    return (
+      <div className="min-h-screen bg-[#fafafa] flex items-center justify-center px-4 py-10">
+        <div className="w-full max-w-xl rounded-2xl border border-[#e7e1da] bg-white p-6 sm:p-10 shadow-md">
+          <p className="m-0 text-sm font-semibold uppercase tracking-wide text-[#a8652e]">Preventa cerrada</p>
+          <h1 className="m-0 mt-2 text-2xl sm:text-3xl font-bold text-[#1a1a1a]">
+            {cerrada.motivo === "fotos" ? "Las fotos ya están publicadas" : "La preventa ya terminó"}
+          </h1>
+          <p className="m-0 mt-3 text-sm sm:text-base text-[#4b5563]">
+            {cerrada.motivo === "fotos"
+              ? "La preventa cerró porque el fotógrafo ya subió las fotos"
+              : "Pasó la fecha máxima para comprar en preventa"}
+            {cerrada.albumTitle ? ` de «${cerrada.albumTitle}»` : ""}.{" "}
+            {cerrada.motivo === "fotos"
+              ? "Ahora podés buscar tus fotos y comprarlas en la galería."
+              : "Cuando se publiquen las fotos vas a poder buscarlas y comprarlas en la galería."}
+          </p>
+          <p className="m-0 mt-3 text-sm text-[#6b7280]">
+            Si ya compraste en la preventa, no tenés que hacer nada acá: usá el link del correo de tu compra para
+            elegir tus fotos.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            {cerrada.galeriaUrl ? (
+              <Link
+                href={cerrada.galeriaUrl}
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#c27b3d] px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-[#b26f36] transition-colors"
+              >
+                Ir a la galería
+              </Link>
+            ) : null}
+            <Link
+              href="/cliente/recuperar-pack"
+              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#e5e7eb] px-6 py-2.5 text-sm font-semibold text-[#374151] hover:bg-[#f9fafb] transition-colors"
+            >
+              Ya compré: pedir mi link
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }

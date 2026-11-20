@@ -1,3 +1,4 @@
+import { FALTA_FECHA_MAXIMA, faltaFechaMaxima } from "@/lib/preventa-canjeable/fecha-maxima-compra";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
@@ -148,6 +149,9 @@ export async function POST(
     );
     if ("error" in phaseResult) {
       return NextResponse.json({ error: phaseResult.error }, { status: 400 });
+    }
+    if (faltaFechaMaxima({ availabilityPhase: phaseResult.phase, validUntil })) {
+      return NextResponse.json({ error: FALTA_FECHA_MAXIMA, code: "falta_fecha_maxima" }, { status: 400 });
     }
 
     const pack = await createPackDefinition({
