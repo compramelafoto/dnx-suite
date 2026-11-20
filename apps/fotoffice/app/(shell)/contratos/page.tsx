@@ -20,7 +20,7 @@ export default async function ContratosPage({
   const ctx = await contextoListadoDePagina(user, workspace, CONTRACTS_MODULE_KEY);
   return (
     <div className="space-y-6">
-      <PageHeader title="Contratos" description="Los contratos de cada pedido: borradores, enviados a firmar, firmados y anulados." />
+      <PageHeader entidad="contrato" title="Contratos" description="Los contratos de cada pedido: borradores, enviados a firmar, firmados y anulados." />
       <Listado def={listadoContratos} ctx={ctx} ruta="/contratos" searchParams={searchParams} />
     </div>
   );

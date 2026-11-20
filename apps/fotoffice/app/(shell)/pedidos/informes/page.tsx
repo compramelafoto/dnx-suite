@@ -54,7 +54,7 @@ export default async function InformesPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader entidad="pedido"
         title="Informes"
         description="Lo que hay para cobrar, lo cobrado en el mes y lo que hay para pagar a proveedores."
         actions={

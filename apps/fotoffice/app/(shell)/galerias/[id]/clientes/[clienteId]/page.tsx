@@ -39,7 +39,7 @@ export default async function RevisionClientePage({
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader entidad="galeria"
         title={`Selección de ${r.cliente.nombre}`}
         description={`Galería N° ${r.galeria.numero} · ${r.galeria.nombre}`}
         actions={
@@ -83,7 +83,7 @@ async function RevisionAlbumPage({ ctx, id, clienteId, buscar }: { ctx: Awaited<
   if (!r) notFound();
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader entidad="galeria"
         title={`Prueba de álbum de ${r.cliente.nombre}`}
         description={`Álbum N° ${r.galeria.numero} · ${r.galeria.nombre}`}
         actions={

@@ -31,7 +31,7 @@ export default async function NuevoPedidoPage({ searchParams }: { searchParams: 
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader entidad="pedido"
         title="Nuevo pedido"
         description={contacto ? `Para ${contacto.nombre}, sin cotización.` : "Un pedido sin cotización, para un contacto."}
         actions={

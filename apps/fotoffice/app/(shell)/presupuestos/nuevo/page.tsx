@@ -47,7 +47,7 @@ export default async function NuevoPresupuestoPage({ searchParams }: { searchPar
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader entidad="cotizacion"
         title="Nueva cotización"
         description={contacto ? `Para ${contacto.nombre}.` : "Elegí la consulta o creala con su contacto."}
         actions={

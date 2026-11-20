@@ -32,7 +32,7 @@ export default async function PorAprobarPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Cotizaciones" description="Las que armó el bot y esperan tu aprobación antes de llegarle al cliente." />
+      <PageHeader entidad="cotizacion" title="Cotizaciones" description="Las que armó el bot y esperan tu aprobación antes de llegarle al cliente." />
       <PestanasCotizaciones activa="por-aprobar" porAprobar={filas.length} />
       <UltimoResultadoAprobacion key={filas.map((f) => f.id).join(",")} />
 

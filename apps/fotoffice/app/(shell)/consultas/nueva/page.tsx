@@ -53,7 +53,7 @@ export default async function NuevaConsultaPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader entidad="consulta"
         title="Nueva consulta"
         description="Cargá una consulta que llegó por teléfono, WhatsApp, redes o en persona."
         actions={

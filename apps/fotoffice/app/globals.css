@@ -66,6 +66,23 @@
   /* Radio */
   --fo-radius: 12px;
   --fo-radius-sm: 8px;
+
+  /*
+   * Color de cada elemento del recorrido de un cliente. Uno por elemento y el mismo en todo el
+   * sistema (menú, fichas, listados, encabezados): así se reconoce de un vistazo qué es cada
+   * cosa. Son tonos fuertes para que el texto blanco encima se lea bien (contraste ≥ 4,5:1).
+   * Se usan desde `lib/entidades/colores.ts`, nunca a mano.
+   */
+  --fo-ent-cliente: #475569;
+  --fo-ent-consulta: #0f766e;
+  --fo-ent-cotizacion: #b45309;
+  --fo-ent-pedido: #6d28d9;
+  --fo-ent-contrato: #1d4ed8;
+  --fo-ent-proyecto: #a21caf;
+  --fo-ent-galeria: #be185d;
+  --fo-ent-agenda: #0369a1;
+  --fo-ent-cobrado: #15803d;
+  --fo-ent-por-cobrar: #b91c1c;
 }
 
 @theme inline {

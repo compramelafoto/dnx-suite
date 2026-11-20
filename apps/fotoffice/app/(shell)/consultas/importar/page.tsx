@@ -21,7 +21,7 @@ export default async function ImportarConsultasPage() {
   if (!puede(acceso, "operar", SERVICE_LEADS_MODULE_KEY)) redirect("/consultas");
   return (
     <div className="space-y-8">
-      <PageHeader
+      <PageHeader entidad="consulta"
         title="Importar consultas"
         description={`Cargá hasta ${MAX_FILAS_IMPORTACION_CONSULTAS.toLocaleString("es-AR")} consultas a la vez desde un CSV. No se manda ningún aviso ni respuesta automática, ni se crean tareas.`}
         actions={

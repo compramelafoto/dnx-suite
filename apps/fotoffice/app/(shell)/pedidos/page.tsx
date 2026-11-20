@@ -27,7 +27,7 @@ export default async function PedidosPage({
   const ctxListado = await contextoListadoDePagina(user, workspace, ORDERS_MODULE_KEY);
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader entidad="pedido"
         title="Pedidos"
         description="Los trabajos confirmados, con su plan de cuotas, lo cobrado y el saldo."
         actions={

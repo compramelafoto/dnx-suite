@@ -28,7 +28,7 @@ export default async function APagarPage({
   if (!veCostosDePedido(ctx)) {
     return (
       <div className="space-y-6">
-        <PageHeader title="A pagar" description="Las cuentas a pagar a proveedores de los pedidos." actions={volver} />
+        <PageHeader entidad="pedido" title="A pagar" description="Las cuentas a pagar a proveedores de los pedidos." actions={volver} />
         <p className="fo-card text-sm text-[var(--fo-muted)]">
           No tenés permiso para ver los costos de los pedidos. Pedíselo a quien administra la organización.
         </p>
@@ -38,7 +38,7 @@ export default async function APagarPage({
   const ctxListado = await contextoListadoDePagina(user, workspace, ORDERS_MODULE_KEY);
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader entidad="pedido"
         title="A pagar"
         description="Las cuentas a pagar a proveedores de los pedidos: se pagan y se anulan desde la ficha de cada pedido."
         actions={volver}

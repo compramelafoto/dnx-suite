@@ -42,7 +42,7 @@ export default async function FichaContratoPage({ params }: { params: Promise<{ 
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader entidad="contrato"
         title={`Contrato N° ${ficha.numero}`}
         description={ficha.nombre}
         actions={

@@ -101,7 +101,7 @@ export default async function FichaGaleriaPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader entidad="galeria"
         title={ficha.nombre}
         description={`${esEntrega ? "Galería de entrega" : esAlbum ? "Prueba de álbum" : "Galería"} N° ${ficha.numero} · ${ficha.contacto.nombre}${vendido !== null && vendido > 0 ? ` · Vendido ${formatearCentavos(vendido)}` : ""}`}
         actions={

@@ -15,7 +15,7 @@ export default async function NuevoClientePage({
 
   return (
     <div className="space-y-8">
-      <PageHeader
+      <PageHeader entidad="cliente"
         title="Nuevo cliente"
         description="Alta de un cliente del negocio. Los datos fiscales se pueden completar más adelante, salvo que sea responsable inscripto."
       />

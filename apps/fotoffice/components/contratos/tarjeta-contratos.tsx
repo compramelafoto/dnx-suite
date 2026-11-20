@@ -1,3 +1,5 @@
+import { claseTarjetaEntidad, TituloEntidad } from "@/components/entidades/entidad";
+import { estiloDeEntidad } from "@/lib/entidades/colores";
 import type { ContratoDeTarjeta } from "@/lib/contratos/tarjeta-tipos";
 import { ListaContratos } from "./lista-contratos";
 
@@ -7,10 +9,8 @@ import { ListaContratos } from "./lista-contratos";
  */
 export function TarjetaContratos({ contratos, vacio = "Todavía no tiene contratos." }: { contratos: ContratoDeTarjeta[]; vacio?: string }) {
   return (
-    <section aria-labelledby="tarjeta-contratos-titulo" className="fo-card space-y-3 p-4">
-      <h2 id="tarjeta-contratos-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-        Contratos
-      </h2>
+    <section id="contratos" aria-labelledby="tarjeta-contratos-titulo" style={estiloDeEntidad("contrato")} className={`scroll-mt-24 ${claseTarjetaEntidad()}`}>
+      <TituloEntidad entidad="contrato" id="tarjeta-contratos-titulo" cantidad={contratos.length} />
       <ListaContratos contratos={contratos} mostrarPedido vacio={vacio} />
     </section>
   );

@@ -59,7 +59,7 @@ export default async function AgendaPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader entidad="agenda"
         title="Agenda"
         description="Las citas del equipo y, sobre el mismo calendario, las entregas, tareas, cuotas, consultas y cumpleaños. Tocá una cita para verla o editarla; arrastrala para moverla."
       />
