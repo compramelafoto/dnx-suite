@@ -1,3 +1,5 @@
+import { claseTarjetaEntidad, TituloEntidad } from "@/components/entidades/entidad";
+import { estiloDeEntidad } from "@/lib/entidades/colores";
 import Link from "next/link";
 import { claseDeColorEtiqueta } from "@/lib/ficha/formato";
 import { ETIQUETA_ESTADO, type EstadoPresupuesto } from "@/lib/presupuestos/constantes";
@@ -44,10 +46,8 @@ export function TarjetaPresupuestos({
   vacio?: string;
 }) {
   return (
-    <section aria-labelledby="tarjeta-presupuestos-titulo" className="fo-card space-y-3 p-4">
-      <h2 id="tarjeta-presupuestos-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-        Cotizaciones
-      </h2>
+    <section id="cotizaciones" aria-labelledby="tarjeta-presupuestos-titulo" style={estiloDeEntidad("cotizacion")} className={`scroll-mt-24 ${claseTarjetaEntidad()}`}>
+      <TituloEntidad entidad="cotizacion" id="tarjeta-presupuestos-titulo" cantidad={presupuestos.length} />
       {presupuestos.length === 0 ? (
         <p className="text-sm text-[var(--fo-muted)]">{vacio}</p>
       ) : (

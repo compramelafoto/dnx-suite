@@ -32,7 +32,7 @@ export default async function PresupuestosPage({
   const porAprobar = gestiona ? await contarPorAprobar(workspace.id) : 0;
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader entidad="cotizacion"
         title="Cotizaciones"
         description="Las cotizaciones de las consultas, con su estado y vencimiento."
         actions={

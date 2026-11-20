@@ -1,3 +1,5 @@
+import { claseTarjetaEntidad, TituloEntidad } from "@/components/entidades/entidad";
+import { estiloDeEntidad } from "@/lib/entidades/colores";
 import Link from "next/link";
 import { claseDeColorEtiqueta } from "@/lib/ficha/formato";
 import type { ConsultaDelContacto } from "@/lib/contactos/consultas-del-contacto";
@@ -19,11 +21,9 @@ export function ConsultasDelContacto({
   puedeCrear: boolean;
 }) {
   return (
-    <section aria-labelledby="contacto-consultas-titulo" className="fo-card space-y-3 p-4">
+    <section id="consultas" aria-labelledby="contacto-consultas-titulo" style={estiloDeEntidad("consulta")} className={`scroll-mt-24 ${claseTarjetaEntidad()}`}>
       <div className="flex items-center justify-between gap-2">
-        <h2 id="contacto-consultas-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-          Consultas
-        </h2>
+        <TituloEntidad entidad="consulta" id="contacto-consultas-titulo" cantidad={hayMas ? undefined : consultas.length} />
       </div>
       {consultas.length === 0 ? (
         <p className="text-sm text-[var(--fo-muted)]">Todavía no hizo ninguna consulta.</p>

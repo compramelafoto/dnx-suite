@@ -194,7 +194,7 @@ export default async function PedidoPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader entidad="pedido"
         title={`Pedido N° ${detalle.numero}`}
         description={[detalle.contacto, detalle.eventLabel].filter(Boolean).join(" · ")}
         actions={

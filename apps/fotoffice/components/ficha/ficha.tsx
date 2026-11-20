@@ -35,11 +35,14 @@ export async function Ficha({
   encabezado,
   datos,
   lateral,
+  resumen,
 }: {
   persona: PersonaPedida;
   encabezado: EncabezadoDeFicha;
   datos?: ReactNode;
   lateral?: ReactNode;
+  /** Cuadros de colores debajo del encabezado (consultas, cotizaciones, pedidos, saldos…). */
+  resumen?: ReactNode;
 }) {
   const ctx = await contextoDeFicha(persona);
   // A los componentes de cliente viaja sólo esto: el tipo y el id que ya están en la URL.
@@ -52,6 +55,7 @@ export async function Ficha({
     return (
       <div className="space-y-6">
         <EncabezadoFicha {...encabezado} />
+        {resumen}
         <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
           {lectura ? (
             <NotasSoloLectura notas={notas} />
@@ -119,6 +123,7 @@ export async function Ficha({
   return (
     <div className="space-y-6">
       <EncabezadoFicha {...encabezado} etiquetas={<Etiquetas persona={ref} etiquetas={etiquetas} />} />
+      {resumen}
       <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
         <div className="min-w-0 space-y-4">
           <CajaDeNota persona={ref} categorias={categorias} />

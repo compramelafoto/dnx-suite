@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Building2, CalendarClock, Camera, Church, Clock, Eye, EyeOff, Heart, MapPin, Megaphone, Navigation, PartyPopper, Users } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { IconoEntidad } from "@/components/entidades/entidad";
 import {
   hojaDeCalendario,
   lineasDelEvento,
@@ -84,7 +85,8 @@ export function CabeceraCotizacion({
       {/* Franja superior: qué documento es, en qué estado está y hasta cuándo vale. */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--fo-border)] bg-[var(--fo-bg)] px-5 py-3 sm:px-6">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm">
-          <h1 id="cotizacion-titulo" className="font-semibold text-[var(--fo-text)]">
+          <h1 id="cotizacion-titulo" className="flex items-center gap-2 font-semibold text-[var(--fo-text)]">
+            <IconoEntidad entidad="cotizacion" tamano="sm" />
             {titulo}
           </h1>
           <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${claseEstado}`}>{estado}</span>

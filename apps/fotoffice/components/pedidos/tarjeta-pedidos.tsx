@@ -1,3 +1,5 @@
+import { claseTarjetaEntidad, TituloEntidad } from "@/components/entidades/entidad";
+import { estiloDeEntidad } from "@/lib/entidades/colores";
 import Link from "next/link";
 import { claseDeColorEtiqueta } from "@/lib/ficha/formato";
 import { ETIQUETA_ESTADO_PEDIDO, type EstadoPedido } from "@/lib/pedidos/constantes";
@@ -52,10 +54,8 @@ export function TarjetaPedidos({
   vacio?: string;
 }) {
   return (
-    <section aria-labelledby="tarjeta-pedidos-titulo" className="fo-card space-y-3 p-4">
-      <h2 id="tarjeta-pedidos-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-        Pedidos
-      </h2>
+    <section id="pedidos" aria-labelledby="tarjeta-pedidos-titulo" style={estiloDeEntidad("pedido")} className={`scroll-mt-24 ${claseTarjetaEntidad()}`}>
+      <TituloEntidad entidad="pedido" id="tarjeta-pedidos-titulo" cantidad={pedidos.length} />
       {pedidos.length === 0 ? (
         <p className="text-sm text-[var(--fo-muted)]">{vacio}</p>
       ) : (

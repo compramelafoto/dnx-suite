@@ -39,6 +39,9 @@ import { proyectosParaTarjeta } from "@/lib/proyectos/tarjetas";
 import { QUOTES_MODULE_KEY } from "@/lib/presupuestos/acceso";
 import { listarPresupuestos } from "@/lib/presupuestos/presupuestos";
 import { etiquetaDeUsuario } from "@/lib/listado/acceso";
+import { CuadroResumen } from "@/components/entidades/entidad";
+import { cuadrosDelResumen } from "@/lib/clients/resumen";
+import { pesosPedido } from "@/lib/pedidos/pantalla";
 import { ClientForm } from "../client-form";
 import { linkClientToMemberAction } from "../actions";
 
@@ -152,6 +155,18 @@ export default async function ClientePage({
       })
     : [];
 
+  // Los cuadros de colores: uno por elemento que la persona puede ver.
+  const cuadros = cuadrosDelResumen(
+    {
+      consultas: delContacto ? { cantidad: delContacto.consultas.length, hayMas: delContacto.hayMas } : null,
+      cotizaciones: presupuestos,
+      pedidos,
+      contratos,
+      proyectos,
+    },
+    pesosPedido,
+  );
+
   return (
     <div className="space-y-4">
       <Link
@@ -183,6 +198,27 @@ export default async function ClientePage({
           telefono: cliente.phone,
           correo: cliente.email,
         }}
+        resumen={
+          cuadros.length > 0 ? (
+            <section aria-label="Resumen del cliente" className="space-y-3">
+              {/* Arriba, cuántos de cada cosa; abajo, el dinero. */}
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
+                {cuadros
+                  .filter((c) => c.entidad !== "cobrado" && c.entidad !== "porCobrar")
+                  .map((c) => (
+                    <CuadroResumen key={c.entidad} entidad={c.entidad} valor={c.valor} detalle={c.detalle} href={c.href} />
+                  ))}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {cuadros
+                  .filter((c) => c.entidad === "cobrado" || c.entidad === "porCobrar")
+                  .map((c) => (
+                    <CuadroResumen key={c.entidad} entidad={c.entidad} valor={c.valor} detalle={c.detalle} href={c.href} />
+                  ))}
+              </div>
+            </section>
+          ) : null
+        }
         datos={
           <>
             <Mensaje entityType="CLIENTE" entityId={cliente.id} />

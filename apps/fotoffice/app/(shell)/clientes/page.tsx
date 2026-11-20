@@ -50,7 +50,7 @@ export default async function ClientesPage({
 
   return (
     <div className="space-y-8">
-      <PageHeader
+      <PageHeader entidad="cliente"
         title="Clientes"
         description="Padrón de clientes del negocio: ficha, contacto y datos fiscales."
         actions={

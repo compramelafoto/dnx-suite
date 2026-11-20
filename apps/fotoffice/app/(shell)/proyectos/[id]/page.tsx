@@ -106,7 +106,7 @@ export default async function FichaProyectoPage({ params }: { params: Promise<{ 
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader entidad="proyecto"
         title={ficha.nombre}
         description={`N° ${ficha.numero} · ${ficha.contacto.nombre}`}
         actions={

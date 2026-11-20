@@ -25,7 +25,7 @@ export default async function GaleriasPage({
   const puedeCrear = puedeGestionarGalerias(ctx) && puedeEnContexto(ctx, "ver", PROJECTS_MODULE_KEY);
   return (
     <div className="space-y-6">
-      <PageHeader title="Galerías" description="Las fotos de cada proyecto para que los clientes elijan: subirlas, compartir el enlace y revisar lo que eligieron." />
+      <PageHeader entidad="galeria" title="Galerías" description="Las fotos de cada proyecto para que los clientes elijan: subirlas, compartir el enlace y revisar lo que eligieron." />
       {puedeCrear ? <NuevaGaleria /> : null}
       <Listado def={listadoGalerias} ctx={listado} ruta="/galerias" searchParams={searchParams} />
     </div>

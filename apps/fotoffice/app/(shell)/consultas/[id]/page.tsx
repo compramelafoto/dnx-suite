@@ -170,7 +170,7 @@ export default async function FichaConsultaPage({ params }: { params: Promise<{ 
 
   return (
     <div className="space-y-6">
-      <PageHeader
+      <PageHeader entidad="consulta"
         title={tituloDeConsulta(consulta.nombre, numeros.get(id))}
         description={datosConsulta ? datosConsulta.categoria.nombre : evento}
         actions={

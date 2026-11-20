@@ -1,3 +1,5 @@
+import { claseTarjetaEntidad, TituloEntidad } from "@/components/entidades/entidad";
+import { estiloDeEntidad } from "@/lib/entidades/colores";
 import Link from "next/link";
 import { claseDeColorEtiqueta } from "@/lib/ficha/formato";
 import { fechaCorta } from "@/lib/pedidos/pantalla";
@@ -21,10 +23,8 @@ const COLOR: Record<EstadoDeProyecto, string> = { EN_CURSO: "azul", SUSPENDIDO: 
  */
 export function TarjetaProyectos({ proyectos, vacio = "Todavía no hay proyectos." }: { proyectos: ProyectoDeTarjetaVista[]; vacio?: string }) {
   return (
-    <section aria-labelledby="tarjeta-proyectos-titulo" className="fo-card space-y-3 p-4">
-      <h2 id="tarjeta-proyectos-titulo" className="text-sm font-semibold uppercase tracking-wide text-[var(--fo-muted-soft)]">
-        Proyectos
-      </h2>
+    <section id="proyectos" aria-labelledby="tarjeta-proyectos-titulo" style={estiloDeEntidad("proyecto")} className={`scroll-mt-24 ${claseTarjetaEntidad()}`}>
+      <TituloEntidad entidad="proyecto" id="tarjeta-proyectos-titulo" cantidad={proyectos.length} />
       {proyectos.length === 0 ? (
         <p className="text-sm text-[var(--fo-muted)]">{vacio}</p>
       ) : (

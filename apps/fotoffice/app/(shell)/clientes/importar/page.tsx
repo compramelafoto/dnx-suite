@@ -13,7 +13,7 @@ export default async function ImportarClientesPage() {
   await requireClientsEditor();
   return (
     <div className="space-y-8">
-      <PageHeader
+      <PageHeader entidad="cliente"
         title="Importar clientes"
         description={`Cargá hasta ${MAX_FILAS_IMPORTACION_CLIENTES.toLocaleString("es-AR")} clientes a la vez desde un CSV, con su categoría y sus datos de contacto.`}
         actions={

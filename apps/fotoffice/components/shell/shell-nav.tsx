@@ -49,6 +49,8 @@ import { RECUPERACION_LABEL, RECUPERACION_PANEL_ROUTE } from "@/lib/recuperacion
 import { useShellNav } from "./shell-frame";
 import { MenuSearch, type MenuSearchSection } from "./menu-search";
 import { ICONOS } from "./nav-icons";
+import { ICONO_ENTIDAD } from "@/components/entidades/entidad";
+import { entidadDeRuta, estiloDeEntidad } from "@/lib/entidades/colores";
 import {
   claimedPrefixes,
   submodulesFor,
@@ -232,7 +234,9 @@ function Section({
       {visible ? (
         <div id={id} className="flex flex-col gap-0.5">
           {items.map((item) => {
-            const Icon = item.icon;
+            // Los elementos del recorrido del cliente llevan su ícono y su color, como en todo el sistema.
+            const entidad = entidadDeRuta(item.href);
+            const Icon = entidad ? ICONO_ENTIDAD[entidad] : item.icon;
             return (
               <Link
                 key={item.href}
@@ -240,7 +244,13 @@ function Section({
                 onClick={onNavigate}
                 className={itemClass(item.isActive(path))}
               >
-                <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
+                {entidad ? (
+                  <span style={estiloDeEntidad(entidad)} className="inline-flex size-5 shrink-0 items-center justify-center rounded-md bg-[var(--ent)] text-white" aria-hidden>
+                    <Icon className="size-3" />
+                  </span>
+                ) : (
+                  <Icon className="size-4 shrink-0 opacity-80" aria-hidden />
+                )}
                 <span className="min-w-0 flex-1 truncate">{item.label}</span>
                 {item.badge && item.badge > 0 ? (
                   <span className="rounded-full bg-[var(--fo-accent)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
