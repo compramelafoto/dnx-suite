@@ -141,6 +141,7 @@ export default function PantallaPedidos() {
   const router = useRouter();
   const raizRef = useRef<HTMLDivElement | null>(null);
   const enPantallaCompleta = useFullscreenElement(raizRef);
+  const tableroRef = useRef<HTMLDivElement | null>(null);
 
   const [listo, setListo] = useState(false);
   const [pedidos, setPedidos] = useState<Pedido[] | null>(null);
@@ -314,13 +315,25 @@ export default function PantallaPedidos() {
       </p>
 
       {/* El tablero: una columna por paso. Se desplaza de costado si la ventana es angosta. */}
-      <div className="min-h-0 flex-1 overflow-x-auto px-4 pb-4 pt-3 sm:px-6">
+      <div
+        ref={tableroRef}
+        onDragOver={(e) => {
+          // Si la columna siguiente no entra en la ventana, acercar la tarjeta al borde desplaza el tablero.
+          const el = tableroRef.current;
+          if (!el || !arrastrando) return;
+          const caja = el.getBoundingClientRect();
+          const borde = 90;
+          if (e.clientX > caja.right - borde) el.scrollLeft += 18;
+          else if (e.clientX < caja.left + borde) el.scrollLeft -= 18;
+        }}
+        className="min-h-0 flex-1 overflow-x-auto px-4 pb-4 pt-3 sm:px-6"
+      >
         {pedidos === null ? (
           <p className="flex h-full items-center justify-center text-xl text-white/50">
             {error ? "No pude traer los pedidos. Reintento en unos segundos…" : "Cargando pedidos…"}
           </p>
         ) : (
-          <div className="flex h-full min-w-max gap-3 lg:min-w-0">
+          <div className="flex h-full min-w-max gap-3 2xl:min-w-0">
             {contadores.map((c) => {
               const lista = porPaso[c.paso];
               const color = COLOR_PASO[c.paso];
@@ -330,6 +343,7 @@ export default function PantallaPedidos() {
               return (
                 <section
                   key={c.paso}
+                  id={`columna-${c.paso}`}
                   aria-label={`${c.titulo}: ${c.cantidad}`}
                   onDragOver={(e) => {
                     if (!esDestino) return;
@@ -346,7 +360,7 @@ export default function PantallaPedidos() {
                     if (esDestino && arrastrando) setAConfirmar(arrastrando);
                     setArrastrando(null);
                   }}
-                  className={`flex w-[240px] min-w-0 flex-col rounded-xl border transition lg:w-auto lg:flex-1 ${
+                  className={`flex w-[300px] shrink-0 flex-col rounded-xl border transition 2xl:w-auto 2xl:min-w-[300px] 2xl:flex-1 ${
                     esDestino
                       ? sobre === c.paso
                         ? "border-[#c27b3d] bg-[#c27b3d]/15"
@@ -370,7 +384,7 @@ export default function PantallaPedidos() {
                   {esDestino ? (
                     <p className="px-3 pt-2 text-xs font-semibold text-[#e7a86b]">Soltala acá para pasarla a este paso</p>
                   ) : null}
-                  <ol className="m-0 flex min-h-0 flex-1 list-none flex-col gap-1.5 overflow-y-auto p-2">
+                  <ol className="m-0 flex min-h-0 flex-1 list-none flex-col gap-2 overflow-y-auto p-2">
                     {lista.length === 0 ? (
                       <li className="px-1 py-3 text-center text-xs text-white/30">
                         {busqueda ? "Nada coincide" : "Sin pedidos"}
@@ -382,7 +396,21 @@ export default function PantallaPedidos() {
                         t={t}
                         arrastrada={arrastrando?.clave === t.clave}
                         onAbrir={() => setAbierta(t.clave)}
-                        onEmpezar={() => setArrastrando(t)}
+                        onEmpezar={() => {
+                          setArrastrando(t);
+                          if (!t.plan.puede) return;
+                          const idDestino = `columna-${t.plan.destino}`;
+                          // Después de dibujar el arrastre: si la columna de destino no se ve entera, se corre el tablero.
+                          window.setTimeout(() => {
+                            const el = tableroRef.current;
+                            const destino = document.getElementById(idDestino);
+                            if (!el || !destino) return;
+                            const caja = el.getBoundingClientRect();
+                            const d = destino.getBoundingClientRect();
+                            if (d.right > caja.right) el.scrollBy({ left: d.right - caja.right + 24 });
+                            else if (d.left < caja.left) el.scrollBy({ left: d.left - caja.left - 24 });
+                          }, 0);
+                        }}
                         onTerminar={() => {
                           setArrastrando(null);
                           setSobre(null);
@@ -456,6 +484,13 @@ export default function PantallaPedidos() {
   );
 }
 
+/** Lo que espera cada paso que no se adelanta desde el tablero, en pocas palabras. */
+const ESPERA_CORTA: Partial<Record<PasoEmbudo, string>> = {
+  POR_CANJEAR: "Espera que la familia elija",
+  CAMBIOS_PEDIDOS: "Espera la respuesta de la familia",
+  ENTREGADO: "Listo",
+};
+
 function TarjetaPedido({
   t,
   arrastrada,
@@ -470,8 +505,25 @@ function TarjetaPedido({
   onTerminar: () => void;
 }) {
   const paso = t.paso as PasoEmbudo;
-  const lugar = [t.curso, t.escuela].filter(Boolean).join(" · ");
+  const o = t.pedido;
+  const disenos = o.disenos ?? [];
   const sePuede = t.plan.puede;
+  const huecos = disenos.reduce((n, d) => n + (d.status === "PENDING_PHOTOGRAPHER_APPROVAL" ? d.emptySlots : 0), 0);
+  const nota = disenos.find((d) => d.status === "NEEDS_ADJUSTMENT" && d.reviewNote)?.reviewNote ?? null;
+  const lote = disenos.find((d) => d.printBatchName)?.printBatchName ?? null;
+  const adulto = o.buyerName?.trim() || o.buyerEmail || null;
+  const fecha = fechaArgentina(o.createdAt);
+  const librito =
+    disenos.length === 0
+      ? o.kind === "PACK_EXTERNO" && t.paso !== "POR_CANJEAR"
+        ? "Sin librito"
+        : null
+      : disenos.length > 1
+        ? `${disenos.length} librititos`
+        : `Librito: ${(ESTADO_DISENO[disenos[0].status] ?? disenos[0].status).toLowerCase()}`;
+
+  // Es un div (no un botón) para que se pueda arrastrar en todos los navegadores: Firefox y
+  // Safari no arrastran un <button>.
   return (
     <li
       draggable={sePuede}
@@ -483,30 +535,61 @@ function TarjetaPedido({
       onDragEnd={onTerminar}
       className={arrastrada ? "opacity-40" : ""}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onAbrir}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onAbrir();
+          }
+        }}
         title={sePuede ? "Tocá para ver el pedido · arrastrá para adelantarlo" : "Tocá para ver el pedido"}
-        className={`group flex w-full items-stretch gap-2 rounded-lg border border-white/10 bg-[#161a22] text-left transition hover:border-white/25 hover:bg-[#1c212b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#c27b3d] ${
+        className={`group flex w-full select-none items-stretch rounded-lg border border-white/10 bg-[#161a22] text-left transition hover:border-white/25 hover:bg-[#1c212b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#c27b3d] ${
           sePuede ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
         }`}
       >
-        <span aria-hidden className="w-1 shrink-0 rounded-l-lg" style={{ background: COLOR_PASO[paso].fondo }} />
-        <span className="min-w-0 flex-1 py-1.5 pr-2">
+        <span aria-hidden className="w-1.5 shrink-0 rounded-l-lg" style={{ background: COLOR_PASO[paso].fondo }} />
+        <span className="min-w-0 flex-1 px-3 py-2.5">
           <span className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-semibold leading-tight">{t.nombre}</span>
+            <span className="truncate text-[15px] font-semibold leading-tight">{t.nombre}</span>
             {t.demo ? (
-              <span className="shrink-0 rounded border border-white/20 px-1 text-[10px] font-semibold text-white/60">DEMO</span>
+              <span className="shrink-0 rounded bg-fuchsia-500/20 px-1.5 text-[10px] font-bold text-fuchsia-300">DEMO</span>
             ) : null}
           </span>
-          {lugar ? <span className="block truncate text-xs leading-tight text-white/50">{lugar}</span> : null}
-        </span>
-        {sePuede ? (
-          <span aria-hidden className="self-center pr-2 text-xs text-white/25 group-hover:text-[#e7a86b]">
-            ⠿
+          <span className="mt-0.5 block truncate text-[13px] leading-snug text-white/60">
+            {[t.curso, t.escuela].filter(Boolean).join(" · ") || "Sin curso"}
           </span>
-        ) : null}
-      </button>
+          {adulto || fecha ? (
+            <span className="mt-1 block truncate text-xs leading-snug text-white/45">
+              {[adulto, fecha].filter(Boolean).join(" · ")}
+            </span>
+          ) : null}
+          {librito || huecos > 0 || lote ? (
+            <span className="mt-1.5 flex flex-wrap gap-1">
+              {librito ? <span className="rounded bg-white/[0.07] px-1.5 py-0.5 text-[11px] text-white/70">{librito}</span> : null}
+              {huecos > 0 ? (
+                <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-300">{huecos} sin foto</span>
+              ) : null}
+              {lote ? <span className="rounded bg-white/[0.07] px-1.5 py-0.5 text-[11px] text-white/70">{lote}</span> : null}
+            </span>
+          ) : null}
+          {nota ? <span className="mt-1 block truncate text-[11px] text-sky-300">“{nota}”</span> : null}
+          <span className="mt-2 flex items-center justify-between gap-2 border-t border-white/5 pt-1.5 text-[11px]">
+            {sePuede ? (
+              <span className="font-semibold text-[#e7a86b]">Arrastrá a «{INFO_PASOS[t.plan.destino].titulo}» →</span>
+            ) : (
+              <span className="text-white/35">{ESPERA_CORTA[paso] ?? "Se mueve desde Pedidos escolares"}</span>
+            )}
+            {sePuede ? (
+              <span aria-hidden className="text-sm text-white/30 group-hover:text-[#e7a86b]">
+                ⠿
+              </span>
+            ) : null}
+          </span>
+        </span>
+      </div>
     </li>
   );
 }
