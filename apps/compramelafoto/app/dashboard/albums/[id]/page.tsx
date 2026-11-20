@@ -23,6 +23,10 @@ import PhotographerDashboardHeader from "@/components/photographer/PhotographerD
 import PreventaPackDashboardSection from "@/components/dashboard/preventa-packs/PreventaPackDashboardSection";
 import AlbumUpsellConfigCard from "@/components/dashboard/preventa-packs/AlbumUpsellConfigCard";
 import PreventaAvisoFamiliasCard from "@/components/dashboard/preventa-packs/PreventaAvisoFamiliasCard";
+import AvisoPorCursoCard, {
+  marcarCursosSubidos,
+  mensajeDelAviso,
+} from "@/components/dashboard/preventa-packs/AvisoPorCursoCard";
 import ProbarComoClienteButton from "@/components/dashboard/preventa-packs/ProbarComoClienteButton";
 import AlbumStudentRosterSection from "@/components/dashboard/album-school/AlbumStudentRosterSection";
 import AlbumMosaicoSection from "@/components/dashboard/album-school/AlbumMosaicoSection";
@@ -304,6 +308,10 @@ export default function DashboardAlbumDetailPage() {
   const [uploadSessionId, setUploadSessionId] = useState<string | null>(null);
   const [uploadEventFolderId, setUploadEventFolderId] = useState<string>("");
   const [uploadAlbumFolderId, setUploadAlbumFolderId] = useState<string>("");
+  /** Álbum escolar: cursos de las fotos que se están subiendo; al terminar se avisa a sus familias. */
+  const [cursosDeLaSubida, setCursosDeLaSubida] = useState<number[]>([]);
+  const [avisoCursos, setAvisoCursos] = useState<{ tono: "ok" | "error"; texto: string } | null>(null);
+  const [recargarCursos, setRecargarCursos] = useState(0);
   const [ingestJobsSummary, setIngestJobsSummary] = useState<{
     pending: number;
     processing: number;
@@ -1843,6 +1851,20 @@ export default function DashboardAlbumDetailPage() {
         setUploadSessionId(null);
       }
 
+      if (successCount > 0 && cursosDeLaSubida.length > 0) {
+        try {
+          const r = await marcarCursosSubidos(albumId, cursosDeLaSubida);
+          setCursosDeLaSubida([]);
+          setAvisoCursos({ tono: "ok", texto: mensajeDelAviso(r) });
+        } catch (e) {
+          setAvisoCursos({
+            tono: "error",
+            texto: `Las fotos se subieron, pero no se pudieron marcar los cursos: ${e instanceof Error ? e.message : "probá de nuevo"}. Marcalos desde la pestaña Preventa.`,
+          });
+        }
+        setRecargarCursos((n) => n + 1);
+      }
+
       await loadAlbum({ silent: true });
     } catch (err: any) {
       console.error("Error subiendo fotos:", err);
@@ -2403,7 +2425,11 @@ export default function DashboardAlbumDetailPage() {
                   </p>
                 </div>
 
-                <PreventaAvisoFamiliasCard albumId={album.id} hasPhotos={albumPhotoStats.total > 0} />
+                {schoolLinked ? (
+                  <AvisoPorCursoCard albumId={album.id} hasPhotos={albumPhotoStats.total > 0} modo="preventa" />
+                ) : (
+                  <PreventaAvisoFamiliasCard albumId={album.id} hasPhotos={albumPhotoStats.total > 0} />
+                )}
 
                 <ProbarComoClienteButton albumId={album.id} />
 
@@ -2613,6 +2639,18 @@ export default function DashboardAlbumDetailPage() {
                 procesar. Reintentá la subida o contactá soporte si persiste.
               </p>
             </Card>
+          ) : null}
+
+          {schoolLinked && album.isOwner ? (
+            <AvisoPorCursoCard
+              albumId={album.id}
+              hasPhotos={albumPhotoStats.total > 0}
+              modo="subida"
+              seleccion={cursosDeLaSubida}
+              onSeleccionChange={setCursosDeLaSubida}
+              recargar={recargarCursos}
+              avisoExterno={avisoCursos}
+            />
           ) : null}
 
           <AlbumPhotosFolderExplorer

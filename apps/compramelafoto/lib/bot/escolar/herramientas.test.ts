@@ -14,6 +14,14 @@ const m = vi.hoisted(() => ({
   photoCount: vi.fn(),
   userFind: vi.fn(),
   schoolFindMany: vi.fn(),
+  cursos: vi.fn(),
+  marcar: vi.fn(),
+  avisarCursos: vi.fn(),
+}));
+vi.mock("@/lib/preventa-canjeable/cursos-publicados", () => ({
+  cursosDelAlbum: (...a: unknown[]) => m.cursos(...a),
+  marcarCursosSubidos: (...a: unknown[]) => m.marcar(...a),
+  avisarCursosPendientes: (...a: unknown[]) => m.avisarCursos(...a),
 }));
 vi.mock("@/lib/bot/escolar/progreso", () => ({ computeSchoolSetupProgress: (...a: unknown[]) => m.progreso(...a) }));
 vi.mock("@/lib/schools/school-setup", () => ({
@@ -325,6 +333,47 @@ describe("herramientas escolares", () => {
     it("pendientes pero ninguna con mail (cobradas por fuera) → lanza", async () => {
       m.recipients.mockResolvedValue({ conEmail: 0, sinEmail: 4 });
       await expect(tool("avisar_familias_fotos_listas").describe!({ albumId: 3 }, actor)).rejects.toThrow("Canjes");
+    });
+    describe("álbum escolar: por curso", () => {
+      const curso = (id: number, nombre: string, pendientes: number, estado = "sin_marcar") => ({
+        schoolCourseId: id, nombre, packs: pendientes, pendientes, pendientesConEmail: pendientes, estado, marcadoAt: null, avisoAt: null,
+      });
+      beforeEach(() => {
+        m.album.mockResolvedValue({ id: 3, title: "Colegio Goethe", schoolId: 31 });
+        m.cursos.mockResolvedValue({
+          esEscolar: true,
+          cursos: [curso(1, "3° A", 8), curso(2, "3° B", 5), curso(3, "Sala 5", 4)],
+          pendientesSinCurso: 0,
+        });
+      });
+      it("sin cursos: no avisa a todo el colegio, pregunta cuáles", async () => {
+        await expect(tool("avisar_familias_fotos_listas").describe!({ albumId: 3 }, actor)).rejects.toThrow("¿Qué cursos ya están completos?");
+        const r = await tool("avisar_familias_fotos_listas").run({ albumId: 3 }, actor);
+        expect(r).toMatchObject({ ok: false });
+        expect(m.notify).not.toHaveBeenCalled();
+        expect(m.marcar).not.toHaveBeenCalled();
+      });
+      it("curso que no existe: lo dice con la lista", async () => {
+        await expect(
+          tool("avisar_familias_fotos_listas").describe!({ albumId: 3, cursos: ["4° C"] }, actor)
+        ).rejects.toThrow("No encontré «4° C»");
+      });
+      it("con cursos: describe cuenta sólo esas familias y run marca y avisa esos cursos", async () => {
+        const d = await tool("avisar_familias_fotos_listas").describe!({ albumId: 3, cursos: ["3 A", "sala 5"] }, actor);
+        expect(d).toContain("3° A, Sala 5");
+        expect(d).toContain("12 familias");
+        m.avisarCursos.mockResolvedValue({ avisados: [{ albumId: 3, cursos: 2, enviados: 12, sinEmail: 0 }], esperando: [] });
+        const r = await tool("avisar_familias_fotos_listas").run({ albumId: 3, cursos: ["3 A", "sala 5"] }, actor);
+        expect(m.marcar).toHaveBeenCalledWith({ albumId: 3, cursoIds: [1, 3], userId: 7 });
+        expect(m.notify).not.toHaveBeenCalled();
+        expect(r).toMatchObject({ ok: true, data: { enviados: 12, esperando: false } });
+      });
+      it("si el álbum sigue procesando, avisa que sale solo después", async () => {
+        m.avisarCursos.mockResolvedValue({ avisados: [], esperando: [3] });
+        const r = await tool("avisar_familias_fotos_listas").run({ albumId: 3, cursos: ["3° B"] }, actor);
+        expect(r).toMatchObject({ ok: true });
+        expect((r as { message: string }).message).toContain("sale solo");
+      });
     });
     it("run avisa con la URL del sitio; sin fotos o ajeno no manda nada", async () => {
       const prev = process.env.APP_URL;

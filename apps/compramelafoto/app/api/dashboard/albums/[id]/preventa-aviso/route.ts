@@ -7,6 +7,7 @@ import {
   notifyPreventaPhotosReady,
   parseAvisoOrderIds,
 } from "@/lib/preventa-canjeable/notify-preventa-photos-ready";
+import { cursosDeLosPacks, marcarCursosSubidos } from "@/lib/preventa-canjeable/cursos-publicados";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ async function ownedAlbumId(params: Promise<{ id: string }>) {
   }
   const album = await findAlbumOwnedByUser(albumId, user.id);
   if (!album) return { response: NextResponse.json({ error: "Álbum no encontrado" }, { status: 404 }) };
-  return { albumId };
+  return { albumId, userId: user.id };
 }
 
 /** GET: cuántas familias de la preventa faltan canjear y cuándo se les avisó por última vez. */
@@ -42,5 +43,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const orderIds = parseAvisoOrderIds(body?.orderIds);
   const baseUrl = (process.env.APP_URL || req.nextUrl.origin).replace(/\/+$/, "");
   const result = await notifyPreventaPhotosReady({ albumId: r.albumId, baseUrl, orderIds });
+  // Aviso a una lista (Pedidos con filtro de curso): esos cursos quedan como avisados, así el
+  // aviso automático no los repite y los anotados saben qué cursos ya están.
+  if (orderIds && orderIds.length > 0 && result.enviados + result.sinEmail > 0) {
+    const cursoIds = await cursosDeLosPacks(r.albumId, orderIds);
+    await marcarCursosSubidos({ albumId: r.albumId, cursoIds, userId: r.userId, yaAvisado: true });
+  }
   return NextResponse.json(result);
 }
