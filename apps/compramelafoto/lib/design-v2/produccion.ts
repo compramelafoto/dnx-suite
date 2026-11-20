@@ -24,6 +24,7 @@ import {
   type LibritoConJpg,
   type LibritoEnProduccion,
 } from "./produccion-reglas";
+import { codigoDeCanje, secretoDeEntrega } from "@/lib/school-fulfillment/codigo-de-canje";
 
 /**
  * Producción de los librititos aprobados: lotes de impresión, impresos y entregados.
@@ -45,6 +46,8 @@ export type LibritoParaProducir = LibritoEnProduccion & {
   preCompraItemId: number | null;
   /** Código del QR de entrega (`/escolar/entrega/[token]`); null si todavía no tiene o no hay ítem. */
   qrToken: string | null;
+  /** Pedido de canje del pack cobrado por fuera (si el librito vino de uno). */
+  albumOrderId?: number | null;
 };
 
 export class ProduccionError extends Error {
@@ -81,6 +84,7 @@ export async function cargarLibritos(
       printedAt: true,
       deliveredAt: true,
       orderItemId: true,
+      albumOrderId: true,
       orderItem: { select: { fulfillmentQrToken: true } },
       currentRevision: { select: { dataJson: true } },
     },
@@ -100,18 +104,25 @@ export async function cargarLibritos(
       deliveredAt: r.deliveredAt,
       preCompraItemId: r.orderItemId,
       qrToken: r.orderItem?.fulfillmentQrToken || null,
+      albumOrderId: r.albumOrderId,
     };
   });
   return ordenDeImpresion(libros);
 }
 
 /**
- * Les da su código de entrega a los librititos de la preventa que todavía no lo tienen (se guarda en
- * el ítem, así el QR es siempre el mismo). Los que no vienen de la preventa quedan sin QR.
+ * Les da su código de entrega a los librititos que todavía no lo tienen: los de la preventa lo
+ * guardan en el ítem (así el QR es siempre el mismo); los de un pack cobrado por fuera usan el
+ * número de su pedido de canje firmado (`codigoDeCanje`).
  */
 export async function conCodigoDeEntrega(libros: LibritoParaProducir[]): Promise<LibritoParaProducir[]> {
   const salida: LibritoParaProducir[] = [];
+  const secreto = secretoDeEntrega();
   for (const l of libros) {
+    if (!l.qrToken && l.preCompraItemId == null && l.albumOrderId && secreto) {
+      salida.push({ ...l, qrToken: codigoDeCanje(l.albumOrderId, secreto) });
+      continue;
+    }
     if (l.qrToken || l.preCompraItemId == null) {
       salida.push(l);
       continue;

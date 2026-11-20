@@ -1,23 +1,13 @@
-import Link from "next/link";
+import type { Metadata } from "next";
 import { Role } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
-import { labelPreCompraOrderItemStatus } from "@/lib/preventa-canjeable/preventa-status-labels";
+import { accionesPosibles, cargarEntregaPorQr, TITULO_PASO } from "@/lib/school-fulfillment/entrega-por-qr";
+import EntregaQr from "./EntregaQr";
 
 export const dynamic = "force-dynamic";
 
-function labelEstadoItem(status: string): string {
-  return labelPreCompraOrderItemStatus(status);
-}
-
-function referenciaLegible(token: string): string {
-  if (token.length <= 10) return token;
-  return `${token.slice(0, 4)}…${token.slice(-4)}`;
-}
-
-function esRolFotografo(role: Role): boolean {
-  return role === Role.PHOTOGRAPHER || role === Role.LAB_PHOTOGRAPHER;
-}
+// Lleva nombres y fotos de chicos: que no lo indexe nadie.
+export const metadata: Metadata = { robots: { index: false, follow: false } };
 
 function VistaInvalida() {
   return (
@@ -32,110 +22,31 @@ function VistaInvalida() {
   );
 }
 
-export default async function EscolarEntregaFichaPage({
-  params,
-}: {
-  params: Promise<{ token: string }>;
-}) {
-  const { token } = await Promise.resolve(params);
-  const rawToken = decodeURIComponent(String(token || "").trim());
-
-  if (!rawToken) {
-    return <VistaInvalida />;
-  }
-
-  const item = await prisma.preCompraOrderItem.findUnique({
-    where: { fulfillmentQrToken: rawToken },
-    select: {
-      status: true,
-      fulfillmentQrToken: true,
-      order: {
-        select: {
-          studentFirstName: true,
-          studentLastName: true,
-          schoolCourse: { select: { name: true, division: true } },
-          album: {
-            select: {
-              userId: true,
-              school: { select: { name: true } },
-            },
-          },
-        },
-      },
-      designProject: { select: { id: true } },
-    },
-  });
-
-  if (!item) {
-    return <VistaInvalida />;
-  }
+/**
+ * Lo que abre el QR de la etiqueta del sobre de un pedido escolar. Muestra el pedido y sus fotos
+ * (con marca de agua). El fotógrafo dueño, con su sesión, lo puede marcar listo para entregar o
+ * entregado; cualquier otra persona (la familia, la escuela) puede confirmar que lo recibió.
+ */
+export default async function EscolarEntregaFichaPage({ params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const codigo = decodeURIComponent(String(token || "").trim());
+  const entrega = codigo ? await cargarEntregaPorQr(codigo) : null;
+  if (!entrega) return <VistaInvalida />;
 
   const auth = await getAuthUser();
-  const albumUserId = item.order.album.userId;
-  const esDueñoFotógrafo =
-    auth != null && esRolFotografo(auth.role) && auth.id === albumUserId;
-
-  const alumno = [item.order.studentFirstName, item.order.studentLastName].filter(Boolean).join(" ").trim() || "—";
-  const curso = item.order.schoolCourse
-    ? `${item.order.schoolCourse.name}${item.order.schoolCourse.division ? ` ${item.order.schoolCourse.division}` : ""}`
-    : "—";
-  const escuela = item.order.album.school?.name?.trim() || "—";
-  const estado = labelEstadoItem(item.status);
-  const refToken = item.fulfillmentQrToken ? referenciaLegible(item.fulfillmentQrToken) : referenciaLegible(rawToken);
-  const designProjectId = item.designProject?.id ?? null;
-
+  const esFotografo = auth != null && (auth.role === Role.ADMIN || auth.id === entrega.fotografoId);
   return (
-    <div className="min-h-screen bg-[#f9fafb] py-10 px-4">
-      <div className="max-w-lg mx-auto rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-        <p className="text-xs uppercase tracking-wide text-gray-500 mb-1">Producto escolar</p>
-        <h1 className="text-xl font-semibold text-gray-900 mb-6">Seguimiento de entrega</h1>
-
-        <dl className="space-y-4 text-sm">
-          <div>
-            <dt className="text-gray-500 mb-0.5">Estado</dt>
-            <dd className="text-gray-900 font-medium">{estado}</dd>
-          </div>
-          <div>
-            <dt className="text-gray-500 mb-0.5">Alumno</dt>
-            <dd className="text-gray-900">{alumno}</dd>
-          </div>
-          <div>
-            <dt className="text-gray-500 mb-0.5">Curso</dt>
-            <dd className="text-gray-900">{curso}</dd>
-          </div>
-          <div>
-            <dt className="text-gray-500 mb-0.5">Escuela</dt>
-            <dd className="text-gray-900">{escuela}</dd>
-          </div>
-          <div>
-            <dt className="text-gray-500 mb-0.5">Referencia</dt>
-            <dd className="text-gray-700 font-mono text-xs">{refToken}</dd>
-          </div>
-        </dl>
-
-        {esDueñoFotógrafo ? (
-          <div className="mt-8 pt-6 border-t border-gray-100">
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-3">Tu cuenta</p>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link href="/fotografo/escuelas/pedidos" className="text-[#c27b3d] hover:underline">
-                  Ir a pedidos escolares
-                </Link>
-              </li>
-              {designProjectId != null ? (
-                <li>
-                  <Link
-                    href={`/fotografo/disenos/${designProjectId}`}
-                    className="text-[#c27b3d] hover:underline"
-                  >
-                    Abrir diseño
-                  </Link>
-                </li>
-              ) : null}
-            </ul>
-          </div>
-        ) : null}
-      </div>
-    </div>
+    <EntregaQr
+      codigo={codigo}
+      alumno={entrega.alumno}
+      curso={entrega.curso}
+      escuela={entrega.escuela}
+      paso={entrega.paso}
+      tituloPaso={TITULO_PASO(entrega.paso)}
+      acciones={accionesPosibles(entrega.paso)}
+      fotos={entrega.fotos}
+      disenos={esFotografo ? entrega.disenos : []}
+      esFotografo={esFotografo}
+    />
   );
 }
