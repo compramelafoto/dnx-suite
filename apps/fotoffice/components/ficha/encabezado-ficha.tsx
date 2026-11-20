@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { Mail, MessageCircle, Phone } from "lucide-react";
-import { buildWhatsappUrl } from "@/lib/contact/whatsapp";
+import { waIdDe } from "@/lib/bandeja/telefono";
+import type { DestinoWhatsapp } from "@/lib/bandeja/destino-whatsapp";
 
 export type InsigniaFicha = { texto: string; href?: string };
 
@@ -19,6 +20,11 @@ export type EncabezadoFichaProps = {
   acciones?: ReactNode;
   /** Las etiquetas de la persona (el componente `Etiquetas`). */
   etiquetas?: ReactNode;
+  /**
+   * A dónde lleva «Enviar WhatsApp» (la Bandeja si hay chat abierto, o WhatsApp Web). Sin esto,
+   * WhatsApp Web; con `null`, el teléfono no sirve para WhatsApp y no hay botón.
+   */
+  whatsapp?: DestinoWhatsapp | null;
 };
 
 function telParaLlamar(telefono: string): string {
@@ -26,9 +32,13 @@ function telParaLlamar(telefono: string): string {
 }
 
 /** Nombre, tipo, etiquetas, contacto directo (llamar, WhatsApp, correo) y acciones. */
-export function EncabezadoFicha({ titulo, subtitulo, iniciales, insignias, telefono, correo, acciones, etiquetas }: EncabezadoFichaProps) {
+export function EncabezadoFicha({ titulo, subtitulo, iniciales, insignias, telefono, correo, acciones, etiquetas, whatsapp: destino }: EncabezadoFichaProps) {
   const tel = telefono?.trim() ? telParaLlamar(telefono) : "";
-  const whatsapp = buildWhatsappUrl(telefono);
+  // `waIdDe` entiende los números argentinos escritos a mano ("3402560626", "0341 15 …"):
+  // los teléfonos de las fichas casi nunca traen el +54.
+  const waId = waIdDe(telefono);
+  const whatsapp: DestinoWhatsapp | null =
+    destino !== undefined ? destino : waId ? { tipo: "web", href: `https://wa.me/${waId}` } : null;
   const mail = correo?.trim() ?? "";
   return (
     <header className="space-y-3">
@@ -72,9 +82,14 @@ export function EncabezadoFicha({ titulo, subtitulo, iniciales, insignias, telef
             </a>
           ) : null}
           {whatsapp ? (
-            <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="fo-btn fo-btn-secondary !min-h-8 text-xs">
+            <a
+              href={whatsapp.href}
+              {...(whatsapp.tipo === "web" ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+              title={whatsapp.tipo === "bandeja" ? "Abrir el chat en la Bandeja" : "Abrir WhatsApp Web"}
+              className="fo-btn !min-h-8 border border-transparent bg-[#1f9d55] text-xs text-white hover:brightness-110"
+            >
               <MessageCircle className="size-3.5" aria-hidden />
-              WhatsApp
+              Enviar WhatsApp
             </a>
           ) : null}
           {mail ? (

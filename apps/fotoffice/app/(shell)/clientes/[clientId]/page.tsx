@@ -42,6 +42,7 @@ import { etiquetaDeUsuario } from "@/lib/listado/acceso";
 import { ResumenDesplegable } from "@/components/entidades/resumen-desplegable";
 import { cuadrosDelResumen } from "@/lib/clients/resumen";
 import { pesosPedido } from "@/lib/pedidos/pantalla";
+import { destinoWhatsappDeCliente } from "@/lib/bandeja/destino-whatsapp-servidor";
 import { ClientForm } from "../client-form";
 import { linkClientToMemberAction } from "../actions";
 
@@ -93,6 +94,7 @@ export default async function ClientePage({
   // en Consultas; el nivel ya incluye que el módulo esté encendido). Crear una consulta para
   // este contacto pide Gestionar en Consultas.
   const acceso = await resolverAcceso(user.id, workspace.id);
+  const whatsapp = await destinoWhatsappDeCliente({ workspaceId: workspace.id, acceso, clientId: cliente.id, telefono: cliente.phone });
   const veConsultas = puede(acceso, "ver", SERVICE_LEADS_MODULE_KEY);
   const creaConsultas = puede(acceso, "operar", SERVICE_LEADS_MODULE_KEY);
   const [perfiles, delContacto] = await Promise.all([
@@ -209,6 +211,7 @@ export default async function ClientePage({
           insignias,
           telefono: cliente.phone,
           correo: cliente.email,
+          whatsapp,
         }}
         resumen={
           cuadros.length > 0 ? (
