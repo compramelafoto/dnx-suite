@@ -57,6 +57,13 @@ type Pedido = {
   paso: UbicacionEnEmbudo;
   disenos?: Diseno[];
   items?: Array<{ id: number; status: string }>;
+  /** Sólo en los canjes de copias impresas sin librito: su avance por la imprenta. */
+  copias?: {
+    printBatchName?: string | null;
+    sentToPrintAt?: string | null;
+    printedAt?: string | null;
+    deliveredAt?: string | null;
+  } | null;
   album: { id: number; title: string; school: { id: number; name: string } | null } | null;
   schoolCourse: { id: number; name: string; division: string | null } | null;
 };
@@ -129,7 +136,14 @@ function aTarjeta(o: Pedido): Tarjeta {
     paso: o.paso,
     demo: Boolean(o.isDemo),
     pedido: o,
-    plan: planDeAdelanto({ paso: o.paso, isDemo: o.isDemo, disenos: o.disenos ?? [], items: o.items }),
+    plan: planDeAdelanto({
+      paso: o.paso,
+      isDemo: o.isDemo,
+      disenos: o.disenos ?? [],
+      items: o.items,
+      redemptionOrderId: o.redemptionOrderId,
+      copias: o.copias,
+    }),
   };
 }
 
@@ -510,14 +524,16 @@ function TarjetaPedido({
   const sePuede = t.plan.puede;
   const huecos = disenos.reduce((n, d) => n + (d.status === "PENDING_PHOTOGRAPHER_APPROVAL" ? d.emptySlots : 0), 0);
   const nota = disenos.find((d) => d.status === "NEEDS_ADJUSTMENT" && d.reviewNote)?.reviewNote ?? null;
-  const lote = disenos.find((d) => d.printBatchName)?.printBatchName ?? null;
+  const lote = disenos.find((d) => d.printBatchName)?.printBatchName ?? o.copias?.printBatchName ?? null;
   const adulto = o.buyerName?.trim() || o.buyerEmail || null;
   const fecha = fechaArgentina(o.createdAt);
   const librito =
     disenos.length === 0
-      ? o.kind === "PACK_EXTERNO" && t.paso !== "POR_CANJEAR"
-        ? "Sin librito"
-        : null
+      ? o.copias
+        ? "Copias sueltas"
+        : o.kind === "PACK_EXTERNO" && t.paso !== "POR_CANJEAR"
+          ? "Sólo digital"
+          : null
       : disenos.length > 1
         ? `${disenos.length} librititos`
         : `Librito: ${(ESTADO_DISENO[disenos[0].status] ?? disenos[0].status).toLowerCase()}`;
@@ -650,6 +666,51 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactN
   );
 }
 
+/**
+ * Lo que se puede bajar de un pedido, sea librito, copias sueltas o los dos: las mismas descargas
+ * que Pedidos escolares.
+ */
+function Descargas({ o }: { o: Pedido }) {
+  const disenos = o.disenos ?? [];
+  const aprobados = disenos.filter((d) => d.status === "APPROVED_FOR_EXPORT" || d.status === "EXPORTED").map((d) => d.id);
+  const copias = o.copias && o.redemptionOrderId ? [o.redemptionOrderId] : [];
+  const q = new URLSearchParams();
+  if (aprobados.length) q.set("ids", aprobados.join(","));
+  if (copias.length) q.set("copias", copias.join(","));
+  const paraImprenta = aprobados.length + copias.length > 0;
+  const boton =
+    "inline-flex items-center rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/15";
+  if (!paraImprenta && !o.redemptionOrderId) return null;
+  return (
+    <div>
+      <h3 className="mb-2 text-sm font-semibold text-white/80">Descargas</h3>
+      <div className="flex flex-wrap gap-2">
+        {paraImprenta ? (
+          <>
+            <a href={`/api/fotografo/escolar/lotes/zip?${q}`} target="_blank" rel="noreferrer" className={boton}>
+              Para imprenta (ZIP)
+            </a>
+            <a href={`/api/fotografo/escolar/lotes/zip?${q}&formato=jpg`} target="_blank" rel="noreferrer" className={boton}>
+              Para imprenta en JPG (ZIP)
+            </a>
+          </>
+        ) : null}
+        {o.redemptionOrderId ? (
+          <a
+            href={`/api/fotografo/pedidos/${o.redemptionOrderId}/export-print`}
+            target="_blank"
+            rel="noreferrer"
+            className={boton}
+            title="ZIP con las copias de este pedido ordenadas por tamaño (y el PDF del librito, si tiene)"
+          >
+            Fotos del pedido por tamaño (ZIP)
+          </a>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function DetallePedido({ t, onAdelantar }: { t: Tarjeta; onAdelantar: () => void }) {
   const o = t.pedido;
   const paso = esPasoEmbudo(t.paso) ? t.paso : null;
@@ -714,7 +775,11 @@ function DetallePedido({ t, onAdelantar }: { t: Tarjeta; onAdelantar: () => void
         </h3>
         {disenos.length === 0 ? (
           <p className="text-sm text-white/50">
-            {t.paso === "POR_CANJEAR" ? "Todavía no hay: la familia no eligió sus fotos." : "Sin librito (copias sueltas o sólo digital)."}
+            {t.paso === "POR_CANJEAR"
+              ? "Todavía no hay: la familia no eligió sus fotos."
+              : o.copias
+                ? "Sin librito: son copias sueltas impresas."
+                : "Sin librito."}
           </p>
         ) : (
           <ul className="m-0 list-none space-y-2 p-0">
@@ -730,6 +795,15 @@ function DetallePedido({ t, onAdelantar }: { t: Tarjeta; onAdelantar: () => void
                     </a>
                     <a href={`/api/fotografo/disenos/${d.id}/pdf`} target="_blank" rel="noreferrer" className={link}>
                       PDF
+                    </a>
+                    <a
+                      href={`/api/fotografo/disenos/${d.id}/jpg`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={link}
+                      title="JPG de 300 dpi para imprenta, un archivo por cara"
+                    >
+                      JPG
                     </a>
                   </span>
                 </div>
@@ -752,6 +826,21 @@ function DetallePedido({ t, onAdelantar }: { t: Tarjeta; onAdelantar: () => void
           </ul>
         )}
       </div>
+
+      {o.copias ? (
+        <p className="-mt-2 text-xs text-white/50">
+          {[
+            o.copias.printBatchName,
+            o.copias.sentToPrintAt ? `a imprenta ${fechaArgentina(o.copias.sentToPrintAt)}` : "Todavía no se mandó a imprimir",
+            o.copias.printedAt ? `impreso ${fechaArgentina(o.copias.printedAt)}` : null,
+            o.copias.deliveredAt ? `entregado ${fechaArgentina(o.copias.deliveredAt)}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      ) : null}
+
+      <Descargas o={o} />
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
         <Link

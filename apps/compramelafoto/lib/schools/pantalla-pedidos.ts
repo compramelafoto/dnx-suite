@@ -75,6 +75,10 @@ export type PedidoParaAdelantar = {
   }>;
   /** Ítems de la tienda escolar (los packs cobrados por fuera no tienen). */
   items?: Array<{ id: number; status: string }>;
+  /** Pedido de canje de un pack cobrado por fuera. */
+  redemptionOrderId?: number | null;
+  /** Sólo en los canjes de copias impresas sin librito: su avance por la imprenta. */
+  copias?: { sentToPrintAt?: string | null; printedAt?: string | null; deliveredAt?: string | null } | null;
 };
 
 /** Un pedido a la API que hace avanzar el pedido. */
@@ -103,13 +107,23 @@ const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno
  *
  * - Revisar diseño → Para imprimir: aprueba los diseños pendientes (a la familia le llega el
  *   correo de "librito aprobado", salvo en las DEMO).
- * - Para imprimir → En imprenta: arma un lote con sus librititos aprobados; si no tiene librito
- *   pero es de la tienda escolar, marca sus ítems en imprenta.
+ * - Para imprimir → En imprenta: arma un lote con sus librititos aprobados y, si es un pedido de
+ *   sólo copias sueltas, con sus copias; si es de la tienda escolar sin librito, marca sus ítems.
  * - En imprenta → Para entregar: marca impresos los librititos (o los ítems "en la escuela").
  * - Para entregar → Entregado: marca entregados los librititos (o los ítems).
  */
 export function planDeAdelanto(p: PedidoParaAdelantar): PlanDeAdelanto {
   const items = p.items ?? [];
+  // Pedido de sólo copias (sin librito): se mueve por su pedido de canje.
+  const copiasSi = (cumple: (c: NonNullable<PedidoParaAdelantar["copias"]>) => boolean): number[] =>
+    p.copias && p.redemptionOrderId && cumple(p.copias) ? [p.redemptionOrderId] : [];
+  const trabajos = (libritos: number, copias: number) =>
+    [
+      libritos ? plural(libritos, "librito", "librititos") : "",
+      copias ? plural(copias, "pedido de copias sueltas", "pedidos de copias sueltas") : "",
+    ]
+      .filter(Boolean)
+      .join(" y ");
   const itemsEn = (estado: string) => items.filter((i) => i.status === estado);
   const correo = p.isDemo ? "Es una DEMO: no se le manda correo a nadie." : "A la familia le llega un correo avisando que su librito está aprobado.";
 
@@ -144,13 +158,14 @@ export function planDeAdelanto(p: PedidoParaAdelantar): PlanDeAdelanto {
 
     case "PARA_IMPRIMIR": {
       const ids = p.disenos.filter((d) => APROBADO.has(d.status) && !d.sentToPrintAt).map((d) => d.id);
-      if (ids.length > 0) {
+      const copias = copiasSi((c) => !c.sentToPrintAt);
+      if (ids.length > 0 || copias.length > 0) {
         return {
           puede: true,
           destino: "EN_IMPRENTA",
-          explicacion: `Vas a mandar a imprimir ${plural(ids.length, "librito", "librititos")} en un lote nuevo. Después bajás el ZIP o el PDF desde Pedidos escolares.`,
+          explicacion: `Vas a mandar a imprimir ${trabajos(ids.length, copias.length)} en un lote nuevo. Después bajás el ZIP desde el pedido o desde Pedidos escolares.`,
           aviso: null,
-          llamadas: [{ url: "/api/fotografo/escolar/lotes", body: { ids } }],
+          llamadas: [{ url: "/api/fotografo/escolar/lotes", body: { ids, copias } }],
         };
       }
       const exportados = itemsEn("EXPORTED");
@@ -163,21 +178,19 @@ export function planDeAdelanto(p: PedidoParaAdelantar): PlanDeAdelanto {
           llamadas: exportados.map((i) => ({ url: `/api/fotografo/school-order-items/${i.id}/start-physical-fulfillment` })),
         };
       }
-      return {
-        puede: false,
-        motivo: "Son copias sueltas sin librito: se imprimen desde el pedido, no entran en un lote.",
-      };
+      return { puede: false, motivo: "No encontré qué mandar a imprimir: revisalo en Pedidos escolares." };
     }
 
     case "EN_IMPRENTA": {
       const ids = p.disenos.filter((d) => d.sentToPrintAt && !d.printedAt).map((d) => d.id);
-      if (ids.length > 0) {
+      const copias = copiasSi((c) => Boolean(c.sentToPrintAt) && !c.printedAt);
+      if (ids.length > 0 || copias.length > 0) {
         return {
           puede: true,
           destino: "PARA_ENTREGAR",
-          explicacion: `Vas a marcar ${plural(ids.length, "librito impreso", "librititos impresos")}.`,
+          explicacion: `Vas a marcar impreso: ${trabajos(ids.length, copias.length)}.`,
           aviso: null,
-          llamadas: [{ url: "/api/fotografo/escolar/lotes/marcar", body: { ids, paso: "IMPRESO" } }],
+          llamadas: [{ url: "/api/fotografo/escolar/lotes/marcar", body: { ids, copias, paso: "IMPRESO" } }],
         };
       }
       const enCurso = itemsEn("PHYSICAL_IN_PROGRESS");
@@ -195,13 +208,14 @@ export function planDeAdelanto(p: PedidoParaAdelantar): PlanDeAdelanto {
 
     case "PARA_ENTREGAR": {
       const ids = p.disenos.filter((d) => d.printedAt && !d.deliveredAt).map((d) => d.id);
-      if (ids.length > 0) {
+      const copias = copiasSi((c) => Boolean(c.printedAt) && !c.deliveredAt);
+      if (ids.length > 0 || copias.length > 0) {
         return {
           puede: true,
           destino: "ENTREGADO",
-          explicacion: `Vas a marcar ${plural(ids.length, "librito entregado", "librititos entregados")} a la familia.`,
+          explicacion: `Vas a marcar entregado a la familia: ${trabajos(ids.length, copias.length)}.`,
           aviso: null,
-          llamadas: [{ url: "/api/fotografo/escolar/lotes/marcar", body: { ids, paso: "ENTREGADO" } }],
+          llamadas: [{ url: "/api/fotografo/escolar/lotes/marcar", body: { ids, copias, paso: "ENTREGADO" } }],
         };
       }
       const enEscuela = itemsEn("AT_SCHOOL");
