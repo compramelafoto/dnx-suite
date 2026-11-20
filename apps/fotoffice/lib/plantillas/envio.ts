@@ -552,11 +552,11 @@ export type DatosWhatsapp = {
 
 export type ResultadoWhatsapp = { ok: true; url: string; mensajeId: string } | Falla;
 
-/**
- * Arma el enlace `wa.me` con el texto final para el teléfono de la persona y lo registra como
- * `OPENED_WHATSAPP`. La firma va sólo si el texto la pide con `[firma]`.
- */
-export async function abrirWhatsapp(ctx: CtxEnvio, datos: DatosWhatsapp, opciones: OpcionesDeEnvio = {}): Promise<ResultadoWhatsapp> {
+/** El WhatsApp listo para salir: número, texto final y enlace `wa.me`. */
+export type WhatsappPreparado = { ok: true; numero: string; texto: string; url: string; plantillaId: string | null };
+
+/** Valida y completa el WhatsApp (sin registrar nada). La firma va sólo si el texto la pide con `[firma]`. */
+export async function prepararWhatsapp(ctx: CtxEnvio, datos: DatosWhatsapp, opciones: OpcionesDeEnvio = {}): Promise<WhatsappPreparado | Falla> {
   if (!puedeEnContexto(ctx, "operar", opciones.modulo ?? moduloDeTipo(datos.entityType))) return no(MENSAJES_ENVIO.sinPermiso);
   const vc = validarCuerpo(datos.cuerpo, "WHATSAPP");
   if (!vc.ok) return vc;
@@ -575,30 +575,54 @@ export async function abrirWhatsapp(ctx: CtxEnvio, datos: DatosWhatsapp, opcione
   if (texto.length > MAX_CUERPO.WHATSAPP) return no(cuerpoLargo("WHATSAPP"));
   const url = buildWhatsappUrl(numero, texto);
   if (!url) return no(MENSAJES_ENVIO.sinWhatsapp);
+  return { ok: true, numero, texto, url, plantillaId: plantilla.id };
+}
 
-  let fila: { id: string };
+/**
+ * Registra el WhatsApp: `OPENED_WHATSAPP` si sólo se abrió el enlace `wa.me` (lo manda una
+ * persona), `SENT` si salió desde el número del estudio (la conexión con Meta).
+ */
+export async function registrarWhatsapp(
+  ctx: CtxEnvio,
+  datos: DatosWhatsapp,
+  preparado: WhatsappPreparado,
+  status: "OPENED_WHATSAPP" | "SENT",
+  opciones: OpcionesDeEnvio = {},
+): Promise<{ ok: true; mensajeId: string } | Falla> {
   try {
-    fila = await prisma.fotofficeMessage.create({
+    const fila = await prisma.fotofficeMessage.create({
       data: {
         workspaceId: ctx.workspaceId,
         channel: "WHATSAPP",
         entityType: datos.registrarEn?.entityType ?? datos.entityType,
         entityId: datos.registrarEn?.entityId ?? datos.entityId,
-        templateId: plantilla.id,
-        toAddress: numero,
+        templateId: preparado.plantillaId,
+        toAddress: preparado.numero,
         subject: null,
-        body: opciones.taparEnRegistro ? opciones.taparEnRegistro(texto) : texto,
-        status: "OPENED_WHATSAPP",
+        body: opciones.taparEnRegistro ? opciones.taparEnRegistro(preparado.texto) : preparado.texto,
+        status,
         automatic: false,
         actorUserId: ctx.userId,
         actorLabel: ctx.userLabel,
       },
       select: { id: true },
     });
+    return { ok: true, mensajeId: fila.id };
   } catch (e) {
     // Sólo el código: nunca el número ni el texto.
     console.error("[plantillas] no se pudo registrar el WhatsApp", { codigo: (e as { code?: unknown })?.code ?? "desconocido" });
     return no(MENSAJES_ENVIO.falloRegistro);
   }
-  return { ok: true, url, mensajeId: fila.id };
+}
+
+/**
+ * Arma el enlace `wa.me` con el texto final para el teléfono de la persona y lo registra como
+ * `OPENED_WHATSAPP`. La firma va sólo si el texto la pide con `[firma]`.
+ */
+export async function abrirWhatsapp(ctx: CtxEnvio, datos: DatosWhatsapp, opciones: OpcionesDeEnvio = {}): Promise<ResultadoWhatsapp> {
+  const preparado = await prepararWhatsapp(ctx, datos, opciones);
+  if (!preparado.ok) return preparado;
+  const r = await registrarWhatsapp(ctx, datos, preparado, "OPENED_WHATSAPP", opciones);
+  if (!r.ok) return r;
+  return { ok: true, url: preparado.url, mensajeId: r.mensajeId };
 }

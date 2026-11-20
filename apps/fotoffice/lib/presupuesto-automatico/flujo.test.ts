@@ -269,6 +269,28 @@ describe("aprobarYEnviar: nunca dos envíos del mismo presupuesto", () => {
   });
 });
 
+describe("aprobarYEnviar después de enviarla desde el panel por el número del estudio", () => {
+  it("la aprobación pendiente queda ENVIADO_A_MANO y no se duplica", async () => {
+    const WA = "5493415551234";
+    const { d, envios, whatsapps } = deps({ estadoWhatsapp: async () => ({ conectado: true, ventanaAbierta: true }) });
+    await F.alLlegarConsulta(WS, "lead-1", "WHATSAPP", { waId: WA }, d);
+    // Lo que deja el «Enviar» del panel cuando sale por el bot: versión congelada, el registro SENT
+    // y el mensaje del bot (con el enlace) en el chat de la Bandeja.
+    const enviado = new Date(AHORA.getTime() - 3_600_000);
+    await B.tablas.fotofficePresupuestoVersion.updateMany({ where: { presupuestoId: "pres-1" }, data: { sentAt: enviado } });
+    B.agregar("fotofficeMessage", { id: "msg-wa", workspaceId: WS, channel: "WHATSAPP", entityType: "CONSULTA", entityId: "lead-1", toAddress: WA, body: "x", status: "SENT", createdAt: enviado });
+    B.agregar("fotofficeWaChat", { id: "chat-wa", workspaceId: WS, canal: "WHATSAPP", waId: WA, ultimoEntranteEn: new Date(AHORA.getTime() - 7_200_000), estado: "BOT" });
+    B.agregar("fotofficeWaMensaje", {
+      id: "m-bot", workspaceId: WS, chatId: "chat-wa", direccion: "SALIENTE", autor: "BOT", autorLabel: "Dueño", tipo: "TEXTO",
+      texto: "Hola Lucía, tu presupuesto: https://fotoffice.com/w/dnx/presupuesto/tok", estadoEnvio: "ENVIADO", createdAt: enviado,
+    });
+    expect(await F.aprobarYEnviar(WS, (await fila())!.id as string, { tipo: "TELEGRAM" }, d)).toMatchObject({ ok: false, codigo: "YA_ENVIADO" });
+    expect(envios).toHaveLength(0);
+    expect(whatsapps).toHaveLength(0);
+    expect(await fila()).toMatchObject({ status: "ENVIADO", errorCode: "ENVIADO_A_MANO" });
+  });
+});
+
 describe("consultas que entran por Instagram", () => {
   const chatIg = (ultimoEntranteEn: Date | null) =>
     B.agregar("fotofficeWaChat", { id: "chat-ig", workspaceId: WS, canal: "INSTAGRAM", waId: "17841400000000001", ultimoEntranteEn, estado: "BOT" });

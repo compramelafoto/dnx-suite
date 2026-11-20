@@ -365,6 +365,56 @@ describe("enviar", () => {
     expect(B.datos.fotofficeMessage).toEqual([expect.objectContaining({ channel: "WHATSAPP", status: "OPENED_WHATSAPP", entityType: "CONSULTA", templateId: wa })]);
   });
 
+  describe("por WhatsApp desde el número del estudio", () => {
+    const WA_BODY = "Hola [nombre], tu presupuesto: [presupuesto_enlace]";
+    const enviarWa = (salida: "ENVIADO" | "FALLO" = "ENVIADO") =>
+      vi.fn(async (_ws: string, _waId: string, _texto: string, _d?: { ahora?: Date; autor?: string }) => salida);
+
+    it("conexión activa y ventana abierta: sale por el bot con el enlace, a nombre de quien envía, y no abre nada", async () => {
+      const { presupuestoId, versionId } = await armado();
+      const wa = plantilla({ channel: "WHATSAPP", subject: null, body: WA_BODY });
+      const enviarWhatsapp = enviarWa();
+      const estadoWhatsapp = vi.fn(async () => ({ conectado: true, ventanaAbierta: true }));
+      const r = await EN.enviarPresupuesto(DUENO, presupuestoId, { canal: "WHATSAPP", templateId: wa }, depsEnvio({ estadoWhatsapp, enviarWhatsapp }));
+      expect(r).toMatchObject({ ok: true, enviadoPorBot: true, whatsappUrl: null, versionId });
+      expect(estadoWhatsapp).toHaveBeenCalledWith("ws-1", "5493415550000", AHORA);
+      expect(enviarWhatsapp).toHaveBeenCalledTimes(1);
+      const [, waId, texto, d] = enviarWhatsapp.mock.calls[0]!;
+      expect(waId).toBe("5493415550000");
+      expect(texto).toContain(`Hola Laura, tu presupuesto: ${ORIGEN}/w/dnx/presupuesto/${token(versionId)}`);
+      expect(d).toMatchObject({ autor: "Dueño" });
+      expect(B.datos.fotofficeMessage).toEqual([expect.objectContaining({ channel: "WHATSAPP", status: "SENT", entityType: "CONSULTA", templateId: wa })]);
+      expect(version(versionId).sentAt).toEqual(AHORA);
+    });
+
+    it.each([
+      ["sin conexión", { conectado: false, ventanaAbierta: true }],
+      ["con la ventana de 24 h cerrada", { conectado: true, ventanaAbierta: false }],
+    ])("%s: como siempre, el enlace wa.me (no lo manda el bot)", async (_n, estado) => {
+      const { presupuestoId } = await armado();
+      const wa = plantilla({ channel: "WHATSAPP", subject: null, body: WA_BODY });
+      const enviarWhatsapp = enviarWa();
+      const r = await EN.enviarPresupuesto(DUENO, presupuestoId, { canal: "WHATSAPP", templateId: wa }, depsEnvio({ estadoWhatsapp: async () => estado, enviarWhatsapp }));
+      expect(r).toMatchObject({ ok: true, whatsappUrl: expect.stringMatching(/^https:\/\/wa\.me\//) });
+      expect(r.ok && r.enviadoPorBot).toBeFalsy();
+      expect(enviarWhatsapp).not.toHaveBeenCalled();
+      expect(B.datos.fotofficeMessage).toEqual([expect.objectContaining({ channel: "WHATSAPP", status: "OPENED_WHATSAPP" })]);
+    });
+
+    it("si el bot falla después de congelar, no queda mudo: devuelve el wa.me y lo avisa", async () => {
+      const { presupuestoId, versionId } = await armado();
+      const wa = plantilla({ channel: "WHATSAPP", subject: null, body: WA_BODY });
+      const r = await EN.enviarPresupuesto(
+        DUENO, presupuestoId, { canal: "WHATSAPP", templateId: wa },
+        depsEnvio({ estadoWhatsapp: async () => ({ conectado: true, ventanaAbierta: true }), enviarWhatsapp: enviarWa("FALLO") }),
+      );
+      expect(r).toMatchObject({ ok: true, whatsappUrl: expect.stringMatching(/^https:\/\/wa\.me\//), aviso: EN.MENSAJES_ENVIO_PRESUPUESTO.botNoSalio });
+      expect(r.ok && r.enviadoPorBot).toBeFalsy();
+      expect(version(versionId).sentAt).toEqual(AHORA);
+      expect(B.datos.fotofficeMessage).toEqual([expect.objectContaining({ channel: "WHATSAPP", status: "OPENED_WHATSAPP" })]);
+    });
+  });
+
   it("si el proveedor falla después de congelar: queda enviado, lo dice, y se puede reenviar", async () => {
     const { presupuestoId } = await armado();
     const templateId = plantilla();
