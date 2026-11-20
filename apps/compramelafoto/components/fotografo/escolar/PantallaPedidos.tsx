@@ -57,6 +57,13 @@ type Pedido = {
   paso: UbicacionEnEmbudo;
   disenos?: Diseno[];
   items?: Array<{ id: number; status: string }>;
+  /** Sólo en los canjes de copias impresas sin librito: su avance por la imprenta. */
+  copias?: {
+    printBatchName?: string | null;
+    sentToPrintAt?: string | null;
+    printedAt?: string | null;
+    deliveredAt?: string | null;
+  } | null;
   album: { id: number; title: string; school: { id: number; name: string } | null } | null;
   schoolCourse: { id: number; name: string; division: string | null } | null;
 };
@@ -129,7 +136,14 @@ function aTarjeta(o: Pedido): Tarjeta {
     paso: o.paso,
     demo: Boolean(o.isDemo),
     pedido: o,
-    plan: planDeAdelanto({ paso: o.paso, isDemo: o.isDemo, disenos: o.disenos ?? [], items: o.items }),
+    plan: planDeAdelanto({
+      paso: o.paso,
+      isDemo: o.isDemo,
+      disenos: o.disenos ?? [],
+      items: o.items,
+      redemptionOrderId: o.redemptionOrderId,
+      copias: o.copias,
+    }),
   };
 }
 
@@ -141,6 +155,7 @@ export default function PantallaPedidos() {
   const router = useRouter();
   const raizRef = useRef<HTMLDivElement | null>(null);
   const enPantallaCompleta = useFullscreenElement(raizRef);
+  const tableroRef = useRef<HTMLDivElement | null>(null);
 
   const [listo, setListo] = useState(false);
   const [pedidos, setPedidos] = useState<Pedido[] | null>(null);
@@ -314,13 +329,25 @@ export default function PantallaPedidos() {
       </p>
 
       {/* El tablero: una columna por paso. Se desplaza de costado si la ventana es angosta. */}
-      <div className="min-h-0 flex-1 overflow-x-auto px-4 pb-4 pt-3 sm:px-6">
+      <div
+        ref={tableroRef}
+        onDragOver={(e) => {
+          // Si la columna siguiente no entra en la ventana, acercar la tarjeta al borde desplaza el tablero.
+          const el = tableroRef.current;
+          if (!el || !arrastrando) return;
+          const caja = el.getBoundingClientRect();
+          const borde = 90;
+          if (e.clientX > caja.right - borde) el.scrollLeft += 18;
+          else if (e.clientX < caja.left + borde) el.scrollLeft -= 18;
+        }}
+        className="min-h-0 flex-1 overflow-x-auto px-4 pb-4 pt-3 sm:px-6"
+      >
         {pedidos === null ? (
           <p className="flex h-full items-center justify-center text-xl text-white/50">
             {error ? "No pude traer los pedidos. Reintento en unos segundos…" : "Cargando pedidos…"}
           </p>
         ) : (
-          <div className="flex h-full min-w-max gap-3 lg:min-w-0">
+          <div className="flex h-full min-w-max gap-3 2xl:min-w-0">
             {contadores.map((c) => {
               const lista = porPaso[c.paso];
               const color = COLOR_PASO[c.paso];
@@ -330,6 +357,7 @@ export default function PantallaPedidos() {
               return (
                 <section
                   key={c.paso}
+                  id={`columna-${c.paso}`}
                   aria-label={`${c.titulo}: ${c.cantidad}`}
                   onDragOver={(e) => {
                     if (!esDestino) return;
@@ -346,7 +374,7 @@ export default function PantallaPedidos() {
                     if (esDestino && arrastrando) setAConfirmar(arrastrando);
                     setArrastrando(null);
                   }}
-                  className={`flex w-[240px] min-w-0 flex-col rounded-xl border transition lg:w-auto lg:flex-1 ${
+                  className={`flex w-[300px] shrink-0 flex-col rounded-xl border transition 2xl:w-auto 2xl:min-w-[300px] 2xl:flex-1 ${
                     esDestino
                       ? sobre === c.paso
                         ? "border-[#c27b3d] bg-[#c27b3d]/15"
@@ -370,7 +398,7 @@ export default function PantallaPedidos() {
                   {esDestino ? (
                     <p className="px-3 pt-2 text-xs font-semibold text-[#e7a86b]">Soltala acá para pasarla a este paso</p>
                   ) : null}
-                  <ol className="m-0 flex min-h-0 flex-1 list-none flex-col gap-1.5 overflow-y-auto p-2">
+                  <ol className="m-0 flex min-h-0 flex-1 list-none flex-col gap-2 overflow-y-auto p-2">
                     {lista.length === 0 ? (
                       <li className="px-1 py-3 text-center text-xs text-white/30">
                         {busqueda ? "Nada coincide" : "Sin pedidos"}
@@ -382,7 +410,21 @@ export default function PantallaPedidos() {
                         t={t}
                         arrastrada={arrastrando?.clave === t.clave}
                         onAbrir={() => setAbierta(t.clave)}
-                        onEmpezar={() => setArrastrando(t)}
+                        onEmpezar={() => {
+                          setArrastrando(t);
+                          if (!t.plan.puede) return;
+                          const idDestino = `columna-${t.plan.destino}`;
+                          // Después de dibujar el arrastre: si la columna de destino no se ve entera, se corre el tablero.
+                          window.setTimeout(() => {
+                            const el = tableroRef.current;
+                            const destino = document.getElementById(idDestino);
+                            if (!el || !destino) return;
+                            const caja = el.getBoundingClientRect();
+                            const d = destino.getBoundingClientRect();
+                            if (d.right > caja.right) el.scrollBy({ left: d.right - caja.right + 24 });
+                            else if (d.left < caja.left) el.scrollBy({ left: d.left - caja.left - 24 });
+                          }, 0);
+                        }}
                         onTerminar={() => {
                           setArrastrando(null);
                           setSobre(null);
@@ -456,6 +498,13 @@ export default function PantallaPedidos() {
   );
 }
 
+/** Lo que espera cada paso que no se adelanta desde el tablero, en pocas palabras. */
+const ESPERA_CORTA: Partial<Record<PasoEmbudo, string>> = {
+  POR_CANJEAR: "Espera que la familia elija",
+  CAMBIOS_PEDIDOS: "Espera la respuesta de la familia",
+  ENTREGADO: "Listo",
+};
+
 function TarjetaPedido({
   t,
   arrastrada,
@@ -470,8 +519,27 @@ function TarjetaPedido({
   onTerminar: () => void;
 }) {
   const paso = t.paso as PasoEmbudo;
-  const lugar = [t.curso, t.escuela].filter(Boolean).join(" · ");
+  const o = t.pedido;
+  const disenos = o.disenos ?? [];
   const sePuede = t.plan.puede;
+  const huecos = disenos.reduce((n, d) => n + (d.status === "PENDING_PHOTOGRAPHER_APPROVAL" ? d.emptySlots : 0), 0);
+  const nota = disenos.find((d) => d.status === "NEEDS_ADJUSTMENT" && d.reviewNote)?.reviewNote ?? null;
+  const lote = disenos.find((d) => d.printBatchName)?.printBatchName ?? o.copias?.printBatchName ?? null;
+  const adulto = o.buyerName?.trim() || o.buyerEmail || null;
+  const fecha = fechaArgentina(o.createdAt);
+  const librito =
+    disenos.length === 0
+      ? o.copias
+        ? "Copias sueltas"
+        : o.kind === "PACK_EXTERNO" && t.paso !== "POR_CANJEAR"
+          ? "Sólo digital"
+          : null
+      : disenos.length > 1
+        ? `${disenos.length} librititos`
+        : `Librito: ${(ESTADO_DISENO[disenos[0].status] ?? disenos[0].status).toLowerCase()}`;
+
+  // Es un div (no un botón) para que se pueda arrastrar en todos los navegadores: Firefox y
+  // Safari no arrastran un <button>.
   return (
     <li
       draggable={sePuede}
@@ -483,30 +551,61 @@ function TarjetaPedido({
       onDragEnd={onTerminar}
       className={arrastrada ? "opacity-40" : ""}
     >
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onAbrir}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onAbrir();
+          }
+        }}
         title={sePuede ? "Tocá para ver el pedido · arrastrá para adelantarlo" : "Tocá para ver el pedido"}
-        className={`group flex w-full items-stretch gap-2 rounded-lg border border-white/10 bg-[#161a22] text-left transition hover:border-white/25 hover:bg-[#1c212b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#c27b3d] ${
+        className={`group flex w-full select-none items-stretch rounded-lg border border-white/10 bg-[#161a22] text-left transition hover:border-white/25 hover:bg-[#1c212b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#c27b3d] ${
           sePuede ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
         }`}
       >
-        <span aria-hidden className="w-1 shrink-0 rounded-l-lg" style={{ background: COLOR_PASO[paso].fondo }} />
-        <span className="min-w-0 flex-1 py-1.5 pr-2">
+        <span aria-hidden className="w-1.5 shrink-0 rounded-l-lg" style={{ background: COLOR_PASO[paso].fondo }} />
+        <span className="min-w-0 flex-1 px-3 py-2.5">
           <span className="flex items-center gap-1.5">
-            <span className="truncate text-sm font-semibold leading-tight">{t.nombre}</span>
+            <span className="truncate text-[15px] font-semibold leading-tight">{t.nombre}</span>
             {t.demo ? (
-              <span className="shrink-0 rounded border border-white/20 px-1 text-[10px] font-semibold text-white/60">DEMO</span>
+              <span className="shrink-0 rounded bg-fuchsia-500/20 px-1.5 text-[10px] font-bold text-fuchsia-300">DEMO</span>
             ) : null}
           </span>
-          {lugar ? <span className="block truncate text-xs leading-tight text-white/50">{lugar}</span> : null}
-        </span>
-        {sePuede ? (
-          <span aria-hidden className="self-center pr-2 text-xs text-white/25 group-hover:text-[#e7a86b]">
-            ⠿
+          <span className="mt-0.5 block truncate text-[13px] leading-snug text-white/60">
+            {[t.curso, t.escuela].filter(Boolean).join(" · ") || "Sin curso"}
           </span>
-        ) : null}
-      </button>
+          {adulto || fecha ? (
+            <span className="mt-1 block truncate text-xs leading-snug text-white/45">
+              {[adulto, fecha].filter(Boolean).join(" · ")}
+            </span>
+          ) : null}
+          {librito || huecos > 0 || lote ? (
+            <span className="mt-1.5 flex flex-wrap gap-1">
+              {librito ? <span className="rounded bg-white/[0.07] px-1.5 py-0.5 text-[11px] text-white/70">{librito}</span> : null}
+              {huecos > 0 ? (
+                <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-300">{huecos} sin foto</span>
+              ) : null}
+              {lote ? <span className="rounded bg-white/[0.07] px-1.5 py-0.5 text-[11px] text-white/70">{lote}</span> : null}
+            </span>
+          ) : null}
+          {nota ? <span className="mt-1 block truncate text-[11px] text-sky-300">“{nota}”</span> : null}
+          <span className="mt-2 flex items-center justify-between gap-2 border-t border-white/5 pt-1.5 text-[11px]">
+            {sePuede ? (
+              <span className="font-semibold text-[#e7a86b]">Arrastrá a «{INFO_PASOS[t.plan.destino].titulo}» →</span>
+            ) : (
+              <span className="text-white/35">{ESPERA_CORTA[paso] ?? "Se mueve desde Pedidos escolares"}</span>
+            )}
+            {sePuede ? (
+              <span aria-hidden className="text-sm text-white/30 group-hover:text-[#e7a86b]">
+                ⠿
+              </span>
+            ) : null}
+          </span>
+        </span>
+      </div>
     </li>
   );
 }
@@ -563,6 +662,51 @@ function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactN
     <div className="min-w-0">
       <dt className="text-xs text-white/45">{etiqueta}</dt>
       <dd className="m-0 break-words text-sm">{children}</dd>
+    </div>
+  );
+}
+
+/**
+ * Lo que se puede bajar de un pedido, sea librito, copias sueltas o los dos: las mismas descargas
+ * que Pedidos escolares.
+ */
+function Descargas({ o }: { o: Pedido }) {
+  const disenos = o.disenos ?? [];
+  const aprobados = disenos.filter((d) => d.status === "APPROVED_FOR_EXPORT" || d.status === "EXPORTED").map((d) => d.id);
+  const copias = o.copias && o.redemptionOrderId ? [o.redemptionOrderId] : [];
+  const q = new URLSearchParams();
+  if (aprobados.length) q.set("ids", aprobados.join(","));
+  if (copias.length) q.set("copias", copias.join(","));
+  const paraImprenta = aprobados.length + copias.length > 0;
+  const boton =
+    "inline-flex items-center rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/15";
+  if (!paraImprenta && !o.redemptionOrderId) return null;
+  return (
+    <div>
+      <h3 className="mb-2 text-sm font-semibold text-white/80">Descargas</h3>
+      <div className="flex flex-wrap gap-2">
+        {paraImprenta ? (
+          <>
+            <a href={`/api/fotografo/escolar/lotes/zip?${q}`} target="_blank" rel="noreferrer" className={boton}>
+              Para imprenta (ZIP)
+            </a>
+            <a href={`/api/fotografo/escolar/lotes/zip?${q}&formato=jpg`} target="_blank" rel="noreferrer" className={boton}>
+              Para imprenta en JPG (ZIP)
+            </a>
+          </>
+        ) : null}
+        {o.redemptionOrderId ? (
+          <a
+            href={`/api/fotografo/pedidos/${o.redemptionOrderId}/export-print`}
+            target="_blank"
+            rel="noreferrer"
+            className={boton}
+            title="ZIP con las copias de este pedido ordenadas por tamaño (y el PDF del librito, si tiene)"
+          >
+            Fotos del pedido por tamaño (ZIP)
+          </a>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -631,7 +775,11 @@ function DetallePedido({ t, onAdelantar }: { t: Tarjeta; onAdelantar: () => void
         </h3>
         {disenos.length === 0 ? (
           <p className="text-sm text-white/50">
-            {t.paso === "POR_CANJEAR" ? "Todavía no hay: la familia no eligió sus fotos." : "Sin librito (copias sueltas o sólo digital)."}
+            {t.paso === "POR_CANJEAR"
+              ? "Todavía no hay: la familia no eligió sus fotos."
+              : o.copias
+                ? "Sin librito: son copias sueltas impresas."
+                : "Sin librito."}
           </p>
         ) : (
           <ul className="m-0 list-none space-y-2 p-0">
@@ -647,6 +795,15 @@ function DetallePedido({ t, onAdelantar }: { t: Tarjeta; onAdelantar: () => void
                     </a>
                     <a href={`/api/fotografo/disenos/${d.id}/pdf`} target="_blank" rel="noreferrer" className={link}>
                       PDF
+                    </a>
+                    <a
+                      href={`/api/fotografo/disenos/${d.id}/jpg`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={link}
+                      title="JPG de 300 dpi para imprenta, un archivo por cara"
+                    >
+                      JPG
                     </a>
                   </span>
                 </div>
@@ -669,6 +826,21 @@ function DetallePedido({ t, onAdelantar }: { t: Tarjeta; onAdelantar: () => void
           </ul>
         )}
       </div>
+
+      {o.copias ? (
+        <p className="-mt-2 text-xs text-white/50">
+          {[
+            o.copias.printBatchName,
+            o.copias.sentToPrintAt ? `a imprenta ${fechaArgentina(o.copias.sentToPrintAt)}` : "Todavía no se mandó a imprimir",
+            o.copias.printedAt ? `impreso ${fechaArgentina(o.copias.printedAt)}` : null,
+            o.copias.deliveredAt ? `entregado ${fechaArgentina(o.copias.deliveredAt)}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      ) : null}
+
+      <Descargas o={o} />
 
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
         <Link

@@ -91,7 +91,7 @@ describe("adelantar un pedido al paso siguiente", () => {
       ],
     });
     assert.ok(plan.puede);
-    assert.deepEqual(plan.llamadas, [{ url: "/api/fotografo/escolar/lotes", body: { ids: [3] } }]);
+    assert.deepEqual(plan.llamadas, [{ url: "/api/fotografo/escolar/lotes", body: { ids: [3], copias: [] } }]);
   });
 
   it("para imprimir sin librito, de la tienda → marca los ítems en imprenta", () => {
@@ -100,7 +100,32 @@ describe("adelantar un pedido al paso siguiente", () => {
     assert.deepEqual(plan.llamadas, [{ url: "/api/fotografo/school-order-items/9/start-physical-fulfillment" }]);
   });
 
-  it("para imprimir, copias sueltas de un pack → no se adelanta", () => {
+  it("copias sueltas sin librito: lote, impreso y entregado por su pedido de canje", () => {
+    const base = { disenos: [], redemptionOrderId: 4801 };
+    const lote = planDeAdelanto({ ...base, paso: "PARA_IMPRIMIR", copias: { sentToPrintAt: null } });
+    assert.ok(lote.puede);
+    assert.equal(lote.destino, "EN_IMPRENTA");
+    assert.deepEqual(lote.llamadas, [{ url: "/api/fotografo/escolar/lotes", body: { ids: [], copias: [4801] } }]);
+    assert.match(lote.explicacion, /copias sueltas/);
+
+    const impreso = planDeAdelanto({ ...base, paso: "EN_IMPRENTA", copias: { sentToPrintAt: "2026-11-01" } });
+    assert.ok(impreso.puede);
+    assert.deepEqual(impreso.llamadas, [
+      { url: "/api/fotografo/escolar/lotes/marcar", body: { ids: [], copias: [4801], paso: "IMPRESO" } },
+    ]);
+
+    const entregado = planDeAdelanto({
+      ...base,
+      paso: "PARA_ENTREGAR",
+      copias: { sentToPrintAt: "2026-11-01", printedAt: "2026-11-02" },
+    });
+    assert.ok(entregado.puede);
+    assert.deepEqual(entregado.llamadas, [
+      { url: "/api/fotografo/escolar/lotes/marcar", body: { ids: [], copias: [4801], paso: "ENTREGADO" } },
+    ]);
+  });
+
+  it("sin librito, sin copias ni ítems → no hay qué mandar a imprimir", () => {
     assert.equal(planDeAdelanto({ paso: "PARA_IMPRIMIR", disenos: [] }).puede, false);
   });
 
@@ -111,7 +136,7 @@ describe("adelantar un pedido al paso siguiente", () => {
     });
     assert.ok(impreso.puede);
     assert.equal(impreso.destino, "PARA_ENTREGAR");
-    assert.deepEqual(impreso.llamadas, [{ url: "/api/fotografo/escolar/lotes/marcar", body: { ids: [5], paso: "IMPRESO" } }]);
+    assert.deepEqual(impreso.llamadas, [{ url: "/api/fotografo/escolar/lotes/marcar", body: { ids: [5], copias: [], paso: "IMPRESO" } }]);
 
     const entregado = planDeAdelanto({
       paso: "PARA_ENTREGAR",
@@ -119,7 +144,7 @@ describe("adelantar un pedido al paso siguiente", () => {
     });
     assert.ok(entregado.puede);
     assert.equal(entregado.destino, "ENTREGADO");
-    assert.deepEqual(entregado.llamadas, [{ url: "/api/fotografo/escolar/lotes/marcar", body: { ids: [5], paso: "ENTREGADO" } }]);
+    assert.deepEqual(entregado.llamadas, [{ url: "/api/fotografo/escolar/lotes/marcar", body: { ids: [5], copias: [], paso: "ENTREGADO" } }]);
   });
 
   it("ítems de la tienda sin librito: en la escuela y entregado", () => {
