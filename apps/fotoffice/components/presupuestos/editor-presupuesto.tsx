@@ -415,8 +415,345 @@ export function EditorPresupuesto({
 
   return (
     <div className="space-y-6">
+      <PanelAlternativas
+        alternativas={alternativas}
+        activa={idActiva}
+        totales={Object.fromEntries(conAlternativas.alternativas.map((a) => [a.id, a.totales.total]))}
+        costos={costosPorAlternativa}
+        deshabilitado={!puedeGuardar}
+        onActivar={setActiva}
+        onCambiar={(xs) => {
+          setAlternativas(xs);
+          setCambios(true);
+          setMensaje(null);
+        }}
+        onAgregar={() => {
+          const r = agregarAlternativa({ alternativas, items });
+          setAlternativas(r.alternativas);
+          cambiar(r.items);
+          if (r.nueva) setActiva(r.nueva);
+        }}
+        onQuitar={(id) => {
+          const r = quitarAlternativa({ alternativas, items }, id);
+          setAlternativas(r.alternativas);
+          cambiar(r.items);
+          setActiva(alternativaPrincipal(r.alternativas)?.id ?? null);
+        }}
+      />
+
+      <section aria-label="Ítems" className="fo-card space-y-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-lg font-semibold text-[var(--fo-text)]">
+            {idActiva ? `Lo cotizado en la opción ${nombreActiva || "sin nombre"}` : "Lo cotizado"}
+          </h2>
+          <span className="text-sm text-[var(--fo-muted)]">
+            {visibles.length === 1 ? "1 ítem" : `${visibles.length} ítems`}
+          </span>
+        </div>
+        {idActiva && visibles.length === 0 ? (
+          <p className="rounded-[var(--fo-radius-sm)] border border-dashed border-[var(--fo-border-strong)] p-6 text-center text-sm text-[var(--fo-muted)]">
+            Esta opción todavía no tiene ítems. Buscá en el catálogo, agregá uno de texto libre o copiá uno de otra opción.
+          </p>
+        ) : null}
+        {items.length === 0 && !idActiva ? (
+          <p className="rounded-[var(--fo-radius-sm)] border border-dashed border-[var(--fo-border-strong)] p-6 text-center text-sm text-[var(--fo-muted)]">
+            Todavía no hay ítems. Buscá en el catálogo o agregá uno de texto libre.
+          </p>
+        ) : null}
+        {visibles.length > 0
+          ? secciones(visibles).map((sec) => {
+              const deLaSeccion = visibles.filter((i) => i.seccion === sec);
+              const subtotal = totales.secciones.find((s) => s.seccion === sec);
+              const conTitulo = sec !== null || secciones(visibles).length > 1;
+              return (
+                <div key={sec ?? "__sin__"} className="space-y-3">
+                  {conTitulo ? (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      {puedeGuardar && sec !== null ? (
+                        <input
+                          aria-label="Nombre de la sección"
+                          className="fo-input max-w-xs font-semibold"
+                          defaultValue={sec}
+                          onBlur={(e) => {
+                            if (e.target.value.trim() !== sec) renombrarSeccion(sec, e.target.value);
+                          }}
+                        />
+                      ) : (
+                        <h3 className="text-sm font-semibold text-[var(--fo-text)]">{sec ?? TEXTO_SIN_SECCION}</h3>
+                      )}
+                      {subtotal ? <span className="text-sm font-medium tabular-nums text-[var(--fo-text-secondary)]">Subtotal {pesos(subtotal.subtotal)}</span> : null}
+                    </div>
+                  ) : null}
+                  <ol className="space-y-3">
+                    {deLaSeccion.map((it, n) => {
+                      const r = totales.renglones[it.id];
+                      const c = costos?.porItem[it.id];
+                      const calculado = it.modoPrecio === "CALCULO";
+                      const etiquetaFila = it.nombre.trim() ? `"${it.nombre.trim()}"` : "ítem sin nombre";
+                      const neto = r?.neto ?? 0;
+                      const margenPct = c && c.margen !== null && neto > 0 ? Math.round((c.margen / neto) * 100) : null;
+                      return (
+                        <li
+                          key={it.id}
+                          className={`rounded-[var(--fo-radius)] border bg-[var(--fo-surface)] ${
+                            it.opcional ? "border-dashed border-[var(--fo-border-strong)]" : "border-[var(--fo-border)]"
+                          } ${calculando === it.id ? "ring-2 ring-[var(--fo-accent-muted)]" : ""}`}
+                        >
+                          <div className="grid gap-4 p-4 md:grid-cols-[minmax(0,1fr)_12rem]">
+                            <div className="min-w-0 space-y-3">
+                              <div className="flex items-start gap-3">
+                                <span
+                                  aria-hidden
+                                  className="mt-2 flex size-6 shrink-0 items-center justify-center rounded-full bg-[var(--fo-surface-muted)] text-xs font-semibold tabular-nums text-[var(--fo-text-secondary)]"
+                                >
+                                  {n + 1}
+                                </span>
+                                <div className="min-w-0 flex-1 space-y-1.5">
+                                  <input
+                                    aria-label={`Nombre del ítem ${etiquetaFila}`}
+                                    className="fo-input w-full font-medium"
+                                    placeholder="Nombre del ítem"
+                                    value={it.nombre}
+                                    disabled={!puedeGuardar}
+                                    onChange={(e) => actualizar(it.id, { nombre: e.target.value })}
+                                  />
+                                  <input
+                                    aria-label={`Descripción de ${etiquetaFila}`}
+                                    className="fo-input w-full text-sm"
+                                    placeholder="Descripción para el cliente (opcional)"
+                                    value={it.descripcion ?? ""}
+                                    disabled={!puedeGuardar}
+                                    onChange={(e) => actualizar(it.id, { descripcion: e.target.value || null })}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap items-end gap-3 pl-9">
+                                <div className="space-y-1">
+                                  <span aria-hidden className="block text-xs text-[var(--fo-muted)]">Precio</span>
+                                  <select
+                                    aria-label={`Cómo se fija el precio de ${etiquetaFila}`}
+                                    className="fo-input w-40"
+                                    value={it.modoPrecio}
+                                    disabled={!puedeGuardar || (!internos && !calculado)}
+                                    onChange={(e) => cambiarModo(it, e.target.value as ModoPrecio)}
+                                  >
+                                    <option value="LISTA">De lista</option>
+                                    {internos || calculado ? <option value="CALCULO">¿Cuánto Cobro?</option> : null}
+                                  </select>
+                                </div>
+                                <div className="space-y-1">
+                                  <span aria-hidden className="block text-xs text-[var(--fo-muted)]">Cantidad</span>
+                                  <input
+                                    aria-label={`Cantidad de ${etiquetaFila}`}
+                                    type="number"
+                                    min={0}
+                                    className="fo-input w-20 text-right"
+                                    value={it.cantidad}
+                                    // Un ítem calculado es el precio del trabajo entero: cantidad 1.
+                                    disabled={!puedeGuardar || calculado}
+                                    onChange={(e) => actualizar(it.id, { cantidad: aNumero(e.target.value) })}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <span aria-hidden className="block text-xs text-[var(--fo-muted)]">Precio unitario</span>
+                                  <CampoPrecio
+                                    aria-label={`Precio unitario de ${etiquetaFila}`}
+                                    precio={it.precioUnitario}
+                                    disabled={!puedeGuardar}
+                                    onCambio={(n) => {
+                                      if (calculado) marcarAjuste(it.id, true);
+                                      actualizar(it.id, { precioUnitario: n });
+                                    }}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <span aria-hidden className="block text-xs text-[var(--fo-muted)]">Descuento</span>
+                                  {puedeGuardar ? (
+                                    <DescuentoCampos etiqueta={`Descuento de ${etiquetaFila}`} valor={it.descuento} onCambio={(d) => actualizar(it.id, { descuento: d })} />
+                                  ) : (
+                                    <p className="py-2 text-sm tabular-nums">
+                                      {it.descuento ? (it.descuento.tipo === "PORCENTAJE" ? `${it.descuento.valor} %` : pesos(it.descuento.valor)) : "—"}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {calculado && internos ? (
+                                <div className="ml-9 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-[var(--fo-radius-sm)] bg-[var(--fo-bg)] px-3 py-2 text-xs">
+                                  <span className="font-medium text-[var(--fo-text-secondary)]">Calculado con ¿Cuánto Cobro?</span>
+                                  {it.calculo ? <span className="tabular-nums text-[var(--fo-muted)]">Sugerido {pesos(it.calculo.precioSugerido)}</span> : null}
+                                  <button type="button" className="font-medium text-[var(--fo-accent)] hover:underline" onClick={() => setCalculando(it.id)}>
+                                    Ver o recalcular
+                                  </button>
+                                </div>
+                              ) : null}
+
+                              {puedeGuardar ? (
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pl-9 text-xs text-[var(--fo-muted)]">
+                                  <label className="flex items-center gap-1.5">
+                                    <input
+                                      type="checkbox"
+                                      aria-label={`${etiquetaFila} es opcional (no suma al total)`}
+                                      checked={it.opcional}
+                                      onChange={(e) => actualizar(it.id, { opcional: e.target.checked })}
+                                    />
+                                    Opcional (no suma al total)
+                                  </label>
+                                  {opcionesSeccion.length > 1 ? (
+                                    <select
+                                      aria-label={`Sección de ${etiquetaFila}`}
+                                      className="fo-input w-auto py-1 text-xs"
+                                      value={it.seccion ?? ""}
+                                      onChange={(e) => actualizar(it.id, { seccion: e.target.value || null })}
+                                    >
+                                      {opcionesSeccion.map((o) => (
+                                        <option key={o ?? ""} value={o ?? ""}>
+                                          {o ?? TEXTO_SIN_SECCION}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : null}
+                                  {alternativas.length > 1 ? (
+                                    <>
+                                      <select
+                                        aria-label={`Mover ${etiquetaFila} a otra opción`}
+                                        className="fo-input w-auto py-1 text-xs"
+                                        value=""
+                                        onChange={(e) => {
+                                          if (e.target.value) cambiar(moverItemA(items, it.id, e.target.value));
+                                        }}
+                                      >
+                                        <option value="">Mover a otra opción…</option>
+                                        {alternativas
+                                          .filter((a) => a.id !== idActiva)
+                                          .map((a) => (
+                                            <option key={a.id} value={a.id}>
+                                              {a.nombre || "Sin nombre"}
+                                            </option>
+                                          ))}
+                                      </select>
+                                      {/* Uno calculado, sólo con costos: sin eso su cálculo no llega al navegador y la copia no se podría guardar. */}
+                                      {!calculado || internos ? (
+                                        <select
+                                          aria-label={`Copiar ${etiquetaFila} a otra opción`}
+                                          className="fo-input w-auto py-1 text-xs"
+                                          value=""
+                                          onChange={(e) => {
+                                            if (!e.target.value) return;
+                                            const clave = nuevaClave();
+                                            cambiar(copiarItemA(items, it.id, e.target.value, clave));
+                                            if (ajustados.has(it.id)) marcarAjuste(clave, true);
+                                          }}
+                                        >
+                                          <option value="">Copiar a otra opción…</option>
+                                          {alternativas
+                                            .filter((a) => a.id !== idActiva)
+                                            .map((a) => (
+                                              <option key={a.id} value={a.id}>
+                                                {a.nombre || "Sin nombre"}
+                                              </option>
+                                            ))}
+                                        </select>
+                                      ) : null}
+                                    </>
+                                  ) : null}
+                                </div>
+                              ) : null}
+                            </div>
+
+                            {/* Columna del importe: lo que suma este ítem (y, con permiso, cuánto deja). */}
+                            <div className="flex flex-row-reverse items-start justify-between gap-3 border-t border-[var(--fo-border)] pt-3 md:flex-col md:items-end md:border-l md:border-t-0 md:pl-4 md:pt-0">
+                              {puedeGuardar ? (
+                                <div className="flex gap-0.5">
+                                  <button type="button" className="fo-btn fo-btn-ghost p-1.5" title="Subir" aria-label={`Subir ${etiquetaFila}`} onClick={() => mover(it.id, -1)}>
+                                    <ArrowUp className="size-4" aria-hidden />
+                                  </button>
+                                  <button type="button" className="fo-btn fo-btn-ghost p-1.5" title="Bajar" aria-label={`Bajar ${etiquetaFila}`} onClick={() => mover(it.id, 1)}>
+                                    <ArrowDown className="size-4" aria-hidden />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="fo-btn fo-btn-ghost p-1.5 text-[var(--fo-danger)]"
+                                    title="Quitar"
+                                    aria-label={`Quitar ${etiquetaFila}`}
+                                    onClick={() => cambiar(items.filter((x) => x.id !== it.id))}
+                                  >
+                                    <X className="size-4" aria-hidden />
+                                  </button>
+                                </div>
+                              ) : null}
+                              <div className="space-y-1 md:text-right">
+                                <p className="text-xs text-[var(--fo-muted)]">{it.opcional ? "Opcional, aparte" : "Importe"}</p>
+                                <p className={`text-xl font-semibold tabular-nums ${it.opcional ? "text-[var(--fo-muted)]" : "text-[var(--fo-text)]"}`}>{pesos(neto)}</p>
+                                {costos ? (
+                                  <div className="space-y-0.5 text-xs tabular-nums">
+                                    <p className="text-[var(--fo-muted)]">Costo {c?.costo === null || c === undefined ? "—" : pesos(c.costo)}</p>
+                                    <p className={c?.margen != null && c.margen < 0 ? "font-medium text-[var(--fo-danger)]" : "font-medium text-[var(--fo-success)]"}>
+                                      Margen {c?.margen === null || c === undefined ? "—" : pesos(c.margen)}
+                                      {margenPct !== null ? ` (${margenPct} %)` : ""}
+                                    </p>
+                                  </div>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+
+                          {calculando === it.id && itemCalculando && internos ? (
+                            <div className="border-t border-[var(--fo-border)] p-4">
+                              <PanelCuantoCobro
+                                key={itemCalculando.id}
+                                item={itemCalculando}
+                                perfilDelWorkspace={datos.internos?.perfil ?? null}
+                                onCerrar={() => {
+                                  // Un ítem nuevo que nunca se calculó se descarta al cerrar.
+                                  if (nuevoCalculado === itemCalculando.id) setItems((xs) => xs.filter((x) => x.id !== itemCalculando.id));
+                                  setNuevoCalculado(null);
+                                  setCalculando(null);
+                                }}
+                                onUsar={(item) => {
+                                  // El precio del panel es el del motor (o su precio a mano): sigue al cálculo.
+                                  marcarAjuste(item.id, false);
+                                  actualizar(item.id, item);
+                                  setNuevoCalculado(null);
+                                  setCalculando(null);
+                                }}
+                              />
+                            </div>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ol>
+                </div>
+              );
+            })
+          : null}
+      </section>
+
+      {/* Si el ítem que se calcula no está a la vista (otra opción), el panel va suelto. */}
+      {itemCalculando && internos && !visibles.some((v) => v.id === itemCalculando.id) ? (
+        <PanelCuantoCobro
+          key={itemCalculando.id}
+          item={itemCalculando}
+          perfilDelWorkspace={datos.internos?.perfil ?? null}
+          onCerrar={() => {
+            if (nuevoCalculado === itemCalculando.id) setItems((xs) => xs.filter((x) => x.id !== itemCalculando.id));
+            setNuevoCalculado(null);
+            setCalculando(null);
+          }}
+          onUsar={(item) => {
+            marcarAjuste(item.id, false);
+            actualizar(item.id, item);
+            setNuevoCalculado(null);
+            setCalculando(null);
+          }}
+        />
+      ) : null}
+
       {puedeGuardar ? (
         <section aria-label="Agregar ítems" className="fo-card space-y-3">
+          <h2 className="text-base font-semibold text-[var(--fo-text)]">{idActiva ? `Agregar a la opción ${nombreActiva || "sin nombre"}` : "Agregar a la cotización"}</h2>
           <div className="grid gap-3 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             <BuscadorCatalogo id={idBusqueda} catalogo={datos.catalogo} onElegir={(p) => cambiar([...items, enActiva(itemDesdeProducto(p, nuevaClave(), seccionActual))])} />
             <div className="fo-field-stack">
@@ -492,267 +829,6 @@ export function EditorPresupuesto({
         </section>
       ) : null}
 
-      {itemCalculando && internos ? (
-        <PanelCuantoCobro
-          key={itemCalculando.id}
-          item={itemCalculando}
-          perfilDelWorkspace={datos.internos?.perfil ?? null}
-          onCerrar={() => {
-            // Un ítem nuevo que nunca se calculó se descarta al cerrar.
-            if (nuevoCalculado === itemCalculando.id) setItems((xs) => xs.filter((x) => x.id !== itemCalculando.id));
-            setNuevoCalculado(null);
-            setCalculando(null);
-          }}
-          onUsar={(item) => {
-            // El precio del panel es el del motor (o su precio a mano): sigue al cálculo.
-            marcarAjuste(item.id, false);
-            actualizar(item.id, item);
-            setNuevoCalculado(null);
-            setCalculando(null);
-          }}
-        />
-      ) : null}
-
-      <PanelAlternativas
-        alternativas={alternativas}
-        activa={idActiva}
-        totales={Object.fromEntries(conAlternativas.alternativas.map((a) => [a.id, a.totales.total]))}
-        costos={costosPorAlternativa}
-        deshabilitado={!puedeGuardar}
-        onActivar={setActiva}
-        onCambiar={(xs) => {
-          setAlternativas(xs);
-          setCambios(true);
-          setMensaje(null);
-        }}
-        onAgregar={() => {
-          const r = agregarAlternativa({ alternativas, items });
-          setAlternativas(r.alternativas);
-          cambiar(r.items);
-          if (r.nueva) setActiva(r.nueva);
-        }}
-        onQuitar={(id) => {
-          const r = quitarAlternativa({ alternativas, items }, id);
-          setAlternativas(r.alternativas);
-          cambiar(r.items);
-          setActiva(alternativaPrincipal(r.alternativas)?.id ?? null);
-        }}
-      />
-
-      <section aria-label="Ítems" className="fo-card space-y-4 overflow-x-auto">
-        {idActiva ? <h2 className="text-base font-semibold">Ítems de la opción {nombreActiva}</h2> : null}
-        {idActiva && visibles.length === 0 ? (
-          <p className="text-sm text-[var(--fo-muted)]">Esta opción todavía no tiene ítems. Buscá en el catálogo, agregá uno de texto libre o copiá uno de otra opción.</p>
-        ) : null}
-        {items.length === 0 && !idActiva ? <p className="text-sm text-[var(--fo-muted)]">Todavía no hay ítems. Buscá en el catálogo o agregá uno de texto libre.</p> : null}
-        {visibles.length > 0
-          ? secciones(visibles).map((sec) => {
-              const deLaSeccion = visibles.filter((i) => i.seccion === sec);
-              const subtotal = totales.secciones.find((s) => s.seccion === sec);
-              return (
-                <div key={sec ?? "__sin__"} className="space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--fo-border)] pb-1">
-                    {puedeGuardar && sec !== null ? (
-                      <input
-                        aria-label="Nombre de la sección"
-                        className="fo-input max-w-xs font-semibold"
-                        defaultValue={sec}
-                        onBlur={(e) => {
-                          if (e.target.value.trim() !== sec) renombrarSeccion(sec, e.target.value);
-                        }}
-                      />
-                    ) : (
-                      <h3 className="text-sm font-semibold text-[var(--fo-text)]">{sec ?? TEXTO_SIN_SECCION}</h3>
-                    )}
-                    {subtotal ? <span className="text-sm tabular-nums text-[var(--fo-muted)]">Subtotal {pesos(subtotal.subtotal)}</span> : null}
-                  </div>
-                  <table className="w-full min-w-[720px] text-sm">
-                    <thead>
-                      <tr className="text-left text-xs text-[var(--fo-muted)]">
-                        <th className="py-1 pr-2 font-medium">Ítem</th>
-                        <th className="py-1 pr-2 font-medium">Precio</th>
-                        <th className="py-1 pr-2 font-medium">Cant.</th>
-                        <th className="py-1 pr-2 font-medium">Precio unit.</th>
-                        <th className="py-1 pr-2 font-medium">Descuento</th>
-                        <th className="py-1 pr-2 text-right font-medium">Neto</th>
-                        {costos ? <th className="py-1 pr-2 text-right font-medium">Costo</th> : null}
-                        {costos ? <th className="py-1 pr-2 text-right font-medium">Margen</th> : null}
-                        <th className="py-1 font-medium">
-                          <span className="sr-only">Acciones</span>
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {deLaSeccion.map((it) => {
-                        const r = totales.renglones[it.id];
-                        const c = costos?.porItem[it.id];
-                        const calculado = it.modoPrecio === "CALCULO";
-                        const etiquetaFila = it.nombre.trim() ? `"${it.nombre.trim()}"` : "ítem sin nombre";
-                        return (
-                          <tr key={it.id} className="border-t border-[var(--fo-border)] align-top">
-                            <td className="py-2 pr-2">
-                              <input
-                                aria-label={`Nombre del ítem ${etiquetaFila}`}
-                                className="fo-input"
-                                value={it.nombre}
-                                disabled={!puedeGuardar}
-                                onChange={(e) => actualizar(it.id, { nombre: e.target.value })}
-                              />
-                              <input
-                                aria-label={`Descripción de ${etiquetaFila}`}
-                                className="fo-input mt-1 text-xs"
-                                placeholder="Descripción (opcional)"
-                                value={it.descripcion ?? ""}
-                                disabled={!puedeGuardar}
-                                onChange={(e) => actualizar(it.id, { descripcion: e.target.value || null })}
-                              />
-                              <label className="mt-1 flex items-center gap-1 text-xs text-[var(--fo-muted)]">
-                                <input type="checkbox" aria-label={`${etiquetaFila} es opcional (no suma al total)`} checked={it.opcional} disabled={!puedeGuardar} onChange={(e) => actualizar(it.id, { opcional: e.target.checked })} />
-                                Opcional (no suma al total)
-                              </label>
-                              {puedeGuardar && opcionesSeccion.length > 1 ? (
-                                <select
-                                  aria-label={`Sección de ${etiquetaFila}`}
-                                  className="fo-input mt-1 text-xs"
-                                  value={it.seccion ?? ""}
-                                  onChange={(e) => actualizar(it.id, { seccion: e.target.value || null })}
-                                >
-                                  {opcionesSeccion.map((o) => (
-                                    <option key={o ?? ""} value={o ?? ""}>
-                                      {o ?? TEXTO_SIN_SECCION}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : null}
-                              {puedeGuardar && alternativas.length > 1 ? (
-                                <div className="mt-1 flex flex-wrap gap-1">
-                                  <select
-                                    aria-label={`Mover ${etiquetaFila} a otra opción`}
-                                    className="fo-input text-xs"
-                                    value=""
-                                    onChange={(e) => {
-                                      if (e.target.value) cambiar(moverItemA(items, it.id, e.target.value));
-                                    }}
-                                  >
-                                    <option value="">Mover a…</option>
-                                    {alternativas
-                                      .filter((a) => a.id !== idActiva)
-                                      .map((a) => (
-                                        <option key={a.id} value={a.id}>
-                                          {a.nombre || "Sin nombre"}
-                                        </option>
-                                      ))}
-                                  </select>
-                                  {/* Uno calculado, sólo con costos: sin eso su cálculo no llega al navegador y la copia no se podría guardar. */}
-                                  {!calculado || internos ? (
-                                    <select
-                                      aria-label={`Copiar ${etiquetaFila} a otra opción`}
-                                      className="fo-input text-xs"
-                                      value=""
-                                      onChange={(e) => {
-                                        if (!e.target.value) return;
-                                        const clave = nuevaClave();
-                                        cambiar(copiarItemA(items, it.id, e.target.value, clave));
-                                        if (ajustados.has(it.id)) marcarAjuste(clave, true);
-                                      }}
-                                    >
-                                      <option value="">Copiar a…</option>
-                                      {alternativas
-                                        .filter((a) => a.id !== idActiva)
-                                        .map((a) => (
-                                          <option key={a.id} value={a.id}>
-                                            {a.nombre || "Sin nombre"}
-                                          </option>
-                                        ))}
-                                    </select>
-                                  ) : null}
-                                </div>
-                              ) : null}
-                            </td>
-                            <td className="py-2 pr-2">
-                              <select
-                                aria-label={`Cómo se fija el precio de ${etiquetaFila}`}
-                                className="fo-input"
-                                value={it.modoPrecio}
-                                disabled={!puedeGuardar || (!internos && !calculado)}
-                                onChange={(e) => cambiarModo(it, e.target.value as ModoPrecio)}
-                              >
-                                <option value="LISTA">Lista</option>
-                                {internos || calculado ? <option value="CALCULO">¿Cuánto Cobro?</option> : null}
-                              </select>
-                              {calculado && internos ? (
-                                <button type="button" className="mt-1 text-xs text-[var(--fo-accent)] hover:underline" onClick={() => setCalculando(it.id)}>
-                                  Ver o recalcular
-                                </button>
-                              ) : null}
-                              {calculado && it.calculo && internos ? (
-                                <p className="mt-1 text-xs text-[var(--fo-muted)]">Sugerido {pesos(it.calculo.precioSugerido)}</p>
-                              ) : null}
-                            </td>
-                            <td className="py-2 pr-2">
-                              <input
-                                aria-label={`Cantidad de ${etiquetaFila}`}
-                                type="number"
-                                min={0}
-                                className="fo-input w-20 text-right"
-                                value={it.cantidad}
-                                // Un ítem calculado es el precio del trabajo entero: cantidad 1.
-                                disabled={!puedeGuardar || calculado}
-                                onChange={(e) => actualizar(it.id, { cantidad: aNumero(e.target.value) })}
-                              />
-                            </td>
-                            <td className="py-2 pr-2">
-                              <CampoPrecio
-                                aria-label={`Precio unitario de ${etiquetaFila}`}
-                                precio={it.precioUnitario}
-                                disabled={!puedeGuardar}
-                                onCambio={(n) => {
-                                  if (calculado) marcarAjuste(it.id, true);
-                                  actualizar(it.id, { precioUnitario: n });
-                                }}
-                              />
-                            </td>
-                            <td className="py-2 pr-2">
-                              {puedeGuardar ? (
-                                <DescuentoCampos etiqueta={`Descuento de ${etiquetaFila}`} valor={it.descuento} onCambio={(d) => actualizar(it.id, { descuento: d })} />
-                              ) : it.descuento ? (
-                                it.descuento.tipo === "PORCENTAJE" ? `${it.descuento.valor} %` : pesos(it.descuento.valor)
-                              ) : (
-                                "—"
-                              )}
-                            </td>
-                            <td className="py-2 pr-2 text-right tabular-nums">
-                              {pesos(r?.neto ?? 0)}
-                              {it.opcional ? <span className="block text-xs text-[var(--fo-muted)]">opcional</span> : null}
-                            </td>
-                            {costos ? <td className="py-2 pr-2 text-right tabular-nums">{c?.costo === null || c === undefined ? "—" : pesos(c.costo)}</td> : null}
-                            {costos ? <td className="py-2 pr-2 text-right tabular-nums">{c?.margen === null || c === undefined ? "—" : pesos(c.margen)}</td> : null}
-                            <td className="py-2">
-                              {puedeGuardar ? (
-                                <div className="flex gap-1">
-                                  <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label={`Subir ${etiquetaFila}`} onClick={() => mover(it.id, -1)}>
-                                    <ArrowUp className="size-4" aria-hidden />
-                                  </button>
-                                  <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label={`Bajar ${etiquetaFila}`} onClick={() => mover(it.id, 1)}>
-                                    <ArrowDown className="size-4" aria-hidden />
-                                  </button>
-                                  <button type="button" className="fo-btn fo-btn-ghost p-1" aria-label={`Quitar ${etiquetaFila}`} onClick={() => cambiar(items.filter((x) => x.id !== it.id))}>
-                                    <X className="size-4" aria-hidden />
-                                  </button>
-                                </div>
-                              ) : null}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              );
-            })
-          : null}
-      </section>
-
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <section aria-label="Condiciones" className="fo-card space-y-3">
           <div className="fo-field-stack">
@@ -783,9 +859,9 @@ export function EditorPresupuesto({
               <span className="tabular-nums">−{pesos(totales.descuentoGlobal)}</span>
             )}
           </div>
-          <div className="flex justify-between gap-2 border-t border-[var(--fo-border)] pt-2 text-base font-semibold">
-            <span>{idActiva ? `Total de ${nombreActiva || "la opción"}` : "Total"}</span>
-            <span className="tabular-nums">{pesos(totales.total)}</span>
+          <div className="-mx-1 flex items-baseline justify-between gap-2 rounded-[var(--fo-radius-sm)] bg-[color-mix(in_srgb,var(--fo-accent)_10%,transparent)] px-3 py-3">
+            <span className="text-base font-semibold">{idActiva ? `Total de ${nombreActiva || "la opción"}` : "Total"}</span>
+            <span className="text-2xl font-bold tabular-nums">{pesos(totales.total)}</span>
           </div>
           {totales.opcionales.cantidad > 0 ? (
             <div className="flex justify-between gap-2 text-[var(--fo-muted)]">

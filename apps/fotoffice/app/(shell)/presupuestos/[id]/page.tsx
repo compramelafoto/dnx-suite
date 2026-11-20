@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/page-header";
 import { ConfirmarPedido } from "@/components/pedidos/confirmar-pedido";
 import { AccionesPresupuesto } from "@/components/presupuestos/acciones-presupuesto";
 import { EditorPresupuesto } from "@/components/presupuestos/editor-presupuesto";
@@ -23,7 +22,8 @@ import { fechaDelEvento } from "@/lib/presupuestos/evento";
 import { entradaGuardada, importeDeOpcion, opcionesPublicas, opcionesVacias } from "@/lib/presupuestos/opciones-pago";
 import { puedeGestionarPedidos } from "@/lib/pedidos/acceso";
 import { pedidoDePresupuesto } from "@/lib/pedidos/pedidos";
-import { EventoDeCotizacionTarjeta } from "@/components/presupuestos/evento-de-cotizacion";
+import { CabeceraCotizacion, type TotalCabecera } from "@/components/presupuestos/evento-de-cotizacion";
+import { pesos } from "@/lib/presupuestos/editor";
 import { AprobarCotizacion, UltimoResultadoAprobacion } from "@/components/presupuestos/aprobar-cotizacion";
 import { aprobacionDelPresupuesto } from "@/lib/presupuesto-automatico/por-aprobar";
 import { eventoDeLaConsulta, vistasDeCotizaciones } from "@/lib/presupuestos/evento-de-cotizacion";
@@ -129,49 +129,84 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
   // Es el mismo presupuesto que abre «✏️ Corregir» en Telegram.
   const aprobacion = gestiona ? await aprobacionDelPresupuesto(workspace.id, detalle.id) : null;
 
+  // El total del encabezado: el de lo guardado (con opciones, de la más barata a la más cara).
+  const guardada = borrador ?? vigente;
+  let total: TotalCabecera | null = null;
+  if (guardada) {
+    const opciones = alternativasGuardadas(guardada.totals).map((a) => a.totales.total);
+    total =
+      opciones.length > 1
+        ? { tipo: "opciones", cantidad: opciones.length, desde: pesos(Math.min(...opciones)), hasta: pesos(Math.max(...opciones)) }
+        : { tipo: "unico", total: pesos(opciones[0] ?? guardada.totals.total) };
+  }
+  const consultaHref = `/consultas/${encodeURIComponent(detalle.consultaLeadId)}`;
+  const versiones = detalle.versiones.map((v) => `V${v.number}${v.sentAt ? "" : " (borrador)"}`).join(" · ");
+  const accionesVersion = gestiona ? (
+    <AccionesPresupuesto
+      presupuestoId={detalle.id}
+      // Editar uno enviado: crea la versión siguiente (si ya hay un borrador, el editor ya está abierto).
+      puedeVersionar={enviadoVigente && borrador === null && detalle.estado !== "ACEPTADO"}
+      puedeRechazar={["ENVIADO", "VISTO", "VENCIDO"].includes(detalle.estado)}
+      siguienteVersion={ultima + 1}
+    />
+  ) : null;
+  const pie =
+    envio || accionesVersion ? (
+      <div className="flex flex-wrap items-start gap-3">
+        {envio ? <EnviarPresupuesto presupuestoId={detalle.id} opciones={envio} /> : null}
+        {accionesVersion}
+      </div>
+    ) : null;
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title={titulo}
-        description={`${detalle.contacto} · vence el ${fecha(detalle.validUntil)}`}
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Link href={`/consultas/${encodeURIComponent(detalle.consultaLeadId)}`} className="fo-btn fo-btn-secondary text-sm">
+      <CabeceraCotizacion
+        titulo={titulo}
+        estado={ETIQUETA_ESTADO[detalle.estado]}
+        claseEstado={claseDeEstado(detalle.estado)}
+        versiones={detalle.pedidoPorConfirmar ? `${versiones} · Pedido por confirmar` : versiones}
+        vence={fecha(detalle.validUntil)}
+        contacto={detalle.contacto}
+        evento={evento}
+        vistas={vistas.get(detalle.id) ?? null}
+        enviada={detalle.versiones.some((v) => v.sentAt !== null)}
+        consultaHref={consultaHref}
+        hoy={diaEnBuenosAires(new Date())}
+        total={total}
+        totalAclaracion={editando ? "Según lo último guardado" : null}
+        enlaces={
+          <>
+            <Link href={consultaHref} className="fo-btn fo-btn-secondary text-sm">
               Ver la consulta
             </Link>
-            <Link href="/presupuestos" className="fo-btn fo-btn-secondary text-sm">
+            <Link href="/presupuestos" className="fo-btn fo-btn-ghost text-sm">
               Volver a Cotizaciones
             </Link>
-          </div>
+          </>
         }
+        acciones={pie}
       />
 
-      <div className="flex flex-wrap items-center gap-3 text-sm">
-        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${claseDeEstado(detalle.estado)}`}>{ETIQUETA_ESTADO[detalle.estado]}</span>
-        <span className="text-[var(--fo-muted)]">
-          {detalle.versiones.map((v) => `V${v.number}${v.sentAt ? "" : " (borrador)"}`).join(" · ")}
-        </span>
-        {detalle.pedidoPorConfirmar ? <span className="text-[var(--fo-muted)]">Pedido por confirmar</span> : null}
-      </div>
-
       {aprobacion ? (
-        <section aria-labelledby="por-aprobar-titulo" className="fo-card space-y-3 border-l-4 border-l-[var(--fo-accent)] text-sm">
-          <h2 id="por-aprobar-titulo" className="text-base font-semibold">Esta cotización la armó el bot y espera tu aprobación</h2>
-          <p className="text-[var(--fo-muted)]">
-            Revisala y, si querés, corregila acá abajo y guardá. Al aprobar, al cliente le llega el enlace por WhatsApp (si se puede) y por correo.
-          </p>
-          <AprobarCotizacion aprobacionId={aprobacion.id} presupuestoId={detalle.id} />
+        <section
+          aria-labelledby="por-aprobar-titulo"
+          className="flex flex-col gap-4 rounded-[var(--fo-radius)] border border-[var(--fo-warning-border)] bg-[var(--fo-warning-soft)] p-5 text-sm sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="space-y-1">
+            <h2 id="por-aprobar-titulo" className="text-base font-semibold text-[var(--fo-text)]">
+              La armó el bot y espera tu aprobación
+            </h2>
+            <p className="max-w-2xl text-[var(--fo-text-secondary)]">
+              Revisá lo cotizado acá abajo y, si cambiás algo, guardá. Al aprobar, al cliente le llega el enlace por WhatsApp (si se puede) y por correo.
+            </p>
+          </div>
+          <div className="shrink-0">
+            <AprobarCotizacion aprobacionId={aprobacion.id} presupuestoId={detalle.id} />
+          </div>
         </section>
       ) : gestiona ? (
         <UltimoResultadoAprobacion presupuestoId={detalle.id} />
       ) : null}
-
-      <EventoDeCotizacionTarjeta
-        evento={evento}
-        vistas={vistas.get(detalle.id) ?? null}
-        enviada={detalle.versiones.some((v) => v.sentAt !== null)}
-        consultaHref={`/consultas/${encodeURIComponent(detalle.consultaLeadId)}`}
-      />
 
       {pedido ? (
         <p className="fo-card text-sm">
@@ -182,18 +217,6 @@ export default async function PresupuestoPage({ params }: { params: Promise<{ id
         </p>
       ) : null}
       {confirmaPedido ? <ConfirmarPedido presupuestoId={detalle.id} hoy={diaEnBuenosAires(new Date())} /> : null}
-
-      {gestiona ? (
-        <AccionesPresupuesto
-          presupuestoId={detalle.id}
-          // Editar uno enviado: crea la versión siguiente (si ya hay un borrador, el editor ya está abierto).
-          puedeVersionar={enviadoVigente && borrador === null && detalle.estado !== "ACEPTADO"}
-          puedeRechazar={["ENVIADO", "VISTO", "VENCIDO"].includes(detalle.estado)}
-          siguienteVersion={ultima + 1}
-        />
-      ) : null}
-
-      {envio ? <EnviarPresupuesto presupuestoId={detalle.id} opciones={envio} /> : null}
 
       {editando && borrador && enviadoVigente && vigente && vigente.id !== borrador.id ? (
         <p className="fo-card text-sm text-[var(--fo-muted)]">
