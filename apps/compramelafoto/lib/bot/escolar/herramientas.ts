@@ -1,5 +1,5 @@
 /**
- * Herramientas escolares de DNX Bot (para fotógrafos): una de lectura y siete de escritura.
+ * Herramientas escolares de DNX Bot (para fotógrafos): dos de lectura y nueve de escritura.
  *
  * Todas verifican el dueño: `describe` lanza un error amable si el álbum o la escuela no
  * son del fotógrafo (el motor lo devuelve al modelo y NO arma la tarjeta), y `run`/`undo`
@@ -19,7 +19,15 @@ import {
   notifyPreventaPhotosReady,
 } from "@/lib/preventa-canjeable/notify-preventa-photos-ready";
 import { inviteSchoolOrganizerForOwner } from "@/lib/schools/invite-organizer";
-import { createSchoolCoursesForOwner, createSchoolForOwner, findOwnedSchool } from "@/lib/schools/school-setup";
+import {
+  createSchoolCoursesForOwner,
+  createSchoolForOwner,
+  deleteSchoolForOwner,
+  describeSchoolDeletionBlockers,
+  findOwnedSchool,
+  getSchoolForDeletion,
+  renameSchoolForOwner,
+} from "@/lib/schools/school-setup";
 import { prisma } from "@/lib/prisma";
 
 const NO_ALBUM = "No encontré ese álbum en tu cuenta.";
@@ -173,6 +181,39 @@ export const escolarTools: BotTool[] = [
     },
   }),
   defineTool({
+    name: "ver_mis_escuelas",
+    description:
+      "Lista las escuelas del fotógrafo (id, nombre, cursos, álbumes vinculados y si se puede eliminar). Usala antes de crear, renombrar o eliminar una escuela, para no duplicarla y para tener el schoolId correcto.",
+    kind: "read",
+    input: z.strictObject({}),
+    run: async (_i, actor) => {
+      const escuelas = await prisma.school.findMany({
+        where: { ownerId: actor.userId },
+        select: {
+          id: true,
+          name: true,
+          _count: { select: { courses: true, albums: true, students: true, organizers: true, organizerCommissions: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      });
+      if (escuelas.length === 0) return { ok: true, message: "Todavía no tiene escuelas cargadas.", data: { escuelas: [] } };
+      const data = escuelas.map((e) => ({
+        schoolId: e.id,
+        nombre: e.name,
+        cursos: e._count.courses,
+        albumes: e._count.albums,
+        sePuedeEliminar: !describeSchoolDeletionBlockers({
+          albums: e._count.albums,
+          students: e._count.students,
+          organizers: e._count.organizers,
+          commissions: e._count.organizerCommissions,
+        }),
+      }));
+      return { ok: true, message: `Tiene ${data.length} ${data.length === 1 ? "escuela" : "escuelas"}.`, data: { escuelas: data } };
+    },
+  }),
+  defineTool({
     name: "crear_escuela",
     description: "Propone crear una escuela del fotógrafo (nombre y, si se sabe, localidad y provincia).",
     kind: "write",
@@ -222,6 +263,61 @@ export const escolarTools: BotTool[] = [
       if (!r.ok) return r.status === 404 ? { ok: false, code: "NOT_FOUND", message: NO_ESCUELA } : { ok: false, code: String(r.status), message: r.error };
       const salteados = r.skipped ? ` (${r.skipped} ya estaban y los salteé)` : "";
       return { ok: true, message: `Listo, cargué ${r.created} ${r.created === 1 ? "curso" : "cursos"}${salteados}.`, data: { creados: r.created, salteados: r.skipped } };
+    },
+  }),
+  defineTool({
+    name: "renombrar_escuela",
+    description:
+      "Propone cambiarle el nombre a una escuela del fotógrafo (por ejemplo, si la cargó mal). Es lo que conviene antes que crear otra escuela o borrarla. Se puede deshacer.",
+    kind: "write",
+    input: z.strictObject({ schoolId: id, nombre: z.string().trim().min(1).max(200) }),
+    describe: async ({ schoolId, nombre }, actor) => {
+      const escuela = await findOwnedSchool(actor.userId, schoolId);
+      if (!escuela) throw new Error(NO_ESCUELA);
+      const repetida = await escuelaConMismoNombre(actor.userId, nombre);
+      if (repetida && repetida.id !== schoolId) throw new Error(mensajeEscuelaRepetida(repetida));
+      return `Cambiarle el nombre a la escuela «${escuela.name}» por «${nombre}».`;
+    },
+    run: async ({ schoolId, nombre }, actor) => {
+      const repetida = await escuelaConMismoNombre(actor.userId, nombre);
+      if (repetida && repetida.id !== schoolId) {
+        return { ok: false, code: "DUPLICATE", message: mensajeEscuelaRepetida(repetida), data: { schoolId: repetida.id } };
+      }
+      const r = await renameSchoolForOwner(actor.userId, schoolId, nombre);
+      if (!r.ok) return r.status === 404 ? { ok: false, code: "NOT_FOUND", message: NO_ESCUELA } : { ok: false, code: String(r.status), message: r.error };
+      return {
+        ok: true,
+        message: `Listo, la escuela ahora se llama «${r.school.name}».`,
+        data: { schoolId },
+        before: { schoolId, nombre: r.before },
+        after: { schoolId, nombre: r.school.name },
+      };
+    },
+    undo: async (before, actor) => {
+      const b = z.object({ schoolId: id, nombre: z.string().trim().min(1).max(200) }).safeParse(before);
+      if (!b.success) return { ok: false, message: NO_DESHACER };
+      const r = await renameSchoolForOwner(actor.userId, b.data.schoolId, b.data.nombre);
+      if (!r.ok) return { ok: false, message: r.status === 404 ? NO_ESCUELA : r.error };
+      return { ok: true, message: `Le devolví el nombre «${r.school.name}» a la escuela.` };
+    },
+  }),
+  defineTool({
+    name: "eliminar_escuela",
+    description:
+      "Propone eliminar una escuela del fotógrafo. Sólo se puede si está vacía: sin álbumes vinculados, alumnos, administradores ni comisiones anotadas (los cursos se borran con ella). Si sólo está mal el nombre, usá renombrar_escuela. No se puede deshacer.",
+    kind: "write",
+    input: z.strictObject({ schoolId: id }),
+    describe: async ({ schoolId }, actor) => {
+      const escuela = await getSchoolForDeletion(actor.userId, schoolId);
+      if (!escuela) throw new Error(NO_ESCUELA);
+      if (escuela.blockedReason) throw new Error(`«${escuela.name}»: ${escuela.blockedReason}`);
+      const cursos = escuela.courses > 0 ? ` y sus ${escuela.courses === 1 ? "1 curso" : `${escuela.courses} cursos`}` : "";
+      return `Eliminar la escuela «${escuela.name}»${cursos}. No se puede deshacer.`;
+    },
+    run: async ({ schoolId }, actor) => {
+      const r = await deleteSchoolForOwner(actor.userId, schoolId);
+      if (!r.ok) return r.status === 404 ? { ok: false, code: "NOT_FOUND", message: NO_ESCUELA } : { ok: false, code: "BLOCKED", message: r.error };
+      return { ok: true, message: `Listo, eliminé la escuela «${r.school.name}».`, data: { schoolId } };
     },
   }),
   defineTool({

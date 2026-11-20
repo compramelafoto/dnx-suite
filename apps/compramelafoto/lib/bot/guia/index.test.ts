@@ -52,4 +52,15 @@ describe("buildSystemGuide", () => {
     };
     for (const p of armarPasos(vacio).pasos) expect(g).toContain(`${p.n}. ${p.titulo}`);
   });
+  it("enseña a renombrar y borrar escuelas sin inventar botones, y a armar la propuesta para el colegio", () => {
+    const g = buildSystemGuide();
+    expect(g).toContain("ver_mis_escuelas");
+    expect(g).toContain("renombrar_escuela");
+    expect(g).toContain("eliminar_escuela");
+    expect(g).toContain("«Editar nombre y datos»");
+    expect(g).toContain("«Eliminar escuela»");
+    expect(g).toContain("nunca mandes a \"buscar la opción\"");
+    expect(g).toContain("«Presupuesto» para un colegio");
+    expect(g).toContain("vos sólo podés armar packs digitales");
+  });
 });

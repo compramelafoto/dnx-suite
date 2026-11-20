@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
+import { deleteSchoolForOwner } from "@/lib/schools/school-setup";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -166,12 +167,12 @@ export async function DELETE(
       return NextResponse.json({ error: "ID inválido" }, { status: 400 });
     }
 
-    const owned = await ensureOwnership(schoolId, user.id);
-    if (!owned) {
-      return NextResponse.json({ error: "Escuela no encontrada" }, { status: 404 });
+    // Sólo se borra una escuela vacía: borrarla arrastra alumnos, administradores y
+    // comisiones anotadas, y desvincula sus álbumes (ver deleteSchoolForOwner).
+    const r = await deleteSchoolForOwner(user.id, schoolId);
+    if (!r.ok) {
+      return NextResponse.json({ error: r.error }, { status: r.status });
     }
-
-    await prisma.school.delete({ where: { id: schoolId } });
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error("DELETE /api/fotografo/schools/[id]:", err);

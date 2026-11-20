@@ -7,8 +7,11 @@ import { toolsForActor } from "./index";
 
 const ESCOLARES = [
   "ver_progreso_escolar",
+  "ver_mis_escuelas",
   "crear_escuela",
   "cargar_cursos",
+  "renombrar_escuela",
+  "eliminar_escuela",
   "invitar_admin_escuela",
   "vincular_album_a_escuela",
   "elegir_identificacion_alumnos",

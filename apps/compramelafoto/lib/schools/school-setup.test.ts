@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const schoolFindUnique = vi.fn();
 const schoolCreate = vi.fn();
+const schoolUpdate = vi.fn();
+const schoolDelete = vi.fn();
 const courseFindMany = vi.fn();
 const courseCreate = vi.fn();
 const transaction = vi.fn();
@@ -11,6 +13,8 @@ vi.mock("@/lib/prisma", () => ({
     school: {
       findUnique: (...a: unknown[]) => schoolFindUnique(...a),
       create: (...a: unknown[]) => schoolCreate(...a),
+      update: (...a: unknown[]) => schoolUpdate(...a),
+      delete: (...a: unknown[]) => schoolDelete(...a),
     },
     schoolCourse: {
       findMany: (...a: unknown[]) => courseFindMany(...a),
@@ -23,7 +27,11 @@ vi.mock("@/lib/prisma", () => ({
 import {
   createSchoolCoursesForOwner,
   createSchoolForOwner,
+  deleteSchoolForOwner,
+  describeSchoolDeletionBlockers,
   findOwnedSchool,
+  getSchoolForDeletion,
+  renameSchoolForOwner,
   schoolCourseKey,
 } from "./school-setup";
 
@@ -107,5 +115,66 @@ describe("school-setup", () => {
   it("schoolCourseKey: división vacía y null son lo mismo", () => {
     expect(schoolCourseKey("Sala 5", null)).toBe(schoolCourseKey("sala5", ""));
     expect(schoolCourseKey("1ro", "A")).not.toBe(schoolCourseKey("1ro", "B"));
+  });
+
+  it("renameSchoolForOwner: limpia espacios, devuelve el nombre anterior; vacío → 400; ajena → 404", async () => {
+    schoolUpdate.mockReset().mockImplementation(async ({ data }: { data: { name: string } }) => ({ id: 4, name: data.name }));
+    expect(await renameSchoolForOwner(10, 4, "  Escuela   Nº8 ")).toEqual({ ok: true, before: "Escuela Sol", school: { id: 4, name: "Escuela Nº8" } });
+    expect(await renameSchoolForOwner(10, 4, "  ")).toEqual({ ok: false, status: 400, error: "El nombre es requerido" });
+    schoolFindUnique.mockResolvedValue({ id: 4, name: "Escuela Sol", ownerId: 99 });
+    expect(await renameSchoolForOwner(10, 4, "X")).toEqual({ ok: false, status: 404, error: "Escuela no encontrada" });
+    expect(schoolUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("describeSchoolDeletionBlockers: vacía → null; si no, dice qué la frena", () => {
+    expect(describeSchoolDeletionBlockers({ albums: 0, students: 0, organizers: 0, commissions: 0 })).toBeNull();
+    expect(describeSchoolDeletionBlockers({ albums: 1, students: 30, organizers: 0, commissions: 2 })).toBe(
+      "No se puede eliminar porque tiene 1 álbum vinculado, 30 alumnos cargados y 2 comisiones anotadas. Si es la escuela equivocada, cambiale el nombre en lugar de borrarla."
+    );
+  });
+
+  const conConteo = (c: Partial<Record<string, number>>, ownerId = 10) => ({
+    id: 4,
+    name: "Escuela Sol",
+    ownerId,
+    _count: { albums: 0, students: 0, organizers: 0, organizerCommissions: 0, courses: 2, ...c },
+  });
+
+  it("getSchoolForDeletion: propia con conteos; ajena → null", async () => {
+    schoolFindUnique.mockResolvedValue(conConteo({ albums: 1 }));
+    const r = await getSchoolForDeletion(10, 4);
+    expect(r).toMatchObject({ id: 4, courses: 2, blockers: { albums: 1 } });
+    expect(r?.blockedReason).toContain("1 álbum vinculado");
+    schoolFindUnique.mockResolvedValue(conConteo({}, 99));
+    expect(await getSchoolForDeletion(10, 4)).toBeNull();
+  });
+
+  describe("deleteSchoolForOwner", () => {
+    beforeEach(() => {
+      transaction.mockImplementation(async (fn: (tx: unknown) => unknown) =>
+        fn({ school: { findUnique: (...a: unknown[]) => schoolFindUnique(...a), delete: (...a: unknown[]) => schoolDelete(...a) } })
+      );
+      schoolDelete.mockReset().mockResolvedValue({});
+    });
+    it("vacía (sólo cursos) → la borra", async () => {
+      schoolFindUnique.mockResolvedValue(conConteo({}));
+      expect(await deleteSchoolForOwner(10, 4)).toEqual({ ok: true, school: { id: 4, name: "Escuela Sol" } });
+      expect(schoolDelete).toHaveBeenCalledWith({ where: { id: 4 } });
+    });
+    it("con álbum, alumnos, administradores o comisiones → 409 sin borrar", async () => {
+      for (const c of [{ albums: 1 }, { students: 3 }, { organizers: 1 }, { organizerCommissions: 1 }]) {
+        schoolFindUnique.mockResolvedValue(conConteo(c));
+        const r = await deleteSchoolForOwner(10, 4);
+        expect(r).toMatchObject({ ok: false, status: 409 });
+      }
+      expect(schoolDelete).not.toHaveBeenCalled();
+    });
+    it("ajena o inexistente → 404 sin borrar", async () => {
+      schoolFindUnique.mockResolvedValue(conConteo({}, 99));
+      expect(await deleteSchoolForOwner(10, 4)).toEqual({ ok: false, status: 404, error: "Escuela no encontrada" });
+      schoolFindUnique.mockResolvedValue(null);
+      expect(await deleteSchoolForOwner(10, 4)).toMatchObject({ ok: false, status: 404 });
+      expect(schoolDelete).not.toHaveBeenCalled();
+    });
   });
 });

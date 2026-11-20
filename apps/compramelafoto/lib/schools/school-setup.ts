@@ -158,3 +158,127 @@ export async function createSchoolCoursesForOwner(
 
   return { ok: true, created: created.length, skipped: rows.length - created.length, courses: created };
 }
+
+export type RenameSchoolResult =
+  | { ok: true; before: string; school: { id: number; name: string } }
+  | { ok: false; status: 400 | 404; error: string };
+
+/**
+ * Cambia el nombre de una escuela del fotógrafo. Escuela ajena o inexistente → 404
+ * «Escuela no encontrada»; nombre vacío → 400. Devuelve el nombre anterior para poder deshacer.
+ */
+export async function renameSchoolForOwner(
+  ownerId: number,
+  schoolId: number,
+  name: string
+): Promise<RenameSchoolResult> {
+  const nuevo = String(name ?? "").trim().replace(/\s+/g, " ");
+  if (!nuevo) return { ok: false, status: 400, error: "El nombre es requerido" };
+  const owned = await findOwnedSchool(ownerId, schoolId);
+  if (!owned) return { ok: false, status: 404, error: "Escuela no encontrada" };
+  const school = await prisma.school.update({
+    where: { id: schoolId },
+    data: { name: nuevo },
+    select: { id: true, name: true },
+  });
+  return { ok: true, before: owned.name, school };
+}
+
+/**
+ * Lo que impide borrar una escuela. Borrarla en la base arrastra (en cascada) alumnos,
+ * inscripciones, listas, administradores y comisiones anotadas, y desvincula sus álbumes:
+ * por eso sólo se deja borrar una escuela «vacía» (sólo con cursos o invitaciones pendientes).
+ */
+export type SchoolDeletionBlockers = {
+  albums: number;
+  students: number;
+  organizers: number;
+  commissions: number;
+};
+
+function plural(n: number, uno: string, varios: string): string {
+  return `${n} ${n === 1 ? uno : varios}`;
+}
+
+/** Texto para el fotógrafo con lo que frena el borrado, o `null` si se puede borrar. */
+export function describeSchoolDeletionBlockers(b: SchoolDeletionBlockers): string | null {
+  const partes: string[] = [];
+  if (b.albums > 0) partes.push(plural(b.albums, "álbum vinculado", "álbumes vinculados"));
+  if (b.students > 0) partes.push(plural(b.students, "alumno cargado", "alumnos cargados"));
+  if (b.organizers > 0) partes.push(plural(b.organizers, "administrador de la escuela", "administradores de la escuela"));
+  if (b.commissions > 0) partes.push(plural(b.commissions, "comisión anotada", "comisiones anotadas"));
+  if (partes.length === 0) return null;
+  const lista =
+    partes.length === 1 ? partes[0] : `${partes.slice(0, -1).join(", ")} y ${partes[partes.length - 1]}`;
+  return `No se puede eliminar porque tiene ${lista}. Si es la escuela equivocada, cambiale el nombre en lugar de borrarla.`;
+}
+
+export type SchoolForDeletion = {
+  id: number;
+  name: string;
+  courses: number;
+  blockers: SchoolDeletionBlockers;
+  /** Texto con lo que frena el borrado, o `null` si se puede borrar. */
+  blockedReason: string | null;
+};
+
+/** Escuela del fotógrafo con lo necesario para decidir si se puede borrar; `null` si no es suya. */
+export async function getSchoolForDeletion(ownerId: number, schoolId: number): Promise<SchoolForDeletion | null> {
+  const school = await prisma.school.findUnique({
+    where: { id: schoolId },
+    select: {
+      id: true,
+      name: true,
+      ownerId: true,
+      _count: { select: { albums: true, students: true, organizers: true, organizerCommissions: true, courses: true } },
+    },
+  });
+  if (!school || school.ownerId !== ownerId) return null;
+  const blockers: SchoolDeletionBlockers = {
+    albums: school._count.albums,
+    students: school._count.students,
+    organizers: school._count.organizers,
+    commissions: school._count.organizerCommissions,
+  };
+  return {
+    id: school.id,
+    name: school.name,
+    courses: school._count.courses,
+    blockers,
+    blockedReason: describeSchoolDeletionBlockers(blockers),
+  };
+}
+
+export type DeleteSchoolResult =
+  | { ok: true; school: { id: number; name: string } }
+  | { ok: false; status: 404 | 409; error: string };
+
+/**
+ * Borra una escuela del fotógrafo sólo si está vacía (ver `SchoolDeletionBlockers`).
+ * Se revisa y se borra dentro de la misma transacción para que nada se cuele en el medio.
+ */
+export async function deleteSchoolForOwner(ownerId: number, schoolId: number): Promise<DeleteSchoolResult> {
+  return prisma.$transaction(async (tx) => {
+    const school = await tx.school.findUnique({
+      where: { id: schoolId },
+      select: {
+        id: true,
+        name: true,
+        ownerId: true,
+        _count: { select: { albums: true, students: true, organizers: true, organizerCommissions: true } },
+      },
+    });
+    if (!school || school.ownerId !== ownerId) {
+      return { ok: false as const, status: 404 as const, error: "Escuela no encontrada" };
+    }
+    const motivo = describeSchoolDeletionBlockers({
+      albums: school._count.albums,
+      students: school._count.students,
+      organizers: school._count.organizers,
+      commissions: school._count.organizerCommissions,
+    });
+    if (motivo) return { ok: false as const, status: 409 as const, error: motivo };
+    await tx.school.delete({ where: { id: schoolId } });
+    return { ok: true as const, school: { id: school.id, name: school.name } };
+  });
+}
