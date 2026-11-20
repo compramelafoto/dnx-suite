@@ -1,12 +1,11 @@
 /**
- * "Pantalla de pedidos": los pedidos escolares para mostrar en un televisor o compartir en una
- * videollamada. Arriba, un contador grande por paso; abajo, las tarjetas de los pedidos, que van
- * pasando de a páginas cuando no entran todas.
+ * "Pantalla de pedidos": tablero de los pedidos escolares, una columna por paso de la línea de
+ * producción, para trabajar en la computadora o mostrar en un televisor o una videollamada.
+ * Cada pedido es una tarjeta chica: al tocarla se abre su detalle y se puede arrastrar al paso
+ * siguiente (sólo cuando ese paso depende del fotógrafo).
  *
- * Es puro (sin base, red ni navegador): la pantalla le pasa los pedidos y el tamaño de la grilla.
- *
- * La esquina de abajo a la derecha queda libre: ahí el que presenta suele poner su cámara. Las
- * celdas de la grilla que caen en esa esquina se dejan vacías.
+ * Es puro (sin base, red ni navegador): la pantalla le pasa los pedidos y hace los pedidos a la
+ * API que acá se describen.
  */
 
 import {
@@ -18,12 +17,8 @@ import {
   type UbicacionEnEmbudo,
 } from "./embudo-pedidos-escolares";
 
-/** Cada cuánto pasa a la página siguiente de tarjetas. */
-export const SEGUNDOS_POR_PAGINA = 8;
 /** Cada cuánto vuelve a pedir los pedidos. */
 export const SEGUNDOS_ENTRE_ACTUALIZACIONES = 15;
-/** Lugar que se deja libre abajo a la derecha para la cámara del que presenta. */
-export const RESERVA_CAMARA = { ancho: 280, alto: 180 } as const;
 
 export type ContadorPaso = {
   paso: PasoEmbudo;
@@ -66,88 +61,173 @@ export function pedidosParaTarjetas<T extends { paso: UbicacionEnEmbudo; nombre:
     .map(({ p }) => p);
 }
 
-export type MedidasGrilla = {
-  /** Espacio disponible para la grilla, en píxeles. */
-  ancho: number;
-  alto: number;
-  /** Tamaño mínimo de una tarjeta y separación entre tarjetas. */
-  anchoTarjeta: number;
-  altoTarjeta: number;
-  separacion: number;
-  /** Rincón de abajo a la derecha que tiene que quedar vacío. */
-  reserva?: { ancho: number; alto: number };
+/** Lo que el tablero necesita de un pedido para saber si se puede adelantar. */
+export type PedidoParaAdelantar = {
+  paso: UbicacionEnEmbudo;
+  isDemo?: boolean;
+  disenos: Array<{
+    id: number;
+    status: string;
+    emptySlots?: number;
+    sentToPrintAt?: string | null;
+    printedAt?: string | null;
+    deliveredAt?: string | null;
+  }>;
+  /** Ítems de la tienda escolar (los packs cobrados por fuera no tienen). */
+  items?: Array<{ id: number; status: string }>;
 };
 
-export type Grilla = {
-  columnas: number;
-  filas: number;
-  /** Índices de las celdas (fila por fila) que caen en el rincón reservado. */
-  reservadas: number[];
-  /** Cuántas tarjetas entran por página. */
-  porPagina: number;
-};
+/** Un pedido a la API que hace avanzar el pedido. */
+export type LlamadaAdelanto = { url: string; body?: Record<string, unknown> };
+
+export type PlanDeAdelanto =
+  | {
+      puede: true;
+      destino: PasoEmbudo;
+      /** Qué va a pasar, para la confirmación ("Vas a …"). */
+      explicacion: string;
+      /** Aviso extra antes de confirmar (huecos sin foto). */
+      aviso: string | null;
+      llamadas: LlamadaAdelanto[];
+    }
+  | { puede: false; motivo: string };
+
+const APROBADO = new Set(["APPROVED_FOR_EXPORT", "EXPORTED"]);
+
+const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
 /**
- * Cuántas columnas y filas de tarjetas entran, y qué celdas se dejan vacías por el rincón de la
- * cámara. Las tarjetas se estiran para llenar el ancho y el alto, así que una celda está en el
- * rincón si su borde derecho y su borde de abajo entran en él. Siempre queda al menos una celda
- * útil, aunque la pantalla sea muy chica.
+ * Cómo se pasa un pedido al paso siguiente, con las mismas acciones que Pedidos escolares. Sólo
+ * se avanza de a un paso, y sólo en los pasos que dependen del fotógrafo: "Por canjear" y
+ * "Cambios pedidos" esperan a la familia, y "Entregado" es el final.
+ *
+ * - Revisar diseño → Para imprimir: aprueba los diseños pendientes (a la familia le llega el
+ *   correo de "librito aprobado", salvo en las DEMO).
+ * - Para imprimir → En imprenta: arma un lote con sus librititos aprobados; si no tiene librito
+ *   pero es de la tienda escolar, marca sus ítems en imprenta.
+ * - En imprenta → Para entregar: marca impresos los librititos (o los ítems "en la escuela").
+ * - Para entregar → Entregado: marca entregados los librititos (o los ítems).
  */
-export function calcularGrilla(m: MedidasGrilla): Grilla {
-  const columnas = Math.max(1, Math.floor((m.ancho + m.separacion) / (m.anchoTarjeta + m.separacion)));
-  const filas = Math.max(1, Math.floor((m.alto + m.separacion) / (m.altoTarjeta + m.separacion)));
-  const anchoCelda = (m.ancho - m.separacion * (columnas - 1)) / columnas;
-  const altoCelda = (m.alto - m.separacion * (filas - 1)) / filas;
-  const reserva = m.reserva ?? { ancho: 0, alto: 0 };
+export function planDeAdelanto(p: PedidoParaAdelantar): PlanDeAdelanto {
+  const items = p.items ?? [];
+  const itemsEn = (estado: string) => items.filter((i) => i.status === estado);
+  const correo = p.isDemo ? "Es una DEMO: no se le manda correo a nadie." : "A la familia le llega un correo avisando que su librito está aprobado.";
 
-  const reservadas: number[] = [];
-  if (reserva.ancho > 0 && reserva.alto > 0) {
-    for (let f = 0; f < filas; f++) {
-      for (let c = 0; c < columnas; c++) {
-        const derecha = c * (anchoCelda + m.separacion) + anchoCelda;
-        const abajo = f * (altoCelda + m.separacion) + altoCelda;
-        if (derecha > m.ancho - reserva.ancho && abajo > m.alto - reserva.alto) {
-          reservadas.push(f * columnas + c);
-        }
+  switch (p.paso) {
+    case "POR_CANJEAR":
+      return { puede: false, motivo: "Espera a la familia: todavía no eligió sus fotos." };
+    case "CAMBIOS_PEDIDOS":
+      return { puede: false, motivo: "Espera a la familia: le pediste cambios y todavía no respondió." };
+    case "ENTREGADO":
+      return { puede: false, motivo: "Ya está entregado: es el último paso." };
+    case "PAGO_PENDIENTE":
+    case "CANCELADO":
+      return { puede: false, motivo: "Está fuera de la línea de producción." };
+
+    case "REVISAR_DISENO": {
+      const pendientes = p.disenos.filter((d) => d.status === "PENDING_PHOTOGRAPHER_APPROVAL");
+      if (pendientes.length === 0) {
+        return {
+          puede: false,
+          motivo: "Todavía no tiene un diseño para aprobar: generalo desde Pedidos escolares.",
+        };
       }
+      const huecos = pendientes.reduce((n, d) => n + (d.emptySlots ?? 0), 0);
+      return {
+        puede: true,
+        destino: "PARA_IMPRIMIR",
+        explicacion: `Vas a aprobar ${plural(pendientes.length, "diseño", "diseños")} sin abrirlo. ${correo}`,
+        aviso: huecos > 0 ? `Ojo: ${plural(huecos, "lugar queda", "lugares quedan")} sin foto y van a salir vacíos.` : null,
+        llamadas: pendientes.map((d) => ({ url: `/api/fotografo/disenos/${d.id}/approve`, body: {} })),
+      };
+    }
+
+    case "PARA_IMPRIMIR": {
+      const ids = p.disenos.filter((d) => APROBADO.has(d.status) && !d.sentToPrintAt).map((d) => d.id);
+      if (ids.length > 0) {
+        return {
+          puede: true,
+          destino: "EN_IMPRENTA",
+          explicacion: `Vas a mandar a imprimir ${plural(ids.length, "librito", "librititos")} en un lote nuevo. Después bajás el ZIP o el PDF desde Pedidos escolares.`,
+          aviso: null,
+          llamadas: [{ url: "/api/fotografo/escolar/lotes", body: { ids } }],
+        };
+      }
+      const exportados = itemsEn("EXPORTED");
+      if (exportados.length > 0) {
+        return {
+          puede: true,
+          destino: "EN_IMPRENTA",
+          explicacion: "Vas a marcarlo en imprenta.",
+          aviso: null,
+          llamadas: exportados.map((i) => ({ url: `/api/fotografo/school-order-items/${i.id}/start-physical-fulfillment` })),
+        };
+      }
+      return {
+        puede: false,
+        motivo: "Son copias sueltas sin librito: se imprimen desde el pedido, no entran en un lote.",
+      };
+    }
+
+    case "EN_IMPRENTA": {
+      const ids = p.disenos.filter((d) => d.sentToPrintAt && !d.printedAt).map((d) => d.id);
+      if (ids.length > 0) {
+        return {
+          puede: true,
+          destino: "PARA_ENTREGAR",
+          explicacion: `Vas a marcar ${plural(ids.length, "librito impreso", "librititos impresos")}.`,
+          aviso: null,
+          llamadas: [{ url: "/api/fotografo/escolar/lotes/marcar", body: { ids, paso: "IMPRESO" } }],
+        };
+      }
+      const enCurso = itemsEn("PHYSICAL_IN_PROGRESS");
+      if (enCurso.length > 0) {
+        return {
+          puede: true,
+          destino: "PARA_ENTREGAR",
+          explicacion: "Vas a marcarlo impreso y en la escuela.",
+          aviso: null,
+          llamadas: enCurso.map((i) => ({ url: `/api/fotografo/school-order-items/${i.id}/mark-at-school` })),
+        };
+      }
+      return { puede: false, motivo: "No encontré qué marcar como impreso: hacelo desde Pedidos escolares." };
+    }
+
+    case "PARA_ENTREGAR": {
+      const ids = p.disenos.filter((d) => d.printedAt && !d.deliveredAt).map((d) => d.id);
+      if (ids.length > 0) {
+        return {
+          puede: true,
+          destino: "ENTREGADO",
+          explicacion: `Vas a marcar ${plural(ids.length, "librito entregado", "librititos entregados")} a la familia.`,
+          aviso: null,
+          llamadas: [{ url: "/api/fotografo/escolar/lotes/marcar", body: { ids, paso: "ENTREGADO" } }],
+        };
+      }
+      const enEscuela = itemsEn("AT_SCHOOL");
+      if (enEscuela.length > 0) {
+        return {
+          puede: true,
+          destino: "ENTREGADO",
+          explicacion: "Vas a marcarlo entregado a la familia.",
+          aviso: null,
+          llamadas: enEscuela.map((i) => ({ url: `/api/fotografo/school-order-items/${i.id}/mark-delivered` })),
+        };
+      }
+      return { puede: false, motivo: "No encontré qué marcar como entregado: hacelo desde Pedidos escolares." };
     }
   }
-  // Si el rincón se come toda la grilla, se deja libre la primera celda.
-  if (reservadas.length >= columnas * filas) reservadas.shift();
-
-  return { columnas, filas, reservadas, porPagina: columnas * filas - reservadas.length };
 }
 
-/** Parte la lista en páginas de `porPagina` (siempre hay al menos una página, aunque vacía). */
-export function paginar<T>(items: T[], porPagina: number): T[][] {
-  const tam = Math.max(1, Math.floor(porPagina));
-  if (items.length === 0) return [[]];
-  const paginas: T[][] = [];
-  for (let i = 0; i < items.length; i += tam) paginas.push(items.slice(i, i + tam));
-  return paginas;
+/** Normaliza para buscar sin importar mayúsculas ni tildes ("ales" encuentra "Alés"). */
+export function normalizarBusqueda(texto: string): string {
+  return texto.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 }
 
-/** Qué página mostrar en la vuelta número `vuelta` (se repite: 0, 1, 2, 0, 1…). */
-export function paginaDeLaVuelta(vuelta: number, totalPaginas: number): number {
-  if (totalPaginas <= 1) return 0;
-  const v = Math.max(0, Math.floor(vuelta));
-  return v % totalPaginas;
-}
-
-export type Celda<T> = { tipo: "pedido"; pedido: T } | { tipo: "vacia" } | { tipo: "reservada" };
-
-/**
- * Pone las tarjetas de una página en las celdas de la grilla, saltando las del rincón reservado.
- * Devuelve todas las celdas (fila por fila) para que la grilla mantenga su forma.
- */
-export function ubicarEnCeldas<T>(pagina: T[], grilla: Grilla): Celda<T>[] {
-  const reservadas = new Set(grilla.reservadas);
-  const celdas: Celda<T>[] = [];
-  let siguiente = 0;
-  for (let i = 0; i < grilla.columnas * grilla.filas; i++) {
-    if (reservadas.has(i)) celdas.push({ tipo: "reservada" });
-    else if (siguiente < pagina.length) celdas.push({ tipo: "pedido", pedido: pagina[siguiente++] });
-    else celdas.push({ tipo: "vacia" });
-  }
-  return celdas;
+/** El pedido coincide si todas las palabras buscadas aparecen en alguno de sus textos. */
+export function coincideBusqueda(textos: Array<string | null | undefined>, busqueda: string): boolean {
+  const palabras = normalizarBusqueda(busqueda).split(/\s+/).filter(Boolean);
+  if (palabras.length === 0) return true;
+  const todo = normalizarBusqueda(textos.filter(Boolean).join(" "));
+  return palabras.every((w) => todo.includes(w));
 }

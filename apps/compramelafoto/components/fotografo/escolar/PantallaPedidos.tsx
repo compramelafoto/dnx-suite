@@ -5,35 +5,58 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useFullscreenElement } from "@/components/simulator/useFullscreenElement";
 import { ensurePhotographerSession } from "@/lib/photographer-session-client";
-import { INFO_PASOS, PASOS_EMBUDO, textoCurso, type PasoEmbudo, type UbicacionEnEmbudo } from "@/lib/schools/embudo-pedidos-escolares";
 import {
-  RESERVA_CAMARA,
+  INFO_FUERA,
+  INFO_PASOS,
+  PASOS_EMBUDO,
+  esPasoEmbudo,
+  textoCurso,
+  type PasoEmbudo,
+  type UbicacionEnEmbudo,
+} from "@/lib/schools/embudo-pedidos-escolares";
+import {
   SEGUNDOS_ENTRE_ACTUALIZACIONES,
-  SEGUNDOS_POR_PAGINA,
-  calcularGrilla,
+  coincideBusqueda,
   contadoresPorPaso,
-  paginaDeLaVuelta,
-  paginar,
   pedidosParaTarjetas,
-  ubicarEnCeldas,
+  planDeAdelanto,
+  type PlanDeAdelanto,
 } from "@/lib/schools/pantalla-pedidos";
 
 /**
- * Pantalla de pedidos escolares para un televisor o una videollamada: oscura, con letra grande.
- * Arriba los siete pasos con su contador; abajo las tarjetas de los pedidos, que pasan de página
- * solas. Se actualiza sola. Los controles van arriba a la izquierda y el rincón de abajo a la
- * derecha queda vacío para la cámara del que presenta.
+ * Tablero de pedidos escolares: una columna por paso de la línea de producción, con tarjetas
+ * chicas. Tocar una tarjeta abre su detalle; arrastrarla a la columna siguiente la adelanta
+ * (con confirmación y la misma acción que Pedidos escolares). Sirve para trabajar en la
+ * computadora y también para mostrar en un televisor o una videollamada: es oscuro, se actualiza
+ * solo y tiene pantalla completa.
  */
+
+type Diseno = {
+  id: number;
+  status: string;
+  reviewNote: string | null;
+  emptySlots: number;
+  printBatchName?: string | null;
+  sentToPrintAt?: string | null;
+  printedAt?: string | null;
+  deliveredAt?: string | null;
+};
 
 type Pedido = {
   kind?: "TIENDA_ESCOLAR" | "PACK_EXTERNO";
+  redemptionOrderId?: number | null;
   id: number;
   buyerEmail: string;
   buyerName: string | null;
+  buyerPhone?: string | null;
   studentFirstName: string | null;
   studentLastName: string | null;
+  totalCents?: number;
+  createdAt?: string;
   isDemo?: boolean;
   paso: UbicacionEnEmbudo;
+  disenos?: Diseno[];
+  items?: Array<{ id: number; status: string }>;
   album: { id: number; title: string; school: { id: number; name: string } | null } | null;
   schoolCourse: { id: number; name: string; division: string | null } | null;
 };
@@ -45,12 +68,12 @@ type Tarjeta = {
   escuela: string | null;
   paso: UbicacionEnEmbudo;
   demo: boolean;
+  pedido: Pedido;
+  plan: PlanDeAdelanto;
 };
 
-/** Tamaño mínimo de una tarjeta para que se lea de lejos. */
-const TARJETA = { ancho: 380, alto: 168, separacion: 20 } as const;
-/** Margen de la grilla contra el borde de la pantalla (p-6). */
-const MARGEN = 24;
+/** Cuántas tarjetas se dibujan por columna antes de pedir "mostrar más" (hay columnas de cientos). */
+const TANDA = 60;
 
 /** Color de cada paso sobre fondo oscuro: del naranja de la marca al verde de "entregado". */
 const COLOR_PASO: Record<PasoEmbudo, { fondo: string; tinta: string }> = {
@@ -63,12 +86,34 @@ const COLOR_PASO: Record<PasoEmbudo, { fondo: string; tinta: string }> = {
   ENTREGADO: { fondo: "#14532d", tinta: "#bbf7d0" },
 };
 
+const ESTADO_DISENO: Record<string, string> = {
+  DRAFT: "En armado",
+  PENDING_PHOTOGRAPHER_APPROVAL: "Espera tu revisión",
+  NEEDS_ADJUSTMENT: "Pediste cambios",
+  APPROVED_FOR_EXPORT: "Aprobado (preparando archivo)",
+  EXPORTED: "Aprobado",
+};
+
 const horaArgentina = (d: Date) =>
   new Intl.DateTimeFormat("es-AR", {
     hour: "2-digit",
     minute: "2-digit",
     timeZone: "America/Argentina/Buenos_Aires",
   }).format(d);
+
+const fechaArgentina = (iso: string | null | undefined) =>
+  iso
+    ? new Intl.DateTimeFormat("es-AR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        timeZone: "America/Argentina/Buenos_Aires",
+      }).format(new Date(iso))
+    : null;
+
+/** La API manda el total en centavos (también para los packs cobrados por fuera). */
+const pesos = (centavos: number) =>
+  new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", minimumFractionDigits: 0 }).format(centavos / 100);
 
 function aTarjeta(o: Pedido): Tarjeta {
   const nombre =
@@ -83,37 +128,34 @@ function aTarjeta(o: Pedido): Tarjeta {
     escuela: o.album?.school?.name ?? null,
     paso: o.paso,
     demo: Boolean(o.isDemo),
+    pedido: o,
+    plan: planDeAdelanto({ paso: o.paso, isDemo: o.isDemo, disenos: o.disenos ?? [], items: o.items }),
   };
 }
 
-/** Mide el elemento y vuelve a medir cuando cambia de tamaño (pantalla completa, ventana). */
-function useMedidas<T extends HTMLElement>() {
-  const ref = useRef<T | null>(null);
-  const [medidas, setMedidas] = useState({ ancho: 0, alto: 0 });
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const medir = () => setMedidas({ ancho: el.clientWidth, alto: el.clientHeight });
-    medir();
-    const obs = new ResizeObserver(medir);
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-  return [ref, medidas] as const;
+function siguientePaso(p: PasoEmbudo): PasoEmbudo | null {
+  return PASOS_EMBUDO[PASOS_EMBUDO.indexOf(p) + 1] ?? null;
 }
 
 export default function PantallaPedidos() {
   const router = useRouter();
   const raizRef = useRef<HTMLDivElement | null>(null);
   const enPantallaCompleta = useFullscreenElement(raizRef);
-  const [grillaRef, medidas] = useMedidas<HTMLDivElement>();
 
   const [listo, setListo] = useState(false);
   const [pedidos, setPedidos] = useState<Pedido[] | null>(null);
   const [error, setError] = useState(false);
   const [actualizado, setActualizado] = useState<Date | null>(null);
-  const [vuelta, setVuelta] = useState(0);
   const [filtro, setFiltro] = useState<{ schoolId: string; curso: string }>({ schoolId: "", curso: "" });
+  const [busqueda, setBusqueda] = useState("");
+  const [visibles, setVisibles] = useState<Partial<Record<PasoEmbudo, number>>>({});
+
+  const [abierta, setAbierta] = useState<string | null>(null);
+  const [arrastrando, setArrastrando] = useState<Tarjeta | null>(null);
+  const [sobre, setSobre] = useState<PasoEmbudo | null>(null);
+  const [aConfirmar, setAConfirmar] = useState<Tarjeta | null>(null);
+  const [moviendo, setMoviendo] = useState(false);
+  const [aviso, setAviso] = useState<{ tono: "ok" | "error"; texto: string } | null>(null);
 
   // Escuela y curso pueden venir en la dirección (?schoolId=3&curso=5°%20A), desde Pedidos escolares.
   useEffect(() => {
@@ -149,41 +191,40 @@ export default function PantallaPedidos() {
     }
   }, [filtro.schoolId]);
 
+  // Mientras se arrastra o hay una ventana abierta no se recarga: la tarjeta no se mueve sola.
+  const quieto = arrastrando !== null || abierta !== null || aConfirmar !== null || moviendo;
   useEffect(() => {
-    if (!listo) return;
+    if (!listo || quieto) return;
     void recargar();
     const id = window.setInterval(() => void recargar(), SEGUNDOS_ENTRE_ACTUALIZACIONES * 1000);
     return () => window.clearInterval(id);
-  }, [listo, recargar]);
+  }, [listo, quieto, recargar]);
 
   useEffect(() => {
-    const id = window.setInterval(() => setVuelta((v) => v + 1), SEGUNDOS_POR_PAGINA * 1000);
-    return () => window.clearInterval(id);
-  }, []);
+    if (!aviso) return;
+    const id = window.setTimeout(() => setAviso(null), 6000);
+    return () => window.clearTimeout(id);
+  }, [aviso]);
 
   const delCurso = useMemo(
     () => (pedidos ?? []).filter((o) => !filtro.curso || textoCurso(o.schoolCourse) === filtro.curso),
     [pedidos, filtro.curso],
   );
   const contadores = useMemo(() => contadoresPorPaso(delCurso.map((o) => o.paso)), [delCurso]);
-  const tarjetas = useMemo(() => pedidosParaTarjetas(delCurso.map(aTarjeta)), [delCurso]);
-
-  const grilla = useMemo(
+  const tarjetas = useMemo(
     () =>
-      calcularGrilla({
-        ancho: medidas.ancho,
-        alto: medidas.alto,
-        anchoTarjeta: TARJETA.ancho,
-        altoTarjeta: TARJETA.alto,
-        separacion: TARJETA.separacion,
-        // El rincón se mide desde el borde de la pantalla; la grilla ya está separada por el margen.
-        reserva: { ancho: RESERVA_CAMARA.ancho - MARGEN, alto: RESERVA_CAMARA.alto - MARGEN },
-      }),
-    [medidas.ancho, medidas.alto],
+      pedidosParaTarjetas(delCurso.map(aTarjeta), { incluirEntregados: true }).filter((t) =>
+        coincideBusqueda([t.nombre, t.curso, t.escuela, t.pedido.buyerName, t.pedido.buyerEmail], busqueda),
+      ),
+    [delCurso, busqueda],
   );
-  const paginas = useMemo(() => paginar(tarjetas, grilla.porPagina), [tarjetas, grilla.porPagina]);
-  const indicePagina = paginaDeLaVuelta(vuelta, paginas.length);
-  const celdas = ubicarEnCeldas(paginas[indicePagina] ?? [], grilla);
+  const porPaso = useMemo(() => {
+    const m = Object.fromEntries(PASOS_EMBUDO.map((p) => [p, [] as Tarjeta[]])) as Record<PasoEmbudo, Tarjeta[]>;
+    for (const t of tarjetas) if (esPasoEmbudo(t.paso)) m[t.paso].push(t);
+    return m;
+  }, [tarjetas]);
+
+  const tarjetaAbierta = abierta ? (delCurso.map(aTarjeta).find((t) => t.clave === abierta) ?? null) : null;
 
   const escuela = filtro.schoolId ? (delCurso.find((o) => o.album?.school)?.album?.school?.name ?? null) : null;
   const subtitulo = [escuela, filtro.curso || null].filter(Boolean).join(" · ") || "Todas las escuelas";
@@ -199,8 +240,37 @@ export default function PantallaPedidos() {
     }
   }, []);
 
+  async function adelantar(t: Tarjeta) {
+    if (!t.plan.puede) return;
+    setMoviendo(true);
+    try {
+      for (const l of t.plan.llamadas) {
+        const r = await fetch(l.url, {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(l.body ?? {}),
+        });
+        const d = (await r.json().catch(() => ({}))) as Record<string, unknown>;
+        if (!r.ok || d.ok === false) {
+          const texto = [d.message, d.reason, d.error].find((v) => typeof v === "string" && v.trim());
+          throw new Error(typeof texto === "string" ? texto : `Error (${r.status})`);
+        }
+      }
+      setAviso({ tono: "ok", texto: `${t.nombre} pasó a «${INFO_PASOS[t.plan.destino].titulo}».` });
+    } catch (e) {
+      setAviso({ tono: "error", texto: `No pude mover a ${t.nombre}: ${e instanceof Error ? e.message : "error"}` });
+    } finally {
+      setAConfirmar(null);
+      setAbierta(null);
+      setMoviendo(false);
+      await recargar();
+    }
+  }
+
   const boton =
-    "rounded-lg border border-white/20 bg-white/5 px-4 py-2 text-base font-semibold text-white hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#c27b3d]";
+    "rounded-lg border border-white/20 bg-white/5 px-3 py-1.5 text-sm font-semibold text-white hover:bg-white/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#c27b3d]";
+  const destinoArrastre = arrastrando && arrastrando.plan.puede ? arrastrando.plan.destino : null;
 
   return (
     <div
@@ -208,9 +278,8 @@ export default function PantallaPedidos() {
       className="flex h-[100dvh] w-full flex-col overflow-hidden bg-[#0b0d12] text-white"
       style={{ colorScheme: "dark" }}
     >
-      {/* Arriba a la izquierda: controles y estado. */}
-      <header className="flex flex-wrap items-center gap-x-6 gap-y-3 px-6 pt-5">
-        <div className="flex items-center gap-3">
+      <header className="flex flex-wrap items-center gap-x-5 gap-y-3 px-4 pt-4 sm:px-6">
+        <div className="flex items-center gap-2">
           {!enPantallaCompleta ? (
             <Link href="/fotografo/escuelas/pedidos" className={boton}>
               ← Volver
@@ -221,116 +290,408 @@ export default function PantallaPedidos() {
           </button>
         </div>
         <div className="min-w-0">
-          <h1 className="text-[clamp(26px,2.6vw,44px)] font-bold leading-tight">Pedidos escolares</h1>
-          <p className="text-[clamp(16px,1.3vw,22px)] text-white/60">{subtitulo}</p>
+          <h1 className="text-[clamp(22px,2vw,34px)] font-bold leading-tight">Pedidos escolares</h1>
+          <p className="text-sm text-white/60">{subtitulo}</p>
         </div>
-        <div className="ml-auto text-right text-[clamp(14px,1.1vw,20px)] text-white/60">
+        <label className="relative order-last w-full sm:order-none sm:ml-auto sm:w-72">
+          <span className="sr-only">Buscar alumno, curso o escuela</span>
+          <input
+            type="search"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="Buscar alumno, curso o escuela…"
+            className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-[#c27b3d] focus:outline-none"
+          />
+        </label>
+        <div className="text-right text-xs text-white/50 sm:text-sm">
           {actualizado ? <p>Actualizado {horaArgentina(actualizado)}</p> : null}
           {error ? <p className="text-amber-400">Sin conexión: muestro lo último que llegó</p> : null}
-          {paginas.length > 1 ? (
-            <p>
-              Página {indicePagina + 1} de {paginas.length}
-            </p>
-          ) : null}
         </div>
       </header>
 
-      {/* Los siete pasos, encadenados como en Pedidos escolares. */}
-      <nav aria-label="Pedidos por paso" className="px-6 pt-5">
-        <ol className="m-0 flex list-none p-0">
-          {contadores.map((c, i) => {
-            const primero = i === 0;
-            const ultimo = i === PASOS_EMBUDO.length - 1;
-            const punta = 26;
-            const forma = `polygon(0 0, calc(100% - ${ultimo ? 0 : punta}px) 0, 100% 50%, calc(100% - ${
-              ultimo ? 0 : punta
-            }px) 100%, 0 100%, ${primero ? 0 : punta}px 50%)`;
-            const color = COLOR_PASO[c.paso];
-            const vacio = c.cantidad === 0;
-            return (
-              <li key={c.paso} className="relative min-w-0 flex-1" style={{ marginLeft: primero ? 0 : -punta + 6 }}>
-                <div
-                  title={INFO_PASOS[c.paso].ayuda}
-                  className="flex h-[clamp(92px,13vh,150px)] w-full flex-col justify-center"
-                  style={{
-                    clipPath: forma,
-                    background: vacio ? "#1a1d24" : color.fondo,
-                    color: vacio ? "#6b7280" : color.tinta,
-                    paddingLeft: primero ? 20 : punta + 14,
-                    paddingRight: ultimo ? 16 : punta + 6,
-                  }}
-                >
-                  <span className="text-[clamp(36px,4.4vw,84px)] font-bold leading-none tabular-nums">{c.cantidad}</span>
-                  <span className="mt-1 truncate text-[clamp(13px,1.15vw,22px)] font-semibold leading-tight">
-                    {c.numero}. {c.titulo}
-                  </span>
-                </div>
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
+      <p className="px-4 pt-2 text-xs text-white/40 sm:px-6">
+        Tocá una tarjeta para ver todo el pedido. Arrastrala a la columna siguiente para adelantarla (sólo en los pasos que dependen de vos).
+      </p>
 
-      {/* Las tarjetas. La celda de abajo a la derecha queda vacía para la cámara. */}
-      <div className="min-h-0 flex-1 p-6">
-        <div ref={grillaRef} className="relative h-full w-full">
-          {pedidos === null ? (
-            <p className="absolute inset-0 flex items-center justify-center text-2xl text-white/50">
-              {error ? "No pude traer los pedidos. Reintento en unos segundos…" : "Cargando pedidos…"}
-            </p>
-          ) : tarjetas.length === 0 ? (
-            <p className="absolute inset-0 flex items-center justify-center pb-24 text-[clamp(22px,2vw,36px)] text-white/50">
-              No hay pedidos en curso.
-            </p>
-          ) : medidas.ancho > 0 ? (
-            <ol
-              key={indicePagina}
-              aria-label={`Pedidos, página ${indicePagina + 1} de ${paginas.length}`}
-              className="m-0 grid h-full list-none p-0"
-              style={{
-                gridTemplateColumns: `repeat(${grilla.columnas}, minmax(0, 1fr))`,
-                gridTemplateRows: `repeat(${grilla.filas}, minmax(0, 1fr))`,
-                gap: TARJETA.separacion,
-              }}
-            >
-              {celdas.map((celda, i) =>
-                celda.tipo === "pedido" ? (
-                  <TarjetaPedido key={celda.pedido.clave} t={celda.pedido} />
-                ) : (
-                  <li key={`${celda.tipo}-${i}`} aria-hidden="true" />
-                ),
-              )}
-            </ol>
+      {/* El tablero: una columna por paso. Se desplaza de costado si la ventana es angosta. */}
+      <div className="min-h-0 flex-1 overflow-x-auto px-4 pb-4 pt-3 sm:px-6">
+        {pedidos === null ? (
+          <p className="flex h-full items-center justify-center text-xl text-white/50">
+            {error ? "No pude traer los pedidos. Reintento en unos segundos…" : "Cargando pedidos…"}
+          </p>
+        ) : (
+          <div className="flex h-full min-w-max gap-3 lg:min-w-0">
+            {contadores.map((c) => {
+              const lista = porPaso[c.paso];
+              const color = COLOR_PASO[c.paso];
+              const cuantas = visibles[c.paso] ?? TANDA;
+              const esDestino = destinoArrastre === c.paso;
+              const apagada = arrastrando !== null && !esDestino && arrastrando.paso !== c.paso;
+              return (
+                <section
+                  key={c.paso}
+                  aria-label={`${c.titulo}: ${c.cantidad}`}
+                  onDragOver={(e) => {
+                    if (!esDestino) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    setSobre(c.paso);
+                  }}
+                  onDragLeave={(e) => {
+                    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setSobre(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    setSobre(null);
+                    if (esDestino && arrastrando) setAConfirmar(arrastrando);
+                    setArrastrando(null);
+                  }}
+                  className={`flex w-[240px] min-w-0 flex-col rounded-xl border transition lg:w-auto lg:flex-1 ${
+                    esDestino
+                      ? sobre === c.paso
+                        ? "border-[#c27b3d] bg-[#c27b3d]/15"
+                        : "border-dashed border-[#c27b3d]/70 bg-[#c27b3d]/5"
+                      : "border-white/5 bg-white/[0.02]"
+                  } ${apagada ? "opacity-40" : ""}`}
+                >
+                  <div
+                    title={INFO_PASOS[c.paso].ayuda}
+                    className="flex items-end justify-between gap-2 rounded-t-xl px-3 py-2"
+                    style={{
+                      background: c.cantidad === 0 ? "#1a1d24" : color.fondo,
+                      color: c.cantidad === 0 ? "#6b7280" : color.tinta,
+                    }}
+                  >
+                    <span className="truncate text-sm font-semibold leading-tight">
+                      {c.numero}. {c.titulo}
+                    </span>
+                    <span className="text-2xl font-bold leading-none tabular-nums">{c.cantidad}</span>
+                  </div>
+                  {esDestino ? (
+                    <p className="px-3 pt-2 text-xs font-semibold text-[#e7a86b]">Soltala acá para pasarla a este paso</p>
+                  ) : null}
+                  <ol className="m-0 flex min-h-0 flex-1 list-none flex-col gap-1.5 overflow-y-auto p-2">
+                    {lista.length === 0 ? (
+                      <li className="px-1 py-3 text-center text-xs text-white/30">
+                        {busqueda ? "Nada coincide" : "Sin pedidos"}
+                      </li>
+                    ) : null}
+                    {lista.slice(0, cuantas).map((t) => (
+                      <TarjetaPedido
+                        key={t.clave}
+                        t={t}
+                        arrastrada={arrastrando?.clave === t.clave}
+                        onAbrir={() => setAbierta(t.clave)}
+                        onEmpezar={() => setArrastrando(t)}
+                        onTerminar={() => {
+                          setArrastrando(null);
+                          setSobre(null);
+                        }}
+                      />
+                    ))}
+                    {lista.length > cuantas ? (
+                      <li>
+                        <button
+                          type="button"
+                          onClick={() => setVisibles((v) => ({ ...v, [c.paso]: cuantas + TANDA }))}
+                          className="w-full rounded-lg border border-white/10 py-2 text-xs font-semibold text-white/70 hover:bg-white/5"
+                        >
+                          Mostrar {Math.min(TANDA, lista.length - cuantas)} más (quedan {lista.length - cuantas})
+                        </button>
+                      </li>
+                    ) : null}
+                  </ol>
+                </section>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {tarjetaAbierta ? (
+        // Con la confirmación encima, Escape (o tocar afuera) cierra sólo la confirmación.
+        <Ventana onCerrar={() => (aConfirmar ? undefined : setAbierta(null))} titulo={tarjetaAbierta.nombre}>
+          <DetallePedido t={tarjetaAbierta} onAdelantar={() => setAConfirmar(tarjetaAbierta)} />
+        </Ventana>
+      ) : null}
+
+      {aConfirmar && aConfirmar.plan.puede ? (
+        <Ventana
+          onCerrar={() => (moviendo ? undefined : setAConfirmar(null))}
+          titulo={`¿Pasar a «${INFO_PASOS[aConfirmar.plan.destino].titulo}»?`}
+          chica
+        >
+          <p className="text-base font-semibold">{aConfirmar.nombre}</p>
+          <p className="mt-2 text-sm text-white/80">{aConfirmar.plan.explicacion}</p>
+          {aConfirmar.plan.aviso ? (
+            <p className="mt-2 rounded-lg bg-amber-500/15 px-3 py-2 text-sm text-amber-300">{aConfirmar.plan.aviso}</p>
           ) : null}
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <button type="button" disabled={moviendo} onClick={() => setAConfirmar(null)} className={boton}>
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={moviendo}
+              onClick={() => void adelantar(aConfirmar)}
+              className="rounded-lg bg-[#c27b3d] px-4 py-1.5 text-sm font-semibold text-white hover:bg-[#d08a4b] disabled:opacity-60"
+            >
+              {moviendo ? "Moviendo…" : `Sí, pasar a «${INFO_PASOS[aConfirmar.plan.destino].titulo}»`}
+            </button>
+          </div>
+        </Ventana>
+      ) : null}
+
+      {aviso ? (
+        <div
+          role="status"
+          className={`fixed bottom-4 left-1/2 z-50 max-w-[90vw] -translate-x-1/2 rounded-lg px-4 py-2 text-sm font-semibold shadow-lg ${
+            aviso.tono === "ok" ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
+          }`}
+        >
+          {aviso.texto}
         </div>
+      ) : null}
+    </div>
+  );
+}
+
+function TarjetaPedido({
+  t,
+  arrastrada,
+  onAbrir,
+  onEmpezar,
+  onTerminar,
+}: {
+  t: Tarjeta;
+  arrastrada: boolean;
+  onAbrir: () => void;
+  onEmpezar: () => void;
+  onTerminar: () => void;
+}) {
+  const paso = t.paso as PasoEmbudo;
+  const lugar = [t.curso, t.escuela].filter(Boolean).join(" · ");
+  const sePuede = t.plan.puede;
+  return (
+    <li
+      draggable={sePuede}
+      onDragStart={(e) => {
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", t.clave);
+        onEmpezar();
+      }}
+      onDragEnd={onTerminar}
+      className={arrastrada ? "opacity-40" : ""}
+    >
+      <button
+        type="button"
+        onClick={onAbrir}
+        title={sePuede ? "Tocá para ver el pedido · arrastrá para adelantarlo" : "Tocá para ver el pedido"}
+        className={`group flex w-full items-stretch gap-2 rounded-lg border border-white/10 bg-[#161a22] text-left transition hover:border-white/25 hover:bg-[#1c212b] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#c27b3d] ${
+          sePuede ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
+        }`}
+      >
+        <span aria-hidden className="w-1 shrink-0 rounded-l-lg" style={{ background: COLOR_PASO[paso].fondo }} />
+        <span className="min-w-0 flex-1 py-1.5 pr-2">
+          <span className="flex items-center gap-1.5">
+            <span className="truncate text-sm font-semibold leading-tight">{t.nombre}</span>
+            {t.demo ? (
+              <span className="shrink-0 rounded border border-white/20 px-1 text-[10px] font-semibold text-white/60">DEMO</span>
+            ) : null}
+          </span>
+          {lugar ? <span className="block truncate text-xs leading-tight text-white/50">{lugar}</span> : null}
+        </span>
+        {sePuede ? (
+          <span aria-hidden className="self-center pr-2 text-xs text-white/25 group-hover:text-[#e7a86b]">
+            ⠿
+          </span>
+        ) : null}
+      </button>
+    </li>
+  );
+}
+
+function Ventana({
+  titulo,
+  onCerrar,
+  chica,
+  children,
+}: {
+  titulo: string;
+  onCerrar: () => void;
+  chica?: boolean;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCerrar();
+    };
+    window.addEventListener("keydown", tecla);
+    return () => window.removeEventListener("keydown", tecla);
+  }, [onCerrar]);
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4" onClick={onCerrar}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={titulo}
+        onClick={(e) => e.stopPropagation()}
+        className={`max-h-[90dvh] w-full overflow-y-auto rounded-2xl border border-white/10 bg-[#12151c] p-5 shadow-2xl ${
+          chica ? "max-w-md" : "max-w-xl"
+        }`}
+      >
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <h2 className="text-xl font-bold leading-tight">{titulo}</h2>
+          <button
+            type="button"
+            onClick={onCerrar}
+            aria-label="Cerrar"
+            className="rounded-lg px-2 py-1 text-lg leading-none text-white/60 hover:bg-white/10 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+        {children}
       </div>
     </div>
   );
 }
 
-function TarjetaPedido({ t }: { t: Tarjeta }) {
-  const paso = t.paso as PasoEmbudo;
-  const color = COLOR_PASO[paso];
-  const lugar = [t.curso, t.escuela].filter(Boolean).join(" · ");
+function Dato({ etiqueta, children }: { etiqueta: string; children: React.ReactNode }) {
   return (
-    <li className="flex min-h-0 min-w-0 flex-col justify-between overflow-hidden rounded-2xl border border-white/10 bg-[#161a22] p-5">
-      <div className="min-w-0">
-        <p className="truncate text-[clamp(22px,2vw,38px)] font-bold leading-tight">{t.nombre}</p>
-        {lugar ? <p className="mt-1 truncate text-[clamp(16px,1.3vw,24px)] text-white/60">{lugar}</p> : null}
-      </div>
-      <div className="mt-3 flex items-center gap-2">
-        <span
-          className="inline-flex max-w-full items-center truncate rounded-full px-3 py-1 text-[clamp(14px,1.05vw,20px)] font-semibold"
-          style={{ background: color.fondo, color: color.tinta }}
-        >
-          {INFO_PASOS[paso].numero}. {INFO_PASOS[paso].titulo}
-        </span>
-        {t.demo ? (
-          <span className="rounded-full border border-white/20 px-2 py-0.5 text-sm font-semibold text-white/60">
-            DEMO
+    <div className="min-w-0">
+      <dt className="text-xs text-white/45">{etiqueta}</dt>
+      <dd className="m-0 break-words text-sm">{children}</dd>
+    </div>
+  );
+}
+
+function DetallePedido({ t, onAdelantar }: { t: Tarjeta; onAdelantar: () => void }) {
+  const o = t.pedido;
+  const paso = esPasoEmbudo(t.paso) ? t.paso : null;
+  const telefono = o.buyerPhone?.replace(/\D/g, "") ?? "";
+  const disenos = o.disenos ?? [];
+  const link = "text-[#e7a86b] hover:underline";
+  const siguiente = paso ? siguientePaso(paso) : null;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        {paso ? (
+          <span
+            className="rounded-full px-3 py-1 text-sm font-semibold"
+            style={{ background: COLOR_PASO[paso].fondo, color: COLOR_PASO[paso].tinta }}
+          >
+            {INFO_PASOS[paso].numero}. {INFO_PASOS[paso].titulo}
           </span>
-        ) : null}
+        ) : (
+          <span className="rounded-full bg-white/10 px-3 py-1 text-sm font-semibold">
+            {INFO_FUERA[t.paso as keyof typeof INFO_FUERA]}
+          </span>
+        )}
+        {t.demo ? <span className="rounded-full border border-white/20 px-2 py-0.5 text-xs text-white/60">DEMO</span> : null}
       </div>
-    </li>
+      {paso ? <p className="-mt-2 text-sm text-white/60">{INFO_PASOS[paso].ayuda}</p> : null}
+
+      <dl className="m-0 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Dato etiqueta="Escuela">{t.escuela ?? "—"}</Dato>
+        <Dato etiqueta="Curso">{t.curso ?? "—"}</Dato>
+        <Dato etiqueta="Quién compró">{o.buyerName || "—"}</Dato>
+        <Dato etiqueta="Correo">
+          {o.buyerEmail ? (
+            <a href={`mailto:${o.buyerEmail}`} className={link}>
+              {o.buyerEmail}
+            </a>
+          ) : (
+            "—"
+          )}
+        </Dato>
+        <Dato etiqueta="Teléfono">
+          {telefono ? (
+            <a href={`https://wa.me/${telefono}`} target="_blank" rel="noreferrer" className={link}>
+              {o.buyerPhone} · WhatsApp
+            </a>
+          ) : (
+            "—"
+          )}
+        </Dato>
+        <Dato etiqueta="Pedido">
+          {o.kind === "PACK_EXTERNO" ? "Pack cobrado por fuera" : "Tienda escolar"} · #{o.id}
+          {o.redemptionOrderId ? ` (canje #${o.redemptionOrderId})` : ""}
+        </Dato>
+        <Dato etiqueta="Fecha">{fechaArgentina(o.createdAt) ?? "—"}</Dato>
+        <Dato etiqueta="Total">{o.isDemo ? "Prueba" : typeof o.totalCents === "number" ? pesos(o.totalCents) : "—"}</Dato>
+        {o.album ? <Dato etiqueta="Álbum">{o.album.title}</Dato> : null}
+      </dl>
+
+      <div className="border-t border-white/10 pt-4">
+        <h3 className="mb-2 text-sm font-semibold text-white/80">
+          {disenos.length > 1 ? `Librititos (${disenos.length})` : "Librito"}
+        </h3>
+        {disenos.length === 0 ? (
+          <p className="text-sm text-white/50">
+            {t.paso === "POR_CANJEAR" ? "Todavía no hay: la familia no eligió sus fotos." : "Sin librito (copias sueltas o sólo digital)."}
+          </p>
+        ) : (
+          <ul className="m-0 list-none space-y-2 p-0">
+            {disenos.map((d, i) => (
+              <li key={d.id} className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-semibold">
+                    {disenos.length > 1 ? `Librito ${i + 1}` : "Diseño"} · {ESTADO_DISENO[d.status] ?? d.status}
+                  </span>
+                  <span className="flex gap-3 text-xs">
+                    <a href={`/fotografo/disenos/${d.id}`} target="_blank" rel="noreferrer" className={link}>
+                      Abrir diseño
+                    </a>
+                    <a href={`/api/fotografo/disenos/${d.id}/pdf`} target="_blank" rel="noreferrer" className={link}>
+                      PDF
+                    </a>
+                  </span>
+                </div>
+                {d.emptySlots > 0 ? <p className="mt-1 text-xs text-amber-300">{d.emptySlots} lugar(es) sin foto</p> : null}
+                {d.reviewNote ? <p className="mt-1 text-xs text-sky-300">Cambio pedido: “{d.reviewNote}”</p> : null}
+                {d.printBatchName || d.sentToPrintAt || d.printedAt || d.deliveredAt ? (
+                  <p className="mt-1 text-xs text-white/50">
+                    {[
+                      d.printBatchName,
+                      d.sentToPrintAt ? `a imprenta ${fechaArgentina(d.sentToPrintAt)}` : null,
+                      d.printedAt ? `impreso ${fechaArgentina(d.printedAt)}` : null,
+                      d.deliveredAt ? `entregado ${fechaArgentina(d.deliveredAt)}` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 pt-4">
+        <Link
+          href={`/fotografo/escuelas/pedidos${paso ? `?paso=${paso}` : ""}`}
+          className="text-sm text-white/60 hover:text-white hover:underline"
+        >
+          Ver en Pedidos escolares
+        </Link>
+        {t.plan.puede ? (
+          <button
+            type="button"
+            onClick={onAdelantar}
+            className="rounded-lg bg-[#c27b3d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#d08a4b]"
+          >
+            Pasar a «{INFO_PASOS[t.plan.destino].titulo}» →
+          </button>
+        ) : (
+          <p className="max-w-xs text-right text-xs text-white/45">
+            {siguiente ? `No se puede pasar a «${INFO_PASOS[siguiente].titulo}» desde acá: ` : ""}
+            {t.plan.motivo}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
