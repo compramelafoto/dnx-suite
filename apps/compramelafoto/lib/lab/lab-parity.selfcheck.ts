@@ -45,7 +45,6 @@ const LAB_APIS = [
   "app/api/lab/clientes/[email]/route.ts",
   "app/api/lab/interesados/route.ts",
   "app/api/lab/upload-logo/route.ts",
-  "app/api/lab/create/route.ts",
   "app/api/lab/catalog/template/route.ts",
   "app/api/lab/catalog/export/route.ts",
   "app/api/lab/catalog/import/route.ts",

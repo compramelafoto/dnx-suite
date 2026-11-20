@@ -64,7 +64,8 @@
     "test:meta-pixel": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/meta-pixel.test.ts lib/meta-capi.test.ts",
     "test:origen-campania": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/origen-campania.test.ts middleware.referral.test.ts",
     "test:packs-vs-sueltas": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/album-packs/pack-vs-singles.test.ts",
-    "test:fotoffice-vinculo": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/public-album/resumen.test.ts"
+    "test:fotoffice-vinculo": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/public-album/resumen.test.ts",
+    "test:lab-seguridad": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/lab/session-lab-access.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.985.0",
