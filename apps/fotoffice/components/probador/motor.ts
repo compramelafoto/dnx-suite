@@ -40,7 +40,7 @@ import {
   type Cuadro,
   type TipoCuadro,
 } from "@/lib/probador/composicion";
-import { cotizar, medidaMasCercana, medidasDe, precioDe, type PrecioPublico } from "@/lib/probador/catalogo";
+import { cotizar, medidaMasCercana, medidasDe, precioDe, tiposConPrecio, type PrecioPublico } from "@/lib/probador/catalogo";
 import { aplicarMarco, medidaDelMarco, medidaMarcoMasCercana, type MarcoPublico } from "@/lib/probador/marcos";
 import { deshacer, iniciar, puedeDeshacer, puedeRehacer, registrar, rehacer, type Historial } from "@/lib/probador/historial";
 import { fotoDeMuestra, iniciarGl, leerArchivo, lienzo, livingDeEjemplo, miniatura, PALETAS } from "./recursos";
@@ -583,7 +583,11 @@ export function montarProbador(
     const lista = medidasDelTipo(tipo);
     const actual = `${Math.min(w, h)}x${Math.max(w, h)}`;
     const html = lista.map((m) => `<option value="${m.corto}x${m.largo}">${m.corto} × ${m.largo} cm${m.precio != null ? ` · ${pesos(m.precio)}` : ""}</option>`).join("");
-    return { html: lista.some((m) => `${m.corto}x${m.largo}` === actual) ? html : `<option value="${actual}">${fmt(Math.min(w, h))} × ${fmt(Math.max(w, h))} cm (sin precio)</option>${html}`, actual };
+    if (lista.some((m) => `${m.corto}x${m.largo}` === actual)) return { html, actual };
+    // Con precios, nunca se ofrece una medida sin precio: se muestra la más parecida que sí tiene.
+    const cerca = medidasDe(catalogo, tipo).length ? medidaMasCercana(catalogo, tipo, w, h) : null;
+    if (cerca) return { html, actual: `${Math.min(cerca.w, cerca.h)}x${Math.max(cerca.w, cerca.h)}` };
+    return { html: `<option value="${actual}">${fmt(Math.min(w, h))} × ${fmt(Math.max(w, h))} cm (sin precio)</option>${html}`, actual };
   };
   /** Las medidas de un modelo de marco: la de la foto, la de afuera y el precio (o por qué no tiene). */
   const opcionesMarco = (marco: MarcoPublico, actual: { foto: { corto: number; largo: number } }) => ({
@@ -605,8 +609,10 @@ export function montarProbador(
     const [a, b] = v.split("x").map(Number);
     return vertical ? { w: a, h: b } : { w: b, h: a };
   };
+  // Con precios cargados, un tipo que no tiene ninguna medida con precio no se ofrece.
+  const tiposVisibles = new Set(tiposConPrecio(catalogo, marcos.some((m) => m.medidas.some((d) => d.precioArs != null && d.precioArs > 0))));
   const tiposHtml = (sel: TipoCuadro | null) =>
-    TIPOS.map((t) => `<button type="button" data-tipo="${t.id}" aria-pressed="${t.id === sel}">${t.label}</button>`).join("");
+    TIPOS.filter((t) => tiposVisibles.has(t.id) || t.id === sel).map((t) => `<button type="button" data-tipo="${t.id}" aria-pressed="${t.id === sel}">${t.label}</button>`).join("");
 
   function panel() {
     // Cada vez que cambia algo, el asistente se entera (habilitar "Siguiente", el total…), con el panel ya al día.
@@ -632,6 +638,7 @@ export function montarProbador(
     $("tipo-todos").innerHTML = tiposHtml(tipos.size === 1 ? [...tipos][0] : null);
     const medidaTodos = $<HTMLSelectElement>("medida-todos"), base = opcionesMedida(c.cuadros[0]?.tipo ?? "CANVAS", P.base.corto, P.base.largo);
     medidaTodos.innerHTML = base.html; medidaTodos.value = base.actual;
+    { const [a, b] = base.actual.split("x").map(Number); P.base = { corto: a, largo: b }; }
     presupuesto(c);
     const pasp = new Set(c.cuadros.filter((x) => x.tipo === "MARCO").map((x) => x.paspartu));
     // Con marcos reales cargados, el modelo se elige; el paspartú lo trae cada medida del modelo.

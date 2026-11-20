@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { armarCatalogo, cotizar, medidaDeNombre, medidaMasCercana, precioDe, tipoDeProducto } from "./catalogo";
+import { armarCatalogo, cotizar, medidaDeNombre, medidaMasCercana, precioDe, tipoDeProducto, tiposConPrecio } from "./catalogo";
 import { cambiarCuadro, desdePlantilla } from "./composicion";
 
 const p = (id: string, name: string, priceArs: number, supplierName: string | null = null) => ({ id, name, priceArs, supplierName });
@@ -57,5 +57,21 @@ describe("los precios del probador salen del catálogo", () => {
     expect(r.sinPrecio).toBe(1);
     expect(r.lineas).toContainEqual({ tipo: "CANVAS", corto: 30, largo: 40, cantidad: 2, precioArs: 60000 });
     expect(r.lineas).toContainEqual({ tipo: "MARCO", corto: 30, largo: 40, cantidad: 1, precioArs: null });
+  });
+});
+
+describe("los tipos que se ofrecen", () => {
+  const cat = armarCatalogo([
+    { id: "c", name: "Cuadro canvas 30x40", priceArs: 60000, supplierName: null },
+    { id: "m", name: "Cuadro MDF 30x40", priceArs: 0, supplierName: null },
+  ]);
+  it("sin catálogo se ofrecen todos", () => {
+    expect(tiposConPrecio([], false)).toEqual(["IMPRESION", "CANVAS", "MDF", "MARCO"]);
+  });
+  it("con catálogo, sólo los que tienen alguna medida con precio", () => {
+    expect(tiposConPrecio(cat, false)).toEqual(["CANVAS"]);
+  });
+  it("«Con marco» sólo si hay un marco con precio", () => {
+    expect(tiposConPrecio(cat, true)).toEqual(["CANVAS", "MARCO"]);
   });
 });

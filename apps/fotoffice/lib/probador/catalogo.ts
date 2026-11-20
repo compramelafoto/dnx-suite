@@ -77,6 +77,17 @@ export function medidasDe<T extends PrecioPublico>(cat: readonly T[], tipo: Tipo
   return cat.filter((p) => p.tipo === tipo);
 }
 
+/**
+ * Los tipos que se ofrecen: con catálogo, sólo los que tienen alguna medida con precio (un tipo sin
+ * precio daría un total de $ 0); "Con marco" entra si hay algún marco con precio. Sin catálogo,
+ * todos.
+ */
+export function tiposConPrecio(cat: readonly PrecioPublico[], hayMarcoConPrecio: boolean): TipoCuadro[] {
+  const todos: TipoCuadro[] = ["IMPRESION", "CANVAS", "MDF", "MARCO"];
+  if (!cat.length) return todos;
+  return todos.filter((t) => (t === "MARCO" ? hayMarcoConPrecio : medidasDe(cat, t).length > 0));
+}
+
 export function precioDe<T extends PrecioPublico>(cat: readonly T[], tipo: TipoCuadro, w: number, h: number): T | null {
   const corto = Math.min(w, h), largo = Math.max(w, h);
   return cat.find((p) => p.tipo === tipo && Math.abs(p.corto - corto) < 0.05 && Math.abs(p.largo - largo) < 0.05) ?? null;
