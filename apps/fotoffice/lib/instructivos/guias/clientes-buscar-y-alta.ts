@@ -3,9 +3,9 @@ import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
 
 export const guia: Instructivo = {
   slug: "clientes-buscar-y-alta",
-  titulo: "Buscar un cliente, darlo de alta y usar su ficha",
+  titulo: "Buscar un cliente y darlo de alta",
   resumen:
-    "Encontrar a un cliente por cualquier dato, cargar uno nuevo sin duplicarlo y usar su ficha: mensajes, notas, adjuntos y todo lo que hizo con el estudio.",
+    "Encontrar a un cliente por cualquier dato y cargar uno nuevo sin duplicarlo. Lo que se hace después en su ficha está en «La ficha del cliente, de punta a punta».",
   seccion: "Clientes y pedidos",
   moduleKey: CLIENTS_MODULE_KEY,
   minutos: 6,
@@ -51,33 +51,9 @@ export const guia: Instructivo = {
       ],
     },
     {
-      titulo: "Leé la ficha",
+      titulo: "Seguí en su ficha",
       texto: [
-        "Arriba está el número y la categoría (Contacto, Cliente, Proveedor o Colaborador).",
-        "Al costado están sus Consultas, Cotizaciones, Pedidos, Proyectos y Contratos, cada uno con su botón para crear uno nuevo para esta persona.",
-        "En el centro, la línea de tiempo con todo lo que pasó (altas, ventas, pedidos, mensajes). Tocá «Ver más» para lo más viejo.",
-      ],
-    },
-    {
-      titulo: "Mandale un mensaje",
-      texto: [
-        "En la tarjeta «Mensaje» elegí Correo o WhatsApp y una plantilla (o «Sin plantilla» para escribirlo).",
-        "Tocá «Enviar» (correo) o «Abrir WhatsApp» (se abre el chat con el texto listo y lo mandás vos).",
-      ],
-      sistema: ["El mensaje queda registrado en la ficha, con la fecha y quién lo mandó."],
-    },
-    {
-      titulo: "Notas, etiquetas y adjuntos",
-      texto: [
-        "En las notas escribí lo que haya que recordar («prefiere que le escriban a la tarde») y tocá «Guardar nota».",
-        "Las etiquetas sirven para agrupar (por ejemplo «colegio», «casamiento 2026») y después filtrar.",
-        "En «Adjuntos», «Elegir archivos» guarda documentos o fotos en la ficha: un comprobante, la foto carnet, el contrato firmado. Hasta 10 MB cada uno.",
-      ],
-    },
-    {
-      titulo: "Corregí sus datos",
-      texto: [
-        "En «Datos» cambiá lo que haga falta y tocá «Guardar cambios». En «Perfil del contacto» están el celular, un segundo correo, el cumpleaños y la dirección completa.",
+        "Todo lo que se hace con el cliente (llamarlo, escribirle, editar sus datos, ver sus consultas, cotizaciones y pedidos, mandarle un cuestionario, anotar y guardar archivos) está explicado en la guía «La ficha del cliente, de punta a punta».",
       ],
     },
   ],
