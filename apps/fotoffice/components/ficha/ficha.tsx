@@ -36,6 +36,7 @@ export async function Ficha({
   datos,
   lateral,
   resumen,
+  principal,
 }: {
   persona: PersonaPedida;
   encabezado: EncabezadoDeFicha;
@@ -43,6 +44,11 @@ export async function Ficha({
   lateral?: ReactNode;
   /** Cuadros de colores debajo del encabezado (consultas, cotizaciones, pedidos, saldos…). */
   resumen?: ReactNode;
+  /**
+   * Lo más importante de la persona (consultas, cotizaciones, pedidos…), arriba de la columna
+   * ancha. Con esto, las notas y el historial pasan debajo, con su título.
+   */
+  principal?: ReactNode;
 }) {
   const ctx = await contextoDeFicha(persona);
   // A los componentes de cliente viaja sólo esto: el tipo y el id que ya están en la URL.
@@ -57,11 +63,14 @@ export async function Ficha({
         <EncabezadoFicha {...encabezado} />
         {resumen}
         <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
-          {lectura ? (
-            <NotasSoloLectura notas={notas} />
-          ) : (
-            <p className="fo-card p-4 text-sm text-[var(--fo-muted)]">No tenés acceso a la historia de esta ficha.</p>
-          )}
+          <div className="min-w-0 space-y-4">
+            {principal}
+            {lectura ? (
+              <NotasSoloLectura notas={notas} />
+            ) : (
+              <p className="fo-card p-4 text-sm text-[var(--fo-muted)]">No tenés acceso a la historia de esta ficha.</p>
+            )}
+          </div>
           <aside className="space-y-4">
             {datos}
             {lateral}
@@ -126,6 +135,12 @@ export async function Ficha({
       {resumen}
       <div className="grid gap-6 lg:grid-cols-[1fr_360px] lg:items-start">
         <div className="min-w-0 space-y-4">
+          {principal ? (
+            <>
+              {principal}
+              <h2 className="pt-2 text-lg font-semibold text-[var(--fo-text)]">Notas e historial</h2>
+            </>
+          ) : null}
           <CajaDeNota persona={ref} categorias={categorias} />
           <LineaDeTiempo
             persona={ref}

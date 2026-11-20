@@ -13,7 +13,7 @@ import {
 import { clientDisplayName } from "@/lib/clients/display";
 import { resolverPersonaPorCliente } from "@/lib/ficha/persona";
 import { CASH_MODULE_KEY } from "@/lib/cash/constants";
-import { CLIENTS_MODULE_KEY } from "@/lib/clients/constants";
+import { CLIENTS_MODULE_KEY, IVA_CONDITION_LABELS, type IvaCondition } from "@/lib/clients/constants";
 import { puede } from "@/lib/access/policy";
 import { resolverAcceso } from "@/lib/access/acceso";
 import { getModuleLevel } from "@/lib/permissions/module-access";
@@ -51,6 +51,17 @@ const MOVIMIENTOS_RECIENTES = 20;
 export const dynamic = "force-dynamic";
 
 const TIPO: Record<string, string> = { PERSONA: "Persona", EMPRESA: "Empresa" };
+
+/** "SG" para Sabrina Gugliota; la primera letra de la razón social para una empresa. */
+function inicialesDe(c: { kind: string; firstName: string | null; lastName: string | null; businessName: string | null }): string | undefined {
+  const partes = c.kind === "EMPRESA" ? [c.businessName] : [c.firstName, c.lastName];
+  const letras = partes
+    .map((p) => p?.trim().charAt(0) ?? "")
+    .filter(Boolean)
+    .join("")
+    .toUpperCase();
+  return letras || undefined;
+}
 
 /**
  * Ficha del cliente sobre la ficha estándar: encabezado con contacto y etiquetas, notas y
@@ -193,6 +204,7 @@ export default async function ClientePage({
         persona={{ tipo: "CLIENTE", id: cliente.id }}
         encabezado={{
           titulo: clientDisplayName(cliente),
+          iniciales: inicialesDe(cliente),
           subtitulo: `Cliente N° ${cliente.clientNumber} · ${TIPO[cliente.kind] ?? cliente.kind}`,
           insignias,
           telefono: cliente.phone,
@@ -219,22 +231,8 @@ export default async function ClientePage({
             </section>
           ) : null
         }
-        datos={
-          <>
-            <Mensaje entityType="CLIENTE" entityId={cliente.id} />
-            <DatosFicha titulo="Datos">
-              {/* Sin MANAGE la ficha se ve igual, pero deshabilitada: `fieldset disabled` apaga
-                  cada campo y el botón de guardar. La acción igual rebota del lado del servidor. */}
-              <fieldset disabled={!canEdit} className="contents">
-                <ClientForm client={cliente} enColumna />
-              </fieldset>
-            </DatosFicha>
-            <PerfilContactoTarjeta clientId={cliente.id} perfil={perfil} puedeEditar={canEdit} />
-            <MasDatos entityType="CLIENTE" entityId={cliente.id} />
-          </>
-        }
-        lateral={
-          <>
+        principal={
+          <div className="grid items-start gap-4 xl:grid-cols-2">
             {delContacto ? (
               <ConsultasDelContacto
                 clientId={cliente.id}
@@ -260,6 +258,44 @@ export default async function ClientePage({
             ) : null}
             {proyectos ? <TarjetaProyectos proyectos={proyectos} vacio="Todavía no tiene proyectos." /> : null}
             {contratos ? <TarjetaContratos contratos={contratos} vacio="Todavía no tiene contratos." /> : null}
+          </div>
+        }
+        datos={
+          <>
+            <Mensaje entityType="CLIENTE" entityId={cliente.id} />
+            <DatosFicha
+              titulo="Datos"
+              filas={[
+                { etiqueta: "Tipo", valor: TIPO[cliente.kind] ?? cliente.kind },
+                ...(cliente.kind === "EMPRESA" ? [{ etiqueta: "Razón social", valor: cliente.businessName }] : []),
+                { etiqueta: "Documento", valor: cliente.docType ? `${cliente.docType} ${cliente.docNumber ?? ""}`.trim() : null },
+                { etiqueta: "IVA", valor: IVA_CONDITION_LABELS[cliente.ivaCondition as IvaCondition] ?? cliente.ivaCondition },
+                { etiqueta: "Dirección", valor: cliente.address },
+                { etiqueta: "Ciudad", valor: cliente.city },
+                { etiqueta: "Estado", valor: cliente.status === "INACTIVO" ? "Inactivo" : "Activo" },
+              ]}
+            >
+              {/* El formulario completo, plegado: se abre solo si el guardado volvió con error. */}
+              <details open={Boolean(query.error)} className="group border-t border-[var(--fo-border)] pt-3">
+                <summary className="fo-btn fo-btn-secondary w-full cursor-pointer list-none justify-center text-sm [&::-webkit-details-marker]:hidden">
+                  <span className="group-open:hidden">{canEdit ? "Editar datos" : "Ver todos los datos"}</span>
+                  <span className="hidden group-open:inline">Cerrar</span>
+                </summary>
+                <div className="pt-4">
+                  {/* Sin MANAGE la ficha se ve igual, pero deshabilitada: `fieldset disabled` apaga
+                      cada campo y el botón de guardar. La acción igual rebota del lado del servidor. */}
+                  <fieldset disabled={!canEdit} className="contents">
+                    <ClientForm client={cliente} enColumna />
+                  </fieldset>
+                </div>
+              </details>
+            </DatosFicha>
+            <PerfilContactoTarjeta clientId={cliente.id} perfil={perfil} puedeEditar={canEdit} />
+            <MasDatos entityType="CLIENTE" entityId={cliente.id} />
+          </>
+        }
+        lateral={
+          <>
             <DatosFicha titulo="¿Es socio?">
               <p className="text-sm text-[var(--fo-muted)]">
                 {cliente.member ? (
