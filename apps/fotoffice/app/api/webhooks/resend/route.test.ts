@@ -4,7 +4,9 @@ import { signSvix } from "@/lib/mailing/svix";
 const h = vi.hoisted(() => ({
   socios: "UNKNOWN" as "APPLIED" | "DUPLICATE" | "UNKNOWN",
   vendedor: vi.fn(async () => "APLICADO" as const),
+  mensaje: vi.fn(async () => "DESCONOCIDO" as "APLICADO" | "DUPLICADO" | "DESCONOCIDO"),
 }));
+vi.mock("@/lib/plantillas/avisos-correo", () => ({ aplicarAvisoMensaje: h.mensaje }));
 vi.mock("@/lib/mailing/webhook", () => ({ applyWebhookEvent: async () => h.socios }));
 vi.mock("@/lib/agentes/vendedor/avisos", () => ({ aplicarAvisoVendedor: h.vendedor }));
 
@@ -28,6 +30,8 @@ beforeEach(() => {
   vi.stubEnv("RESEND_WEBHOOK_SECRET", SECRETO);
   h.socios = "UNKNOWN";
   h.vendedor.mockReset();
+  h.mensaje.mockReset();
+  h.mensaje.mockResolvedValue("DESCONOCIDO");
   h.vendedor.mockResolvedValue("APLICADO");
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -66,5 +70,13 @@ describe("webhook de estados de Resend", () => {
     vi.stubEnv("VENDEDOR_RESEND_WEBHOOK_SECRET", SECRETO_VENDEDOR);
     expect((await POST(pedido(SECRETO_VENDEDOR))).status).toBe(200);
     expect((await POST(pedido())).status).toBe(401);
+  });
+
+  it("un correo registrado (seguimiento de cotización) se anota en su mensaje y no pasa al Vendedor", async () => {
+    h.mensaje.mockResolvedValue("APLICADO");
+    const r = await POST(pedido());
+    expect(await r.json()).toEqual({ ok: true, result: "APLICADO" });
+    expect(h.mensaje).toHaveBeenCalledWith(expect.objectContaining({ emailId: "re_1" }));
+    expect(h.vendedor).not.toHaveBeenCalled();
   });
 });

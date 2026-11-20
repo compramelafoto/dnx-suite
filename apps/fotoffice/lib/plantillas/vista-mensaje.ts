@@ -37,7 +37,26 @@ export type FilaMensaje = {
   errorCode: string | null;
   actorLabel: string | null;
   createdAt: Date;
+  /** Avisos de Resend (sólo correos): primera entrega y primera apertura. */
+  deliveredAt?: Date | null;
+  openedAt?: Date | null;
 };
+
+const DIA_HORA_AR = new Intl.DateTimeFormat("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false });
+
+/** "21/11 a las 15:30" en hora de Argentina. */
+function diaYHora(d: Date): string {
+  const p = Object.fromEntries(DIA_HORA_AR.formatToParts(d).map((x) => [x.type, x.value]));
+  return `${p.day}/${p.month} a las ${p.hour}:${p.minute}`;
+}
+
+/** Lo que se sabe del correo después de enviado: lo abrió (aproximado) o le llegó. */
+export function seguimientoDelCorreo(f: Pick<FilaMensaje, "channel" | "status" | "deliveredAt" | "openedAt">): string | null {
+  if (f.channel !== "EMAIL" || f.status !== "SENT") return null;
+  if (f.openedAt) return `lo abrió el ${diaYHora(f.openedAt)}`;
+  if (f.deliveredAt) return "le llegó, todavía sin abrir";
+  return null;
+}
 
 /** Motivo legible de un código de error guardado (nunca el detalle del proveedor). */
 export function motivoDeFalla(codigo: string | null | undefined): string | null {
@@ -63,7 +82,7 @@ export function vistaDeMensaje(f: FilaMensaje, plantilla: string | null): Mensaj
     id: f.id,
     fecha: f.createdAt.toISOString(),
     canal: canalDe(f.channel),
-    estado: estadoLegible(f.status, f.errorCode),
+    estado: [estadoLegible(f.status, f.errorCode), seguimientoDelCorreo(f)].filter(Boolean).join(" · "),
     fallo: f.status === "FAILED",
     automatico: f.automatic,
     quien: f.automatic ? "Automático" : f.actorLabel || "Sistema",
