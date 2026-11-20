@@ -1,8 +1,5 @@
 import "server-only";
 import { prisma } from "@repo/db";
-import { leerConexion } from "@/lib/bandeja/conexion";
-import type { ResultadoEnvio } from "@/lib/bandeja/envio";
-import { enviarPlantilla, type Plantilla } from "@/lib/bandeja/plantilla-meta";
 import { waIdDe } from "@/lib/bandeja/telefono";
 import { entroPorElBot } from "@/lib/presupuesto-automatico/flujo";
 import { resolverClaveDeEnlace, tokenDeVersion, urlDelPresupuesto } from "./enlace";
@@ -11,15 +8,15 @@ import type { ResultadoCorreoSeguimiento } from "./seguimiento";
 import type { EstadoPresupuesto } from "./constantes";
 import { estadoEfectivo } from "./estados";
 import {
-  cualSeguimiento, DIAS_MAXIMO, DIAS_PRIMERO, marcaDe, marcaDeCorreo, sinSenalesDeVida, vaPorCorreo, type NumeroSeguimiento, MARCA_SEGUIMIENTO, nombreDePila, PLANTILLA_SEGUIMIENTO, seguirEnLaVentana, textoSeguimientoEnVentana, tipoDeEvento, ultimoSeguimiento,
+  cualSeguimiento, DIAS_MAXIMO, DIAS_PRIMERO, enviadosPorCorreo, marcaDe, marcaDeCorreo, sinSenalesDeVida, type NumeroSeguimiento, MARCA_SEGUIMIENTO, seguirEnLaVentana, textoSeguimientoEnVentana, ultimoSeguimiento,
 } from "./seguimiento-whatsapp";
 
 /**
  * Seguimiento de las cotizaciones de eventos sin respuesta (lo corre el cron una vez por día).
  * El 1.º sale antes, dentro de la ventana de 24 h (`cotizacionParaSeguirEnVentana`, sin plantilla); si
- * no llegó a salir, acá a los 2 días con la plantilla. El 2.º y el 3.º (días 7 y 12) van por CORREO y
- * sólo si el cliente no dio señales de vida (no la abrió, no escribió, nadie del equipo le escribió
- * ni le cargó una cita). La plantilla `seguimiento_cotizacion` de Meta (se cobra): a los 2 días
+ * no llegó a salir, acá a los 2 días por CORREO. El 2.º y el 3.º (días 7 y 12) también van por correo.
+ * Todos los correos salen sólo si el cliente no dio señales de vida (no la abrió, no escribió, nadie
+ * del equipo le escribió ni le cargó una cita). Ya no sale ninguna plantilla de WhatsApp: a los 2 días
  * la ventana de 24 h sólo puede estar abierta si el cliente escribió después de recibir la
  * cotización, y en ese caso ya no corresponde insistir. Si Meta la rechaza (por ejemplo, todavía no está
  * aprobada) no se anota y se vuelve a intentar al día siguiente. Cada envío deja un mensaje del
@@ -53,6 +50,8 @@ type Candidato = {
   ruta: string | null;
   chat: ChatSeguimiento | null;
   yaEnviados: number;
+  /** Cuántos de los seguimientos ya salieron por correo. */
+  porCorreo: number;
 };
 
 export type DepsSeguimientoWa = {
@@ -60,7 +59,6 @@ export type DepsSeguimientoWa = {
   /** true: no manda ni anota nada; devuelve a quién le escribiría. */
   prueba?: boolean;
   candidatos?: (ahora: Date) => Promise<Candidato[]>;
-  plantilla?: (workspaceId: string, waId: string, p: Plantilla, chatId: string) => Promise<ResultadoEnvio>;
   marcar?: (workspaceId: string, chatId: string, texto: string) => Promise<void>;
   /** Busca o crea el chat de WhatsApp de ese número (consultas del bot sin chat de WhatsApp). */
   chatNuevo?: (workspaceId: string, waId: string, leadId: string, nombre: string | null, ahora: Date) => Promise<ChatSeguimiento>;
@@ -121,17 +119,17 @@ async function candidatosDeLaBase(ahora: Date): Promise<Candidato[]> {
     ]);
     if (!presupuesto) continue;
     const estado = estadoEfectivo(presupuesto.status as EstadoPresupuesto, presupuesto.validUntil, ahora);
-    const yaEnviados = chat
-      ? ultimoSeguimiento(
-          (await prisma.fotofficeWaMensaje.findMany({ where: { chatId: chat.id, direccion: "SISTEMA", texto: { startsWith: MARCA_SEGUIMIENTO }, createdAt: { gte: a.sentAt } }, select: { texto: true }, take: 10 })).map((m) => m.texto),
-        )
-      : 0;
+    const marcas = chat
+      ? (await prisma.fotofficeWaMensaje.findMany({ where: { chatId: chat.id, direccion: "SISTEMA", texto: { startsWith: MARCA_SEGUIMIENTO }, createdAt: { gte: a.sentAt } }, select: { texto: true }, take: 10 })).map((m) => m.texto)
+      : [];
+    const yaEnviados = ultimoSeguimiento(marcas);
+    const porCorreo = enviadosPorCorreo(marcas);
     const ruta = clave && presupuesto.currentVersionId && branding?.publicSlug
       ? `w/${encodeURIComponent(branding.publicSlug)}/presupuesto/${encodeURIComponent(tokenDeVersion(presupuesto.currentVersionId, clave))}`
       : null;
     salida.push({
       aprobacionId: a.id, workspaceId: a.workspaceId, leadId: a.leadId, presupuestoId: a.presupuestoId, vista: estado === "VISTO", entroPorElBot: entroPorElBot(a.origin), waId: a.waId, enviadaEn: a.sentAt, nombre: lead?.name ?? null, categoria: categoria?.name ?? null,
-      abierta: (estado === "ENVIADO" || estado === "VISTO") && !presupuesto.acceptedVersionId, ruta, chat, yaEnviados,
+      abierta: (estado === "ENVIADO" || estado === "VISTO") && !presupuesto.acceptedVersionId, ruta, chat, yaEnviados, porCorreo,
     });
   }
   return salida;
@@ -139,21 +137,6 @@ async function candidatosDeLaBase(ahora: Date): Promise<Candidato[]> {
 
 const POR_OMISION: Required<Omit<DepsSeguimientoWa, "ahora" | "prueba">> = {
   candidatos: candidatosDeLaBase,
-  plantilla: async (workspaceId, waId, p, chatId) => {
-    const conexion = await leerConexion(workspaceId);
-    const r = await enviarPlantilla(conexion, waId, p);
-    const ahora = new Date();
-    await prisma.fotofficeWaMensaje
-      .create({
-        data: {
-          workspaceId, chatId, direccion: "SALIENTE", autor: "BOT", autorLabel: "Seguimiento de cotización", tipo: "PLANTILLA",
-          texto: `Plantilla «${p.nombre}» (${p.cuerpo.join(" · ")})`, estadoEnvio: r.ok ? (r.simulado ? "SIMULADO" : "ENVIADO") : "FALLO",
-          waMessageId: r.ok && !r.simulado ? r.waMessageId : null, errorCodigo: r.ok ? null : r.codigo, createdAt: ahora,
-        },
-      })
-      .catch((e) => console.warn("[fotoffice][seguimiento] no se pudo guardar la plantilla en el chat", { codigo: e instanceof Error ? e.name : "desconocido" }));
-    return r;
-  },
   chatNuevo: chatWhatsappParaSeguimiento,
   actividadDesde: async (c, chatId) => {
     const desde = c.enviadaEn;
@@ -203,35 +186,23 @@ export async function seguirCotizacionesPorWhatsapp(deps: DepsSeguimientoWa = {}
         continue;
       }
       let chat = c.chat;
-      let destino = c.waId;
       if (!chat && waIdNuevo) {
         chat = await d.chatNuevo(c.workspaceId, waIdNuevo, c.leadId, c.nombre, ahora);
-        destino = waIdNuevo;
         // Si el chat ya existía (otro proceso lo creó recién), se vuelve a decidir con su estado real.
         numero = decidir(chat);
         if (!numero) continue;
       }
       if (!chat) continue;
-      if (vaPorCorreo(numero)) {
-        // Días 7 y 12: por correo y sólo si no dio señales de vida (nunca otra plantilla de WhatsApp).
-        const act = await d.actividadDesde(c, chat.id);
-        if (!sinSenalesDeVida({ vio: act.vio, delEquipo: act.delEquipo, respondio: false, atiendePersona: false })) continue;
-        const r = await d.correo(c.workspaceId, c.presupuestoId, numero - 2);
-        if (r === "SALTEADO") continue;
-        if (r === "FALLO") {
-          fallidas++;
-          continue;
-        }
-        await d.marcar(c.workspaceId, chat.id, marcaDeCorreo(numero));
-        enviadas++;
-        continue;
-      }
-      const ok = (await d.plantilla(c.workspaceId, destino, { ...PLANTILLA_SEGUIMIENTO, cuerpo: [nombreDePila(c.nombre) || "¡hola", tipoDeEvento(c.categoria)], boton: c.ruta }, chat.id)).ok;
-      if (!ok) {
+      // Por correo y sólo si no dio señales de vida (la corrida diaria ya no manda plantillas de WhatsApp).
+      const act = await d.actividadDesde(c, chat.id);
+      if (!sinSenalesDeVida({ vio: act.vio, delEquipo: act.delEquipo, respondio: false, atiendePersona: false })) continue;
+      const r = await d.correo(c.workspaceId, c.presupuestoId, c.porCorreo);
+      if (r === "SALTEADO") continue;
+      if (r === "FALLO") {
         fallidas++;
         continue;
       }
-      await d.marcar(c.workspaceId, chat.id, marcaDe(numero));
+      await d.marcar(c.workspaceId, chat.id, marcaDeCorreo(numero));
       enviadas++;
     } catch (e) {
       fallidas++;

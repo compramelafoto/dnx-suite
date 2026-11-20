@@ -10,64 +10,64 @@ const AHORA = new Date("2026-11-20T13:00:00Z");
 const hace = (dias: number) => new Date(AHORA.getTime() - dias * 86_400_000);
 const CAND = {
   aprobacionId: "a1", workspaceId: "w1", leadId: "l1", presupuestoId: "p1", vista: false, entroPorElBot: true, waId: "5493410000000", enviadaEn: hace(3), nombre: "Lucía Pérez", categoria: "15 años",
-  abierta: true, ruta: "w/dnx-estudio/presupuesto/tok", chat: { id: "c1", estado: "BOT", ultimoEntranteEn: hace(3.1) }, yaEnviados: 0,
+  abierta: true, ruta: "w/dnx-estudio/presupuesto/tok", chat: { id: "c1", estado: "BOT", ultimoEntranteEn: hace(3.1) }, yaEnviados: 0, porCorreo: 0,
 };
 
 function deps(extra: Partial<Deps> = {}) {
-  const plantilla = vi.fn(async () => ({ ok: true as const, simulado: false as const, waMessageId: "wamid" }));
   const marcar = vi.fn(async () => undefined);
   const chatNuevo = vi.fn(async () => ({ id: "c-nuevo", estado: "BOT", ultimoEntranteEn: null as Date | null }));
   const correo = vi.fn(async () => "ENVIADO" as const);
   const actividadDesde = vi.fn(async () => ({ vio: false, delEquipo: false }));
-  const d: Deps = { ahora: AHORA, candidatos: async () => [CAND], plantilla, marcar, chatNuevo, correo, actividadDesde, ...extra };
-  return { d, plantilla, marcar, chatNuevo, correo };
+  const d: Deps = { ahora: AHORA, candidatos: async () => [CAND], marcar, chatNuevo, correo, actividadDesde, ...extra };
+  return { d, marcar, chatNuevo, correo };
 }
 
 describe("seguirCotizacionesPorWhatsapp", () => {
-  it("manda la plantilla con nombre, evento y la ruta del botón, y lo deja anotado", async () => {
-    const { d, plantilla, marcar } = deps();
+  it("a los 2 días (si no salió el de la ventana de 24 h) manda el correo, no una plantilla, y lo anota", async () => {
+    const { d, correo, marcar } = deps();
     expect(await seguirCotizacionesPorWhatsapp(d)).toEqual({ revisadas: 1, enviadas: 1, fallidas: 0 });
-    expect(plantilla).toHaveBeenCalledWith("w1", "5493410000000", { nombre: "seguimiento_cotizacion", idioma: "es_AR", cuerpo: ["Lucía", "tus 15"], boton: "w/dnx-estudio/presupuesto/tok" }, "c1");
-    expect(marcar).toHaveBeenCalledWith("w1", "c1", "Seguimiento de cotización 1 enviado por WhatsApp");
+    expect(correo).toHaveBeenCalledWith("w1", "p1", 0);
+    expect(marcar).toHaveBeenCalledWith("w1", "c1", "Seguimiento de cotización 1 enviado por correo");
   });
 
-  it("si Meta rechaza la plantilla (todavía no aprobada) no lo anota: se reintenta al día siguiente", async () => {
-    const { d, marcar } = deps({ plantilla: async () => ({ ok: false as const, codigo: "132001" }) });
+  it("si el correo falla no lo anota: se reintenta al día siguiente", async () => {
+    const { d, marcar } = deps({ correo: async () => "FALLO" as const });
     expect(await seguirCotizacionesPorWhatsapp(d)).toEqual({ revisadas: 1, enviadas: 0, fallidas: 1 });
     expect(marcar).not.toHaveBeenCalled();
   });
 
   it("en modo prueba no manda nada y devuelve a quién le escribiría", async () => {
-    const { d, plantilla, marcar } = deps({ prueba: true });
+    const { d, correo, marcar } = deps({ prueba: true });
     const r = await seguirCotizacionesPorWhatsapp(d);
     expect(r).toMatchObject({ revisadas: 1, enviadas: 0, prueba: [{ aprobacionId: "a1", numero: 1 }] });
-    expect(plantilla).not.toHaveBeenCalled();
+    expect(correo).not.toHaveBeenCalled();
     expect(marcar).not.toHaveBeenCalled();
   });
 
   it("no le escribe a quien respondió después de recibir la cotización ni a un chat que atiende una persona", async () => {
     const respondio = deps({ candidatos: async () => [{ ...CAND, chat: { ...CAND.chat, ultimoEntranteEn: hace(1) } }] });
     expect(await seguirCotizacionesPorWhatsapp(respondio.d)).toMatchObject({ enviadas: 0 });
-    expect(respondio.plantilla).not.toHaveBeenCalled();
+    expect(respondio.correo).not.toHaveBeenCalled();
     const persona = deps({ candidatos: async () => [{ ...CAND, chat: { ...CAND.chat, estado: "HUMANO" } }] });
     expect(await seguirCotizacionesPorWhatsapp(persona.d)).toMatchObject({ enviadas: 0 });
+    expect(persona.correo).not.toHaveBeenCalled();
   });
 
-  it("consulta de Instagram con teléfono y sin chat de WhatsApp: crea el chat y manda la plantilla ahí", async () => {
-    const { d, plantilla, marcar, chatNuevo } = deps({ candidatos: async () => [{ ...CAND, waId: "+54 9 341 000-0000", chat: null }] });
+  it("consulta de Instagram con teléfono y sin chat de WhatsApp: crea el chat para dejar la marca y manda el correo", async () => {
+    const { d, correo, marcar, chatNuevo } = deps({ candidatos: async () => [{ ...CAND, waId: "+54 9 341 000-0000", chat: null }] });
     expect(await seguirCotizacionesPorWhatsapp(d)).toEqual({ revisadas: 1, enviadas: 1, fallidas: 0 });
     expect(chatNuevo).toHaveBeenCalledWith("w1", "5493410000000", "l1", "Lucía Pérez", AHORA);
-    expect(plantilla).toHaveBeenCalledWith("w1", "5493410000000", expect.objectContaining({ nombre: "seguimiento_cotizacion" }), "c-nuevo");
-    expect(marcar).toHaveBeenCalledWith("w1", "c-nuevo", "Seguimiento de cotización 1 enviado por WhatsApp");
+    expect(correo).toHaveBeenCalledWith("w1", "p1", 0);
+    expect(marcar).toHaveBeenCalledWith("w1", "c-nuevo", "Seguimiento de cotización 1 enviado por correo");
   });
 
   it("si el chat que aparece al crearlo ya lo atiende una persona, no manda nada", async () => {
-    const { d, plantilla } = deps({
+    const { d, correo } = deps({
       candidatos: async () => [{ ...CAND, chat: null }],
       chatNuevo: async () => ({ id: "c-otro", estado: "HUMANO", ultimoEntranteEn: null }),
     });
     expect(await seguirCotizacionesPorWhatsapp(d)).toMatchObject({ enviadas: 0, fallidas: 0 });
-    expect(plantilla).not.toHaveBeenCalled();
+    expect(correo).not.toHaveBeenCalled();
   });
 
   it("consulta del bot sin chat: con teléfono inválido o en modo prueba no crea nada", async () => {
@@ -79,47 +79,41 @@ describe("seguirCotizacionesPorWhatsapp", () => {
     expect(prueba.chatNuevo).not.toHaveBeenCalled();
   });
 
-  it("consulta de WhatsApp con chat: usa ese chat y no crea otro (igual que antes)", async () => {
-    const { d, plantilla, chatNuevo } = deps();
-    await seguirCotizacionesPorWhatsapp(d);
-    expect(chatNuevo).not.toHaveBeenCalled();
-    expect(plantilla).toHaveBeenCalledWith("w1", "5493410000000", expect.anything(), "c1");
-  });
-
   it("consulta de la web sin chat de WhatsApp: sigue sin seguimiento (no crea chat)", async () => {
-    const { d, plantilla, chatNuevo } = deps({ candidatos: async () => [{ ...CAND, entroPorElBot: false, chat: null }] });
+    const { d, correo, chatNuevo } = deps({ candidatos: async () => [{ ...CAND, entroPorElBot: false, chat: null }] });
     expect(await seguirCotizacionesPorWhatsapp(d)).toEqual({ revisadas: 1, enviadas: 0, fallidas: 0 });
     expect(chatNuevo).not.toHaveBeenCalled();
-    expect(plantilla).not.toHaveBeenCalled();
+    expect(correo).not.toHaveBeenCalled();
   });
 
-  it("a los 7 días va por correo (nunca otra plantilla de WhatsApp) y lo anota en el chat", async () => {
-    const { d, plantilla, correo, marcar } = deps({ candidatos: async () => [{ ...CAND, enviadaEn: hace(7), chat: { ...CAND.chat, ultimoEntranteEn: hace(7.1) }, yaEnviados: 1 }] });
-    expect(await seguirCotizacionesPorWhatsapp(d)).toEqual({ revisadas: 1, enviadas: 1, fallidas: 0 });
-    expect(plantilla).not.toHaveBeenCalled();
-    expect(correo).toHaveBeenCalledWith("w1", "p1", 0);
-    expect(marcar).toHaveBeenCalledWith("w1", "c1", "Seguimiento de cotización 2 enviado por correo");
+  it("a los 7 días, otro correo; cuenta los correos previos (el 1.º pudo ir por WhatsApp)", async () => {
+    const porWa = deps({ candidatos: async () => [{ ...CAND, enviadaEn: hace(7), chat: { ...CAND.chat, ultimoEntranteEn: hace(7.1) }, yaEnviados: 1, porCorreo: 0 }] });
+    await seguirCotizacionesPorWhatsapp(porWa.d);
+    expect(porWa.correo).toHaveBeenCalledWith("w1", "p1", 0);
+    expect(porWa.marcar).toHaveBeenCalledWith("w1", "c1", "Seguimiento de cotización 2 enviado por correo");
+    const porMail = deps({ candidatos: async () => [{ ...CAND, enviadaEn: hace(7), chat: { ...CAND.chat, ultimoEntranteEn: hace(7.1) }, yaEnviados: 1, porCorreo: 1 }] });
+    await seguirCotizacionesPorWhatsapp(porMail.d);
+    expect(porMail.correo).toHaveBeenCalledWith("w1", "p1", 1);
   });
 
-  it("a los 12 días, el segundo correo (con uno previo)", async () => {
-    const { d, correo, marcar } = deps({ candidatos: async () => [{ ...CAND, enviadaEn: hace(12), chat: { ...CAND.chat, ultimoEntranteEn: hace(12.1) }, yaEnviados: 2 }] });
+  it("a los 12 días, el tercero", async () => {
+    const { d, correo, marcar } = deps({ candidatos: async () => [{ ...CAND, enviadaEn: hace(12), chat: { ...CAND.chat, ultimoEntranteEn: hace(12.1) }, yaEnviados: 2, porCorreo: 2 }] });
     await seguirCotizacionesPorWhatsapp(d);
-    expect(correo).toHaveBeenCalledWith("w1", "p1", 1);
+    expect(correo).toHaveBeenCalledWith("w1", "p1", 2);
     expect(marcar).toHaveBeenCalledWith("w1", "c1", "Seguimiento de cotización 3 enviado por correo");
   });
 
   it("si dio señales de vida (la abrió, o el equipo le escribió o le cargó una cita), no manda el correo", async () => {
-    const base = { ...CAND, enviadaEn: hace(7), chat: { ...CAND.chat, ultimoEntranteEn: hace(7.1) }, yaEnviados: 1 };
-    const vio = deps({ candidatos: async () => [base], actividadDesde: async () => ({ vio: true, delEquipo: false }) });
+    const vio = deps({ actividadDesde: async () => ({ vio: true, delEquipo: false }) });
     expect(await seguirCotizacionesPorWhatsapp(vio.d)).toMatchObject({ enviadas: 0 });
     expect(vio.correo).not.toHaveBeenCalled();
-    const equipo = deps({ candidatos: async () => [base], actividadDesde: async () => ({ vio: false, delEquipo: true }) });
+    const equipo = deps({ actividadDesde: async () => ({ vio: false, delEquipo: true }) });
     await seguirCotizacionesPorWhatsapp(equipo.d);
     expect(equipo.correo).not.toHaveBeenCalled();
   });
 
   it("sin correo para mandar (salteado), no lo anota: se vuelve a mirar al día siguiente", async () => {
-    const { d, marcar } = deps({ candidatos: async () => [{ ...CAND, enviadaEn: hace(7), chat: { ...CAND.chat, ultimoEntranteEn: hace(7.1) }, yaEnviados: 1 }], correo: async () => "SALTEADO" as const });
+    const { d, marcar } = deps({ correo: async () => "SALTEADO" as const });
     expect(await seguirCotizacionesPorWhatsapp(d)).toEqual({ revisadas: 1, enviadas: 0, fallidas: 0 });
     expect(marcar).not.toHaveBeenCalled();
   });
