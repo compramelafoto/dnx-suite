@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   CalendarDays,
@@ -67,42 +66,4 @@ export function TituloEntidad({ entidad, id, children, cantidad }: { entidad: En
 /** Clases del contenedor de una tarjeta de elemento: la franja de color arriba. */
 export function claseTarjetaEntidad(): string {
   return `fo-card space-y-3 p-4 ${CLASE_ENTIDAD.bordeArriba}`;
-}
-
-/**
- * Un cuadro del resumen de la ficha del cliente: fondo del color del elemento, el número grande y
- * el ícono de fondo. Con `href`, lleva a la lista o a la tarjeta correspondiente.
- */
-export function CuadroResumen({
-  entidad,
-  etiqueta,
-  valor,
-  detalle,
-  href,
-}: {
-  entidad: Entidad;
-  etiqueta?: string;
-  valor: string;
-  detalle?: string | null;
-  href?: string;
-}) {
-  const Icono = ICONO_ENTIDAD[entidad];
-  const contenido = (
-    <>
-      <Icono aria-hidden className="pointer-events-none absolute -bottom-3 -left-2 size-20 text-white opacity-20 transition-transform duration-200 group-hover:scale-105 motion-reduce:transition-none" />
-      <span className="relative block text-right text-sm font-medium text-white/90">{etiqueta ?? ENTIDAD[entidad].plural}</span>
-      <span className="relative block text-right text-3xl font-bold leading-tight tabular-nums text-white">{valor}</span>
-      {detalle ? <span className="relative block text-right text-xs font-medium text-white/85">{detalle}</span> : <span className="block h-4" aria-hidden />}
-    </>
-  );
-  const clase = `group relative block min-h-[7rem] overflow-hidden rounded-[var(--fo-radius)] px-4 py-3 shadow-[var(--fo-shadow-sm)] ${CLASE_ENTIDAD.fondo}`;
-  return href ? (
-    <Link href={href} style={estiloDeEntidad(entidad)} className={`${clase} transition-shadow hover:shadow-[var(--fo-shadow-md)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--ent)]`}>
-      {contenido}
-    </Link>
-  ) : (
-    <div style={estiloDeEntidad(entidad)} className={clase}>
-      {contenido}
-    </div>
-  );
 }

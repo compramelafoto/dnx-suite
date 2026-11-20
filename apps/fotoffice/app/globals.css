@@ -85,6 +85,18 @@
   --fo-ent-por-cobrar: #b91c1c;
 }
 
+/* El panel que se despliega debajo de los cuadros de una ficha. */
+@keyframes fo-desplegar {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
