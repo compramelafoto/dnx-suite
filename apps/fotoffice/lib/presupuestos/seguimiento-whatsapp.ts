@@ -1,8 +1,9 @@
 /**
  * PURO. Seguimiento de las cotizaciones de eventos que el cliente no respondió (pedido de Daniel,
- * 10/11/2026; cambiado el 20/11/2026): el 1.º por WhatsApp (dentro de la ventana de 24 h, sin
- * plantilla; si no llegó a salir, a los 2 días con la plantilla), y a los 7 y 12 días por CORREO,
- * sólo si el cliente no dio señales de vida (`sinSenalesDeVida`).
+ * 10/11/2026; cambiado el 20/11/2026): el 1.º por WhatsApp dentro de la ventana de 24 h, sin
+ * plantilla; si no llegó a salir, a los 2 días por CORREO. Los de los 7 y 12 días, también por
+ * correo. Los correos salen sólo si el cliente no dio señales de vida (`sinSenalesDeVida`).
+ * La corrida diaria ya no manda plantillas de WhatsApp.
  * Se corta si el cliente escribió después de recibirla, si la cotización ya no está abierta
  * (aceptada, rechazada o vencida), si una persona del equipo atiende el chat o a los 30 días.
  */
@@ -71,9 +72,9 @@ export function marcaDe(numero: NumeroSeguimiento): string {
   return `${MARCA_SEGUIMIENTO} ${numero} enviado por WhatsApp`;
 }
 
-/** El 2.º y el 3.º (días 7 y 12) van por correo; el 1.º, por WhatsApp. */
-export function vaPorCorreo(numero: NumeroSeguimiento): boolean {
-  return numero >= 2;
+/** Cuántos de esos seguimientos salieron por correo. */
+export function enviadosPorCorreo(marcas: readonly (string | null)[]): number {
+  return marcas.filter((m) => m?.startsWith(MARCA_SEGUIMIENTO) && m.endsWith("por correo")).length;
 }
 
 export function marcaDeCorreo(numero: NumeroSeguimiento): string {

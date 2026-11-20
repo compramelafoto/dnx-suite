@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cualSeguimiento, marcaDe, seguirEnLaVentana, textoSeguimientoEnVentana, tipoDeEvento, ultimoSeguimiento } from "./seguimiento-whatsapp";
+import { cualSeguimiento, enviadosPorCorreo, marcaDe, seguirEnLaVentana, textoSeguimientoEnVentana, tipoDeEvento, ultimoSeguimiento } from "./seguimiento-whatsapp";
 
 const AHORA = new Date("2026-11-20T13:00:00Z");
 const hace = (dias: number) => new Date(AHORA.getTime() - dias * 86_400_000);
@@ -64,5 +64,11 @@ describe("seguimiento de la cotización dentro de la ventana de 24 h (sin planti
     expect(t).toBe("¡Hola Cristina! ¿Pudiste ver la cotización para tus 15? Si tenés alguna duda o querés cambiar algo, contame por acá y lo vemos 😊\nhttps://dnx.com/presupuesto/abc");
     expect(t).not.toMatch(/bot[oó]n/i);
     expect(textoSeguimientoEnVentana(null, null, "https://x")).toMatch(/^¡Hola! ¿Pudiste ver la cotización para tu evento\?/);
+  });
+});
+
+describe("enviadosPorCorreo", () => {
+  it("cuenta sólo las marcas de correo", () => {
+    expect(enviadosPorCorreo(["Seguimiento de cotización 1 enviado por WhatsApp", "Seguimiento de cotización 2 enviado por correo", null])).toBe(1);
   });
 });
