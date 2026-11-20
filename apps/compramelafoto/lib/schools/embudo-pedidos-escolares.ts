@@ -187,21 +187,41 @@ export type PedidoParaEmbudo =
       disenos: DisenoParaEmbudo[];
       /** El canje incluye copias impresas o cuadros (no sólo digitales). */
       tieneCopiasFisicas: boolean;
+      /**
+       * Avance de imprenta de las copias cuando el canje NO tiene librito (`SchoolCopiesPrintJob`).
+       * Con librito, las copias viajan con él y esto no se mira.
+       */
+      copias?: AvanceDeCopias | null;
     };
+
+/** Fechas de imprenta y entrega de un canje de sólo copias. */
+export type AvanceDeCopias = {
+  sentToPrintAt?: Date | string | null;
+  printedAt?: Date | string | null;
+  deliveredAt?: Date | string | null;
+};
+
+/** Paso de un canje de sólo copias impresas: arranca «Para imprimir» y avanza con sus fechas. */
+export function pasoDeCopias(c: AvanceDeCopias | null | undefined): PasoEmbudo {
+  if (c?.deliveredAt) return "ENTREGADO";
+  if (c?.printedAt) return "PARA_ENTREGAR";
+  if (c?.sentToPrintAt) return "EN_IMPRENTA";
+  return "PARA_IMPRIMIR";
+}
 
 /**
  * Dónde está un pedido en la línea.
  *
  * Pack cobrado por fuera, canjeado y SIN diseño (pack sin librito): si lleva copias impresas
- * queda "Para imprimir"; si es sólo digital ya está "Entregado", porque la familia lo descarga al
- * canjear y no hay nada más que hacer. "En imprenta", "Para entregar" y "Entregado" con librito
+ * arranca "Para imprimir" y avanza con las fechas de sus copias (`pasoDeCopias`); si es sólo
+ * digital ya está "Entregado", porque la familia lo descarga al canjear y no hay nada más que hacer. "En imprenta", "Para entregar" y "Entregado" con librito
  * salen de las fechas del diseño (`sentToPrintAt`, `printedAt`, `deliveredAt`), que llegan con
  * los lotes de impresión (tanda 2).
  */
 export function ubicarPedido(p: PedidoParaEmbudo): UbicacionEnEmbudo {
   if (p.kind === "PACK_EXTERNO") {
     if (!p.canjeado) return "POR_CANJEAR";
-    if (p.disenos.length === 0) return p.tieneCopiasFisicas ? "PARA_IMPRIMIR" : "ENTREGADO";
+    if (p.disenos.length === 0) return p.tieneCopiasFisicas ? pasoDeCopias(p.copias) : "ENTREGADO";
     // Un diseño en un estado desconocido se trata como "para revisar": mejor mirarlo de más.
     return pasoMasAtrasado(p.disenos.map((d) => pasoDeDiseno(d) ?? "REVISAR_DISENO"));
   }

@@ -7,6 +7,7 @@ import {
   contarPorPaso,
   disenosParaRevisar,
   esPasoEmbudo,
+  pasoDeCopias,
   pasoDeDiseno,
   pasoDeEstadoDiseno,
   pasoDeItemTienda,
@@ -164,6 +165,28 @@ describe("ubicar un pedido", () => {
     assert.equal(
       ubicarPedido({ kind: "PACK_EXTERNO", canjeado: true, disenos: [], tieneCopiasFisicas: false }),
       "ENTREGADO",
+    );
+  });
+
+  it("pack externo de sólo copias: avanza con las fechas de sus copias", () => {
+    const pedido = (copias: Parameters<typeof pasoDeCopias>[0]) =>
+      ubicarPedido({ kind: "PACK_EXTERNO", canjeado: true, disenos: [], tieneCopiasFisicas: true, copias });
+    assert.equal(pedido(null), "PARA_IMPRIMIR");
+    assert.equal(pedido({ sentToPrintAt: new Date() }), "EN_IMPRENTA");
+    assert.equal(pedido({ sentToPrintAt: new Date(), printedAt: new Date() }), "PARA_ENTREGAR");
+    assert.equal(pedido({ sentToPrintAt: new Date(), printedAt: new Date(), deliveredAt: new Date() }), "ENTREGADO");
+  });
+
+  it("pack externo con librito: las fechas de copias no cuentan, manda el librito", () => {
+    assert.equal(
+      ubicarPedido({
+        kind: "PACK_EXTERNO",
+        canjeado: true,
+        disenos: [{ status: "EXPORTED" }],
+        tieneCopiasFisicas: true,
+        copias: { sentToPrintAt: new Date(), printedAt: new Date(), deliveredAt: new Date() },
+      }),
+      "PARA_IMPRIMIR",
     );
   });
 

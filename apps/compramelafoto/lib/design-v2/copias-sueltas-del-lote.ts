@@ -6,6 +6,7 @@ import { carpetaDeImpresion } from "@/lib/orders/print-export/rutas-cortas";
 import type { PrintExportFile } from "@/lib/orders/print-export/stream-print-export-zip";
 import type { DesignActor } from "./projects";
 import type { LibritoParaProducir } from "./produccion";
+import type { PedidoDeCopias } from "./copias-en-produccion";
 import { CARPETA_COPIAS_SUELTAS, nombreDeCopiaDelLote } from "./produccion-reglas";
 
 /**
@@ -57,6 +58,45 @@ export async function copiasSueltasDelLote(
           carpetaDeImpresion(f.impresion),
           path.posix.basename(f.zipPath),
         );
+        files.push({
+          zipPath: `${carpetaLote}/${CARPETA_COPIAS_SUELTAS}/${nombre}`,
+          r2Key: f.r2Key,
+          manifestLine: `OK      ${CARPETA_COPIAS_SUELTAS}/${nombre}`,
+          missingLine: `FALTA   ${CARPETA_COPIAS_SUELTAS}/${nombre}`,
+          impresion: f.impresion,
+        });
+      }
+    }
+  }
+  return files;
+}
+
+/**
+ * Copias de los pedidos que NO tienen librito. Van en la misma carpeta «Copias sueltas», numeradas
+ * después de los libritos (el mismo número que en el resumen del lote).
+ */
+export async function copiasDePedidosSinLibrito(
+  actor: DesignActor,
+  pedidos: PedidoDeCopias[],
+  primeraPosicion: number,
+  total: number,
+  carpetaLote: string,
+): Promise<PrintExportFile[]> {
+  const files: PrintExportFile[] = [];
+  const DE_A = 6;
+  for (let i = 0; i < pedidos.length; i += DE_A) {
+    const tanda = await Promise.all(
+      pedidos.slice(i, i + DE_A).map(async (p, j) => ({
+        p,
+        posicion: primeraPosicion + i + j,
+        plan: await loadAlbumOrderPrintPlan(p.orderId, { id: actor.id, role: actor.role }),
+      })),
+    );
+    for (const { p, posicion, plan } of tanda) {
+      if (!plan.ok) continue;
+      for (const f of plan.plan.files) {
+        if (!f.impresion) continue;
+        const nombre = nombreDeCopiaDelLote(posicion, p, total, carpetaDeImpresion(f.impresion), path.posix.basename(f.zipPath));
         files.push({
           zipPath: `${carpetaLote}/${CARPETA_COPIAS_SUELTAS}/${nombre}`,
           r2Key: f.r2Key,

@@ -1,12 +1,25 @@
 import { NextResponse } from "next/server";
 import { ProduccionError } from "./produccion";
 
-/** `?ids=1,2,3` y `?lote=Lote 3 · 14/10` de la consulta, o del cuerpo JSON. */
-export function filtroDeLibritos(input: { ids?: unknown; lote?: unknown }): { ids?: number[]; lote?: string } {
+/** Lista de ids positivos de un arreglo o de un texto «1,2,3». */
+export function listaDeIds(input: unknown): number[] {
+  const crudos = Array.isArray(input) ? input : typeof input === "string" ? input.split(",") : [];
+  return [...new Set(crudos.map((v) => Number(String(v).trim())).filter((n) => Number.isInteger(n) && n > 0))];
+}
+
+/**
+ * `?ids=1,2,3`, `?copias=4,5` y `?lote=Lote 3 · 14/10` de la consulta, o del cuerpo JSON. `ids` son
+ * libritos (diseños) y `copias` pedidos de canje de sólo copias impresas.
+ */
+export function filtroDeLibritos(input: { ids?: unknown; lote?: unknown; copias?: unknown }): {
+  ids?: number[];
+  lote?: string;
+  copias?: number[];
+} {
   const lote = typeof input.lote === "string" && input.lote.trim() ? input.lote.trim().slice(0, 120) : undefined;
-  const crudos = Array.isArray(input.ids) ? input.ids : typeof input.ids === "string" ? input.ids.split(",") : [];
-  const ids = [...new Set(crudos.map((v) => Number(String(v).trim())).filter((n) => Number.isInteger(n) && n > 0))];
-  return { ...(ids.length ? { ids } : {}), ...(lote ? { lote } : {}) };
+  const ids = listaDeIds(input.ids);
+  const copias = listaDeIds(input.copias);
+  return { ...(ids.length ? { ids } : {}), ...(lote ? { lote } : {}), ...(copias.length ? { copias } : {}) };
 }
 
 export function respuestaDeError(err: unknown, contexto: string) {
