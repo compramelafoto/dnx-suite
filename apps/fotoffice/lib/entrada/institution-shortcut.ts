@@ -45,6 +45,8 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   // El control remoto en el celular de la pantalla del sorteo (app/control-remoto/[id]).
   "control-remoto",
   "correo",
+  // El cuestionario que el estudio le manda a su cliente, con enlace privado (app/cuestionario/[token]).
+  "cuestionario",
   "courses",
   "cursos",
   "dashboard",
