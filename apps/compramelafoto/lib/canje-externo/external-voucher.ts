@@ -27,6 +27,8 @@ export type ExternalVoucherRefs = PrepaidPrintCredit & {
   parentName?: string | null;
   /** Texto corto del combo, p. ej. "3 fotos impresas 15x21 con su digital". */
   label?: string | null;
+  /** El combo es un regalo (link compartido), no algo que la familia pagó por fuera. */
+  isGift?: boolean;
 };
 
 export function parseExternalVoucherRefs(raw: unknown): ExternalVoucherRefs | null {
@@ -44,6 +46,7 @@ export function parseExternalVoucherRefs(raw: unknown): ExternalVoucherRefs | nu
     studentName: typeof r.studentName === "string" ? r.studentName : null,
     parentName: typeof r.parentName === "string" ? r.parentName : null,
     label: typeof r.label === "string" ? r.label : null,
+    isGift: r.isGift === true,
   };
 }
 
