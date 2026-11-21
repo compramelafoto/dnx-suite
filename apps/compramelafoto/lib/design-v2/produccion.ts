@@ -153,17 +153,26 @@ export async function crearLote(
       `${sinArchivo.length} librito(s) no tienen su PDF final todavía. Abrilos y tocá «Aprobar de nuevo».`,
     );
   }
-  const [existentes, deCopias] = await Promise.all([
+  const [existentes, deCopias, delPanel] = await Promise.all([
     prisma.designProject.findMany({
       where: { ...propios(actor), printBatchName: { not: null } },
       distinct: ["printBatchName"],
       select: { printBatchName: true },
     }),
     avancesDeCopiasEnLotes(actor),
+    // Los lotes del panel «Impresiones» comparten la numeración: dos lotes nunca se llaman igual.
+    prisma.printBatch.findMany({
+      where: actor.role === "ADMIN" ? {} : { photographerId: actor.id },
+      select: { nombre: true },
+    }),
   ]);
   const ahora = new Date();
   const nombre = nombreDelProximoLote(
-    [...existentes.map((e) => e.printBatchName!), ...deCopias.map((c) => c.printBatchName!)].filter(Boolean),
+    [
+      ...existentes.map((e) => e.printBatchName!),
+      ...deCopias.map((c) => c.printBatchName!),
+      ...delPanel.map((l) => l.nombre),
+    ].filter(Boolean),
     ahora,
   );
   const r = libros.length

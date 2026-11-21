@@ -7,6 +7,7 @@ import Card from "@/components/ui/Card";
 import { DsEmptyState } from "@/components/ui/DsEmptyState";
 import { DsDashboardInner, DsPageShell } from "@/components/ui/DsLayout";
 import PhotographerDashboardHeader from "@/components/photographer/PhotographerDashboardHeader";
+import BarraDePasos from "@/components/fotografo/BarraDePasos";
 import RevisionDeCorrido, {
   type DisenoEnFila,
   type ResumenRevision,
@@ -1065,6 +1066,9 @@ export default function FotografoEscuelasPedidosPage() {
               <Link href="/fotografo/escuelas" className="text-[#c27b3d] hover:underline text-sm">
                 ← Volver a Escolar
               </Link>
+              <Link href="/fotografo/impresiones" className="text-[#c27b3d] hover:underline text-sm">
+                Impresiones de pedidos comunes →
+              </Link>
             </div>
           </div>
 
@@ -1114,54 +1118,17 @@ export default function FotografoEscuelasPedidosPage() {
             </div>
           </div>
 
-          {/*
-            Los pasos de la línea, como un embudo de ventas: flechas encadenadas, cada una entra en
-            la siguiente. El tono se va oscureciendo a medida que el pedido avanza; el paso elegido
-            va en naranja lleno y los pasos vacíos quedan apagados.
-          */}
-          <nav aria-label="Pasos del pedido" className="overflow-x-auto pb-1">
-            <ol className="m-0 flex min-w-[860px] list-none p-0">
-              {PASOS_EMBUDO.map((p, i) => {
-                const activo = vistaEfectiva === p;
-                const n = conteo[p];
-                const primero = i === 0;
-                const ultimo = i === PASOS_EMBUDO.length - 1;
-                const punta = 18;
-                const forma = `polygon(0 0, calc(100% - ${ultimo ? 0 : punta}px) 0, 100% 50%, calc(100% - ${
-                  ultimo ? 0 : punta
-                }px) 100%, 0 100%, ${primero ? 0 : punta}px 50%)`;
-                const tono = 96 - i * 4;
-                const fondo = activo ? "#c27b3d" : n === 0 ? "#f3f4f6" : `hsl(28 45% ${tono}%)`;
-                const tinta = activo ? "#ffffff" : n === 0 ? "#9ca3af" : "#5b3518";
-                return (
-                  <li key={p} className="relative min-w-0 flex-1" style={{ marginLeft: primero ? 0 : -punta + 4 }}>
-                    <button
-                      type="button"
-                      onClick={() => elegirVista(p)}
-                      aria-current={activo ? "step" : undefined}
-                      title={INFO_PASOS[p].ayuda}
-                      className="group flex h-[72px] w-full items-center gap-2.5 text-left transition-[filter] hover:brightness-95 focus-visible:outline-none focus-visible:brightness-90"
-                      style={{
-                        clipPath: forma,
-                        background: fondo,
-                        color: tinta,
-                        paddingLeft: primero ? 14 : punta + 10,
-                        paddingRight: ultimo ? 12 : punta + 4,
-                      }}
-                    >
-                      <span className="text-[26px] font-bold leading-none tabular-nums">{n}</span>
-                      <span className="flex min-w-0 flex-col">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide opacity-70">
-                          Paso {INFO_PASOS[p].numero}
-                        </span>
-                        <span className="text-[13px] font-semibold leading-tight">{INFO_PASOS[p].titulo}</span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
-          </nav>
+          <BarraDePasos
+            pasos={PASOS_EMBUDO.map((p) => ({
+              clave: p,
+              numero: INFO_PASOS[p].numero,
+              titulo: INFO_PASOS[p].titulo,
+              ayuda: INFO_PASOS[p].ayuda,
+              cantidad: conteo[p],
+            }))}
+            activo={vistaEfectiva === "FUERA" ? null : vistaEfectiva}
+            onElegir={elegirVista}
+          />
           {fuera > 0 ? (
             <button
               type="button"

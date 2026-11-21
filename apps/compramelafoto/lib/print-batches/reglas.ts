@@ -132,3 +132,19 @@ export function motivoParaNoEntrar(p: PedidoCandidato): string | null {
   if (p.enLoteVivo) return "Ya está en otro lote.";
   return null;
 }
+
+/**
+ * Cada pedido vive en un solo panel. Los de colegio (el pack de preventa, su canje, o un pedido que
+ * ya tiene avance en la línea escolar) se imprimen desde «Pedidos escolares»; el resto, desde
+ * «Impresiones». Es la misma frontera que usa `/api/fotografo/school-orders`: packs `PREVENTA_PACK`
+ * y su `redemptionOrderId`, que es el pedido con `redeemsOrderId`.
+ */
+export function vaPorPedidosEscolares(p: {
+  origin: string | null;
+  redeemsOrderId: number | null;
+  enLineaEscolar: boolean;
+}): boolean {
+  return (
+    p.origin === "PREVENTA_PACK" || p.origin === "PACK_REDEMPTION" || p.redeemsOrderId != null || p.enLineaEscolar
+  );
+}

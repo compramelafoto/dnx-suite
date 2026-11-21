@@ -1,15 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
-import ColumnaParaImprimir from "./ColumnaParaImprimir";
+import Card from "@/components/ui/Card";
+import { DsEmptyState } from "@/components/ui/DsEmptyState";
+import BarraDePasos from "@/components/fotografo/BarraDePasos";
+import TablaParaImprimir from "./TablaParaImprimir";
 import TarjetaDeLote from "./TarjetaDeLote";
 import DialogoEnviarLote, { type DatosDeEnvio } from "./DialogoEnviarLote";
 import {
   columnaDelLote,
   confirmacionAlMover,
   confirmacionDeEntrega,
+  conteoDelPanel,
+  laboratorioDeLaSeleccion,
   NOTA_PARA_IMPRIMIR,
+  PASOS_DEL_PANEL,
+  pasoInicialDelPanel,
   pedidosListosParaEntregar,
   textoDeCopiasDelPanel,
   type Columna,
@@ -44,52 +50,76 @@ function loteDeLaUrl(): number | null {
   return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
-function ColumnaDelPanel({ titulo, cantidad, unidad, nota, children }: { titulo: string; cantidad: number; unidad?: string; nota?: string; children: ReactNode }) {
+function Vacio({ children }: { children: ReactNode }) {
   return (
-    <section className="ds-stack-section min-w-0 gap-2 rounded-xl bg-gray-100/70 p-2.5">
-      <header className="flex items-baseline justify-between gap-2 px-0.5">
-        <h2 className="text-sm font-semibold text-gray-900">
-          {titulo} <span className="font-normal tabular-nums text-gray-500">{cantidad}{unidad ? ` ${unidad}` : ""}</span>
-        </h2>
-        {nota ? <span className="text-[11px] text-gray-500">{nota}</span> : null}
-      </header>
-      <div className="space-y-2">{children}</div>
-    </section>
+    <Card className="overflow-hidden p-0">
+      <DsEmptyState variant="tight">{children}</DsEmptyState>
+    </Card>
   );
 }
 
-function Vacio({ children }: { children: ReactNode }) {
-  return <p className="rounded-lg border border-dashed border-gray-200 bg-white/60 px-3 py-4 text-center text-xs text-gray-500">{children}</p>;
+function Subtitulo({ children }: { children: ReactNode }) {
+  return <h3 className="m-0 text-sm font-semibold text-gray-700">{children}</h3>;
 }
 
-function FilaListo({ p, ocupado, onEntregar }: { p: PedidoListo; ocupado: boolean; onEntregar: (p: PedidoListo) => void }) {
-  const e = p.entrada;
+function GrillaDeLotes({ children }: { children: ReactNode }) {
+  return <div className="grid items-start gap-4 lg:grid-cols-2">{children}</div>;
+}
+
+/** «Listos para entregar» como tabla, igual que «Pedidos escolares». */
+function TablaListos({ listos, ocupado, onEntregar }: { listos: PedidoListo[]; ocupado: boolean; onEntregar: (p: PedidoListo) => void }) {
   return (
-    <article className="ds-card flex flex-wrap items-start justify-between gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2.5">
-      <div className="min-w-0">
-        <p className="truncate text-xs font-medium text-gray-900">
-          #{e.albumOrderId ?? "—"} {e.cliente}
-        </p>
-        <p className="text-[11px] text-gray-500">
-          {textoDeCopiasDelPanel(e.copias)} · {p.lote.nombre} · {e.retiraCliente ? "retira en el laboratorio" : "lo entregás vos"}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {e.codigoQr ? (
-          <a href={`/pedido/entrega/${encodeURIComponent(e.codigoQr)}`} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-[#c27b3d] hover:underline">
-            QR
-          </a>
-        ) : null}
-        <button
-          type="button"
-          disabled={ocupado}
-          onClick={() => onEntregar(p)}
-          className="inline-flex items-center rounded-lg border border-[#c27b3d] bg-[#c27b3d] px-2.5 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#b06a2f] disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          Entregado
-        </button>
-      </div>
-    </article>
+    <div className="ds-table-scroll overflow-x-auto rounded-xl border border-gray-100 bg-white">
+      <table className="w-full min-w-[760px] text-sm">
+        <thead>
+          <tr className="border-b border-gray-200 bg-gray-50">
+            <th className="text-left py-3 px-3 font-medium">Pedido</th>
+            <th className="text-left py-3 px-3 font-medium">Lote</th>
+            <th className="text-left py-3 px-3 font-medium">Copias</th>
+            <th className="text-left py-3 px-3 font-medium">Entrega</th>
+            <th className="text-left py-3 px-3 font-medium">Qué hacer</th>
+          </tr>
+        </thead>
+        <tbody>
+          {listos.map((p) => {
+            const e = p.entrada;
+            return (
+              <tr key={e.id} className="border-b border-gray-100 align-top hover:bg-gray-50">
+                <td className="py-3 px-3">
+                  <span className="font-medium text-gray-900">{e.cliente}</span>
+                  <div className="text-xs text-gray-500">Pedido #{e.albumOrderId ?? "—"}</div>
+                </td>
+                <td className="py-3 px-3 whitespace-nowrap">{p.lote.nombre}</td>
+                <td className="py-3 px-3">{textoDeCopiasDelPanel(e.copias)}</td>
+                <td className="py-3 px-3">{e.retiraCliente ? "Retira en el laboratorio" : "La entregás vos"}</td>
+                <td className="py-3 px-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={ocupado}
+                      onClick={() => onEntregar(p)}
+                      className="inline-flex items-center rounded-lg bg-[#c27b3d] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#b06a2f] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Entregado
+                    </button>
+                    {e.codigoQr ? (
+                      <a
+                        href={`/pedido/entrega/${encodeURIComponent(e.codigoQr)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-[#c27b3d] hover:underline"
+                      >
+                        Ver el QR del sobre
+                      </a>
+                    ) : null}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -110,6 +140,8 @@ export default function PanelImpresiones() {
   const [enviarLote, setEnviarLote] = useState<LoteDelPanel | null>(null);
   const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
   const [resaltado, setResaltado] = useState<number | null>(null);
+  // null = todavía no eligió: se abre en el primer paso con pedidos (o en el del lote del QR).
+  const [paso, setPaso] = useState<Columna | null>(null);
   const yaDesplazo = useRef(false);
 
   const cargar = useCallback(async () => {
@@ -130,12 +162,18 @@ export default function PanelImpresiones() {
     void cargar();
   }, [cargar]);
 
+  // El lote resaltado (el del QR de la etiqueta, o el recién armado): abre su paso y lo muestra.
   useEffect(() => {
     if (!datos || resaltado == null || yaDesplazo.current) return;
     yaDesplazo.current = true;
-    const el = document.getElementById(`lote-${resaltado}`);
-    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-    else setAviso("Ese lote ya no está en el panel (se anuló o se cerró hace más de 30 días).");
+    const lote = datos.lotes.find((l) => l.id === resaltado);
+    const suPaso = lote ? columnaDelLote(lote.estado) : null;
+    if (!suPaso) {
+      setAviso("Ese lote ya no está en el panel (se anuló o se cerró hace más de 30 días).");
+      return;
+    }
+    setPaso(suPaso);
+    requestAnimationFrame(() => document.getElementById(`lote-${resaltado}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
   }, [datos, resaltado]);
 
   async function accion(url: string, body: unknown, exito?: string): Promise<boolean> {
@@ -151,6 +189,7 @@ export default function PanelImpresiones() {
   }
 
   async function armar(albumOrderIds: number[], labContactId: number | null) {
+    let nuevo: number | null = null;
     setOcupado(true);
     setError(null);
     setAviso(null);
@@ -165,13 +204,18 @@ export default function PanelImpresiones() {
       if (!res.ok) setError(data?.error || "No se pudo armar el lote. Probá de nuevo.");
       else {
         setSeleccion(new Set());
-        setResaltado(data.batchId ?? null);
+        nuevo = typeof data.batchId === "number" ? data.batchId : null;
         setAviso(`Listo: armaste el ${data.nombre}. Revisalo y mandalo al laboratorio.`);
       }
     } catch {
       setError(ERROR_DE_RED);
     }
     await cargar();
+    // Recién con los datos nuevos: si no, el lote recién armado todavía no está y se avisaría que no existe.
+    if (nuevo != null) {
+      yaDesplazo.current = false;
+      setResaltado(nuevo);
+    }
     setOcupado(false);
   }
 
@@ -248,60 +292,116 @@ export default function PanelImpresiones() {
       onQuitar={quitar}
     />
   );
+  const conteo = conteoDelPanel(datos);
+  const vista: Columna = paso ?? pasoInicialDelPanel(conteo);
+  const info = PASOS_DEL_PANEL.find((p) => p.clave === vista)!;
   const armados = porColumna("PARA_IMPRIMIR");
   const enLab = porColumna("EN_LABORATORIO");
   const recibidos = porColumna("LISTOS");
   const listos = pedidosListosParaEntregar(datos.lotes);
   const entregados = porColumna("ENTREGADOS");
-  const disponibles = datos.paraImprimir.filter((p) => p.motivo == null).length;
+  const elegidos = datos.paraImprimir.filter((p) => seleccion.has(p.albumOrderId));
+  const lab = laboratorioDeLaSeleccion(elegidos);
+
+  function elegirPaso(c: Columna) {
+    setPaso(c);
+    setSeleccion(new Set());
+    setError(null);
+    setAviso(null);
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="max-w-3xl text-sm text-gray-600 ds-readable-text">
-          Elegí los pedidos, armá el lote y mandalo al laboratorio. Seguí acá cada lote hasta entregarle las copias a tus clientes.
-        </p>
-        <Link href="/fotografo/impresiones/laboratorios" className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50">
-          Mis laboratorios
-        </Link>
-      </div>
+    <div className="space-y-6">
+      <BarraDePasos
+        pasos={PASOS_DEL_PANEL.map((p) => ({ ...p, cantidad: conteo[p.clave] }))}
+        activo={vista}
+        onElegir={elegirPaso}
+        anchoMinimo={600}
+      />
 
-      {error ? <Mensaje tipo="error">{error}</Mensaje> : null}
-      {aviso ? <Mensaje tipo="ok">{aviso}</Mensaje> : null}
+      {/* Lo que hay que hacer en este paso */}
+      <Card className="space-y-2 p-4">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="m-0 text-base font-semibold text-gray-900">
+            {info.numero}. {info.titulo}
+            <span className="ml-2 text-sm font-normal text-gray-500">{info.ayuda}</span>
+          </h2>
+          {vista === "PARA_IMPRIMIR" && elegidos.length > 0 ? (
+            <span className="text-sm text-gray-700">
+              {elegidos.length} {elegidos.length === 1 ? "marcado" : "marcados"}
+            </span>
+          ) : null}
+        </div>
+        {vista === "PARA_IMPRIMIR" && datos.paraImprimir.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={ocupado || elegidos.length === 0 || !lab.ok}
+              onClick={() => lab.ok && void armar(elegidos.map((p) => p.albumOrderId), lab.labContactId)}
+              className="inline-flex items-center rounded-lg bg-[#c27b3d] px-4 py-2 text-sm font-semibold text-white hover:bg-[#b06a2f] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {ocupado
+                ? "Armando…"
+                : elegidos.length > 0
+                  ? `Armar lote con ${elegidos.length} ${elegidos.length === 1 ? "pedido" : "pedidos"}`
+                  : "Marcá pedidos para armar un lote"}
+            </button>
+            {!lab.ok ? <span className="text-sm text-red-700">{lab.error}</span> : null}
+          </div>
+        ) : null}
+        {error ? <Mensaje tipo="error">{error}</Mensaje> : null}
+        {aviso ? <Mensaje tipo="ok">{aviso}</Mensaje> : null}
+      </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4 items-start">
-        <ColumnaDelPanel titulo="Para imprimir" cantidad={disponibles}>
-          <ColumnaParaImprimir
-            pedidos={datos.paraImprimir}
-            laboratorios={datos.laboratorios}
-            seleccion={seleccion}
-            onCambiarSeleccion={setSeleccion}
-            armando={ocupado}
-            onArmar={armar}
-            lotesArmados={armados.length ? <div className="space-y-2">{armados.map(tarjeta)}</div> : null}
-          />
-          <p className="px-0.5 text-[11px] text-gray-500">{NOTA_PARA_IMPRIMIR}</p>
-        </ColumnaDelPanel>
-        <ColumnaDelPanel titulo="En el laboratorio" cantidad={enLab.length} unidad="lotes">
-          {enLab.length ? enLab.map(tarjeta) : <Vacio>No hay lotes en el laboratorio.</Vacio>}
-        </ColumnaDelPanel>
-        <ColumnaDelPanel titulo="Listos para entregar" cantidad={listos.length} unidad={listos.length === 1 ? "pedido" : "pedidos"}>
+      {vista === "PARA_IMPRIMIR" ? (
+        <>
+          {armados.length ? (
+            <section className="space-y-3">
+              <Subtitulo>Lotes armados, sin mandar todavía</Subtitulo>
+              <GrillaDeLotes>{armados.map(tarjeta)}</GrillaDeLotes>
+            </section>
+          ) : null}
+          <section className="space-y-3">
+            {armados.length ? <Subtitulo>Pedidos para armar un lote</Subtitulo> : null}
+            {datos.paraImprimir.length ? (
+              <TablaParaImprimir
+                pedidos={datos.paraImprimir}
+                laboratorios={datos.laboratorios}
+                seleccion={seleccion}
+                onCambiarSeleccion={setSeleccion}
+                deshabilitada={ocupado}
+              />
+            ) : (
+              <Vacio>No hay pedidos pagados con copias para imprimir.</Vacio>
+            )}
+            <p className="m-0 text-xs text-gray-500">{NOTA_PARA_IMPRIMIR}</p>
+          </section>
+        </>
+      ) : null}
+
+      {vista === "EN_LABORATORIO" ? (
+        enLab.length ? <GrillaDeLotes>{enLab.map(tarjeta)}</GrillaDeLotes> : <Vacio>No hay lotes en el laboratorio.</Vacio>
+      ) : null}
+
+      {vista === "LISTOS" ? (
+        <>
           {listos.length ? (
-            listos.map((p) => <FilaListo key={p.entrada.id} p={p} ocupado={ocupado} onEntregar={entregar} />)
+            <TablaListos listos={listos} ocupado={ocupado} onEntregar={entregar} />
           ) : (
             <Vacio>Cuando un pedido esté listo para retirar, aparece acá para marcarlo entregado.</Vacio>
           )}
           {recibidos.length ? (
-            <div className="space-y-2 pt-1">
-              <p className="px-0.5 text-[11px] font-medium text-gray-500">Lotes recibidos (se cierran al entregar todo)</p>
-              {recibidos.map(tarjeta)}
-            </div>
+            <section className="space-y-3">
+              <Subtitulo>Lotes recibidos (se cierran solos cuando se entrega todo)</Subtitulo>
+              <GrillaDeLotes>{recibidos.map(tarjeta)}</GrillaDeLotes>
+            </section>
           ) : null}
-        </ColumnaDelPanel>
-        <ColumnaDelPanel titulo="Entregados" cantidad={entregados.length} unidad="lotes" nota="Últimos 30 días">
-          {entregados.length ? entregados.map(tarjeta) : <Vacio>Todavía no hay lotes entregados.</Vacio>}
-        </ColumnaDelPanel>
-      </div>
+        </>
+      ) : null}
+
+      {vista === "ENTREGADOS" ? (
+        entregados.length ? <GrillaDeLotes>{entregados.map(tarjeta)}</GrillaDeLotes> : <Vacio>Todavía no hay lotes entregados.</Vacio>
+      ) : null}
 
       {enviarLote ? (
         <DialogoEnviarLote

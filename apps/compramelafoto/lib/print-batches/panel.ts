@@ -4,7 +4,7 @@
  * Sin Prisma ni `server-only`: lo usan la ruta y los componentes, y se prueba con node:test.
  */
 
-import { estadoDelPedidoEnElTramo, puedeMover, type EntregaLote, type EstadoLote } from "./reglas";
+import { ESPEJO_ENTREGADO, estadoDelPedidoEnElTramo, puedeMover, type EntregaLote, type EstadoLote } from "./reglas";
 import { ESTADOS_DEL_PEDIDO } from "./entrega-del-pedido";
 
 export type CopiaDelPanel = { medida: string; acabado: string; cantidad: number };
@@ -265,4 +265,46 @@ export function leerFechaPrometida(valor: unknown): Date | null | "invalida" {
   if (typeof valor !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return "invalida";
   const d = new Date(`${valor}T00:00:00.000Z`);
   return Number.isNaN(d.getTime()) || d.toISOString().slice(0, 10) !== valor ? "invalida" : d;
+}
+
+/** Los pasos del panel, en el orden de la barra (la misma barra que «Pedidos escolares»). */
+export const PASOS_DEL_PANEL: ReadonlyArray<{ clave: Columna; numero: number; titulo: string; ayuda: string }> = [
+  { clave: "PARA_IMPRIMIR", numero: 1, titulo: "Para imprimir", ayuda: "Elegí los pedidos, armá el lote y mandalo al laboratorio." },
+  { clave: "EN_LABORATORIO", numero: 2, titulo: "En el laboratorio", ayuda: "El laboratorio lo está imprimiendo. Seguí cada lote acá." },
+  { clave: "LISTOS", numero: 3, titulo: "Listos para entregar", ayuda: "Ya están impresos: entregalos y marcalos con el QR del sobre." },
+  { clave: "ENTREGADOS", numero: 4, titulo: "Entregados", ayuda: `Los pedidos entregados de los últimos ${DIAS_DE_ENTREGADOS} días.` },
+];
+
+/**
+ * Paso en el que cuenta un pedido de un lote: el mismo paso donde se lo ve. Los lotes armados se ven
+ * en «Para imprimir», los cerrados en «Entregados»; un pedido listo para retirar se ve en la tabla de
+ * «Listos», y el resto, en la tarjeta de su lote. Un pedido ya entregado de un lote que sigue abierto
+ * no cuenta en ningún paso (no queda nada por hacer con él). null = no cuenta.
+ */
+export function pasoDeLaEntrada(lote: Pick<LoteDelPanel, "estado">, e: Pick<EntradaDelPanel, "entregadoAt" | "estadoPedido">): Columna | null {
+  const columna = columnaDelLote(lote.estado);
+  if (columna === null || columna === "PARA_IMPRIMIR" || columna === "ENTREGADOS") return columna;
+  if (e.entregadoAt != null || (e.estadoPedido != null && ESPEJO_ENTREGADO.includes(e.estadoPedido))) return null;
+  if (e.estadoPedido === "READY_TO_PICKUP") return "LISTOS";
+  return columna;
+}
+
+/**
+ * Cuántos pedidos hay en cada paso, una sola vez cada uno. En «Para imprimir» cuentan los que se
+ * pueden imprimir (los que tienen un motivo para no entrar se ven en gris) más los de lotes armados.
+ */
+export function conteoDelPanel(datos: Pick<DatosDelPanel, "paraImprimir" | "lotes">): Record<Columna, number> {
+  const conteo: Record<Columna, number> = { PARA_IMPRIMIR: datos.paraImprimir.filter((p) => p.motivo == null).length, EN_LABORATORIO: 0, LISTOS: 0, ENTREGADOS: 0 };
+  for (const l of datos.lotes) {
+    for (const e of l.entradas) {
+      const paso = pasoDeLaEntrada(l, e);
+      if (paso) conteo[paso] += 1;
+    }
+  }
+  return conteo;
+}
+
+/** Abre en el primer paso con pedidos; «Entregados» nunca es el de arranque. */
+export function pasoInicialDelPanel(conteo: Record<Columna, number>): Columna {
+  return PASOS_DEL_PANEL.find((p) => p.clave !== "ENTREGADOS" && conteo[p.clave] > 0)?.clave ?? "PARA_IMPRIMIR";
 }

@@ -8,6 +8,7 @@ import {
   loteCerrado,
   motivoParaNoEntrar,
   puedeMover,
+  vaPorPedidosEscolares,
   type EstadoLote,
   type PedidoCandidato,
 } from "./reglas";
@@ -133,4 +134,25 @@ test("estadoDelPedidoEnElTramo toma el último estado del recorrido", () => {
   assert.equal(estadoDelPedidoEnElTramo("ARMADO", "ARMADO", true), null);
   assert.equal(estadoDelPedidoEnElTramo("ARMADO", "ANULADO", true), null);
   assert.equal(estadoDelPedidoEnElTramo("ANULADO", "ANULADO", false), null);
+});
+
+const COMUN = { origin: "STANDARD_CHECKOUT", redeemsOrderId: null, enLineaEscolar: false };
+
+test("vaPorPedidosEscolares: una compra común va por Impresiones", () => {
+  assert.equal(vaPorPedidosEscolares(COMUN), false);
+});
+test("vaPorPedidosEscolares: un canje de pack va por Pedidos escolares", () => {
+  assert.equal(vaPorPedidosEscolares({ ...COMUN, origin: "PACK_REDEMPTION", redeemsOrderId: 10 }), true);
+});
+test("vaPorPedidosEscolares: una compra común que canjea un pack va por Pedidos escolares", () => {
+  assert.equal(vaPorPedidosEscolares({ ...COMUN, redeemsOrderId: 10 }), true);
+});
+test("vaPorPedidosEscolares: el pack de preventa en sí va por Pedidos escolares aunque traiga copias", () => {
+  assert.equal(vaPorPedidosEscolares({ ...COMUN, origin: "PREVENTA_PACK" }), true);
+});
+test("vaPorPedidosEscolares: con avance de copias escolares va por Pedidos escolares", () => {
+  assert.equal(vaPorPedidosEscolares({ ...COMUN, enLineaEscolar: true }), true);
+});
+test("vaPorPedidosEscolares: un canje sin dato de origen igual va por Pedidos escolares", () => {
+  assert.equal(vaPorPedidosEscolares({ origin: null, redeemsOrderId: 7, enLineaEscolar: false }), true);
 });
