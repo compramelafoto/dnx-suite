@@ -201,6 +201,8 @@ model User {
   preCompraOrdersPhotosTaken            PreCompraOrder[]                       @relation("PreCompraOrderPhotosTakenBy")
   clientOrders                          PrintOrder[]                           @relation("ClientOrders")
   printOrders                           PrintOrder[]                           @relation("PhotographerOrders")
+  printBatches                          PrintBatch[]                           @relation("PrintBatchPhotographer")
+  photographerLabContacts               PhotographerLabContact[]               @relation("PhotographerLabContactPhotographer")
   printOrderStatusHistory               PrintOrderStatusHistory[]              @relation("PrintOrderStatusHistoryChangedBy")
   referralAttributionsAsReferred        ReferralAttribution?                   @relation("ReferralReferred")
   referralAttributionsAsReferrer        ReferralAttribution[]                  @relation("ReferralReferrer")
@@ -3968,6 +3970,10 @@ model Order {
   eventOrganizerCommission  EventOrganizerCommission?
   /// Cookie dnxbot_guest del navegador que compró (medición de ventas después del bot)
   botGuestKey               String?
+  /// Punto de retiro (de la agenda del fotógrafo) donde el cliente retira este pedido; null = retira con el fotógrafo
+  pickupLabContactId        Int?
+  pickupLabContact          PhotographerLabContact?   @relation("OrderPickupLabContact", fields: [pickupLabContactId], references: [id], onDelete: SetNull)
+  printBatchEntries         PrintBatchEntry[]         @relation("PrintBatchEntryOrder")
 
   @@index([albumId])
   @@index([buyerUserId])
@@ -4785,6 +4791,7 @@ model PrintOrder {
   items                    PrintOrderItem[]
   statusHistory            PrintOrderStatusHistory[] @relation("PrintOrderStatusHistory")
   supportTickets           SupportTicket[]
+  printBatchEntries        PrintBatchEntry[]         @relation("PrintBatchEntryPrintOrder")
 
   @@index([labId])
   @@index([photographerId])
@@ -4793,6 +4800,112 @@ model PrintOrder {
   @@index([paymentStatus])
   @@index([orderType])
   @@index([createdAt])
+}
+
+/// Estado de un lote de impresión que el fotógrafo le manda a un laboratorio.
+enum PrintBatchEstado {
+  ARMADO
+  ENVIADO
+  EN_PRODUCCION
+  LISTO
+  DESPACHADO
+  RECIBIDO
+  CERRADO
+  ANULADO
+}
+
+enum PrintBatchTipo {
+  COMUNES
+  ESCOLAR
+}
+
+enum PrintBatchEntrega {
+  RETIRA_FOTOGRAFO
+  ENVIA_LAB
+}
+
+/// Laboratorio / punto de retiro de la agenda de un fotógrafo (no necesariamente un Lab registrado).
+model PhotographerLabContact {
+  id               Int      @id @default(autoincrement())
+  photographerId   Int
+  labId            Int?
+  nombre           String
+  email            String
+  whatsapp         String?
+  notas            String?
+  esPredeterminado Boolean  @default(false)
+  puntoDeRetiro    Boolean  @default(false)
+  direccion        String?
+  horario          String?
+  activo           Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  photographer User         @relation("PhotographerLabContactPhotographer", fields: [photographerId], references: [id], onDelete: Cascade)
+  lab          Lab?         @relation("PhotographerLabContactLab", fields: [labId], references: [id], onDelete: SetNull)
+  batches      PrintBatch[] @relation("PrintBatchLabContact")
+  orders       Order[]      @relation("OrderPickupLabContact")
+
+  @@unique([photographerId, email])
+  @@index([labId])
+}
+
+/// Lote de pedidos de impresión que el fotógrafo envía junto a un laboratorio.
+model PrintBatch {
+  id               Int               @id @default(autoincrement())
+  photographerId   Int
+  labContactId     Int?
+  labId            Int?
+  nombre           String
+  tipo             PrintBatchTipo    @default(COMUNES)
+  estado           PrintBatchEstado  @default(ARMADO)
+  mensajeAlLab     String?
+  entregaPreferida PrintBatchEntrega @default(RETIRA_FOTOGRAFO)
+  fechaPrometida   DateTime?
+  tokenHash        String?           @unique
+  enviadoAt        DateTime?
+  labAbrioAt       DateTime?
+  labDescargoAt    DateTime?
+  enProduccionAt   DateTime?
+  listoAt          DateTime?
+  despachadoAt     DateTime?
+  recibidoAt       DateTime?
+  cerradoAt        DateTime?
+  pagadoAlLabAt    DateTime?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  photographer User                    @relation("PrintBatchPhotographer", fields: [photographerId], references: [id], onDelete: Cascade)
+  labContact   PhotographerLabContact? @relation("PrintBatchLabContact", fields: [labContactId], references: [id], onDelete: SetNull)
+  lab          Lab?                    @relation("PrintBatchLab", fields: [labId], references: [id], onDelete: SetNull)
+  entries      PrintBatchEntry[]
+
+  @@index([photographerId, estado])
+}
+
+/// Pedido incluido en un lote. El índice único parcial "PrintBatchEntry_albumOrder_vivo"
+/// (sólo en SQL) impide que un pedido de álbum esté en dos lotes vivos a la vez.
+model PrintBatchEntry {
+  id                 Int       @id @default(autoincrement())
+  batchId            Int
+  albumOrderId       Int?
+  printOrderId       Int?
+  designProjectId    Int?
+  schoolCopiesJobId  Int?
+  retiraCliente      Boolean   @default(false)
+  pickupLabContactId Int?
+  resumen            Json
+  quitadoAt          DateTime?
+  entregadoAt        DateTime?
+  createdAt          DateTime  @default(now())
+
+  batch      PrintBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  albumOrder Order?      @relation("PrintBatchEntryOrder", fields: [albumOrderId], references: [id], onDelete: SetNull)
+  printOrder PrintOrder? @relation("PrintBatchEntryPrintOrder", fields: [printOrderId], references: [id], onDelete: SetNull)
+
+  @@index([batchId])
+  @@index([albumOrderId])
+  @@index([printOrderId])
 }
 
 /// *
@@ -4871,6 +4984,8 @@ model Lab {
   productVariants               LabProductVariant[]
   discounts                     LabSizeDiscount[]
   orders                        PrintOrder[]
+  printBatches                  PrintBatch[]             @relation("PrintBatchLab")
+  photographerLabContacts       PhotographerLabContact[] @relation("PhotographerLabContactLab")
   preferredByUsers              User[]              @relation("PhotographerPreferredLab")
 
   @@index([approvalStatus])
