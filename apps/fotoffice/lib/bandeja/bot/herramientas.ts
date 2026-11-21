@@ -11,7 +11,6 @@ import { textoPresentacionXv } from "./presentacion-xv";
 import {
   elegirPaquete,
   estadoDeLaFecha,
-  eventoDeCategoria,
   fraseDelPase,
   instruccionDelPase,
   textoDeLaFecha,
@@ -436,8 +435,8 @@ export function herramientasDeAtencion(
       run: async (datos: DatosPresupuestoBot) => {
         if (!chat) return { ok: true, message: "Ahora no puedo registrar la consulta. Usá pasar_a_persona con un resumen de lo que pide." };
         const r = await deps.prepararPresupuesto(workspaceId, chat, datos);
-        // XV y bodas: la cotización personalizada va a aprobación y el chat sigue con ventas.
-        if (r.ok && eventoDeCategoria(datos.tipo) && !/ya hay una cotizaci[oó]n en preparaci[oó]n/i.test(r.message)) {
+        // Cualquier evento o sesión: la cotización va a aprobación y el chat sigue con ventas (pedido de Daniel, 20/11/2026).
+        if (r.ok && !/ya hay una cotizaci[oó]n en preparaci[oó]n/i.test(r.message)) {
           return { ...r, message: `${r.message}${await pasarAVentas("cotización personalizada pedida (va a aprobación)")}` };
         }
         return r;
@@ -699,9 +698,20 @@ export function herramientasDeAtencion(
       name: "pasar_a_persona",
       description:
         "Deja el chat para que lo atienda una persona del estudio. Usala para cotizaciones de eventos cuando preparar_presupuesto no las arma; reclamos; facturas (con los datos ya pedidos); cuando el cliente pide hablar con alguien; o cuando no sabés la respuesta. Después de usarla, no le digas al cliente que lo derivás ni que le va a escribir otra persona: decile algo como \"Dejame chequearlo y te confirmo en un ratito.\"",
-      input: z.object({ motivo: z.string().min(3).max(200) }),
+      input: z.object({
+        motivo: z.string().min(3).max(200),
+        evento: z.boolean().optional().describe("true si la charla es por la cobertura de un evento o una sesión (XV, boda, cumpleaños, bautismo, comunión, empresa, book)."),
+      }),
       kind: "read",
-      run: async ({ motivo }) => {
+      run: async ({ motivo, evento }) => {
+        // Una consulta de evento queda asignada a la persona de ventas, no "sin asignar" (pedido de Daniel, 20/11/2026).
+        if (evento) {
+          const persona = await deps.vendedora(workspaceId).catch(() => null);
+          if (persona) {
+            pase = { persona, motivo: motivo.trim() };
+            return { ok: true, message: "Listo: cuando termines este mensaje el chat pasa a una persona del estudio." };
+          }
+        }
         motivoPersona = motivo.trim();
         return { ok: true, message: "Listo: cuando termines este mensaje el chat pasa a una persona del estudio." };
       },

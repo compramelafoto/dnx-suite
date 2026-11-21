@@ -426,7 +426,7 @@ describe("XV y bodas: fecha, paquetes y pase a ventas (spec 2026-11-20)", () => 
     expect(h.paseAVentas()).toBeNull();
   });
 
-  it("preparar_presupuesto de XV o boda (personalizado) también pasa a ventas; otro evento sigue igual", async () => {
+  it("preparar_presupuesto de cualquier evento pasa a ventas (XV, boda, bautismo…)", async () => {
     const prepararPresupuesto = async () => ({ ok: true, message: "Listo, el estudio ya está armando la cotización." });
     const xv = herramientasDeAtencion("w1", { prepararPresupuesto, vendedora: async () => ({ userId: 1, nombre: "Daniel", esResponsable: false }) }, CHAT);
     const r = await herramienta(xv, "preparar_presupuesto").run({ tipo: "15 años", nombre: "Sofía Rodríguez", detalle: "Intermedio con video" }, ACTOR);
@@ -434,9 +434,24 @@ describe("XV y bodas: fecha, paquetes y pase a ventas (spec 2026-11-20)", () => 
     expect(xv.paseAVentas()).toMatchObject({ persona: { userId: 1 } });
 
     const otro = herramientasDeAtencion("w1", { prepararPresupuesto, vendedora: async () => GIULI }, CHAT);
-    const r2 = await herramienta(otro, "preparar_presupuesto").run({ tipo: "bautismo", nombre: "Ana Pérez" }, ACTOR);
-    expect(r2.message).not.toContain("Te dejo con");
+    await herramienta(otro, "preparar_presupuesto").run({ tipo: "bautismo", nombre: "Ana Pérez" }, ACTOR);
+    expect(otro.paseAVentas()).toMatchObject({ persona: GIULI, motivo: "cotización personalizada pedida (va a aprobación)" });
+  });
+
+  it("pasar_a_persona de un evento lo asigna a ventas; sin evento (o sin nadie de ventas) queda sin asignar", async () => {
+    const ev = herramientasDeAtencion("w1", { vendedora: async () => GIULI }, CHAT);
+    await herramienta(ev, "pasar_a_persona").run({ motivo: "fecha completa", evento: true }, ACTOR);
+    expect(ev.paseAVentas()).toEqual({ persona: GIULI, motivo: "fecha completa" });
+    expect(ev.pedidoDePersona()).toBeNull();
+
+    const otro = herramientasDeAtencion("w1", { vendedora: async () => GIULI }, CHAT);
+    await herramienta(otro, "pasar_a_persona").run({ motivo: "reclamo" }, ACTOR);
     expect(otro.paseAVentas()).toBeNull();
+    expect(otro.pedidoDePersona()).toBe("reclamo");
+
+    const nadie = herramientasDeAtencion("w1", { vendedora: async () => null }, CHAT);
+    await herramienta(nadie, "pasar_a_persona").run({ motivo: "fecha completa", evento: true }, ACTOR);
+    expect(nadie.pedidoDePersona()).toBe("fecha completa");
   });
 
   it("si ya había una cotización en preparación no pasa el chat", async () => {
