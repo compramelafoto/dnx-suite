@@ -289,8 +289,8 @@ Fotografía conserva **exactamente** el formulario de hoy.
 - **Curaduría anónima:** el reproductor de YouTube muestra el nombre del canal y el título del
   video. En convocatorias con curaduría anónima, el formulario de envío avisa: "Para que la
   selección sea anónima, subí el video como no listado, con un título que no te identifique, desde
-  un canal sin tu nombre". El visor de curaduría no agrega ningún otro dato. *(Pendiente de
-  confirmar con Daniel, ver sección 9.)*
+  un canal sin tu nombre". El visor de curaduría no agrega ningún otro dato. *(Decidido por
+  Daniel el 21/11: alcanza con el aviso; los videos se aceptan igual en convocatorias anónimas.)*
 
 ### 6.5 Audio: audioguía
 
@@ -456,10 +456,14 @@ Cada etapa va en su PR, directo a producción, sin romper fotografía:
 - Topes finos (largo de textos, cantidad de piezas de piso, tamaño de fotos de estado), mientras
   respeten los de la sección 6.
 
-## 9. Pendiente de confirmar con Daniel
+## 9. Decisiones tomadas y a revisar
 
-Una sola pregunta, sobre **curaduría anónima con videos de YouTube** (sección 6.4): el
-reproductor de YouTube muestra el nombre del canal y el título, y eso puede revelar al autor.
+Curaduría anónima con YouTube: **decidido por Daniel (21/11), aviso al artista** (sección 6.4).
+
+Dominio: muestrasdearte.com y www comprados en DonWeb, zona DNS cargada (A @ → 76.76.21.21,
+CNAME www → cname.vercel-dns.com) y sumados al proyecto Vercel con **redirección temporal 307 a
+muestrasfotograficas.com**, que se saca en la etapa 2. Daniel también compró
+muestrasdearte.store y .online (sin configurar).
 
 Revisión independiente hecha el 21/11. Lo que resolvió Claude y conviene que Daniel revise:
 medidas en la obra de la muestra (6.3), videoarte e instalación sólo con "consultar precio" (6.7),
