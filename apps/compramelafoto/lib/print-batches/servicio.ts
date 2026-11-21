@@ -7,7 +7,7 @@ import { esPedidoDemo } from "@/lib/canje-externo/pack-de-prueba";
 import { nombreDelProximoLote } from "@/lib/design-v2/produccion-reglas";
 import { fileExistsInR2, urlToR2Key } from "@/lib/r2-client";
 import { queueEmail } from "@/lib/email-queue";
-import { avisaAlCliente, ESPEJO_ENTREGADO, estadoDelPedidoEnElTramo, loteCerrado, motivoParaNoEntrar, puedeMover, type EstadoLote } from "./reglas";
+import { avisaAlCliente, ESPEJO_ENTREGADO, estadoDelPedidoEnElTramo, loteCerrado, motivoParaNoEntrar, puedeMover, vaPorPedidosEscolares, type EstadoLote } from "./reglas";
 import { contactoDeRetiro, direccionDelContacto, retiraElCliente } from "./puntos-de-retiro";
 import { contactoDeRetiroDelPedido, contactosActivosDelFotografo } from "./retiro-del-pedido";
 import { nombreDelFotografo } from "./puerta-del-lab";
@@ -95,7 +95,8 @@ async function cargarCandidatos(photographerId: number, ids?: number[]): Promise
   const tienenDiseno = new Set(conDiseno.map((d) => d.albumOrderId));
   const enLineaEscolar = new Set(escolares.map((e) => e.orderId));
 
-  const esCanje = (o: (typeof vivos)[number]) => o.redeemsOrderId != null || enLineaEscolar.has(o.id);
+  const esCanje = (o: (typeof vivos)[number]) =>
+    vaPorPedidosEscolares({ origin: o.origin, redeemsOrderId: o.redeemsOrderId, enLineaEscolar: enLineaEscolar.has(o.id) });
   // En el listado no van los canjes (viajan por Pedidos escolares) ni los espejos ya resueltos por otro lado.
   const aMirar = ids ? vivos : vivos.filter((o) => {
     const espejo = espejoDe.get(o.id);
