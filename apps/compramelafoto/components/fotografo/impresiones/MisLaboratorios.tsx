@@ -14,7 +14,14 @@ type Laboratorio = {
   horario: string | null;
 };
 
-type LabDirectorio = { id: number; name: string; city: string | null; email: string | null; address: string | null };
+type LabDirectorio = {
+  id: number;
+  name: string;
+  city: string | null;
+  email: string | null;
+  address: string | null;
+  logoUrl?: string | null;
+};
 
 type Formulario = {
   nombre: string;
@@ -225,11 +232,23 @@ export default function MisLaboratorios() {
                         type="button"
                         onClick={() => elegirDelDirectorio(lab)}
                         disabled={!lab.email}
-                        className="w-full text-left px-2 py-2 text-sm hover:bg-white disabled:opacity-50"
+                        className="w-full text-left px-2 py-2 text-sm hover:bg-white disabled:opacity-50 flex items-center gap-2"
                       >
-                        <span className="font-medium text-gray-900">{lab.name}</span>
-                        {lab.city && <span className="text-gray-600"> · {lab.city}</span>}
-                        {!lab.email && <span className="text-gray-500"> (sin correo cargado)</span>}
+                        {lab.logoUrl ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={lab.logoUrl}
+                            alt=""
+                            className="h-8 w-8 shrink-0 rounded-full object-cover border border-gray-200 bg-white"
+                          />
+                        ) : (
+                          <span className="h-8 w-8 shrink-0 rounded-full border border-gray-200 bg-white" aria-hidden />
+                        )}
+                        <span className="min-w-0">
+                          <span className="font-medium text-gray-900">{lab.name}</span>
+                          {lab.city && <span className="text-gray-600"> · {lab.city}</span>}
+                          {!lab.email && <span className="text-gray-500"> (sin correo cargado)</span>}
+                        </span>
                       </button>
                     </li>
                   ))}

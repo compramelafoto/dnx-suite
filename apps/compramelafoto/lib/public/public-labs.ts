@@ -4,6 +4,7 @@
  */
 
 import type { PrismaClient } from "@prisma/client";
+import { SIN_LABS_SOLO_DIRECTORIO } from "../labs/solo-directorio";
 
 export type PublicLabRow = {
   id: number;
@@ -33,10 +34,13 @@ export function buildPublicLabsWhere(search: string | null | undefined) {
   const where: {
     isActive: true;
     isSuspended: false;
+    NOT: { tags: { has: string } };
     OR?: Array<Record<string, { contains: string; mode: "insensitive" }>>;
   } = {
     isActive: true,
     isSuspended: false,
+    // Los cargados por DNX sin cuenta no pueden recibir pedidos.
+    ...SIN_LABS_SOLO_DIRECTORIO,
   };
 
   const term = (search ?? "").trim();

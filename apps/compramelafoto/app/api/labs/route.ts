@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { SIN_LABS_SOLO_DIRECTORIO } from "@/lib/labs/solo-directorio";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +12,8 @@ export async function GET(req: Request) {
 
     const whereClause: any = { 
       isActive: true,
+      // Los cargados por DNX sin cuenta sólo van en «Mis laboratorios»: no reciben pedidos.
+      ...SIN_LABS_SOLO_DIRECTORIO,
       // Nota: Se removió el requisito de Mercado Pago para que aparezcan en la lista de selección
       // Los pedidos solo se pueden crear si el laboratorio tiene MP configurado (validado en otros endpoints)
     };

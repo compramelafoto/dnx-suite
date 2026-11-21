@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma, Role } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { resolveAssetUrl } from "@/lib/public/public-directory";
 import { leerCuerpoContacto, validarContacto } from "@/lib/print-batches/contactos";
 
 export const runtime = "nodejs";
@@ -22,10 +23,11 @@ export async function GET(req: Request) {
   if (url.searchParams.get("directorio") === "1") {
     const labs = await prisma.lab.findMany({
       where: { approvalStatus: "APPROVED", isActive: true },
-      select: { id: true, name: true, city: true, email: true, address: true },
+      select: { id: true, name: true, city: true, email: true, address: true, logoUrl: true },
       orderBy: { name: "asc" },
     });
-    return NextResponse.json({ labs });
+    // Logo como dirección completa (puede estar guardado como clave de R2).
+    return NextResponse.json({ labs: labs.map((l) => ({ ...l, logoUrl: resolveAssetUrl(l.logoUrl) })) });
   }
   const laboratorios = await prisma.photographerLabContact.findMany({
     where: { photographerId: user.id, activo: true },
