@@ -87,7 +87,7 @@ export default async function ClientePage({
   searchParams,
 }: {
   params: Promise<{ clientId: string }>;
-  searchParams: Promise<{ error?: string; ok?: string; ver?: string | string[] }>;
+  searchParams: Promise<{ error?: string; ok?: string; ver?: string | string[]; editar?: string | string[] }>;
 }) {
   const { user, workspace, canEdit } = await requireClientsViewer();
   const { clientId } = await params;
@@ -246,7 +246,8 @@ export default async function ClientePage({
           ),
           correoEnHerramientas: true,
         }}
-        edicionAbierta={Boolean(query.error)}
+        // `?editar=1`: llega desde «Editar datos» de la tarjeta del cliente en una consulta.
+        edicionAbierta={Boolean(query.error) || query.editar === "1"}
         accesos={[
           {
             clave: "informacion-adicional",

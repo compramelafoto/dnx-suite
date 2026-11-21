@@ -354,6 +354,17 @@ select.fo-input {
   background: #b91c1c;
 }
 
+/* Cerrar una venta como ganada: verde, para que no se confunda con el color principal. */
+.fo-btn-success {
+  background: var(--fo-success);
+  border: 1px solid var(--fo-success);
+  color: #fff;
+}
+
+.fo-btn-success:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
 /** Variante destructiva secundaria (p. ej. desactivar módulo) */
 .fo-btn-danger-outline {
   background: var(--fo-bg-elevated);
