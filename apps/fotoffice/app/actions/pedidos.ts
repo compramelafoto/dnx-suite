@@ -27,6 +27,7 @@ import {
 } from "@/lib/pedidos/cuentas-pagar";
 import { cambiarEstadoPedido, cambiarRubro, crearPedidoManual, type Resultado, type ResultadoAlta } from "@/lib/pedidos/pedidos";
 import { editarPlan } from "@/lib/pedidos/plan";
+import { agregarItemAlPedido, type ResultadoAgregarItem } from "@/lib/pedidos/agregar-item";
 
 // Archivo "use server": sólo exporta funciones async. Cada acción, en este orden: revisa la forma
 // de lo que llega, arma el contexto (sesión + workspace de la sesión + módulo `orders` encendido
@@ -395,5 +396,33 @@ export async function aplicarPlantillaAction(datos: { pedidoId: string; plantill
   if (!ctx) return SIN_ACCESO;
   const r = await aplicarPlantilla(ctx, datos.pedidoId, datos.plantilla);
   if (r.ok) revalidar(datos.pedidoId);
+  return r;
+}
+
+/**
+ * «Agregar producto» a un pedido ya tomado: suma el renglón, sube el saldo y crea sus trabajos
+ * (ver `lib/pedidos/agregar-item.ts`).
+ */
+export async function agregarItemAlPedidoAction(datos: {
+  pedidoId: string;
+  productId: string | null;
+  nombre: string;
+  cantidad: number;
+  precioUnitario: number;
+  entrega?: string | null;
+  clave: string;
+}): Promise<ResultadoAgregarItem> {
+  if (!esObjeto(datos) || !esId(datos.pedidoId)) return INVALIDO;
+  const ctx = await contextoDePedidos("operar");
+  if (!ctx) return SIN_ACCESO;
+  const r = await agregarItemAlPedido(ctx, datos);
+  if (r.ok && !r.repetido) {
+    const workspaceId = ctx.workspaceId;
+    const pedidoId = datos.pedidoId;
+    after(() => empujarCitasDelPedido(workspaceId, pedidoId));
+    after(() => empujarEntregasDelPedido(workspaceId, pedidoId));
+    revalidatePath(`/pedidos/${pedidoId}`);
+    revalidatePath("/proyectos");
+  }
   return r;
 }
