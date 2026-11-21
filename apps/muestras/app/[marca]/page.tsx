@@ -3,6 +3,8 @@ import { ACTIVITY_TYPE_LABELS, DEFAULT_COUNTRY, applyFilter, cleanPlaceLabel, fo
 import { Filtros } from "@/components/listado/filtros";
 import { TarjetaActividad } from "@/components/listado/tarjeta-actividad";
 import { MapaNacionalCliente } from "@/components/mapa/mapa-nacional-cliente";
+import { GrillaArte } from "@/components/portada/grilla-arte";
+import { marcaDeParams } from "@/lib/ruta-marca";
 import { Banner } from "@/components/portada/banner";
 import { listarPublicas } from "@/lib/actividades/consultas";
 import { FOTOS_PORTADA } from "@/lib/portada/fotos";
@@ -16,7 +18,8 @@ type Busqueda = { pais?: string; provincia?: string; tipo?: string; abiertas?: s
 const accionFina = "inline-flex h-11 items-center border border-[var(--mf-ink)] px-5 text-[15px] transition-colors hover:bg-[var(--mf-ink)] hover:text-white";
 
 
-export default async function Inicio({ searchParams }: { searchParams: Promise<Busqueda> }) {
+export default async function Inicio({ params, searchParams }: { params: Promise<{ marca: string }>; searchParams: Promise<Busqueda> }) {
+  const marca = await marcaDeParams(params);
   const sp = await searchParams;
   const ahora = new Date();
   const todas = await listarPublicas();
@@ -56,7 +59,8 @@ export default async function Inicio({ searchParams }: { searchParams: Promise<B
 
   return (
     <main>
-      <Banner fotos={FOTOS_PORTADA} />
+      <Banner fotos={marca.id === "ARTE" ? [] : FOTOS_PORTADA} marca={marca} />
+      {marca.id === "ARTE" ? <GrillaArte muestras={[]} /> : null}
 
       <section aria-labelledby="titulo-funciones" className="mf-marco pt-20 sm:pt-28">
         <h2 id="titulo-funciones" className="mf-titulo max-w-[16ch] text-[clamp(2rem,4.5vw,3.5rem)]">Todo lo que podés hacer con tu muestra</h2>

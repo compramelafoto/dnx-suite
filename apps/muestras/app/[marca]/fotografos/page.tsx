@@ -1,25 +1,28 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { marcaDeParams } from "@/lib/ruta-marca";
 import { listarFotografos } from "@/lib/perfiles/consultas";
 import { esUrlWeb } from "@/lib/url";
 
 export const revalidate = 300;
 
 /** Mientras no haya perfiles publicados, la página vacía no se indexa. */
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ marca: string }> }): Promise<Metadata> {
+  const marca = await marcaDeParams(params);
   const vacia = (await listarFotografos()).length === 0;
   return {
-    title: "Fotógrafos que expusieron",
+    title: marca.palabraAutor.titulo,
     description: "Autores que colgaron sus obras en muestras de fotografía de todo el país.",
     ...(vacia ? { robots: { index: false, follow: true } } : {}),
   };
 }
 
-export default async function Fotografos() {
+export default async function Fotografos({ params }: { params: Promise<{ marca: string }> }) {
+  const marca = await marcaDeParams(params);
   const perfiles = await listarFotografos();
   return (
     <main className="mf-marco py-10 sm:py-16">
-      <h1 className="mf-titulo max-w-[16ch] text-[clamp(2.2rem,5vw,3.5rem)]">Fotógrafos que expusieron</h1>
+      <h1 className="mf-titulo max-w-[16ch] text-[clamp(2.2rem,5vw,3.5rem)]">{marca.palabraAutor.titulo}</h1>
       <p className="mt-4 max-w-[52ch] text-lg leading-snug text-[var(--mf-muted)]">Autores que colgaron sus obras en muestras de todo el país.</p>
       {perfiles.length === 0 ? (
         <p className="mt-10 border-t border-[var(--mf-line)] pt-8 text-lg">Todavía no hay perfiles publicados.</p>

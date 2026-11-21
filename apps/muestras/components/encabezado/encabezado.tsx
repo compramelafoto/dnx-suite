@@ -1,6 +1,8 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Marca } from "@/lib/marca";
 import { getUsuario } from "@/lib/usuario";
+import { capitalizar } from "@/lib/texto-marca";
 import { BarraEncabezado } from "./barra";
 
 const enlace = "whitespace-nowrap px-1.5 py-1.5 underline-offset-[6px] hover:underline sm:px-2.5";
@@ -9,7 +11,7 @@ const enlace = "whitespace-nowrap px-1.5 py-1.5 underline-offset-[6px] hover:und
  * Encabezado común a todas las páginas. Lee la sesión, así que vuelve dinámicas las páginas
  * que lo usan: es el precio de mostrar "Mi panel" y "Salir" a quien entró.
  */
-export async function Encabezado() {
+export async function Encabezado({ marca }: { marca: Marca }) {
   const usuario = await getUsuario();
   return (
     <BarraEncabezado>
@@ -27,11 +29,11 @@ export async function Encabezado() {
           />
           {/* Sobre el banner el nombre ya está grande abajo: acá queda sólo para lectores de pantalla.
               Con la sesión abierta hay más enlaces y en el teléfono también se oculta. */}
-          <span className={`mf-titulo whitespace-nowrap text-[17px] tracking-[-0.02em] group-data-[sobre-foto=true]:sr-only ${usuario ? "max-sm:sr-only" : ""}`}>Muestras Fotográficas</span>
+          <span className={`mf-titulo whitespace-nowrap text-[17px] tracking-[-0.02em] group-data-[sobre-foto=true]:sr-only ${usuario ? "max-sm:sr-only" : ""}`}>{marca.nombre}</span>
         </Link>
         {/* En el teléfono no entra: queda en el pie. */}
         <Link href="/convocatorias" className={`${enlace} max-sm:hidden`}>Convocatorias</Link>
-        <Link href="/fotografos" className={`${enlace} max-sm:hidden`}>Fotógrafos</Link>
+        <Link href={marca.rutaAutores} className={`${enlace} max-sm:hidden`}>{capitalizar(marca.palabraAutor.plural)}</Link>
         <Link href="/proponer" className={enlace}><span className="sm:hidden">Proponer</span><span className="max-sm:hidden">Proponé tu muestra</span></Link>
         {usuario ? (
           <>

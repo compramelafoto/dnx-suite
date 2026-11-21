@@ -33,12 +33,13 @@ export async function generateMetadata({ params }: LayoutProps<"/[marca]">): Pro
  * dinámico): así el 404 se dibuja dentro de este layout, con encabezado y pie, gracias a
  * `not-found.tsx` y al comodín `[...resto]`.
  */
-export default function LayoutDeMarca({ children }: LayoutProps<"/[marca]">) {
+export default async function LayoutDeMarca({ children, params }: LayoutProps<"/[marca]">) {
+  const marca = await marcaDeParams(params);
   return (
     <>
-      <Encabezado />
+      <Encabezado marca={marca} />
       <div className="flex-1">{children}</div>
-      <Pie />
+      <Pie marca={marca} />
     </>
   );
 }
