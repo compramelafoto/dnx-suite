@@ -239,7 +239,7 @@ export default function MisLaboratorios() {
                           <img
                             src={lab.logoUrl}
                             alt=""
-                            className="h-8 w-8 shrink-0 rounded-full object-cover border border-gray-200 bg-white"
+                            className="h-8 w-8 shrink-0 rounded-full object-contain p-0.5 border border-gray-200 bg-white"
                           />
                         ) : (
                           <span className="h-8 w-8 shrink-0 rounded-full border border-gray-200 bg-white" aria-hidden />
