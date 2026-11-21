@@ -112,6 +112,8 @@ describe("cargarTablero", () => {
       categoria: null,
       fechaEvento: null,
       valor: null,
+      clienteId: null,
+      notas: 0,
     });
     const j2 = t.columnas[1]!.tarjetas[0]!;
     expect(j2).toMatchObject({ diasEnEtapa: 3, vencida: false, tareas: { hechas: 0, total: 0 } });
@@ -221,6 +223,18 @@ describe("cargarTablero", () => {
     expect(t.columnas[0]!.tarjetas[0]).toMatchObject({ categoria: "Boda", fechaEvento: "20/12/2026", valor: 1250000.5 });
     const j2 = t.columnas[1]!.tarjetas.find((x) => x.journeyId === "j2")!;
     expect(j2).toMatchObject({ categoria: "Retoque", fechaEvento: null, valor: 300 });
+  });
+
+  it("cada tarjeta lleva el cliente de su consulta y cuántas notas vigentes tiene (sin las borradas ni las de otro workspace)", async () => {
+    B.agregar("fotofficeConsulta", { workspaceId: "ws-1", leadId: "l1", clientId: "cli-1", categoryId: "cat", estimatedValue: null });
+    B.agregar("fotofficeNote", { id: "n1", workspaceId: "ws-1", clientId: "cli-1", body: "Llamar el lunes", authorLabel: "Ana", deletedAt: null });
+    B.agregar("fotofficeNote", { id: "n2", workspaceId: "ws-1", clientId: "cli-1", body: "Quiere álbum", authorLabel: "Ana", deletedAt: null });
+    B.agregar("fotofficeNote", { id: "n3", workspaceId: "ws-1", clientId: "cli-1", body: "Borrada", authorLabel: "Ana", deletedAt: new Date("2026-10-01T00:00:00Z") });
+    B.agregar("fotofficeNote", { id: "n4", workspaceId: "ws-2", clientId: "cli-1", body: "Ajena", authorLabel: "X", deletedAt: null });
+    const t = await cargarTablero(CTX, null, {}, AHORA);
+    expect(t.columnas[0]!.tarjetas[0]).toMatchObject({ journeyId: "j1", clienteId: "cli-1", notas: 2 });
+    // Sin ficha de consulta no hay cliente: la tarjeta no ofrece notas.
+    expect(t.columnas[1]!.tarjetas[0]).toMatchObject({ journeyId: "j2", clienteId: null, notas: 0 });
   });
 
   it("el total respeta los filtros del tablero", async () => {
