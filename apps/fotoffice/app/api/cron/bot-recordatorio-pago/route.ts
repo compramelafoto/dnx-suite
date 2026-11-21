@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { recordarPagosPendientes } from "@/lib/bandeja/bot/recordatorio-pago-servidor";
+import { recordarConsultasDeAnuncio } from "@/lib/bandeja/bot/recordatorio-anuncio-servidor";
 import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
 import { sanitizeError } from "@/lib/payments/connect/log";
 
@@ -16,7 +17,8 @@ function autorizado(request: Request): boolean {
 /**
  * Recordatorio de pago del bot de WhatsApp: cada 15 minutos busca los chats con un pedido sin pagar
  * cerca del final de la ventana de 24 h y les escribe una vez. A los que consultaron un precio del
- * catálogo y no compraron, les hace un seguimiento (una vez por semana como mucho). Devuelve sólo contadores.
+ * catálogo y no compraron, les hace un seguimiento (una vez por semana como mucho). A los que llegaron de
+ * un anuncio de VHS o XV y no contestaron, les escribe a la hora y antes de las 24 h. Devuelve sólo contadores.
  */
 export async function POST(request: Request) {
   if (!autorizado(request)) {
@@ -24,7 +26,8 @@ export async function POST(request: Request) {
   }
   try {
     const reporte = await recordarPagosPendientes();
-    return NextResponse.json({ ok: true, ...reporte });
+    const anuncios = await recordarConsultasDeAnuncio();
+    return NextResponse.json({ ok: true, ...reporte, anuncios });
   } catch (error) {
     console.error("[fotoffice][whatsapp] fallaron los recordatorios de pago", { detalle: sanitizeError(error) });
     return NextResponse.json({ ok: false, error: "fallaron los recordatorios" }, { status: 500 });
