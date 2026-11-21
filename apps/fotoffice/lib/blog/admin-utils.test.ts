@@ -83,6 +83,7 @@ describe("navegación del blog", () => {
     expect(blogAdminSectionFor("/website/blog/42")).toBe("posts");
     expect(blogAdminSectionFor("/website/blog/categorias")).toBe("categorias");
     expect(blogAdminSectionFor("/website/blog/media")).toBe("media");
+    expect(blogAdminSectionFor("/website/blog/estadisticas")).toBe("estadisticas");
     expect(blogAdminSectionFor("/website/blogger")).toBeNull();
     expect(blogAdminSectionFor("/website/seo")).toBeNull();
   });
