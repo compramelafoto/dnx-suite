@@ -1,0 +1,3 @@
+*.pdf
+.para-pdf.html
+__pycache__/
