@@ -166,7 +166,12 @@ export function FormularioConsulta({
       aria-label="Nueva consulta"
     >
       <fieldset className="space-y-3" disabled={pendiente}>
-        <legend className="text-base font-semibold text-[var(--fo-text)]">Contacto</legend>
+        <legend className="mb-1 flex items-center gap-2 text-base font-semibold text-[var(--fo-text)]">
+          <span aria-hidden="true" className="inline-flex size-6 items-center justify-center rounded-full bg-[var(--fo-accent)] text-xs font-bold text-white">
+            1
+          </span>
+          Quién consulta
+        </legend>
         {veContactos ? (
         <div className="flex gap-2 text-sm" role="group" aria-label="Contacto existente o nuevo">
           <button
@@ -236,8 +241,13 @@ export function FormularioConsulta({
         )}
       </fieldset>
 
-      <fieldset className="space-y-3" disabled={pendiente}>
-        <legend className="text-base font-semibold text-[var(--fo-text)]">Consulta</legend>
+      <fieldset className="space-y-3 border-t border-[var(--fo-border-muted)] pt-5" disabled={pendiente}>
+        <legend className="mb-1 flex items-center gap-2 text-base font-semibold text-[var(--fo-text)]">
+          <span aria-hidden="true" className="inline-flex size-6 items-center justify-center rounded-full bg-[var(--fo-accent)] text-xs font-bold text-white">
+            2
+          </span>
+          Qué necesita
+        </legend>
         <label className="fo-field-stack">
           <span className="fo-label">Categoría</span>
           <select className="fo-input" value={categoriaId} {...marca("categoria")} onChange={(e) => setCategoriaId(e.target.value)}>
