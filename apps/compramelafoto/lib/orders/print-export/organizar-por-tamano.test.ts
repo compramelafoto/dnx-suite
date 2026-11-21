@@ -113,4 +113,16 @@ describe("organizarPorTamano", () => {
     const manifest = execFileSync("unzip", ["-p", zip, `${CARPETA_CONTROL}/${JUAN}/MANIFEST.txt`], { encoding: "utf8" });
     assert.match(manifest, /15x21 \| 1 \| \(FALTA ARCHIVO\)/);
   });
+
+  it("acepta extras binarios (el remito en PDF) y los guarda tal cual", async () => {
+    const { plans, resumen } = organizarPorTamano(planes(), { separarClientes: false });
+    const pdf = new Uint8Array([37, 80, 68, 70, 45, 49, 46, 55]);
+    const leer = async (key: string) => Buffer.from(`bytes de ${key}`);
+    const res = streamPrintExportZip(plans, "prueba", [resumen, { name: `${CARPETA_CONTROL}/REMITO.pdf`, content: pdf }], leer);
+    const dir = mkdtempSync(path.join(tmpdir(), "zip-extras-"));
+    const zip = path.join(dir, "prueba.zip");
+    writeFileSync(zip, Buffer.from(await res.arrayBuffer()));
+    const remito = execFileSync("unzip", ["-p", zip, `${CARPETA_CONTROL}/REMITO.pdf`]);
+    assert.deepEqual(new Uint8Array(remito), pdf);
+  });
 });

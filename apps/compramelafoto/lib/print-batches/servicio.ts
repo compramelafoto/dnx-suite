@@ -213,7 +213,8 @@ export async function armarLote(photographerId: number, albumOrderIds: number[],
   }
 }
 
-async function loteDelFotografo(photographerId: number, batchId: number) {
+/** El lote del fotógrafo con sus pedidos vivos; si no es suyo o no existe, `LoteError`. */
+export async function loteDelFotografo(photographerId: number, batchId: number) {
   const b = await prisma.printBatch.findFirst({
     where: { id: batchId, photographerId },
     include: { entries: { where: { quitadoAt: null } }, photographer: { select: { name: true, companyName: true, email: true } } },
