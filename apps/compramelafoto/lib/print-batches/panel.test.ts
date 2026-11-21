@@ -5,6 +5,11 @@ import {
   accionesDelLote,
   agruparParaImprimir,
   columnaDelLote,
+  conteoDelPanel,
+  pasoDeLaEntrada,
+  pasoInicialDelPanel,
+  PASOS_DEL_PANEL,
+  type DatosDelPanel,
   confirmacionAlMover,
   fechaDelPanel,
   laboratorioDeLaSeleccion,
@@ -20,6 +25,7 @@ import {
   type LaboratorioDelPanel,
   type PedidoDelPanel,
 } from "./panel";
+import type { EstadoLote } from "./reglas";
 
 const pedido = (id: number, extra: Partial<PedidoDelPanel> = {}): PedidoDelPanel => ({
   albumOrderId: id, cliente: `Cliente ${id}`, album: "Álbum", copias: [{ medida: "13x18", acabado: "BRILLO", cantidad: 2 }],
@@ -175,4 +181,56 @@ test("confirmacionDeEntrega y nota de «Para imprimir»", () => {
   assert.equal(confirmacionDeEntrega(3871), "¿Marcar entregado el pedido #3871?");
   assert.equal(confirmacionDeEntrega(null), "¿Marcar entregado este pedido?");
   assert.equal(NOTA_PARA_IMPRIMIR, "Se muestran los pedidos pagados de los últimos 60 días.");
+});
+
+function loteDePrueba(estado: EstadoLote, entradas: Array<Partial<EntradaDelPanel>>): LoteDelPanel {
+  return {
+    id: 1, nombre: "Lote 1 · 21/11", estado, entregaPreferida: "RETIRA_FOTOGRAFO", labContactId: null, laboratorio: null,
+    mensajeAlLab: null, fechaPrometida: null, createdAt: "2026-11-21T12:00:00.000Z", enviadoAt: null, labAbrioAt: null,
+    labDescargoAt: null, listoAt: null, recibidoAt: null, cerradoAt: null, pagadoAlLabAt: null,
+    entradas: entradas.map((e, i) => ({
+      id: i + 1, albumOrderId: 100 + i, cliente: "Ana", album: "XV", copias: [], totalCopias: 1, retiraCliente: false,
+      pickupLabContactId: null, estadoPedido: null, entregadoAt: null, codigoQr: null, ...e,
+    })),
+  };
+}
+
+test("pasoDeLaEntrada: cada pedido de un lote cae en un solo paso", () => {
+  assert.equal(pasoDeLaEntrada(loteDePrueba("ARMADO", [{}]), loteDePrueba("ARMADO", [{}]).entradas[0]), "PARA_IMPRIMIR");
+  const enLab = loteDePrueba("EN_PRODUCCION", [{ estadoPedido: "IN_PRODUCTION" }]);
+  assert.equal(pasoDeLaEntrada(enLab, enLab.entradas[0]), "EN_LABORATORIO");
+  const listo = loteDePrueba("LISTO", [{ estadoPedido: "READY_TO_PICKUP", retiraCliente: true }]);
+  assert.equal(pasoDeLaEntrada(listo, listo.entradas[0]), "LISTOS");
+  const entregado = loteDePrueba("RECIBIDO", [{ estadoPedido: "DELIVERED", entregadoAt: "2026-11-21T15:00:00.000Z" }]);
+  assert.equal(pasoDeLaEntrada(entregado, entregado.entradas[0]), "ENTREGADOS");
+  const porLaRutaVieja = loteDePrueba("RECIBIDO", [{ estadoPedido: "RETIRED" }]);
+  assert.equal(pasoDeLaEntrada(porLaRutaVieja, porLaRutaVieja.entradas[0]), "ENTREGADOS");
+  const cerrado = loteDePrueba("CERRADO", [{ estadoPedido: "DELIVERED" }]);
+  assert.equal(pasoDeLaEntrada(cerrado, cerrado.entradas[0]), "ENTREGADOS");
+});
+
+test("conteoDelPanel: cuenta pedidos por paso, sin contar dos veces el mismo", () => {
+  const datos: DatosDelPanel = {
+    paraImprimir: [
+      { albumOrderId: 1, cliente: "A", album: "X", copias: [], totalCopias: 1, retiraCliente: false, pickupLabContactId: null, pagadoAt: "2026-11-20T12:00:00.000Z", motivo: null },
+      { albumOrderId: 2, cliente: "B", album: "X", copias: [], totalCopias: 1, retiraCliente: false, pickupLabContactId: null, pagadoAt: "2026-11-20T12:00:00.000Z", motivo: "El álbum venció: las fotos ya no están." },
+    ],
+    lotes: [
+      loteDePrueba("ARMADO", [{}]),
+      // Un lote en el laboratorio con un pedido ya listo para retirar: ese pedido cuenta sólo en «Listos».
+      loteDePrueba("LISTO", [{ estadoPedido: "READY_TO_PICKUP", retiraCliente: true }, { estadoPedido: "READY" }]),
+      loteDePrueba("CERRADO", [{ estadoPedido: "DELIVERED" }, { estadoPedido: "DELIVERED" }]),
+    ],
+    laboratorios: [],
+  };
+  assert.deepEqual(conteoDelPanel(datos), { PARA_IMPRIMIR: 2, EN_LABORATORIO: 1, LISTOS: 1, ENTREGADOS: 2 });
+});
+
+test("pasoInicialDelPanel: el primer paso con pedidos, sin abrir en «Entregados»", () => {
+  assert.equal(pasoInicialDelPanel({ PARA_IMPRIMIR: 0, EN_LABORATORIO: 3, LISTOS: 1, ENTREGADOS: 9 }), "EN_LABORATORIO");
+  assert.equal(pasoInicialDelPanel({ PARA_IMPRIMIR: 0, EN_LABORATORIO: 0, LISTOS: 0, ENTREGADOS: 9 }), "PARA_IMPRIMIR");
+});
+
+test("PASOS_DEL_PANEL: cuatro pasos numerados en orden", () => {
+  assert.deepEqual(PASOS_DEL_PANEL.map((p) => [p.clave, p.numero]), [["PARA_IMPRIMIR", 1], ["EN_LABORATORIO", 2], ["LISTOS", 3], ["ENTREGADOS", 4]]);
 });
