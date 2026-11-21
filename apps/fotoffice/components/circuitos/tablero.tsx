@@ -12,6 +12,7 @@ import { clasePuntoDeEtapa, porcentajeDe, resumenDeColumnas } from "@/lib/circui
 import type { Tablero as DatosTablero, TarjetaVista } from "@/lib/circuitos/tablero";
 import { AltaRapida } from "@/components/consultas/alta-rapida";
 import { DialogoGanada } from "./dialogo-ganada";
+import { DialogoNotas } from "./dialogo-notas";
 import { DialogoPerdida } from "./dialogo-perdida";
 import type { Destino } from "./mover-a";
 import { Tarjeta, type AvisoTarjeta } from "./tarjeta";
@@ -81,6 +82,8 @@ export function Tablero({
   const [perdiendo, setPerdiendo] = useState<Omit<Operacion, "destino"> | null>(null);
   const [ganando, setGanando] = useState<Omit<Operacion, "destino"> | null>(null);
   const [sobre, setSobre] = useState<string | null>(null);
+  // Ventana de notas: vive acá (fuera de la tarjeta) para que escribir no arrastre la tarjeta.
+  const [notasDe, setNotasDe] = useState<{ id: string; titulo: string } | null>(null);
   const arrastre = useRef<Arrastre | null>(null);
   // Sombras en los bordes del tablero: avisan que hay más columnas a un costado.
   const scroller = useRef<HTMLDivElement | null>(null);
@@ -419,6 +422,7 @@ export function Tablero({
                             onMover={(d) => pedir(t, d)}
                             onPasarIgual={() => aviso && ejecutar(aviso.op, true)}
                             onCerrarAviso={() => quitarAviso(t.journeyId)}
+                            onNotas={() => t.clienteId && setNotasDe({ id: t.clienteId, titulo: t.sujeto.titulo })}
                           />
                         );
                       })}
@@ -473,6 +477,15 @@ export function Tablero({
         </div>
       </div>
 
+      <DialogoNotas
+        key={notasDe?.id ?? "cerrada"}
+        cliente={notasDe}
+        onCerrar={(huboCambios) => {
+          setNotasDe(null);
+          // El número del ícono sale del servidor: se vuelve a pedir el tablero.
+          if (huboCambios) router.refresh();
+        }}
+      />
       <DialogoGanada
         pregunta={esProyecto ? "¿Marcar el proyecto como terminado? No se puede deshacer." : undefined}
         titulo={ganando?.titulo ?? null}
