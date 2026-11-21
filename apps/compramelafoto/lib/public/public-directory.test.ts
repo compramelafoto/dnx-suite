@@ -30,6 +30,7 @@ import {
   assert.equal(where.approvalStatus, LabApprovalStatus.APPROVED);
   assert.equal(where.isActive, true);
   assert.equal(where.isSuspended, false);
+  assert.deepEqual(where.NOT, { tags: { has: "solo-directorio" } });
 }
 
 {

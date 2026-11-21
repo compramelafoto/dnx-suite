@@ -5,6 +5,7 @@
  */
 
 import { DEMO_TAG } from "@/lib/demos/identidad";
+import { SIN_LABS_SOLO_DIRECTORIO } from "../labs/solo-directorio";
 import type { PrismaClient } from "@prisma/client";
 import {
   CommunityProfileType,
@@ -46,6 +47,8 @@ export function buildDirectoryLabsWhere() {
     approvalStatus: LabApprovalStatus.APPROVED,
     isActive: true as const,
     isSuspended: false as const,
+    // Los cargados por DNX sin cuenta no figuran en el directorio público.
+    ...SIN_LABS_SOLO_DIRECTORIO,
   };
 }
 
@@ -124,7 +127,7 @@ export const DIRECTORY_FORBIDDEN_FIELDS = [
   "approvalStatus",
 ] as const;
 
-function resolveAssetUrl(raw: string | null | undefined): string | null {
+export function resolveAssetUrl(raw: string | null | undefined): string | null {
   if (!raw?.trim()) return null;
   const value = raw.trim();
   if (value.startsWith("http://") || value.startsWith("https://")) return value;

@@ -11,6 +11,8 @@ import { buildPublicLabsWhere, PUBLIC_LAB_SELECT } from "./public-labs";
   assert.equal(where.isActive, true);
   assert.equal(where.isSuspended, false);
   assert.equal(where.OR, undefined);
+  // Los laboratorios cargados por DNX sin cuenta no se ofrecen para pedidos.
+  assert.deepEqual(where.NOT, { tags: { has: "solo-directorio" } });
 }
 
 {

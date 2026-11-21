@@ -1,4 +1,5 @@
 import { NextResponse, NextRequest } from "next/server";
+import { esLabSoloDirectorio, LAB_TAG_SOLO_DIRECTORIO } from "@/lib/labs/solo-directorio";
 import { prisma } from "@/lib/prisma";
 import { Role, LabApprovalStatus, TokenPurpose } from "@/lib/prisma";
 import { hashPassword } from "@repo/auth";
@@ -62,10 +63,12 @@ export async function POST(req: NextRequest) {
     // Verificar si ya existe un lab con ese email
     const existingLab = await prisma.lab.findUnique({
       where: { email },
-      select: { id: true },
+      select: { id: true, userId: true, tags: true },
     });
+    // Si DNX ya lo había cargado como laboratorio del sistema (sin cuenta), el registro toma esa ficha.
+    const fichaDelSistema = existingLab && esLabSoloDirectorio(existingLab) ? existingLab : null;
 
-    if (existingLab) {
+    if (existingLab && !fichaDelSistema) {
       return NextResponse.json(
         { error: "Este email ya está registrado para otro laboratorio" },
         { status: 400 }
@@ -106,26 +109,29 @@ export async function POST(req: NextRequest) {
       });
 
       // Crear laboratorio asociado (sin aprobación manual)
-      const lab = await tx.lab.create({
-        data: {
-          name,
-          email,
-          phone,
-          address,
-          city,
-          province,
-          country,
-          userId: user.id,
-          approvalStatus: LabApprovalStatus.APPROVED,
-          isActive: true,
-        },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          approvalStatus: true,
-        },
-      });
+      const datosLab = {
+        name,
+        email,
+        phone,
+        address,
+        city,
+        province,
+        country,
+        userId: user.id,
+        approvalStatus: LabApprovalStatus.APPROVED,
+        isActive: true,
+      };
+      const selectLab = { id: true, name: true, email: true, approvalStatus: true } as const;
+      const lab = fichaDelSistema
+        ? await tx.lab.update({
+            where: { id: fichaDelSistema.id },
+            data: {
+              ...datosLab,
+              tags: (fichaDelSistema.tags ?? []).filter((t) => t !== LAB_TAG_SOLO_DIRECTORIO),
+            },
+            select: selectLab,
+          })
+        : await tx.lab.create({ data: datosLab, select: selectLab });
 
       // Obtener productos del laboratorio de referencia (el que tiene más productos activos)
       // Usar ese como plantilla por defecto para todos los laboratorios nuevos
