@@ -1,23 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireSessionPhotographer } from "@/lib/fotografo/clientes-sesion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
+    // El fotógrafo sale de la sesión; el `photographerId` del query se ignora.
+    const { photographerId: id, response } = await requireSessionPhotographer();
+    if (response) return response;
+
     const { searchParams } = new URL(req.url);
-    const photographerId = searchParams.get("photographerId");
     const search = searchParams.get("search") || "";
-
-    if (!photographerId || !Number.isFinite(Number(photographerId))) {
-      return NextResponse.json(
-        { error: "photographerId es requerido" },
-        { status: 400 }
-      );
-    }
-
-    const id = Number(photographerId);
 
     // Solo pedidos CONFIRMADOS (pagados): el fotógrafo no ve clientes hasta que paguen
     const orders = await prisma.printOrder.findMany({

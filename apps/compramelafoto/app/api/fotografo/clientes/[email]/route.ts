@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireSessionPhotographer } from "@/lib/fotografo/clientes-sesion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,19 +14,14 @@ export async function PATCH(
   { params }: { params: Promise<{ email: string }> }
 ) {
   try {
+    // El fotógrafo sale de la sesión; el `photographerId` del cuerpo se ignora.
+    const { photographerId: id, response } = await requireSessionPhotographer();
+    if (response) return response;
+
     const { email } = await Promise.resolve(params);
     const decodedEmail = decodeURIComponent(email);
     const body = await req.json().catch(() => ({}));
-    const { photographerId, name, phone } = body;
-
-    if (!photographerId || !Number.isFinite(Number(photographerId))) {
-      return NextResponse.json(
-        { error: "photographerId es requerido" },
-        { status: 400 }
-      );
-    }
-
-    const id = Number(photographerId);
+    const { name, phone } = body;
 
     // Actualizar todos los pedidos del cliente con este email
     const result = await prisma.printOrder.updateMany({
@@ -79,19 +75,12 @@ export async function DELETE(
   { params }: { params: Promise<{ email: string }> }
 ) {
   try {
+    // El fotógrafo sale de la sesión; el `photographerId` del cuerpo se ignora.
+    const { photographerId: id, response } = await requireSessionPhotographer();
+    if (response) return response;
+
     const { email } = await Promise.resolve(params);
     const decodedEmail = decodeURIComponent(email);
-    const body = await req.json().catch(() => ({}));
-    const { photographerId } = body;
-
-    if (!photographerId || !Number.isFinite(Number(photographerId))) {
-      return NextResponse.json(
-        { error: "photographerId es requerido" },
-        { status: 400 }
-      );
-    }
-
-    const id = Number(photographerId);
 
     // Eliminar solo pedidos CANCELED con total 0 (los "fantasma" creados para notificaciones)
     const deletedOrders = await prisma.printOrder.deleteMany({
