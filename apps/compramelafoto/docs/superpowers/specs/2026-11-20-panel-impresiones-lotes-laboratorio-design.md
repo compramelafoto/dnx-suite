@@ -203,7 +203,7 @@ PrintBatch
   labId (nullable, copia del vínculo al enviar)
   nombre            "Lote 12 · 20/11"  (mismo armado de nombre que la línea escolar)
   tipo              COMUNES | ESCOLAR
-  estado            ARMADO | ENVIADO | EN_PRODUCCION | LISTO | RECIBIDO | CERRADO | ANULADO
+  estado            ARMADO | ENVIADO | EN_PRODUCCION | LISTO | DESPACHADO | RECIBIDO | CERRADO | ANULADO
   mensajeAlLab, entregaPreferida (RETIRA_FOTOGRAFO | ENVIA_LAB), fechaPrometida?
   tokenHash         (el enlace del laboratorio; el token en claro sólo viaja en el correo)
   enviadoAt, labAbrioAt, labDescargoAt, enProduccionAt, listoAt, recibidoAt, cerradoAt
