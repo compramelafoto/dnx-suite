@@ -33,7 +33,8 @@ const nextConfig: NextConfig = {
   },
   // Un mismo código, dos sitios: las páginas viven en app/[marca] y cada dominio se reescribe a
   // su carpeta (/fotografia o /arte). Van en `afterFiles` para que public/, _next/ y app/api se
-  // sirvan antes; las páginas siguen siendo estáticas (ISR) porque no leen headers().
+  // sirvan antes. La marca sale del segmento, no de headers(). Hoy las páginas igual se rinden a
+  // pedido por otra razón: el encabezado lee la sesión (cookies) en el servidor.
   async rewrites() {
     const resto = "/:path((?!api/|_next/).*)";
     const arte = [{ type: "host" as const, value: "(www\\.)?muestrasdearte\\.(com|localhost)" }];
