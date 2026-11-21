@@ -12,6 +12,10 @@ import {
   leerFechaPrometida,
   textoDeCopiasDelPanel,
   textoDeImpresion,
+  pedidosListosParaEntregar,
+  confirmacionDeEntrega,
+  NOTA_PARA_IMPRIMIR,
+  type LoteDelPanel,
   type EntradaDelPanel,
   type LaboratorioDelPanel,
   type PedidoDelPanel,
@@ -127,6 +131,8 @@ test("textoDeImpresion: estado del pedido y nombre del lote", () => {
   assert.equal(textoDeImpresion({ loteEstado: "ENVIADO", loteNombre: "Lote 3", estadoPedido: "CREATED", entregado: false }), "Enviado al laboratorio · Lote 3");
   assert.equal(textoDeImpresion({ loteEstado: "LISTO", loteNombre: "Lote 3", estadoPedido: "READY_TO_PICKUP", entregado: false }), "Listo para retirar · Lote 3");
   assert.equal(textoDeImpresion({ loteEstado: "CERRADO", loteNombre: "Lote 3", estadoPedido: "DELIVERED", entregado: true }), "Entregado · Lote 3");
+  // Un solo nombre por estado en todo el módulo (el mismo que el sobre).
+  assert.equal(textoDeImpresion({ loteEstado: "EN_PRODUCCION", loteNombre: "Lote 3", estadoPedido: "IN_PRODUCTION", entregado: false }), "En el laboratorio · Lote 3");
 });
 
 test("fechaDelPanel, copias y fecha prometida", () => {
@@ -139,4 +145,34 @@ test("fechaDelPanel, copias y fecha prometida", () => {
   assert.equal((leerFechaPrometida("2026-11-25") as Date).toISOString(), "2026-11-25T00:00:00.000Z");
   assert.equal(leerFechaPrometida("2026-02-30"), "invalida");
   assert.equal(leerFechaPrometida("25/11/2026"), "invalida");
+});
+
+const lote = (id: number, estado: LoteDelPanel["estado"], entradas: EntradaDelPanel[]): LoteDelPanel => ({
+  id, nombre: `Lote ${id}`, estado, entregaPreferida: "RETIRA_FOTOGRAFO", labContactId: null, laboratorio: null, mensajeAlLab: null,
+  fechaPrometida: null, createdAt: "2026-11-20T15:00:00.000Z", enviadoAt: null, labAbrioAt: null, labDescargoAt: null,
+  listoAt: null, recibidoAt: null, cerradoAt: null, pagadoAlLabAt: null, entradas,
+});
+
+test("pedidosListosParaEntregar: cada pedido «Listo para retirar» sin entregar, retire quien retire", () => {
+  const lotes = [
+    lote(1, "LISTO", [
+      entrada(10, { retiraCliente: true, estadoPedido: "READY_TO_PICKUP" }),
+      entrada(11, { retiraCliente: false, estadoPedido: "READY" }),
+    ]),
+    lote(2, "RECIBIDO", [
+      entrada(20, { retiraCliente: false, estadoPedido: "READY_TO_PICKUP" }),
+      entrada(21, { retiraCliente: true, estadoPedido: "DELIVERED", entregadoAt: "2026-11-21T10:00:00.000Z" }),
+    ]),
+    lote(3, "CERRADO", [entrada(30, { estadoPedido: "READY_TO_PICKUP" })]),
+    lote(4, "ARMADO", [entrada(40, { estadoPedido: "READY_TO_PICKUP" })]),
+  ];
+  const listos = pedidosListosParaEntregar(lotes);
+  assert.deepEqual(listos.map((p) => [p.lote.id, p.entrada.id]), [[1, 10], [2, 20]]);
+  assert.equal(listos[0]!.lote.nombre, "Lote 1");
+});
+
+test("confirmacionDeEntrega y nota de «Para imprimir»", () => {
+  assert.equal(confirmacionDeEntrega(3871), "¿Marcar entregado el pedido #3871?");
+  assert.equal(confirmacionDeEntrega(null), "¿Marcar entregado este pedido?");
+  assert.equal(NOTA_PARA_IMPRIMIR, "Se muestran los pedidos pagados de los últimos 60 días.");
 });

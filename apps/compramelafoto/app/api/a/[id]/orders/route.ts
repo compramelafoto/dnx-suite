@@ -54,7 +54,7 @@ import { leerMarcaGrupo } from "@/lib/split-1n-carrito-evento/marca";
 import { shouldUseIntlFlow, intlBlockMessage } from "@/lib/international/intl-order";
 import { createIntlAlbumOrder } from "@/lib/international/intl-order-service";
 import { ensureAlbumOrderMpPreference } from "@/lib/mercadopago/album-order-mp-preference";
-import { consultaPuntosDeRetiro, elegirPuntoDeRetiro, puntosDeRetiroDelAlbum, type PuntoDeRetiro } from "@/lib/print-batches/puntos-de-retiro";
+import { consultaPuntosDeRetiro, elegirPuntoDeRetiro, puntosDeRetiroDelAlbum, retiraElCliente, type PuntoDeRetiro } from "@/lib/print-batches/puntos-de-retiro";
 
 function normalizePercent(value: unknown): number | null {
   const parsed = Number(value);
@@ -484,11 +484,11 @@ export async function POST(
     // álbum donde retira el cliente. Canje y carrito de evento no lo guardan; sin puntos, nada cambia.
     // El servidor nunca devuelve error por esto (p. ej. CanjeExtrasStep no manda la elección).
     let pickupLabContactId: number | null = null;
-    const pickupByAlbum = (album.pickupBy ?? "CLIENT") as string;
+    const pickupByAlbum = album.pickupBy ?? null;
     if (
       !carritoEvento &&
       !canjeVoucher &&
-      pickupByAlbum === "CLIENT" &&
+      retiraElCliente(pickupByAlbum) &&
       album.userId &&
       orderItemsData.some((it) => it.productType === "PRINT")
     ) {
@@ -751,9 +751,6 @@ export async function POST(
       }
       if (msg.includes("buyerName") && (msg.includes("Unknown argument") || msg.includes("Unknown column"))) {
         delete fallbackData.buyerName;
-      }
-      if (msg.includes("pickupLabContactId") && (msg.includes("Unknown argument") || msg.includes("does not exist"))) {
-        delete fallbackData.pickupLabContactId;
       }
       if (fallbackData !== baseData) {
         order = await prisma.order.create({

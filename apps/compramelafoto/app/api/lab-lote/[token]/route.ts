@@ -23,6 +23,8 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Mover un lote grande cambia y avisa pedido por pedido.
+export const maxDuration = 300;
 
 const CABECERAS = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow" };
 

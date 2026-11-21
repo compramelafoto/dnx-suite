@@ -33,7 +33,7 @@ import {
 import { resolveEventDigitalPhotoBasePrice } from "@/lib/pricing/event-digital-photo-price-resolver";
 import { denyIfTestAlbumNotOwnerPreview } from "@/lib/public-album-test-access";
 import { resolveCheckoutOrderPhotoThumbUrl } from "@/lib/images/order-photo-thumb-url";
-import { consultaPuntosDeRetiro, puntosDeRetiroDelAlbum, type PuntoDeRetiro } from "@/lib/print-batches/puntos-de-retiro";
+import { consultaPuntosDeRetiro, puntosDeRetiroDelAlbum, retiraElCliente, type PuntoDeRetiro } from "@/lib/print-batches/puntos-de-retiro";
 
 async function buildOrderPhotosResponse(albumId: number, photoIds: number[], debugCheckout = false) {
   const startedAt = Date.now();
@@ -530,7 +530,7 @@ async function buildOrderPhotosResponse(albumId: number, photoIds: number[], deb
   // el checkout sigue como siempre con `pickupInfo`.
   let puntosDeRetiro: PuntoDeRetiro[] = [];
   const duenoId = u?.id ?? album.userId ?? null;
-  if (pickupBy === "CLIENT" && duenoId) {
+  if (retiraElCliente(pickupBy) && duenoId) {
     try {
       const contactos = await prisma.photographerLabContact.findMany(consultaPuntosDeRetiro(duenoId));
       puntosDeRetiro = puntosDeRetiroDelAlbum(pickupBy, contactos);

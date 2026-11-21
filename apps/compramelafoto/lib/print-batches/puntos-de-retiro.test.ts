@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { elegirPuntoDeRetiro, puntosDeRetiroDelAlbum, type ContactoParaRetiro } from "./puntos-de-retiro";
+import { contactoDeRetiro, direccionDelContacto, elegirPuntoDeRetiro, puntosDeRetiroDelAlbum, retiraElCliente, type ContactoParaRetiro } from "./puntos-de-retiro";
 
 const base: ContactoParaRetiro = {
   id: 1,
@@ -65,4 +65,32 @@ test("id que no está entre los puntos: nulo y falta elegir; uno válido (númer
   assert.deepEqual(elegirPuntoDeRetiro(dos, 9.5), { id: null, faltaElegir: true });
   assert.deepEqual(elegirPuntoDeRetiro(dos, 9), { id: 9, faltaElegir: false });
   assert.deepEqual(elegirPuntoDeRetiro(dos, "7"), { id: 7, faltaElegir: false });
+});
+
+test("retiraElCliente: nulo o CLIENT es el cliente; PHOTOGRAPHER no", () => {
+  assert.equal(retiraElCliente(null), true);
+  assert.equal(retiraElCliente(undefined), true);
+  assert.equal(retiraElCliente("CLIENT"), true);
+  assert.equal(retiraElCliente("PHOTOGRAPHER"), false);
+});
+
+test("direccionDelContacto: la propia, si no la del laboratorio, si no null", () => {
+  assert.equal(direccionDelContacto({ direccion: " Mitre 5 ", lab: { address: "Otra", city: "Rosario" } }), "Mitre 5");
+  assert.equal(direccionDelContacto({ direccion: "", lab: { address: "Córdoba 900", city: " Rosario " } }), "Córdoba 900, Rosario");
+  assert.equal(direccionDelContacto({ direccion: null, lab: { address: null, city: "Rosario" } }), "Rosario");
+  assert.equal(direccionDelContacto({ direccion: null, lab: null }), null);
+});
+
+test("contactoDeRetiro: el elegido si sigue activo y es punto; si no, el predeterminado; si no, null", () => {
+  const c = (id: number, extra: Partial<{ activo: boolean; puntoDeRetiro: boolean; esPredeterminado: boolean }> = {}) =>
+    ({ id, activo: true, puntoDeRetiro: true, esPredeterminado: false, ...extra });
+  const pred = c(9, { esPredeterminado: true, puntoDeRetiro: false });
+  assert.equal(contactoDeRetiro(2, [c(2), pred])?.id, 2);
+  assert.equal(contactoDeRetiro(2, [c(2, { activo: false }), pred])?.id, 9, "desactivado: va al predeterminado");
+  assert.equal(contactoDeRetiro(2, [pred])?.id, 9, "borrado o ajeno: va al predeterminado");
+  assert.equal(contactoDeRetiro(2, [c(2, { puntoDeRetiro: false }), pred])?.id, 9, "dejó de ser punto de retiro");
+  assert.equal(contactoDeRetiro(2, [c(2, { puntoDeRetiro: false }), pred], 2)?.id, 2, "es el laboratorio del lote");
+  assert.equal(contactoDeRetiro(null, [c(2), pred])?.id, 9);
+  assert.equal(contactoDeRetiro(2, [c(2, { activo: false })]), null);
+  assert.equal(contactoDeRetiro(2, [c(9, { esPredeterminado: true, activo: false })]), null, "predeterminado inactivo no vale");
 });

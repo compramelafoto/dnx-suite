@@ -15,8 +15,8 @@ import { fotografoDeLaSesion, idDeLaRuta, leerCuerpo, responderError } from "@/l
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// Enviar revisa en R2 que estén todas las fotos del lote.
-export const maxDuration = 60;
+// Enviar revisa en R2 que estén todas las fotos del lote y mover un lote grande avisa pedido por pedido.
+export const maxDuration = 300;
 
 // «Cerrado» no se pide: el lote se cierra solo cuando se entregó todo.
 const ESTADOS: readonly EstadoLote[] = ["EN_PRODUCCION", "LISTO", "DESPACHADO", "RECIBIDO"];

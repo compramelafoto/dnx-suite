@@ -45,6 +45,35 @@ function limpio(v: string | null | undefined): string | null {
   return t ? t : null;
 }
 
+/** `pickupBy` del álbum: nulo (álbumes viejos) cuenta como que retira el cliente, en todos lados. */
+export function retiraElCliente(pickupBy: string | null | undefined): boolean {
+  return (pickupBy ?? "CLIENT") === "CLIENT";
+}
+
+/** Dirección de un punto de retiro: la propia o, si no tiene, la del laboratorio vinculado («calle, ciudad»). */
+export function direccionDelContacto(c: { direccion: string | null; lab: { address: string | null; city: string | null } | null }): string | null {
+  return limpio(c.direccion) ?? limpio([limpio(c.lab?.address), limpio(c.lab?.city)].filter(Boolean).join(", "));
+}
+
+export type ContactoVigente = { id: number; activo: boolean; puntoDeRetiro: boolean; esPredeterminado: boolean };
+
+/**
+ * Dónde retira el cliente, con los contactos del fotógrafo a mano. El elegido vale si sigue activo y
+ * es punto de retiro (o es el laboratorio del lote: «retira donde se imprime»); si no, el
+ * laboratorio predeterminado activo; si no hay, null. Lo usan el listado, el armado, el envío, el
+ * correo de «listo» y el QR del sobre, así todos resuelven igual.
+ */
+export function contactoDeRetiro<T extends ContactoVigente>(
+  elegidoId: number | null | undefined,
+  contactos: readonly T[],
+  labDelLoteId?: number | null,
+): T | null {
+  const elegido = elegidoId != null
+    ? contactos.find((c) => c.id === elegidoId && c.activo && (c.puntoDeRetiro || c.id === labDelLoteId))
+    : undefined;
+  return elegido ?? contactos.find((c) => c.activo && c.esPredeterminado) ?? null;
+}
+
 /**
  * Los puntos que se ofrecen: sólo si retira el cliente (`pickupBy` nulo cuenta como cliente,
  * igual que en `order-photos`). Sin dirección propia se usa la del laboratorio vinculado.
@@ -53,12 +82,11 @@ export function puntosDeRetiroDelAlbum(
   pickupBy: string | null | undefined,
   contactos: ContactoParaRetiro[],
 ): PuntoDeRetiro[] {
-  if ((pickupBy ?? "CLIENT") !== "CLIENT") return [];
+  if (!retiraElCliente(pickupBy)) return [];
   const puntos: PuntoDeRetiro[] = [];
   for (const c of contactos) {
     if (!c.activo || !c.puntoDeRetiro) continue;
-    const delLab = [limpio(c.lab?.address), limpio(c.lab?.city)].filter(Boolean).join(", ");
-    const direccion = limpio(c.direccion) ?? limpio(delLab);
+    const direccion = direccionDelContacto(c);
     if (!direccion) continue;
     puntos.push({ id: c.id, nombre: c.nombre.trim(), direccion, horario: limpio(c.horario) });
   }

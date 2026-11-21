@@ -90,14 +90,21 @@ export function avisaAlCliente(anterior: string, nuevo: string): boolean {
   return nuevo === "READY_TO_PICKUP" && anterior !== "READY_TO_PICKUP";
 }
 
+/** Estados del pedido espejo que ya cuentan como entregado (también por la ruta vieja de pedidos). */
+export const ESPEJO_ENTREGADO: readonly string[] = ["DELIVERED", "RETIRED"];
+
+/** Una entrada del lote está entregada si tiene `entregadoAt` o su espejo ya figura entregado. */
+export function entradaEntregada(e: { entregadoAt: Date | null; estadoPedido?: string | null }): boolean {
+  return e.entregadoAt != null || (e.estadoPedido != null && ESPEJO_ENTREGADO.includes(e.estadoPedido));
+}
+
 /**
- * El lote se cierra cuando todos sus pedidos vigentes (sin quitar) están
- * entregados o recibidos por el fotógrafo. Un pedido que retira el cliente
- * está hecho al entregarse; uno que retira el fotógrafo, al entregarse o al
- * recibir el lote. Sin pedidos vigentes o fuera de LISTO en adelante: no cierra.
+ * El lote se cierra sólo cuando todos sus pedidos vigentes (sin quitar) están entregados, sea quien
+ * sea el que retira: recibir el lote no alcanza para los que retira el fotógrafo (tiene que
+ * entregárselos a sus clientes). Sin pedidos vigentes o antes de LISTO: no cierra.
  */
 export function loteCerrado(
-  entries: Array<{ quitadoAt: Date | null; entregadoAt: Date | null; retiraCliente: boolean }>,
+  entries: Array<{ quitadoAt: Date | null; entregadoAt: Date | null; estadoPedido?: string | null }>,
   estado: EstadoLote,
 ): boolean {
   if (estado !== "LISTO" && estado !== "DESPACHADO" && estado !== "RECIBIDO" && estado !== "CERRADO") {
@@ -105,8 +112,7 @@ export function loteCerrado(
   }
   const vigentes = entries.filter((e) => e.quitadoAt == null);
   if (vigentes.length === 0) return false;
-  const recibido = estado === "RECIBIDO" || estado === "CERRADO";
-  return vigentes.every((e) => e.entregadoAt != null || (!e.retiraCliente && recibido));
+  return vigentes.every(entradaEntregada);
 }
 
 export type PedidoCandidato = {

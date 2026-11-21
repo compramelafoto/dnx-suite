@@ -57,8 +57,9 @@ export function textoDelEstado(estado: EstadoLote): string {
   return TEXTO_DEL_ESTADO[estado] ?? estado;
 }
 
+/** El nombre del fotógrafo que se muestra (correos, sobres, enlace del lab): uno solo para todo el módulo. */
 export function nombreDelFotografo(u: { name: string | null; companyName: string | null }): string {
-  return u.name?.trim() || u.companyName?.trim() || "Fotógrafo";
+  return u.name?.trim() || u.companyName?.trim() || "Tu fotógrafo";
 }
 
 export type ResumenDelPedido = { cliente: string; pedido: number | null; album: string; copias: CopiaResumen[]; totalCopias: number };

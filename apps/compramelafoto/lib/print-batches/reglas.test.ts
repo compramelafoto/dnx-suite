@@ -4,6 +4,7 @@ import {
   avisaAlCliente,
   estadoDelPedidoEnElTramo,
   estadoDelPedidoPara,
+  entradaEntregada,
   loteCerrado,
   motivoParaNoEntrar,
   puedeMover,
@@ -78,27 +79,34 @@ test("avisaAlCliente: sólo al entrar a READY_TO_PICKUP", () => {
   assert.equal(avisaAlCliente("CREATED", "READY"), false);
 });
 
-test("loteCerrado", () => {
-  const sinEntregar = { quitadoAt: null, entregadoAt: null, retiraCliente: true };
-  const entregado = { quitadoAt: null, entregadoAt: new Date(), retiraCliente: true };
-  const delFotografo = { quitadoAt: null, entregadoAt: null, retiraCliente: false };
-  const quitado = { quitadoAt: new Date(), entregadoAt: null, retiraCliente: true };
-  assert.equal(loteCerrado([sinEntregar, delFotografo], "LISTO"), false);
-  assert.equal(loteCerrado([entregado, delFotografo], "RECIBIDO"), true);
-  assert.equal(loteCerrado([entregado, delFotografo], "LISTO"), false);
-  assert.equal(loteCerrado([entregado, quitado], "RECIBIDO"), true);
-  assert.equal(loteCerrado([sinEntregar, delFotografo], "RECIBIDO"), false);
-  // Todos retira cliente: se cierra sin pasar por RECIBIDO.
-  assert.equal(loteCerrado([entregado, entregado], "LISTO"), true);
+test("loteCerrado: sólo con todos los vigentes entregados, retire quien retire", () => {
+  const sinEntregar = { quitadoAt: null, entregadoAt: null };
+  const entregado = { quitadoAt: null, entregadoAt: new Date() };
+  const quitado = { quitadoAt: new Date(), entregadoAt: null };
+  assert.equal(loteCerrado([sinEntregar, sinEntregar], "LISTO"), false);
+  // Recibir el lote ya no cierra los que retira el fotógrafo: falta entregarlos.
+  assert.equal(loteCerrado([entregado, sinEntregar], "RECIBIDO"), false);
   assert.equal(loteCerrado([entregado, sinEntregar], "LISTO"), false);
-  // Mixto: los del fotógrafo se dan por hechos recién al recibir el lote.
-  assert.equal(loteCerrado([entregado, delFotografo], "LISTO"), false);
-  assert.equal(loteCerrado([entregado, delFotografo], "RECIBIDO"), true);
+  assert.equal(loteCerrado([entregado, entregado], "RECIBIDO"), true);
+  assert.equal(loteCerrado([entregado, entregado], "LISTO"), true);
+  assert.equal(loteCerrado([entregado, entregado], "DESPACHADO"), true);
+  assert.equal(loteCerrado([entregado, quitado], "RECIBIDO"), true);
   // Sin pedidos vigentes, o antes de LISTO, o anulado: no cierra.
   assert.equal(loteCerrado([quitado], "LISTO"), false);
   assert.equal(loteCerrado([], "LISTO"), false);
+  assert.equal(loteCerrado([entregado], "ENVIADO"), false);
   assert.equal(loteCerrado([entregado], "EN_PRODUCCION"), false);
   assert.equal(loteCerrado([entregado], "ANULADO"), false);
+});
+
+test("loteCerrado: el espejo entregado por la ruta vieja (DELIVERED o RETIRED) cuenta como entregado", () => {
+  const porRutaVieja = { quitadoAt: null, entregadoAt: null, estadoPedido: "DELIVERED" };
+  const retirado = { quitadoAt: null, entregadoAt: null, estadoPedido: "RETIRED" };
+  const listo = { quitadoAt: null, entregadoAt: null, estadoPedido: "READY_TO_PICKUP" };
+  assert.equal(loteCerrado([porRutaVieja, retirado], "RECIBIDO"), true);
+  assert.equal(loteCerrado([porRutaVieja, listo], "RECIBIDO"), false);
+  assert.equal(entradaEntregada({ entregadoAt: null, estadoPedido: "SHIPPED" }), false);
+  assert.equal(entradaEntregada({ entregadoAt: new Date(), estadoPedido: "READY" }), true);
 });
 
 test("motivoParaNoEntrar", () => {

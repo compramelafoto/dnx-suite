@@ -5,6 +5,7 @@
  */
 
 import { estadoDelPedidoEnElTramo, puedeMover, type EntregaLote, type EstadoLote } from "./reglas";
+import { ESTADOS_DEL_PEDIDO } from "./entrega-del-pedido";
 
 export type CopiaDelPanel = { medida: string; acabado: string; cantidad: number };
 
@@ -63,9 +64,19 @@ export type DatosDelPanel = { paraImprimir: PedidoDelPanel[]; lotes: LoteDelPane
 /** Días que se muestran los lotes cerrados en «Entregados». */
 export const DIAS_DE_ENTREGADOS = 30;
 
+/** «Para imprimir» muestra los pedidos pagados de estos últimos días (los que ya están en un lote se ven en su lote). */
+export const DIAS_PARA_IMPRIMIR = 60;
+/** Tope de pedidos en «Para imprimir», del más nuevo al más viejo. */
+export const MAX_PARA_IMPRIMIR = 300;
+export const NOTA_PARA_IMPRIMIR = `Se muestran los pedidos pagados de los últimos ${DIAS_PARA_IMPRIMIR} días.`;
+
 export type Columna = "PARA_IMPRIMIR" | "EN_LABORATORIO" | "LISTOS" | "ENTREGADOS";
 
-/** Columna de un lote: armado (sin enviar) va con «Para imprimir»; anulado no se muestra. */
+/**
+ * Columna de la tarjeta de un lote: armado (sin enviar) va con «Para imprimir»; recibido, abajo de
+ * «Listos para entregar» (esa columna lista pedido por pedido, ver `pedidosListosParaEntregar`);
+ * a «Entregados» va sólo el cerrado (todo entregado); anulado no se muestra.
+ */
 export function columnaDelLote(estado: EstadoLote): Columna | null {
   switch (estado) {
     case "ARMADO":
@@ -96,6 +107,28 @@ const TEXTO_DEL_ESTADO: Record<EstadoLote, string> = {
 };
 export function textoDelEstadoDelLote(estado: EstadoLote): string {
   return TEXTO_DEL_ESTADO[estado] ?? estado;
+}
+
+export type PedidoListo = { lote: Pick<LoteDelPanel, "id" | "nombre">; entrada: EntradaDelPanel };
+
+/**
+ * «Listos para entregar»: cada pedido (retire quien retire) cuyo espejo está «Listo para retirar» y
+ * todavía no se entregó, de lotes que ya salieron y no se cerraron. El lote pasa a «Entregados»
+ * recién cuando se cierra (todos entregados).
+ */
+export function pedidosListosParaEntregar(lotes: readonly LoteDelPanel[]): PedidoListo[] {
+  const salida: PedidoListo[] = [];
+  for (const l of lotes) {
+    if (l.estado === "ARMADO" || l.estado === "CERRADO" || l.estado === "ANULADO") continue;
+    for (const e of l.entradas) {
+      if (e.entregadoAt == null && e.estadoPedido === "READY_TO_PICKUP") salida.push({ lote: { id: l.id, nombre: l.nombre }, entrada: e });
+    }
+  }
+  return salida;
+}
+
+export function confirmacionDeEntrega(albumOrderId: number | null): string {
+  return albumOrderId != null ? `¿Marcar entregado el pedido #${albumOrderId}?` : "¿Marcar entregado este pedido?";
 }
 
 export type GrupoParaImprimir = { labContactId: number | null; titulo: string; pedidos: PedidoDelPanel[] };
@@ -202,24 +235,13 @@ export function laboratorioParaEnviar(
   return { elegido: pred?.id ?? null, bloqueado: false };
 }
 
-const ESTADO_DEL_PEDIDO: Record<string, string> = {
-  CREATED: "En preparación",
-  IN_PRODUCTION: "En producción",
-  READY: "Listo en el laboratorio",
-  READY_TO_PICKUP: "Listo para retirar",
-  SHIPPED: "En camino",
-  DELIVERED: "Entregado",
-  RETIRED: "Entregado",
-  CANCELED: "Cancelado",
-};
-
 /** «Enviado al laboratorio · Lote 3»: el estado de impresión de un pedido, para su ficha. */
 export function textoDeImpresion(p: { loteEstado: EstadoLote; loteNombre: string; estadoPedido: string | null; entregado: boolean }): string {
   let estado: string;
   if (p.entregado) estado = "Entregado";
   else if (p.loteEstado === "ARMADO") estado = "En lote, sin enviar";
   else if (p.loteEstado === "ENVIADO") estado = "Enviado al laboratorio";
-  else estado = (p.estadoPedido && ESTADO_DEL_PEDIDO[p.estadoPedido]) || textoDelEstadoDelLote(p.loteEstado);
+  else estado = (p.estadoPedido && ESTADOS_DEL_PEDIDO[p.estadoPedido]) || textoDelEstadoDelLote(p.loteEstado);
   return `${estado} · ${p.loteNombre}`;
 }
 

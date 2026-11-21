@@ -58,7 +58,8 @@ export function actorDelSobre(p: { esDueno: boolean; esCuentaDelLab: boolean; ti
   return "ANONIMO";
 }
 
-const ESTADOS: Record<string, string> = {
+/** Cómo se llama cada estado del pedido espejo: uno solo para el sobre, el panel y la ficha del pedido. */
+export const ESTADOS_DEL_PEDIDO: Readonly<Record<string, string>> = {
   CREATED: "En preparación",
   IN_PRODUCTION: "En el laboratorio",
   READY: "Listo en el laboratorio",
@@ -69,7 +70,7 @@ const ESTADOS: Record<string, string> = {
   CANCELED: "Cancelado",
 };
 export function textoDelEstadoDelPedido(status: string): string {
-  return ESTADOS[status] ?? "En preparación";
+  return ESTADOS_DEL_PEDIDO[status] ?? "En preparación";
 }
 
 /**

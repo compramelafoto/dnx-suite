@@ -90,7 +90,7 @@ describe("leerResumen y texto del pedido", () => {
   it("a nombre de «Fotógrafo + Cliente»", () => {
     assert.equal(aNombreDe("Daniel Cuart", "Ana Pérez"), "Daniel Cuart + Ana Pérez");
     assert.equal(nombreDelFotografo({ name: "  ", companyName: "DNX Estudio" }), "DNX Estudio");
-    assert.equal(nombreDelFotografo({ name: null, companyName: null }), "Fotógrafo");
+    assert.equal(nombreDelFotografo({ name: null, companyName: null }), "Tu fotógrafo");
   });
   it("copias en una línea y sumadas por medida y acabado", () => {
     assert.equal(textoDeCopias([{ medida: "13x18", acabado: "BRILLO", cantidad: 3 }, { medida: "10x15", acabado: "", cantidad: 2 }]), "3× 13x18 BRILLO · 2× 10x15");

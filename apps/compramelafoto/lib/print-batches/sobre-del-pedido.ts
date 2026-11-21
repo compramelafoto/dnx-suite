@@ -4,6 +4,8 @@ import { secretoDeEntrega } from "@/lib/school-fulfillment/codigo-de-canje";
 import { hashDeToken, leerCodigoDeEntregaDePedido } from "./codigos";
 import { leerResumen, nombreDeLaCookie, nombreDelFotografo, tokenConFormatoValido } from "./puerta-del-lab";
 import { actorDelSobre, textoDelEstadoDelPedido, type ActorDelSobre } from "./entrega-del-pedido";
+import { direccionDelContacto } from "./puntos-de-retiro";
+import { contactoDeRetiroDelPedido } from "./retiro-del-pedido";
 
 /**
  * Lo que abre el QR del sobre de un pedido común: código → `PrintOrder` espejo → su entrada viva en
@@ -46,7 +48,7 @@ export async function cargarSobre(codigo: string): Promise<SobreDelPedido | Erro
       printOrder: { select: { status: true } },
       batch: {
         select: {
-          id: true, photographerId: true, labId: true, tokenHash: true,
+          id: true, photographerId: true, labId: true, tokenHash: true, labContactId: true,
           photographer: { select: { name: true, companyName: true } },
         },
       },
@@ -57,16 +59,12 @@ export async function cargarSobre(codigo: string): Promise<SobreDelPedido | Erro
   const r = leerResumen(entry.resumen);
   let dondeRetirar: DondeRetirar | null = null;
   if (entry.retiraCliente) {
-    const c = await prisma.photographerLabContact.findFirst({
-      where: entry.pickupLabContactId
-        ? { id: entry.pickupLabContactId }
-        : { photographerId: entry.batch.photographerId, activo: true, esPredeterminado: true },
-      select: { nombre: true, direccion: true, horario: true, lab: { select: { name: true, address: true, city: true } } },
-    });
+    // Punto desactivado o que dejó de serlo: el predeterminado activo (la misma regla que el correo).
+    const c = await contactoDeRetiroDelPedido(entry.batch.photographerId, entry.pickupLabContactId, entry.batch.labContactId);
     if (c) {
       dondeRetirar = {
         nombre: c.nombre?.trim() || c.lab?.name?.trim() || "El laboratorio",
-        direccion: c.direccion?.trim() || [c.lab?.address, c.lab?.city].filter((x) => x?.trim()).join(", ") || null,
+        direccion: direccionDelContacto(c),
         horario: c.horario?.trim() || null,
       };
     }
