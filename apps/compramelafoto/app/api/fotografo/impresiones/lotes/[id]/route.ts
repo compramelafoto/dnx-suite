@@ -8,7 +8,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { deshacerLote, enviarLote, loteDelFotografo, LoteError, moverLote } from "@/lib/print-batches/servicio";
+import { deshacerLote, enviarLote, loteDelFotografo, LoteError, LoteNoEncontrado, moverLote } from "@/lib/print-batches/servicio";
 import { leerFechaPrometida } from "@/lib/print-batches/panel";
 import type { EstadoLote } from "@/lib/print-batches/reglas";
 import { fotografoDeLaSesion, idDeLaRuta, leerCuerpo, responderError } from "@/lib/print-batches/ruta-del-panel";
@@ -32,6 +32,9 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!body) return invalido();
 
   try {
+    // Este panel sólo maneja lotes de pedidos comunes; uno ajeno o de otro tipo es «no encontrado».
+    const lote = await loteDelFotografo(yo.id, batchId);
+    if (lote.tipo !== "COMUNES") throw new LoteNoEncontrado("Lote no encontrado.");
     switch (body.accion) {
       case "ENVIAR": {
         const labContactId = body.labContactId;
@@ -56,7 +59,6 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
         await deshacerLote(yo.id, batchId);
         break;
       case "PAGADO_AL_LAB": {
-        const lote = await loteDelFotografo(yo.id, batchId);
         if (lote.estado === "ARMADO" || lote.estado === "ANULADO") throw new LoteError("El lote todavía no salió.");
         await prisma.printBatch.updateMany({
           where: { id: batchId, photographerId: yo.id, pagadoAlLabAt: null },

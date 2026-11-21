@@ -75,8 +75,9 @@ export default function PanelImpresiones() {
       const res = await fetch("/api/fotografo/impresiones", { credentials: "include", cache: "no-store" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "No pudimos cargar tus impresiones.");
+      // No borra `error`: recargar después de una acción fallida no tiene que esconder el motivo.
+      // El error se limpia al empezar la próxima acción del usuario.
       setDatos(data as DatosDelPanel);
-      setError(null);
     } catch (e: unknown) {
       setError(e instanceof Error && e.message !== "Failed to fetch" ? e.message : ERROR_DE_RED);
     }
@@ -133,7 +134,7 @@ export default function PanelImpresiones() {
   }
 
   async function confirmarEnvio(lote: LoteDelPanel, d: DatosDeEnvio) {
-    if (!window.confirm("Se le va a mandar un correo al laboratorio con el enlace del lote.")) return;
+    if (!window.confirm(`¿Enviar el ${lote.nombre}? Le llega un correo al laboratorio con el enlace.`)) return;
     setOcupado(true);
     setErrorEnvio(null);
     const fallo = await postear(`/api/fotografo/impresiones/lotes/${lote.id}`, {

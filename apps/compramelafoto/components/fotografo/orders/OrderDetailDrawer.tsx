@@ -65,6 +65,8 @@ export default function OrderDetailDrawer({
   const albumOrderConCopias =
     open && order && order.source === "ALBUM_ORDER" && isOrderPaid(order) && getPrintStatusLabel(order) != null ? order.id : null;
   useEffect(() => {
+    // Ficha cerrada o reabierta: nunca mostrar el lote de la vez anterior mientras se pide el nuevo.
+    setImpresion(null);
     if (albumOrderConCopias == null) return;
     let activo = true;
     fetch(`/api/fotografo/impresiones/pedidos/${albumOrderConCopias}`, { credentials: "include", cache: "no-store" })

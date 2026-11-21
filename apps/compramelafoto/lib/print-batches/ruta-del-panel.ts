@@ -2,11 +2,11 @@ import "server-only";
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
-import { LoteError } from "./servicio";
+import { LoteError, LoteNoEncontrado } from "./servicio";
 
 /**
  * Lo común a las rutas del panel «Impresiones»: sesión de fotógrafo, id numérico de la ruta y
- * respuesta de errores (`LoteError` → 400 con su texto; cualquier otro → 500 genérico).
+ * respuesta de errores (`LoteNoEncontrado` → 404 y otro `LoteError` → 400, con su texto; cualquier otro → 500 genérico).
  */
 
 export const SIN_SESION = "No autorizado. Iniciá sesión como fotógrafo.";
@@ -29,6 +29,7 @@ export async function leerCuerpo(req: Request): Promise<Record<string, unknown> 
 }
 
 export function responderError(donde: string, err: unknown): NextResponse {
+  if (err instanceof LoteNoEncontrado) return NextResponse.json({ error: err.message }, { status: 404 });
   if (err instanceof LoteError) return NextResponse.json({ error: err.message }, { status: 400 });
   console.error(`${donde} >>>`, err);
   return NextResponse.json({ error: ERROR_GENERICO }, { status: 500 });

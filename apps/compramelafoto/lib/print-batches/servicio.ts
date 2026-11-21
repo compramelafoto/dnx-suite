@@ -18,6 +18,8 @@ import { correoAlLaboratorio, correoListoRetiraEnLaboratorio, correoListoRetiraF
  */
 
 export class LoteError extends Error {}
+/** Lote o pedido del lote inexistente o ajeno (las rutas del panel responden 404). Sigue siendo un `LoteError`. */
+export class LoteNoEncontrado extends LoteError {}
 
 export type PedidoParaImprimir = {
   albumOrderId: number; printOrderId: number | null; cliente: string; album: string;
@@ -219,7 +221,7 @@ export async function loteDelFotografo(photographerId: number, batchId: number) 
     where: { id: batchId, photographerId },
     include: { entries: { where: { quitadoAt: null } }, photographer: { select: { name: true, companyName: true, email: true } } },
   });
-  if (!b) throw new LoteError("Lote no encontrado.");
+  if (!b) throw new LoteNoEncontrado("Lote no encontrado.");
   return b;
 }
 
@@ -339,7 +341,7 @@ export async function moverLote(batchId: number, hacia: EstadoLote, actor: Actor
     ((actor.tipo === "FOTOGRAFO" && b.photographerId === actor.userId) ||
       (actor.tipo === "LABORATORIO" && b.tokenHash != null && b.tokenHash === actor.tokenHash) ||
       (actor.tipo === "LABORATORIO_CUENTA" && b.labId != null && b.labId === actor.labId));
-  if (!b || !esDueno) throw new LoteError("Lote no encontrado.");
+  if (!b || !esDueno) throw new LoteNoEncontrado("Lote no encontrado.");
   if (b.estado === hacia) {
     // Reparación: volver a aplicar el estado a los pedidos que hayan quedado atrás.
     if (hacia !== "ARMADO" && hacia !== "ANULADO") await aplicarAPedidos(b, hacia, hacia, actor.tipo === "LABORATORIO" ? null : actor.userId);
@@ -365,7 +367,7 @@ export async function quitarPedido(photographerId: number, entryId: number, moti
     where: { id: entryId, quitadoAt: null, batch: { photographerId } },
     include: { batch: { select: { id: true, nombre: true, estado: true } } },
   });
-  if (!e) throw new LoteError("Ese pedido no está en el lote.");
+  if (!e) throw new LoteNoEncontrado("Ese pedido no está en el lote.");
   const { estado } = e.batch;
   if (estado === "ANULADO") throw new LoteError("El lote está anulado.");
   if (motivo === "SACAR" && estado !== "ARMADO") throw new LoteError("El lote ya salió: usá «Reimprimir».");
