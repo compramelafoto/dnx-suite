@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { Pin, StickyNote, X } from "lucide-react";
-import { crearNotaAction, notasDelClienteAction, type NotaDeVentana } from "@/app/actions/ficha";
+import { crearNotaAction } from "@/app/actions/ficha";
+import { notasDelClienteAction, type NotaDeVentana } from "@/app/actions/notas-del-cliente";
 import { fechaHoraBA } from "@/lib/ficha/formato";
 
 const MAX_CARACTERES = 4000;
