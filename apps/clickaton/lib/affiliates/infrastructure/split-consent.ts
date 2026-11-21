@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 
 import {
+  CLICKATON_LIVE_COLLECTOR_PAYMENT_ACCOUNT_ID,
+  CLICKATON_LIVE_COLLECTOR_PROVIDER_USER_ID,
+} from "@/lib/payments/live-collector";
+
+import {
   normalizeAffiliateConsentStatus,
   type AffiliateConsentStatus,
 } from "../domain/labels";
@@ -9,7 +14,7 @@ import {
  * Vinculación del fotógrafo afiliado con Mercado Pago (permiso de Split 1:N).
  *
  * MP sólo reparte un cobro a quien aceptó recibir dinero en operaciones que cobra
- * otro. La invitación la manda la cuenta cobradora (DNX) y el fotógrafo acepta
+ * otro. La invitación la manda la cuenta cobradora y el fotógrafo acepta
  * **en MP**; acá guardamos el receptor y el estado, y lo volvemos a consultar.
  *
  * Ojo: el `receiver_id` que devuelve MP es un UUID. Se consulta SIEMPRE por ese
@@ -17,10 +22,10 @@ import {
  * el permiso.
  */
 
-/** Cuenta cobradora DNX (`DnxPaymentAccount`) con cuyo token se invita. */
-export const DNX_COLLECTOR_PAYMENT_ACCOUNT_ID = "pa_ba733fa7a35f4326";
+/** Cuenta cobradora (`DnxPaymentAccount`) con cuyo token se invita. */
+export const DNX_COLLECTOR_PAYMENT_ACCOUNT_ID = CLICKATON_LIVE_COLLECTOR_PAYMENT_ACCOUNT_ID;
 /** Usuario de MP de la cuenta cobradora: la cuenta "dueña" del permiso. */
-export const DNX_COLLECTOR_PROVIDER_USER_ID = "97484805";
+export const DNX_COLLECTOR_PROVIDER_USER_ID = CLICKATON_LIVE_COLLECTOR_PROVIDER_USER_ID;
 
 /** Puerto del proveedor, para poder probar sin llamar a Mercado Pago. */
 export type AffiliateConsentProviderPort = {
