@@ -51,6 +51,10 @@ export type TarjetaVista = {
   suspendido?: boolean;
   /** Semáforo de la fecha (consultas con fecha): rojo ocupada, amarillo con otras, verde libre. */
   semaforo?: Semaforo;
+  /** Cliente (contacto) de la consulta o del proyecto: de ahí salen las notas. null si no tiene. */
+  clienteId: string | null;
+  /** Notas (no borradas) de ese cliente: el número del ícono de notas. */
+  notas: number;
 };
 
 export type EtapaVista = { id: string; nombre: string; color: string; archivada: boolean };
@@ -112,6 +116,39 @@ async function datosDeConsultas(workspaceId: string, leadIds: string[]): Promise
     });
   }
   return mapa;
+}
+
+/** Cliente de cada consulta o proyecto que se dibuja: las notas de la tarjeta son las suyas. */
+async function clientesDe(workspaceId: string, tipo: TipoSujeto, ids: string[]): Promise<Map<string, string>> {
+  const unicos = [...new Set(ids)];
+  if (unicos.length === 0) return new Map();
+  if (tipo === "CAPTACION") {
+    const filas = await prisma.fotofficeConsulta.findMany({
+      where: { workspaceId, leadId: { in: unicos } },
+      select: { leadId: true, clientId: true },
+    });
+    return new Map(filas.map((f) => [f.leadId, f.clientId]));
+  }
+  if (tipo === "PROYECTO") {
+    const filas = await prisma.fotofficeProyecto.findMany({
+      where: { workspaceId, id: { in: unicos } },
+      select: { id: true, clientId: true },
+    });
+    return new Map(filas.map((f) => [f.id, f.clientId]));
+  }
+  return new Map();
+}
+
+/** Cuántas notas vigentes tiene cada cliente, en una sola lectura. */
+async function notasPorCliente(workspaceId: string, clientIds: string[]): Promise<Map<string, number>> {
+  const unicos = [...new Set(clientIds)];
+  if (unicos.length === 0) return new Map();
+  const grupos = await prisma.fotofficeNote.groupBy({
+    by: ["clientId"],
+    where: { workspaceId, clientId: { in: unicos }, deletedAt: null },
+    _count: true,
+  });
+  return new Map(grupos.filter((g) => g.clientId !== null).map((g) => [g.clientId as string, g._count]));
 }
 
 /** Mismo criterio que `etiquetaDeUsuario` (lib/listado/acceso), sin arrastrar la sesión. */
@@ -265,10 +302,12 @@ export async function cargarTablero(
   const tipoDeNumero = tipoDeNumeroDe(TIPO_SUJETO);
   const sujetos = recorridos.map((j) => j.subjectId);
   // Nombres y números de todo el tablero en una lectura cada uno.
-  const [nombres, numeros] = await Promise.all([
+  const [nombres, numeros, clientes] = await Promise.all([
     adaptador ? adaptador.nombre(workspaceId, sujetos) : new Map<string, NombreDeSujeto>(),
     tipoDeNumero ? numeroDe(workspaceId, tipoDeNumero, sujetos) : Promise.resolve(new Map<string, string>()),
+    clientesDe(workspaceId, TIPO_SUJETO, sujetos),
   ]);
+  const cantidadDeNotas = await notasPorCliente(workspaceId, [...clientes.values()]);
 
   // Semáforo de fechas: sólo para las tarjetas que se dibujan (consultas con fecha).
   const semaforos =
@@ -298,6 +337,8 @@ export async function cargarTablero(
       valor: datos.get(j.subjectId)?.valor ?? null,
       ...(suspendidos.has(j.subjectId) ? { suspendido: true } : {}),
       ...(semaforos.has(j.subjectId) ? { semaforo: semaforos.get(j.subjectId)! } : {}),
+      clienteId: clientes.get(j.subjectId) ?? null,
+      notas: cantidadDeNotas.get(clientes.get(j.subjectId) ?? "") ?? 0,
     })),
   }));
 

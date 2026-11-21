@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { DragEvent } from "react";
 import type { TarjetaVista } from "@/lib/circuitos/tablero";
-import { AlarmClock, CalendarDays, Clock, ListChecks, CirclePause } from "lucide-react";
+import { AlarmClock, CalendarDays, Clock, ListChecks, CirclePause, StickyNote } from "lucide-react";
 import { formatoPesos } from "@/lib/consultas/valor";
 import { iniciales } from "@/lib/circuitos/tablero-vista";
 import { MoverA, type Destino } from "./mover-a";
@@ -30,6 +30,7 @@ export function Tarjeta({
   onMover,
   onPasarIgual,
   onCerrarAviso,
+  onNotas,
 }: {
   tarjeta: TarjetaVista;
   responsable: string | null;
@@ -43,6 +44,8 @@ export function Tarjeta({
   onMover: (destino: Destino) => void;
   onPasarIgual: () => void;
   onCerrarAviso: () => void;
+  /** Abre la ventana de notas del cliente (sólo si la tarjeta tiene cliente). */
+  onNotas: () => void;
 }) {
   const { sujeto, tareas } = tarjeta;
   const meta = tarjeta.categoria ? [tarjeta.categoria, tarjeta.fechaEvento].filter(Boolean).join(" · ") : (sujeto.subtitulo ?? null);
@@ -115,6 +118,22 @@ export function Tarjeta({
             </span>
           ) : null}
         </div>
+        <span className="flex shrink-0 items-center gap-1.5">
+        {tarjeta.clienteId ? (
+          <button
+            type="button"
+            draggable={false}
+            onClick={onNotas}
+            className={`inline-flex h-6 items-center gap-0.5 rounded-md px-1 text-[11px] font-semibold tabular-nums transition-colors hover:bg-[var(--fo-surface-hover)] focus-visible:outline-2 focus-visible:outline-[var(--fo-accent)] ${
+              tarjeta.notas > 0 ? "text-[var(--fo-accent-hover)]" : "text-[var(--fo-muted-soft)] hover:text-[var(--fo-text-secondary)]"
+            }`}
+            title={tarjeta.notas > 0 ? `Notas del cliente (${tarjeta.notas})` : "Dejar una nota sobre el cliente"}
+            aria-label={tarjeta.notas > 0 ? `Notas del cliente: ${tarjeta.notas}` : "Dejar una nota sobre el cliente"}
+          >
+            <StickyNote className="size-3.5" aria-hidden="true" />
+            {tarjeta.notas > 0 ? <span aria-hidden="true">{tarjeta.notas}</span> : null}
+          </button>
+        ) : null}
         {responsable ? (
           <span
             className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-[var(--fo-accent-soft)] text-[10px] font-semibold text-[var(--fo-accent-hover)] ring-2 ring-[var(--fo-surface)]"
@@ -124,6 +143,7 @@ export function Tarjeta({
             <span className="sr-only">Responsable: {responsable}</span>
           </span>
         ) : null}
+        </span>
       </div>
 
       <div className="-mx-1 -mb-1 border-t border-[var(--fo-border-muted)] pt-1">
