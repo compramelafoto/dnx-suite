@@ -28,11 +28,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       return NextResponse.json({ error: "Lote no encontrado." }, { status: 404 });
     }
     const parte = Number(req.nextUrl.searchParams.get("parte") ?? "1");
+    if (!Number.isInteger(parte) || parte < 1) {
+      return NextResponse.json({ error: "Esa parte del lote no existe." }, { status: 404 });
+    }
 
     const lote = await loteDelFotografo(user.id, batchId);
     const total = partesDelLote(
       lote.entries.flatMap((e) => (e.albumOrderId != null ? [e.albumOrderId] : [])),
     ).length;
+    if (parte > total) return NextResponse.json({ error: "Esa parte del lote no existe." }, { status: 404 });
     return await responderZipDeLaParte(batchId, parte, nombreDeLaParte(lote.nombre, parte, total));
   } catch (err: unknown) {
     if (err instanceof LoteError) return NextResponse.json({ error: err.message }, { status: 404 });

@@ -41,7 +41,11 @@ async function pedidosDelLote(batchId: number): Promise<number[]> {
   return lote.entries.map((e) => e.albumOrderId!);
 }
 
-async function cargarLaParte(batchId: number, parte: number): Promise<{ planes: PrintExportPlan[]; omitidos: string[] }> {
+/**
+ * Los planes de impresión de la parte `parte` (empieza en 1), sólo con las copias sueltas, y los
+ * pedidos que no entraron con su motivo (para que el remito liste sólo lo que va en el ZIP).
+ */
+export async function planesDeLaParte(batchId: number, parte: number): Promise<{ planes: PrintExportPlan[]; omitidos: string[] }> {
   const partes = partesDelLote(await pedidosDelLote(batchId));
   if (!Number.isInteger(parte) || parte < 1 || parte > partes.length) throw new ZipDelLoteError(PARTE_INEXISTENTE, 404);
   const planes: PrintExportPlan[] = [];
@@ -52,11 +56,6 @@ async function cargarLaParte(batchId: number, parte: number): Promise<{ planes: 
     else omitidos.push(`Pedido ${id}: ${r.error}`);
   }
   return { planes, omitidos };
-}
-
-/** Los planes de impresión de la parte `parte` (empieza en 1), sólo con las copias sueltas. */
-export async function planesDeLaParte(batchId: number, parte: number): Promise<PrintExportPlan[]> {
-  return (await cargarLaParte(batchId, parte)).planes;
 }
 
 /**
@@ -70,7 +69,7 @@ export async function responderZipDeLaParte(
   extras: Array<{ name: string; content: Uint8Array }> = [],
 ): Promise<Response> {
   try {
-    const { planes, omitidos } = await cargarLaParte(batchId, parte);
+    const { planes, omitidos } = await planesDeLaParte(batchId, parte);
     if (planes.length === 0) {
       return NextResponse.json(
         { error: "Ninguno de los pedidos de esta parte tiene impresiones para descargar.", detalle: omitidos },

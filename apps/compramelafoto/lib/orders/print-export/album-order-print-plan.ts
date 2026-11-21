@@ -129,7 +129,8 @@ async function cargarPlan(orderId: number, user: PrintExportUser | null, incluir
   });
 
   const isAdmin = user?.role === Role.ADMIN;
-  if (!order || (user && !isAdmin && order.album?.userId !== user.id)) {
+  // Sin usuario (lote de impresión) un pedido sin álbum no tiene fotógrafo: no hay plan.
+  if (!order || (!user && !order.album) || (user && !isAdmin && order.album?.userId !== user.id)) {
     return { ok: false, status: 404, error: "Pedido no encontrado o sin permiso" };
   }
   if (order.status !== "PAID") {
