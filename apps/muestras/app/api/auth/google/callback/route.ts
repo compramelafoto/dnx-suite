@@ -34,6 +34,7 @@ function volverAlLogin(baseUrl: string, mensaje: string) {
 }
 
 export async function GET(req: Request) {
+  const origin = new URL(req.url).origin;
   const baseOAuth = baseDeIngreso(req);
 
   try {
@@ -49,13 +50,13 @@ export async function GET(req: Request) {
     });
 
     if (!transito) {
-      return volverAlLogin(baseOAuth, "El ingreso con Google venció. Probá de nuevo.");
+      return volverAlLogin(origin, "El ingreso con Google venció. Probá de nuevo.");
     }
 
     const errorGoogle = url.searchParams.get("error");
     if (errorGoogle) {
       return volverAlLogin(
-        baseOAuth,
+        origin,
         errorGoogle === "access_denied"
           ? "Cancelaste el ingreso con Google."
           : "No pudimos ingresar con Google. Volvé a intentarlo.",
@@ -63,17 +64,18 @@ export async function GET(req: Request) {
     }
 
     const code = url.searchParams.get("code");
-    if (!code) return volverAlLogin(baseOAuth, "Google no devolvió el código de autorización.");
+    if (!code) return volverAlLogin(origin, "Google no devolvió el código de autorización.");
 
     const credenciales = getGoogleOAuthCredentials();
     if (!credenciales) {
-      return volverAlLogin(baseOAuth, "El ingreso con Google no está configurado.");
+      return volverAlLogin(origin, "El ingreso con Google no está configurado.");
     }
 
     const { accessToken } = await exchangeGoogleAuthCode({
       code,
       clientId: credenciales.clientId,
       clientSecret: credenciales.clientSecret,
+      // Ojo: si GOOGLE_REDIRECT_URI estuviera en env, pisaría la base por dominio y rompería el ingreso de arte.
       redirectUri: resolveGoogleRedirectUri(baseOAuth),
     });
 
@@ -106,7 +108,7 @@ export async function GET(req: Request) {
       // El correo se registra hasheado: sirve para rastrear el caso sin guardar el dato.
       console.info("[muestras] login con Google rechazado", hashEmailForLog(google.email), msg);
       return volverAlLogin(
-        baseOAuth,
+        origin,
         msg.includes("vinculad") ? msg : "No pudimos ingresar con Google. Volvé a intentarlo.",
       );
     }
@@ -119,7 +121,7 @@ export async function GET(req: Request) {
     // El `next` ya se filtró al iniciar el ingreso, pero se vuelve a filtrar acá: es lo que
     // efectivamente se usa para redirigir, y el costo de repetirlo es nulo.
     const destino = rutaInternaSegura(transito.next) ?? "/panel";
-    const respuesta = NextResponse.redirect(new URL(destino, baseOAuth));
+    const respuesta = NextResponse.redirect(new URL(destino, origin));
 
     respuesta.cookies.set(DNX_GOOGLE_OAUTH_COOKIE, "", {
       ...OPCIONES_COOKIE,
@@ -155,6 +157,6 @@ export async function GET(req: Request) {
     return respuesta;
   } catch (err) {
     console.error("[muestras] error en el callback de Google", err);
-    return volverAlLogin(baseOAuth, "No pudimos completar el ingreso. Volvé a intentarlo.");
+    return volverAlLogin(origin, "No pudimos completar el ingreso. Volvé a intentarlo.");
   }
 }

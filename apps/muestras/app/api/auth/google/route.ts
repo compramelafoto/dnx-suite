@@ -19,10 +19,11 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const baseUrl = baseDeIngreso(req);
+    const origin = url.origin;
 
     const credenciales = getGoogleOAuthCredentials();
     if (!credenciales) {
-      const login = new URL("/login", baseUrl);
+      const login = new URL("/login", origin);
       login.searchParams.set("error", "El ingreso con Google no está configurado.");
       return NextResponse.redirect(login.toString());
     }
@@ -36,6 +37,7 @@ export async function GET(req: Request) {
     const respuesta = NextResponse.redirect(
       buildGoogleAuthorizationUrl({
         clientId: credenciales.clientId,
+        // Ojo: si GOOGLE_REDIRECT_URI estuviera en env, pisaría la base por dominio y rompería el ingreso de arte.
         redirectUri: resolveGoogleRedirectUri(baseUrl),
         state: transito.state,
       }),
