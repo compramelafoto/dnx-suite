@@ -275,15 +275,18 @@ export const PASOS_DEL_PANEL: ReadonlyArray<{ clave: Columna; numero: number; ti
   { clave: "ENTREGADOS", numero: 4, titulo: "Entregados", ayuda: `Los pedidos entregados de los últimos ${DIAS_DE_ENTREGADOS} días.` },
 ];
 
-/** Paso de un pedido dentro de un lote. Cada pedido cae en uno solo. */
+/**
+ * Paso en el que cuenta un pedido de un lote: el mismo paso donde se lo ve. Los lotes armados se ven
+ * en «Para imprimir», los cerrados en «Entregados»; un pedido listo para retirar se ve en la tabla de
+ * «Listos», y el resto, en la tarjeta de su lote. Un pedido ya entregado de un lote que sigue abierto
+ * no cuenta en ningún paso (no queda nada por hacer con él). null = no cuenta.
+ */
 export function pasoDeLaEntrada(lote: Pick<LoteDelPanel, "estado">, e: Pick<EntradaDelPanel, "entregadoAt" | "estadoPedido">): Columna | null {
-  if (lote.estado === "ANULADO") return null;
-  if (lote.estado === "ARMADO") return "PARA_IMPRIMIR";
-  if (lote.estado === "CERRADO" || e.entregadoAt != null || (e.estadoPedido != null && ESPEJO_ENTREGADO.includes(e.estadoPedido))) {
-    return "ENTREGADOS";
-  }
+  const columna = columnaDelLote(lote.estado);
+  if (columna === null || columna === "PARA_IMPRIMIR" || columna === "ENTREGADOS") return columna;
+  if (e.entregadoAt != null || (e.estadoPedido != null && ESPEJO_ENTREGADO.includes(e.estadoPedido))) return null;
   if (e.estadoPedido === "READY_TO_PICKUP") return "LISTOS";
-  return "EN_LABORATORIO";
+  return columna;
 }
 
 /**

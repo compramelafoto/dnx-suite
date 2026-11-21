@@ -189,6 +189,7 @@ export default function PanelImpresiones() {
   }
 
   async function armar(albumOrderIds: number[], labContactId: number | null) {
+    let nuevo: number | null = null;
     setOcupado(true);
     setError(null);
     setAviso(null);
@@ -203,14 +204,18 @@ export default function PanelImpresiones() {
       if (!res.ok) setError(data?.error || "No se pudo armar el lote. Probá de nuevo.");
       else {
         setSeleccion(new Set());
-        yaDesplazo.current = false;
-        setResaltado(data.batchId ?? null);
+        nuevo = typeof data.batchId === "number" ? data.batchId : null;
         setAviso(`Listo: armaste el ${data.nombre}. Revisalo y mandalo al laboratorio.`);
       }
     } catch {
       setError(ERROR_DE_RED);
     }
     await cargar();
+    // Recién con los datos nuevos: si no, el lote recién armado todavía no está y se avisaría que no existe.
+    if (nuevo != null) {
+      yaDesplazo.current = false;
+      setResaltado(nuevo);
+    }
     setOcupado(false);
   }
 

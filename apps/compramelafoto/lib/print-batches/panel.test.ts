@@ -201,10 +201,16 @@ test("pasoDeLaEntrada: cada pedido de un lote cae en un solo paso", () => {
   assert.equal(pasoDeLaEntrada(enLab, enLab.entradas[0]), "EN_LABORATORIO");
   const listo = loteDePrueba("LISTO", [{ estadoPedido: "READY_TO_PICKUP", retiraCliente: true }]);
   assert.equal(pasoDeLaEntrada(listo, listo.entradas[0]), "LISTOS");
+  // Entregado en un lote que sigue abierto: no queda nada por hacer, no cuenta en ningún paso.
   const entregado = loteDePrueba("RECIBIDO", [{ estadoPedido: "DELIVERED", entregadoAt: "2026-11-21T15:00:00.000Z" }]);
-  assert.equal(pasoDeLaEntrada(entregado, entregado.entradas[0]), "ENTREGADOS");
+  assert.equal(pasoDeLaEntrada(entregado, entregado.entradas[0]), null);
   const porLaRutaVieja = loteDePrueba("RECIBIDO", [{ estadoPedido: "RETIRED" }]);
-  assert.equal(pasoDeLaEntrada(porLaRutaVieja, porLaRutaVieja.entradas[0]), "ENTREGADOS");
+  assert.equal(pasoDeLaEntrada(porLaRutaVieja, porLaRutaVieja.entradas[0]), null);
+  // Un lote recibido se ve en «Listos»: sus pedidos pendientes cuentan ahí, no en «En el laboratorio».
+  const recibido = loteDePrueba("RECIBIDO", [{ estadoPedido: "READY" }]);
+  assert.equal(pasoDeLaEntrada(recibido, recibido.entradas[0]), "LISTOS");
+  const anulado = loteDePrueba("ANULADO", [{}]);
+  assert.equal(pasoDeLaEntrada(anulado, anulado.entradas[0]), null);
   const cerrado = loteDePrueba("CERRADO", [{ estadoPedido: "DELIVERED" }]);
   assert.equal(pasoDeLaEntrada(cerrado, cerrado.entradas[0]), "ENTREGADOS");
 });
