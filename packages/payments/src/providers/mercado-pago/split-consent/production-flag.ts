@@ -26,7 +26,7 @@ export interface SplitConsentWriteGateInput {
 }
 
 export function isSplitConsentProductionEnabled(
-  env: NodeJS.ProcessEnv = process.env,
+  env: Readonly<Record<string, string | undefined>> = process.env,
 ): boolean {
   const raw = (env[SPLIT_CONSENT_PRODUCTION_FLAG] ?? "").trim().toLowerCase();
   return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
