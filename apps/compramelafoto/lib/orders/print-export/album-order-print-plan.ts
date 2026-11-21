@@ -19,6 +19,7 @@ import { copiasFueraDelDiseno } from "./copias-fuera-del-diseno";
 import { archivosDelPedido } from "./archivos-del-pedido";
 import { loadOrderDesigns } from "./order-designs";
 import { carpetaDePedido } from "./rutas-cortas";
+import { cabeceraDelPdf, clienteEnElPdf, encabezadoDelManifest, rotuloDelCliente } from "./datos-del-cliente";
 
 export type PlanResult = { ok: true; plan: PrintExportPlan } | { ok: false; status: number; error: string };
 
@@ -44,7 +45,8 @@ async function buildPdf(
   buyer: { name: string | null; email: string | null; phone: string | null },
   getProductName: (size: string, acabado: string, metadata?: unknown) => string,
   extraLines: string[] = [],
-  alumno: AlumnoDelPedido | null = null
+  alumno: AlumnoDelPedido | null = null,
+  paraLaboratorio = false
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -60,9 +62,9 @@ async function buildPdf(
   page.drawText("RESUMEN PEDIDO ÁLBUM - IMPRESIONES", { x: left, y, size: 16, font });
   y -= 28;
 
-  draw(`Pedido N°: ${order.id}`, 12);
-  draw(`Fecha: ${formatDate(order.createdAt)}`, 12);
-  draw(`Total: $${order.totalCents} ARS`, 12);
+  for (const linea of cabeceraDelPdf({ orderId: order.id, fecha: formatDate(order.createdAt), totalCents: order.totalCents, paraLaboratorio })) {
+    draw(linea, 12);
+  }
   y -= 10;
 
   if (alumno) {
@@ -72,9 +74,7 @@ async function buildPdf(
     y -= 10;
   }
   draw(alumno ? "Adulto que hizo el pedido" : "Datos del cliente", 13);
-  draw(`Nombre: ${buyer.name || "-"}`, 12);
-  draw(`Email: ${buyer.email || "-"}`, 12);
-  draw(`WhatsApp / teléfono: ${buyer.phone || "-"}`, 12);
+  for (const linea of clienteEnElPdf(buyer, paraLaboratorio)) draw(linea, 12);
   y -= 10;
 
   const summary: Record<string, Record<string, Record<string, { photos: number; copies: number }>>> = {};
@@ -115,7 +115,7 @@ async function buildPdf(
   return await pdfDoc.save();
 }
 
-async function cargarPlan(orderId: number, user: PrintExportUser | null, incluirDisenos: boolean): Promise<PlanResult> {
+async function cargarPlan(orderId: number, user: PrintExportUser | null, incluirDisenos: boolean, paraLaboratorio = false): Promise<PlanResult> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
@@ -189,7 +189,7 @@ async function cargarPlan(orderId: number, user: PrintExportUser | null, incluir
   const codigo = String(order.id);
   const folder = alumno
     ? carpetaDePedido(codigo, rotuloDeAlumno(alumno), 32)
-    : carpetaDePedido(codigo, buyer.name || buyer.email || "Cliente");
+    : carpetaDePedido(codigo, rotuloDelCliente(buyer, paraLaboratorio));
 
   const { files, notes, designLines } = archivosDelPedido({
     items: order.items,
@@ -206,25 +206,17 @@ async function cargarPlan(orderId: number, user: PrintExportUser | null, incluir
       folder,
       codigo,
       notes,
-      manifestHeader: [
-        `Pedido Álbum: ${order.id}`,
-        ...(alumno ? [`Alumno: ${alumno.alumno}`, `Curso: ${alumno.curso || "-"}`] : []),
-        `${alumno ? "Adulto" : "Nombre"}: ${buyer.name || "-"}`,
-        `Email: ${buyer.email || "-"}`,
-        `WhatsApp / teléfono: ${buyer.phone || "-"}`,
-        `Fecha: ${order.createdAt.toISOString()}`,
-        `Total: ${order.totalCents} ARS`,
-        "",
-        "ITEMS IMPRESIÓN:",
-        "Producto | Acabado | Tamaño | Cantidad | Ruta ZIP",
-      ],
+      manifestHeader: encabezadoDelManifest({
+        orderId: order.id, alumno, buyer, createdAt: order.createdAt, totalCents: order.totalCents, paraLaboratorio,
+      }),
       files,
       pdfBytes: await buildPdf(
         { ...order, items: sueltasLimpias },
         buyer,
         getProductName,
         designLines.length ? ["Diseños (carpetas, libritos)", ...designLines] : [],
-        alumno
+        alumno,
+        paraLaboratorio
       ),
     },
   };
@@ -238,11 +230,13 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
 /**
  * El mismo plan sin chequear quién lo pide: el que llama ya verificó el permiso (p. ej. el lote
  * de impresión es del fotógrafo). Con `incluirDisenos: false` van sólo las copias sueltas: ni el
- * PDF ni las caras de un librito o carpeta, ni el aviso de un diseño pendiente.
+ * PDF ni las caras de un librito o carpeta, ni el aviso de un diseño pendiente. Con
+ * `paraLaboratorio: true` (ZIP del lote de impresión) el MANIFEST y el PDF no llevan correo,
+ * teléfono ni total, y la carpeta no se llama como el correo del comprador.
  */
 export async function cargarPlanDePedidoDeAlbum(
   orderId: number,
-  { incluirDisenos = true }: { incluirDisenos?: boolean } = {},
+  { incluirDisenos = true, paraLaboratorio = false }: { incluirDisenos?: boolean; paraLaboratorio?: boolean } = {},
 ): Promise<PlanResult> {
-  return cargarPlan(orderId, null, incluirDisenos);
+  return cargarPlan(orderId, null, incluirDisenos, paraLaboratorio);
 }

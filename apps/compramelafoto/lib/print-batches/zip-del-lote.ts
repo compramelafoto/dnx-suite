@@ -12,7 +12,9 @@ import { partesDelLote } from "./partes-del-lote";
  * pedido encabeza cada archivo). Sólo las copias sueltas: un librito o carpeta escolar del mismo
  * pedido sigue su propia línea y no entra.
  *
- * Quién puede bajarlo lo decide la ruta (dueño del lote o laboratorio con su enlace).
+ * Quién puede bajarlo lo decide la ruta (dueño del lote o laboratorio con su enlace). Siempre se
+ * arma para el laboratorio, también cuando lo baja el fotógrafo para llevarlo: sin correo,
+ * teléfono ni total del cliente.
  */
 
 export { PEDIDOS_POR_PARTE, nombreDeLaParte, partesDelLote } from "./partes-del-lote";
@@ -51,7 +53,7 @@ export async function planesDeLaParte(batchId: number, parte: number): Promise<{
   const planes: PrintExportPlan[] = [];
   const omitidos: string[] = [];
   for (const id of partes[parte - 1]!) {
-    const r = await cargarPlanDePedidoDeAlbum(id, { incluirDisenos: false });
+    const r = await cargarPlanDePedidoDeAlbum(id, { incluirDisenos: false, paraLaboratorio: true });
     if (r.ok) planes.push(r.plan);
     else omitidos.push(`Pedido ${id}: ${r.error}`);
   }

@@ -6,6 +6,9 @@
 
 import { puedeMover, type EntregaLote, type EstadoLote } from "./reglas";
 import { resumirCopias, type CopiaResumen } from "./correos";
+import { nombreSinContacto } from "@/lib/orders/print-export/datos-del-cliente";
+
+export { nombreSinContacto };
 
 /** Mismo texto para enlace inventado, de otro lote, mal escrito o de un lote anulado: no dice si existe. */
 export const ENLACE_INVALIDO = "Este enlace no es válido o el lote se anuló.";
@@ -59,17 +62,6 @@ export function nombreDelFotografo(u: { name: string | null; companyName: string
 }
 
 export type ResumenDelPedido = { cliente: string; pedido: number | null; album: string; copias: CopiaResumen[]; totalCopias: number };
-
-/**
- * El nombre del cliente para el laboratorio. `armarLote` usa el correo cuando el pedido no tiene
- * nombre: un correo o algo que parece un teléfono no se muestra.
- */
-export function nombreSinContacto(cliente: string): string {
-  const t = cliente.trim();
-  const pareceTelefono = /^[+\d\s().-]+$/.test(t) && (t.match(/\d/g)?.length ?? 0) >= 6;
-  if (!t || t.includes("@") || pareceTelefono) return "Cliente";
-  return t;
-}
 
 /** Lee el `resumen` Json de una fila del lote sin confiar en su forma; nunca trae correo ni teléfono. */
 export function leerResumen(json: unknown): ResumenDelPedido {
