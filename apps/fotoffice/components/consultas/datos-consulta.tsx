@@ -145,14 +145,7 @@ export function DatosConsulta({
   }
 
   const filas: { termino: string; valor: React.ReactNode }[] = [
-    {
-      termino: "Contacto",
-      valor: (
-        <Link href={`/clientes/${datos.contacto.id}`} className="text-[var(--fo-accent)] hover:underline">
-          {datos.contacto.nombre}
-        </Link>
-      ),
-    },
+    // El contacto ya está a la vista en la tarjeta del cliente, al costado.
     { termino: "Categoría", valor: `${datos.categoria.nombre}${datos.categoria.archivada ? " (archivada)" : ""}` },
     ...filasDelEvento(datos.categoria.grupo, datos.evento),
     { termino: "Origen", valor: datos.origen ? datos.origen.nombre : null },
@@ -174,7 +167,7 @@ export function DatosConsulta({
     <section aria-labelledby="consulta-datos-titulo" className="fo-card space-y-3">
       <div className="flex items-baseline justify-between gap-2">
         <h2 id="consulta-datos-titulo" className="text-base font-semibold text-[var(--fo-text)]">
-          Consulta
+          Datos de la consulta
         </h2>
         {puedeEditar && !editando ? (
           <button
@@ -195,11 +188,11 @@ export function DatosConsulta({
       </p>
 
       {!editando ? (
-        <dl className="space-y-2 text-sm">
+        <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
           {filas.map((d) => (
-            <div key={d.termino}>
+            <div key={d.termino} className="min-w-0">
               <dt className="text-xs text-[var(--fo-muted)]">{d.termino}</dt>
-              <dd className="break-words text-[var(--fo-text)]">{d.valor || "—"}</dd>
+              <dd className={`break-words ${d.valor ? "font-medium text-[var(--fo-text)]" : "text-[var(--fo-muted-soft)]"}`}>{d.valor || "—"}</dd>
             </div>
           ))}
         </dl>

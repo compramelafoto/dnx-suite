@@ -8,7 +8,8 @@ import { confirmarListo } from "@/lib/proyectos/confirmar-listo";
 import { finDelDiaElegido, valoresDeVencimiento } from "@/lib/circuitos/ficha-vista";
 import type { RecorridoFicha } from "@/lib/circuitos/ficha";
 import type { CandadoFicha } from "@/lib/proyectos/candado-ficha-puro";
-import { claseDeColorEtiqueta, fechaBA, fechaHoraBA } from "@/lib/ficha/formato";
+import { fechaBA, fechaHoraBA } from "@/lib/ficha/formato";
+import { AlarmClock, Check, CircleX, Trophy } from "lucide-react";
 import { DialogoGanada } from "./dialogo-ganada";
 import { DialogoPerdida } from "./dialogo-perdida";
 
@@ -171,15 +172,30 @@ export function Recorrido({
     );
   }
 
+  // Dónde está parado: el paso actual (y su número) entre las etapas del circuito.
+  const posicion = recorrido.etapas.findIndex((e) => e.id === recorrido.etapaActualId);
+  const actual = posicion >= 0 ? recorrido.etapas[posicion] : null;
+  const totalPasos = recorrido.etapas.filter((e) => !e.archivada || e.id === recorrido.etapaActualId).length;
+
   const puedeForzar = puedePasarIgual && !!aviso?.op && !!aviso.pendientes && aviso.pendientes.length > 0;
 
   return (
     <section aria-labelledby="recorrido-titulo" className="fo-card space-y-4">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="recorrido-titulo" className="text-base font-semibold text-[var(--fo-text)]">
-          Recorrido
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h2 id="recorrido-titulo" className="text-sm font-semibold text-[var(--fo-text)]">
+          {actual ? (
+            <>
+              <span className="text-[var(--fo-muted)]">Etapa actual: </span>
+              {actual.nombre}
+            </>
+          ) : (
+            "Recorrido"
+          )}
         </h2>
-        <span className="text-sm text-[var(--fo-muted)]">{recorrido.circuito.nombre}</span>
+        <span className="text-xs text-[var(--fo-muted)]">
+          {posicion >= 0 ? `Paso ${posicion + 1} de ${totalPasos} · ` : ""}
+          {recorrido.circuito.nombre}
+        </span>
       </div>
       {candado ? (
         <p className="text-sm font-semibold tabular-nums text-[var(--fo-danger)]" title={candado.mensaje}>
@@ -187,28 +203,51 @@ export function Recorrido({
         </p>
       ) : null}
 
-      <ol aria-label="Etapas del circuito" className="flex flex-wrap gap-1.5">
-        {recorrido.etapas.map((e) => {
-          const actual = e.id === recorrido.etapaActualId;
+      {/* Barra de pasos: los anteriores quedan hechos, el actual resaltado. Tocar otro paso = mover. */}
+      <ol aria-label="Etapas del circuito" className="-mx-1 flex overflow-x-auto px-1 pb-1 [scrollbar-width:thin]">
+        {recorrido.etapas.map((e, i) => {
+          const esActual = e.id === recorrido.etapaActualId;
+          const hecha = posicion >= 0 && i < posicion;
           const bloqueada = candado !== null && candado.etapasBloqueadas.includes(e.id);
-          const elegible = abierto && !actual && !e.archivada && !bloqueada;
+          const elegible = abierto && !esActual && !e.archivada && !bloqueada;
           return (
-            <li key={e.id}>
+            <li key={e.id} className="relative flex min-w-[6.5rem] flex-1 flex-col items-center">
+              {i > 0 ? (
+                <span
+                  aria-hidden="true"
+                  className={`absolute right-1/2 top-3.5 h-0.5 w-full -translate-y-1/2 ${hecha || esActual ? "bg-[var(--fo-accent)]" : "bg-[var(--fo-border)]"}`}
+                />
+              ) : null}
               <button
                 type="button"
-                aria-current={actual ? "step" : undefined}
+                aria-current={esActual ? "step" : undefined}
                 disabled={!elegible || pendiente}
                 onClick={() => {
                   setAviso(null);
                   setDestino({ id: e.id, nombre: e.nombre });
                 }}
-                title={bloqueada ? candado?.mensaje : elegible ? `Mover a ${e.nombre}` : undefined}
-                className={`rounded px-2.5 py-1 text-xs font-medium ${claseDeColorEtiqueta(e.color)} ${
-                  actual ? "ring-2 ring-[var(--fo-accent)] ring-offset-1" : abierto ? "opacity-70 hover:opacity-100" : "opacity-60"
-                } disabled:cursor-default`}
+                title={bloqueada ? candado?.mensaje : elegible ? `Mover a ${e.nombre}` : e.nombre}
+                className="group relative z-[1] flex w-full flex-col items-center gap-1.5 rounded-md px-1 pb-1 text-center disabled:cursor-default"
               >
-                {e.nombre}
-                {e.archivada ? " (archivada)" : ""}
+                <span
+                  className={`flex size-7 items-center justify-center rounded-full border-2 text-[11px] font-semibold tabular-nums transition-colors ${
+                    esActual
+                      ? "border-[var(--fo-accent)] bg-[var(--fo-accent)] text-white shadow-[0_0_0_4px_var(--fo-accent-soft)]"
+                      : hecha
+                        ? "border-[var(--fo-accent)] bg-[var(--fo-surface)] text-[var(--fo-accent)]"
+                        : "border-[var(--fo-border-strong)] bg-[var(--fo-surface)] text-[var(--fo-muted)] group-enabled:group-hover:border-[var(--fo-accent)] group-enabled:group-hover:text-[var(--fo-accent)]"
+                  }`}
+                >
+                  {hecha ? <Check className="size-3.5" aria-hidden="true" /> : i + 1}
+                </span>
+                <span
+                  className={`line-clamp-2 text-[11px] leading-tight ${
+                    esActual ? "font-semibold text-[var(--fo-text)]" : hecha ? "text-[var(--fo-text-secondary)]" : "text-[var(--fo-muted)] group-enabled:group-hover:text-[var(--fo-text)]"
+                  }`}
+                >
+                  {e.nombre}
+                  {e.archivada ? " (archivada)" : ""}
+                </span>
               </button>
             </li>
           );
@@ -241,45 +280,70 @@ export function Recorrido({
       ) : null}
 
       {abierto ? (
-        <dl className="grid gap-3 text-sm sm:grid-cols-2">
-          <div className="space-y-1">
-            <dt className="fo-label">Responsable</dt>
-            <dd>
-              <select
-                className="fo-input"
-                aria-label="Responsable"
-                value={responsable ?? ""}
-                aria-busy={guardandoResponsable}
-                onChange={(ev) => {
-                  const userId = ev.target.value ? Number(ev.target.value) : null;
-                  setResponsable(userId);
-                  void guardarResponsable(userId);
-                }}
-              >
-                <option value="">Sin responsable</option>
-                {responsables.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.nombre}
-                  </option>
-                ))}
-              </select>
-            </dd>
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-3 border-t border-[var(--fo-border-muted)] pt-4">
+          <dl className="flex flex-wrap items-end gap-x-6 gap-y-3 text-sm">
+            <div className="space-y-1">
+              <dt className="text-xs font-medium text-[var(--fo-muted)]">Responsable</dt>
+              <dd>
+                <select
+                  className="fo-input h-9 min-h-0! w-auto! min-w-48 py-0! pr-8! text-sm"
+                  aria-label="Responsable"
+                  value={responsable ?? ""}
+                  aria-busy={guardandoResponsable}
+                  onChange={(ev) => {
+                    const userId = ev.target.value ? Number(ev.target.value) : null;
+                    setResponsable(userId);
+                    void guardarResponsable(userId);
+                  }}
+                >
+                  <option value="">Sin responsable</option>
+                  {responsables.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.nombre}
+                    </option>
+                  ))}
+                </select>
+              </dd>
+            </div>
+            <div className="space-y-1">
+              <dt className="text-xs font-medium text-[var(--fo-muted)]">Vencimiento de la etapa</dt>
+              <dd className="flex h-9 flex-wrap items-center gap-2">
+                <span
+                  className={
+                    recorrido.vencida
+                      ? "inline-flex items-center gap-1 rounded-full bg-[var(--fo-danger-soft)] px-2 py-0.5 font-medium text-[var(--fo-danger)]"
+                      : "text-[var(--fo-text)]"
+                  }
+                >
+                  {recorrido.vencida ? <AlarmClock className="size-3.5" aria-hidden="true" /> : null}
+                  {recorrido.stageDueAt ? fechaBA(recorrido.stageDueAt) : "Sin vencimiento"}
+                  {recorrido.vencida ? " · Vencida" : ""}
+                </span>
+                {!editandoVence ? (
+                  <button type="button" className="text-xs font-medium text-[var(--fo-accent-hover)] hover:underline" onClick={abrirVencimiento}>
+                    Cambiar
+                  </button>
+                ) : null}
+              </dd>
+            </div>
+          </dl>
+          <div className="flex flex-wrap gap-2 sm:ml-auto">
+            <button
+              type="button"
+              className="fo-btn fo-btn-success text-sm"
+              disabled={pendiente || candado !== null}
+              title={candado?.mensaje}
+              onClick={() => setGanando(true)}
+            >
+              <Trophy className="size-4" aria-hidden="true" />
+              {ETIQUETA_SALIDA[salidas.exito] ?? salidas.exito}
+            </button>
+            <button type="button" className="fo-btn fo-btn-danger-outline text-sm" disabled={pendiente} onClick={() => setPerdiendo(true)}>
+              <CircleX className="size-4" aria-hidden="true" />
+              {ETIQUETA_SALIDA[salidas.fracaso] ?? salidas.fracaso}
+            </button>
           </div>
-          <div className="space-y-1">
-            <dt className="fo-label">Vencimiento de la etapa</dt>
-            <dd className="flex flex-wrap items-center gap-2">
-              <span className={recorrido.vencida ? "font-medium text-[var(--fo-danger)]" : "text-[var(--fo-text)]"}>
-                {recorrido.stageDueAt ? fechaBA(recorrido.stageDueAt) : "Sin vencimiento"}
-                {recorrido.vencida ? " · Vencida" : ""}
-              </span>
-              {!editandoVence ? (
-                <button type="button" className="fo-btn fo-btn-ghost text-xs" onClick={abrirVencimiento}>
-                  Cambiar
-                </button>
-              ) : null}
-            </dd>
-          </div>
-        </dl>
+        </div>
       ) : (
         <p className="text-sm text-[var(--fo-text)]">
           <span className="font-medium">{recorrido.outcome ? (ETIQUETA_SALIDA[recorrido.outcome] ?? recorrido.outcome) : "Cerrada"}</span>
@@ -319,23 +383,6 @@ export function Recorrido({
             </button>
           </div>
         </form>
-      ) : null}
-
-      {abierto ? (
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="fo-btn fo-btn-primary text-sm"
-            disabled={pendiente || candado !== null}
-            title={candado?.mensaje}
-            onClick={() => setGanando(true)}
-          >
-            {ETIQUETA_SALIDA[salidas.exito] ?? salidas.exito}
-          </button>
-          <button type="button" className="fo-btn fo-btn-danger text-sm" disabled={pendiente} onClick={() => setPerdiendo(true)}>
-            {ETIQUETA_SALIDA[salidas.fracaso] ?? salidas.fracaso}
-          </button>
-        </div>
       ) : null}
 
       {aviso ? (

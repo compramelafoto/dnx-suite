@@ -14,7 +14,7 @@ import { join } from "node:path";
  * una pantalla. Este test existe para que no vuelva a pasar sin que nadie se entere.
  */
 
-const VARIANTES = ["primary", "secondary", "ghost", "danger-outline", "danger"];
+const VARIANTES = ["primary", "secondary", "ghost", "danger-outline", "danger", "success"];
 
 function archivos(dir: string): string[] {
   const salida: string[] = [];
