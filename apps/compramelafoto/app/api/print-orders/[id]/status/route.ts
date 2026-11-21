@@ -8,6 +8,7 @@ import {
   isAllowedPrintOrderStatus,
   PRINT_ORDER_STATUSES,
 } from "@/lib/print-orders/print-order-status";
+import { effectivePhotographerIdForStatusChange } from "@/lib/lab/session-lab-access";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,7 +81,8 @@ export async function PATCH(
     const body = await req.json().catch(() => ({}));
     const status = String(body?.status || "").toUpperCase();
     const requesterType = body?.requesterType; // "LAB" | "PHOTOGRAPHER"
-    const photographerId = body?.photographerId ? Number(body.photographerId) : null;
+    // El fotógrafo es siempre la persona en sesión; `body.photographerId` se ignora.
+    const photographerId = effectivePhotographerIdForStatusChange(user);
 
     if (!isAllowedPrintOrderStatus(status)) {
       return NextResponse.json(
@@ -130,7 +132,7 @@ export async function PATCH(
             { status: 403 }
           );
         }
-        if (!photographerId || !order.photographerId || photographerId !== order.photographerId) {
+        if (!order.photographerId || photographerId !== order.photographerId) {
           return NextResponse.json(
             {
               error:

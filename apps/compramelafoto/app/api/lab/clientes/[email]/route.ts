@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireSessionLab } from "@/lib/lab/session-lab";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,16 +17,11 @@ export async function PATCH(
     const { email } = await Promise.resolve(params);
     const decodedEmail = decodeURIComponent(email);
     const body = await req.json().catch(() => ({}));
-    const { labId, name, phone } = body;
+    const { name, phone } = body;
 
-    if (!labId || !Number.isFinite(Number(labId))) {
-      return NextResponse.json(
-        { error: "labId es requerido" },
-        { status: 400 }
-      );
-    }
-
-    const id = Number(labId);
+    // El laboratorio sale de la sesión; un `labId` en el cuerpo se ignora.
+    const { labId: id, response } = await requireSessionLab();
+    if (response) return response;
 
     // Actualizar todos los pedidos del cliente con este email
     const result = await prisma.printOrder.updateMany({
@@ -63,17 +59,9 @@ export async function DELETE(
   try {
     const { email } = await Promise.resolve(params);
     const decodedEmail = decodeURIComponent(email);
-    const body = await req.json().catch(() => ({}));
-    const { labId } = body;
-
-    if (!labId || !Number.isFinite(Number(labId))) {
-      return NextResponse.json(
-        { error: "labId es requerido" },
-        { status: 400 }
-      );
-    }
-
-    const id = Number(labId);
+    // El laboratorio sale de la sesión; un `labId` en el cuerpo se ignora.
+    const { labId: id, response } = await requireSessionLab();
+    if (response) return response;
 
     // Eliminar solo pedidos CANCELED con total 0 (los "fantasma" creados para notificaciones)
     const deletedOrders = await prisma.printOrder.deleteMany({

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { queueEmail, getOrCreateTemplate } from "@/lib/email-queue";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@prisma/client";
+import { effectivePhotographerIdForStatusChange } from "@/lib/lab/session-lab-access";
 import {
   BULK_STATUS_MAX_IDS,
   canTransitionPrintOrderStatus,
@@ -35,7 +36,6 @@ export async function PATCH(req: Request) {
       : [];
     const status = String(body?.status || "").toUpperCase();
     const requesterType = body?.requesterType;
-    const photographerId = body?.photographerId ? Number(body.photographerId) : null;
 
     if (ids.length === 0) {
       return NextResponse.json({ error: "ids vacío" }, { status: 400 });
@@ -78,8 +78,8 @@ export async function PATCH(req: Request) {
     }
 
     if (user.role === Role.PHOTOGRAPHER || requesterType === "PHOTOGRAPHER") {
-      const effectivePhotographerId =
-        user.role === Role.PHOTOGRAPHER ? user.id : photographerId;
+      // El fotógrafo es siempre la persona en sesión; `body.photographerId` se ignora.
+      const effectivePhotographerId = effectivePhotographerIdForStatusChange(user);
       const orders = await prisma.printOrder.findMany({
         where: { id: { in: ids } },
         select: { id: true, pickupBy: true, photographerId: true },

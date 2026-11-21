@@ -1,19 +1,23 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireSessionLab } from "@/lib/lab/session-lab";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
+    // El laboratorio sale de la sesión; el `labId` del query se ignora.
+    const { labId, response } = await requireSessionLab();
+    if (response) return response;
+
     const { searchParams } = new URL(req.url);
-    const labId = searchParams.get("labId") || "1"; // Por defecto lab 1
     const search = searchParams.get("search") || "";
 
     // Solo pedidos CONFIRMADOS (pagados): el lab no ve clientes hasta que paguen
     const orders = await prisma.printOrder.findMany({
       where: {
-        labId: Number(labId),
+        labId,
         paymentStatus: "PAID",
       },
       select: {
