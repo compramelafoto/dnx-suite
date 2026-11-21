@@ -22,6 +22,8 @@ export const MENU_KEYWORDS: Record<string, string[]> = {
   // ── Fotógrafo ───────────────────────────────────────────────────────────────
   "/fotografo/dashboard": ["panel", "principal", "tablero", "resumen", "home", "portada"],
   "/fotografo/pedidos": ["ventas", "compras", "ordenes", "vendí", "entregas", "descargas", "pendientes"],
+  "/fotografo/impresiones": ["imprimir", "copias", "lotes", "laboratorio", "sobres", "etiquetas", "remito", "entregar copias"],
+  "/fotografo/impresiones/laboratorios": ["laboratorio", "imprenta", "punto de retiro", "lab", "mis laboratorios"],
   "/dashboard/albums": ["album", "albumes", "eventos", "fotos", "galerias", "mis albumes", "subir fotos"],
   "/dashboard/albums/new": ["nuevo album", "crear evento", "subir fotos", "cargar fotos", "publicar"],
   "/fotografo/eventos": ["colaborativo", "varios fotografos", "evento compartido", "maraton", "carrera"],

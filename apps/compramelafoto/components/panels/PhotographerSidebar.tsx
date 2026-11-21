@@ -27,6 +27,7 @@ function usePhotographerMenuItems(catalogProductsEnabled: boolean): SidebarItem[
       events: PanelIcons.events,
       analytics: PanelIcons.analytics,
       sales: PanelIcons.prices,
+      lab: PanelIcons.lab,
     });
     if (catalogProductsEnabled) return items;
     return items.map((item) =>

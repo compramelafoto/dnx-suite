@@ -54,6 +54,7 @@ import { leerMarcaGrupo } from "@/lib/split-1n-carrito-evento/marca";
 import { shouldUseIntlFlow, intlBlockMessage } from "@/lib/international/intl-order";
 import { createIntlAlbumOrder } from "@/lib/international/intl-order-service";
 import { ensureAlbumOrderMpPreference } from "@/lib/mercadopago/album-order-mp-preference";
+import { consultaPuntosDeRetiro, elegirPuntoDeRetiro, puntosDeRetiroDelAlbum, retiraElCliente, type PuntoDeRetiro } from "@/lib/print-batches/puntos-de-retiro";
 
 function normalizePercent(value: unknown): number | null {
   const parsed = Number(value);
@@ -479,6 +480,30 @@ export async function POST(
       });
     });
 
+    // Dónde retira el cliente sus copias (diseño §4.2): sólo la compra común con impresas en un
+    // álbum donde retira el cliente. Canje y carrito de evento no lo guardan; sin puntos, nada cambia.
+    // El servidor nunca devuelve error por esto (p. ej. CanjeExtrasStep no manda la elección).
+    let pickupLabContactId: number | null = null;
+    const pickupByAlbum = album.pickupBy ?? null;
+    if (
+      !carritoEvento &&
+      !canjeVoucher &&
+      retiraElCliente(pickupByAlbum) &&
+      album.userId &&
+      orderItemsData.some((it) => it.productType === "PRINT")
+    ) {
+      let puntos: PuntoDeRetiro[] = [];
+      try {
+        const contactos = await prisma.photographerLabContact.findMany(consultaPuntosDeRetiro(album.userId));
+        puntos = puntosDeRetiroDelAlbum(pickupByAlbum, contactos);
+      } catch (err) {
+        // Si la consulta falla no se frena la venta: el pedido queda sin punto elegido.
+        console.error("[order] puntos de retiro", err);
+      }
+      // Nunca frena la venta: sin una elección válida queda nulo y el lote usa el predeterminado.
+      pickupLabContactId = elegirPuntoDeRetiro(puntos, body?.pickupLabContactId).id;
+    }
+
     const marketplaceFeeCents = Math.round(Number(totals.marketplaceFeeCents) || 0);
     const engineSnapshot = totals.snapshot as Record<string, unknown>;
     let pricingSnapshotForOrder: Prisma.InputJsonValue =
@@ -571,6 +596,9 @@ export async function POST(
     if (pagoSimulado) {
       baseData.isTest = true;
     }
+    if (pickupLabContactId != null) {
+      baseData.pickupLabContactId = pickupLabContactId;
+    }
 
     const mpCredsPrecheck = await resolveAlbumOrderMercadoPagoCredentials({
       photographerUserId: album?.userId ?? null,
@@ -652,6 +680,7 @@ export async function POST(
           buyerEmail: normalizedBuyerEmail,
           buyerPhone: rawBuyerPhone || null,
           buyerName: trimmedBuyerName,
+          ...(pickupLabContactId != null ? { pickupLabContactId } : {}),
         },
       });
       try {

@@ -202,6 +202,9 @@ jobs:
       - name: Pruebas de la carpeta de impresión
         run: pnpm --filter compramelafoto test:print-export
 
+      - name: Pruebas de los lotes de impresión
+        run: pnpm --filter compramelafoto test:lotes-impresion
+
       # Pack contra fotos sueltas: el ahorro que se muestra y el pack que se le ofrece al cliente.
       - name: Pruebas de packs contra fotos sueltas
         run: pnpm --filter compramelafoto test:packs-vs-sueltas

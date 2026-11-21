@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import PanelLayout from "./PanelLayout";
 import LabSidebar, { LabSidebarTopBar } from "./LabSidebar";
 import { ensureLabSession } from "@/lib/lab-session-client";
@@ -11,7 +12,10 @@ const fallback = (
   </div>
 );
 
-export default function LabLayoutClient({ children }: { children: React.ReactNode }) {
+/** El enlace del lote (`/lab/lote/[token]`) es para laboratorios sin cuenta: sin menú ni sesión. */
+const esPuertaDelLote = (pathname: string | null) => !!pathname && pathname.startsWith("/lab/lote/");
+
+function LabPanel({ children }: { children: React.ReactNode }) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoFetched, setLogoFetched] = useState(false);
 
@@ -53,4 +57,10 @@ export default function LabLayoutClient({ children }: { children: React.ReactNod
       </PanelLayout>
     </Suspense>
   );
+}
+
+export default function LabLayoutClient({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  if (esPuertaDelLote(pathname)) return <>{children}</>;
+  return <LabPanel>{children}</LabPanel>;
 }

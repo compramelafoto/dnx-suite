@@ -19,6 +19,7 @@ export const RUTAS_PANEL: readonly RutaPanel[] = [
   { ruta: "/dashboard/albums/new", proposito: "crear un álbum nuevo", pagina: "app/dashboard/albums/new/page.tsx" },
   { ruta: "/dashboard/albums/{id}", proposito: "un álbum en particular: fotos, configuración, precios, publicación", pagina: "app/dashboard/albums/[id]/page.tsx" },
   { ruta: "/fotografo/pedidos", proposito: "pedidos de compradores y links de descarga", pagina: "app/fotografo/pedidos/page.tsx" },
+  { ruta: "/fotografo/impresiones", proposito: "copias para imprimir: armar lotes, mandarlos al laboratorio y entregarlas", pagina: "app/fotografo/impresiones/page.tsx" },
   { ruta: "/fotografo/configuracion", proposito: "datos del fotógrafo y conexión con Mercado Pago", pagina: "app/fotografo/configuracion/page.tsx" },
   { ruta: "/fotografo/configuracion/notificaciones", proposito: "avisos por mail que recibe el fotógrafo", pagina: "app/fotografo/configuracion/notificaciones/page.tsx" },
   { ruta: "/dashboard/sales-settings", proposito: "ajustes de venta (precios y descuentos)", pagina: "app/dashboard/sales-settings/page.tsx" },
