@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({ culturalActivity: { findFirst: vi.fn() } }));
 vi.mock("@repo/db", () => ({ prisma: db }));
-const { GET } = await import("@/app/m/[slug]/inauguracion/evento.ics/route");
+const { GET } = await import("@/app/[marca]/m/[slug]/inauguracion/evento.ics/route");
 
 const muestra = (extra: Record<string, unknown> = {}) => ({
   id: "a1", slug: "rosario", title: "Rosario", type: "MUESTRA", reviewStatus: "APPROVED", isVirtualOnly: false, isCancelled: false,

@@ -5,7 +5,7 @@ const db = vi.hoisted(() => ({
   culturalActivityRoomKey: { findUnique: vi.fn() },
 }));
 vi.mock("@repo/db", () => ({ prisma: db }));
-const { GET } = await import("@/app/m/[slug]/sala/sumar/[workId]/route");
+const { GET } = await import("@/app/[marca]/m/[slug]/sala/sumar/[workId]/route");
 const { resetRateLimit } = await import("@/lib/limite");
 const { firmarEscaneo, firmarPase, leerPase } = await import("./llave");
 const { ROOM_PASS_MAX_WORKS } = await import("@repo/muestras");

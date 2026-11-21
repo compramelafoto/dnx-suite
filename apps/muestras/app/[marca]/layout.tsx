@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Encabezado } from "@/components/encabezado/encabezado";
 import { Pie } from "@/components/pie/pie";
+import { origenPublico } from "@/lib/marca";
+import { marcaDeParams } from "@/lib/ruta-marca";
 import "./globals.css";
 
 /**
@@ -18,24 +20,33 @@ const fuente = localFont({
   variable: "--mf-font",
 });
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://muestrasfotograficas.com";
+/** Las dos marcas se generan en la publicación; cualquier otro segmento es un 404. */
+export function generateStaticParams() {
+  return [{ marca: "fotografia" }, { marca: "arte" }];
+}
 
-export const metadata: Metadata = {
-  metadataBase: new URL(APP_URL),
-  title: { default: "Muestras Fotográficas", template: "%s | Muestras Fotográficas" },
-  description: "Muestras de fotografía para ver en persona, en todo el país: dónde quedan, fechas, horarios y cómo llegar.",
-  openGraph: {
-    siteName: "Muestras Fotográficas",
-    description: "Muestras de fotografía para ver en persona, en todo el país: dónde quedan, fechas, horarios y cómo llegar.",
-    locale: "es_AR",
-    type: "website",
-    images: ["/brand/muestras-logo-1254.webp"],
-  },
-};
+export const dynamicParams = false;
+
+export async function generateMetadata({ params }: LayoutProps<"/[marca]">): Promise<Metadata> {
+  const marca = await marcaDeParams(params);
+  return {
+    metadataBase: new URL(origenPublico(marca)),
+    title: { default: marca.nombre, template: `%s | ${marca.nombre}` },
+    description: marca.descripcion,
+    openGraph: {
+      siteName: marca.nombre,
+      description: marca.descripcion,
+      locale: "es_AR",
+      type: "website",
+      images: [marca.imagenRedes],
+    },
+    icons: { icon: "/icon.png", apple: "/apple-icon.png" },
+  };
+}
 
 export const viewport: Viewport = { themeColor: "#ffffff" };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: LayoutProps<"/[marca]">) {
   return (
     <html lang="es" className={fuente.variable}>
       <body className="flex min-h-dvh flex-col antialiased">

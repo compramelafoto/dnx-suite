@@ -16,9 +16,9 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock("@repo/db", () => ({ prisma: db }));
 
-const { default: Ficha, generateMetadata, revalidate } = await import("@/app/m/[slug]/page");
-const { default: PaginaDeObra, generateMetadata: metadatosDeObra } = await import("@/app/m/[slug]/o/[workId]/page");
-const { default: PerfilPublico, generateMetadata: metadatosDePerfil } = await import("@/app/fotografos/[slug]/page");
+const { default: Ficha, generateMetadata, revalidate } = await import("@/app/[marca]/m/[slug]/page");
+const { default: PaginaDeObra, generateMetadata: metadatosDeObra } = await import("@/app/[marca]/m/[slug]/o/[workId]/page");
+const { default: PerfilPublico, generateMetadata: metadatosDePerfil } = await import("@/app/[marca]/fotografos/[slug]/page");
 const { visibilityFromPreset, visibleWorks } = await import("@repo/muestras");
 
 // El tipo del elemento (componente o módulo) no es contenido: se reemplaza por su nombre.

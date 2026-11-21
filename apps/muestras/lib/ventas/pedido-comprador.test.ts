@@ -21,15 +21,15 @@ vi.mock("./conciliar", () => conciliar);
 vi.mock("./certificado", () => ({ pdfGuardado: piezas.pdfGuardado }));
 vi.mock("./archivo-firmado", () => ({ archivoFirmado: piezas.archivoFirmado }));
 
-const { default: PaginaDelPedido } = await import("@/app/compras/[publicId]/page");
-const { GET: descargarCertificado } = await import("@/app/compras/[publicId]/certificado/route");
-const { GET: descargarArchivo } = await import("@/app/compras/[publicId]/archivo/route");
-const { default: Arrepentimiento } = await import("@/app/compras/[publicId]/arrepentimiento/page");
+const { default: PaginaDelPedido } = await import("@/app/[marca]/compras/[publicId]/page");
+const { GET: descargarCertificado } = await import("@/app/[marca]/compras/[publicId]/certificado/route");
+const { GET: descargarArchivo } = await import("@/app/[marca]/compras/[publicId]/archivo/route");
+const { default: Arrepentimiento } = await import("@/app/[marca]/compras/[publicId]/arrepentimiento/page");
 const { pedirArrepentimiento } = await import("./arrepentimiento");
 const { ARREPENTIMIENTO_RECIBIDO, ARREPENTIMIENTO_VENCIDO } = await import("./pedido-comprador");
 const { hashDeToken } = await import("./pedido");
 const { proxy } = await import("@/proxy");
-const { GET: entrar } = await import("@/app/compras/[publicId]/entrar/route");
+const { GET: entrar } = await import("@/app/[marca]/compras/[publicId]/entrar/route");
 const { resetRateLimit } = await import("@/lib/limite");
 
 const ID = "abcd1234abcd1234";

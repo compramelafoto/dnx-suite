@@ -43,8 +43,8 @@ vi.mock("@/lib/ventas/modo", () => ({ configVerificada: async () => ({ modo: est
 vi.mock("@/lib/ventas/comprable", () => comprable);
 vi.mock("@/lib/actividades/consultas", () => ({ buscarPorSlug: async () => estado.publica }));
 
-const { default: AdquirirObra } = await import("@/app/m/[slug]/sala/o/[workId]/adquirir/page");
-const { default: AdquirirObraPublica } = await import("@/app/m/[slug]/o/[workId]/adquirir/page");
+const { default: AdquirirObra } = await import("@/app/[marca]/m/[slug]/sala/o/[workId]/adquirir/page");
+const { default: AdquirirObraPublica } = await import("@/app/[marca]/m/[slug]/o/[workId]/adquirir/page");
 const { firmarPase } = await import("./llave");
 const { SALE_ASK_TEXT, SALE_UNAVAILABLE_TEXT, visibilityFromPreset } = await import("@repo/muestras");
 const { resetRateLimit } = await import("@/lib/limite");

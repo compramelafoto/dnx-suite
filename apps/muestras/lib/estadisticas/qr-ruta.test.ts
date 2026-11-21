@@ -10,7 +10,7 @@ const db = vi.hoisted(() => ({
 const usuarioActual = vi.hoisted(() => ({ valor: null as null | { id: number; esSuperAdmin: boolean } }));
 vi.mock("@repo/db", () => ({ prisma: db }));
 vi.mock("@/lib/usuario", () => ({ getUsuario: async () => usuarioActual.valor }));
-const { GET, HEAD } = await import("@/app/q/[tipo]/[id]/route");
+const { GET, HEAD } = await import("@/app/[marca]/q/[tipo]/[id]/route");
 const { LIMITES_PUBLICOS, resetRateLimit } = await import("@/lib/limite");
 const { escaneoValido } = await import("@/lib/sala/llave");
 const LLAVE = "c".repeat(64);

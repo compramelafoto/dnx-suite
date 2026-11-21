@@ -4,13 +4,14 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { activeSectionKey, type PanelSectionGroup } from "@repo/muestras";
+import { sinPrefijoDeMarca } from "@/lib/ruta-marca";
 
 /**
  * La barra del panel. En pantalla ancha queda fija al costado; en el teléfono es una franja con
  * la sección actual y un botón "Menú" que abre un cajón desde la izquierda (Escape lo cierra).
  */
 export function BarraLateral({ grupos, nombre }: { grupos: PanelSectionGroup[]; nombre: string }) {
-  const activa = activeSectionKey(usePathname());
+  const activa = activeSectionKey(sinPrefijoDeMarca(usePathname()));
   const [abierta, setAbierta] = useState(false);
   const cajon = useRef<HTMLDivElement>(null);
   const botonMenu = useRef<HTMLButtonElement>(null);
