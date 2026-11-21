@@ -60,15 +60,17 @@ export async function planesDeLaParte(batchId: number, parte: number): Promise<{
   return { planes, omitidos };
 }
 
+export type ExtrasDelZip = Array<{ name: string; content: Uint8Array }>;
+
 /**
- * La descarga de una parte. `extras` son archivos de control (p. ej. el remito en PDF) que van
+ * La descarga de una parte. `extras` (o una función que los arma con los planes y omitidos de la parte, para no cargarlos dos veces) son archivos de control (p. ej. el remito en PDF) que van
  * en la carpeta `Control/`. Lote inexistente o anulado, o parte fuera de rango: 404.
  */
 export async function responderZipDeLaParte(
   batchId: number,
   parte: number,
   nombreArchivo: string,
-  extras: Array<{ name: string; content: Uint8Array }> = [],
+  extras: ExtrasDelZip | ((p: { planes: PrintExportPlan[]; omitidos: string[] }) => Promise<ExtrasDelZip>) = [],
 ): Promise<Response> {
   try {
     const { planes, omitidos } = await planesDeLaParte(batchId, parte);
@@ -82,7 +84,8 @@ export async function responderZipDeLaParte(
     const noIncluidos = omitidos.length
       ? [{ name: "PEDIDOS_NO_INCLUIDOS.txt", content: ["Estos pedidos no se incluyeron:", "", ...omitidos].join("\n") }]
       : [];
-    const control = extras.map((e) => ({ name: `${CARPETA_CONTROL}/${e.name}`, content: e.content }));
+    const lista = typeof extras === "function" ? await extras({ planes, omitidos }) : extras;
+    const control = lista.map((e) => ({ name: `${CARPETA_CONTROL}/${e.name}`, content: e.content }));
     // `streamPrintExportZip` ya le pone el «.zip».
     const nombre = nombreArchivo.replace(/\.zip$/i, "");
     return streamPrintExportZip(porTamano.plans, nombre, [porTamano.resumen, ...noIncluidos, ...control]);

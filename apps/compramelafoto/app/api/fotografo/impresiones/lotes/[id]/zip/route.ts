@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
 import { LoteError, loteDelFotografo } from "@/lib/print-batches/servicio";
+import { remitoDelLote } from "@/lib/print-batches/impresos-del-lote";
 import { nombreDeLaParte, partesDelLote, responderZipDeLaParte } from "@/lib/print-batches/zip-del-lote";
 
 export const runtime = "nodejs";
@@ -37,7 +38,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       lote.entries.flatMap((e) => (e.albumOrderId != null ? [e.albumOrderId] : [])),
     ).length;
     if (parte > total) return NextResponse.json({ error: "Esa parte del lote no existe." }, { status: 404 });
-    return await responderZipDeLaParte(batchId, parte, nombreDeLaParte(lote.nombre, parte, total));
+    return await responderZipDeLaParte(batchId, parte, nombreDeLaParte(lote.nombre, parte, total), async (p) => {
+      const remito = await remitoDelLote(batchId, p);
+      return remito ? [{ name: "REMITO.pdf", content: remito }] : [];
+    });
   } catch (err: unknown) {
     if (err instanceof LoteError) return NextResponse.json({ error: err.message }, { status: 404 });
     console.error("ZIP LOTE IMPRESION ERROR >>>", err);

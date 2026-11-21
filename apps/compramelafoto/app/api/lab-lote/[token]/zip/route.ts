@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loteDelLab, marcarDescargado } from "@/lib/print-batches/lote-del-lab";
 import { ENLACE_INVALIDO } from "@/lib/print-batches/puerta-del-lab";
+import { remitoDelLote } from "@/lib/print-batches/impresos-del-lote";
 import { nombreDeLaParte, responderZipDeLaParte } from "@/lib/print-batches/zip-del-lote";
 
 export const runtime = "nodejs";
@@ -30,7 +31,10 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ token: stri
     if (!Number.isInteger(parte) || parte < 1 || parte > lote.partes) {
       return responder({ error: "Esa parte del lote no existe." }, 404);
     }
-    const res = await responderZipDeLaParte(batchId, parte, nombreDeLaParte(lote.nombre, parte, lote.partes));
+    const res = await responderZipDeLaParte(batchId, parte, nombreDeLaParte(lote.nombre, parte, lote.partes), async (p) => {
+      const remito = await remitoDelLote(batchId, p);
+      return remito ? [{ name: "REMITO.pdf", content: remito }] : [];
+    });
     if (res.ok) await marcarDescargado(batchId);
     for (const [k, v] of Object.entries(CABECERAS)) res.headers.set(k, v);
     return res;
