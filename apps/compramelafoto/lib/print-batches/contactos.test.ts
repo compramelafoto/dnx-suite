@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { validarContacto } from "./contactos";
+import { leerCuerpoContacto, validarContacto } from "./contactos";
 
 test("faltan nombre o correo", () => {
   assert.equal(validarContacto({ nombre: " ", email: "a@b.com" }, null).ok, false);
@@ -36,4 +36,15 @@ test("punto de retiro con lab vinculado sin dirección falla; con dirección y h
     null,
   );
   assert.equal(r.ok, true);
+});
+
+test("leerCuerpoContacto rechaza lo que no es objeto y descarta campos que no son texto", () => {
+  assert.equal(leerCuerpoContacto(null), null);
+  assert.equal(leerCuerpoContacto("x"), null);
+  assert.equal(leerCuerpoContacto([]), null);
+  const r = leerCuerpoContacto({ nombre: 5, email: "a@b.com", puntoDeRetiro: "si", esPredeterminado: true });
+  assert.equal(r?.nombre, undefined);
+  assert.equal(r?.email, "a@b.com");
+  assert.equal(r?.puntoDeRetiro, undefined);
+  assert.equal(r?.esPredeterminado, true);
 });

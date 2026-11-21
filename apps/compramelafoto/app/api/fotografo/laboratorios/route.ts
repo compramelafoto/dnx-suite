@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma, Role } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
-import { validarContacto, type ContactoInput } from "@/lib/print-batches/contactos";
+import { leerCuerpoContacto, validarContacto } from "@/lib/print-batches/contactos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,24 +39,26 @@ export async function POST(req: Request) {
   if (error || !user) {
     return NextResponse.json({ error: error || "No autorizado. Iniciá sesión como fotógrafo." }, { status: 401 });
   }
-  let body: Partial<ContactoInput> & { notas?: string };
+  let body: NonNullable<ReturnType<typeof leerCuerpoContacto>>;
   try {
-    body = await req.json();
+    const leido = leerCuerpoContacto(await req.json());
+    if (!leido) return NextResponse.json({ error: "Datos inválidos." }, { status: 400 });
+    body = leido;
   } catch {
     return NextResponse.json({ error: "No pudimos leer los datos enviados." }, { status: 400 });
   }
 
-  const email = String(body.email ?? "").trim().toLowerCase();
+  const email = (body.email ?? "").trim().toLowerCase();
   const lab = email
     ? await prisma.lab.findFirst({
-        where: { email, approvalStatus: "APPROVED" },
+        where: { email: { equals: email, mode: "insensitive" }, approvalStatus: "APPROVED" },
         select: { id: true, address: true },
       })
     : null;
 
   const v = validarContacto(
     {
-      nombre: String(body.nombre ?? ""),
+      nombre: body.nombre ?? "",
       email,
       whatsapp: body.whatsapp,
       puntoDeRetiro: body.puntoDeRetiro,
@@ -86,7 +88,7 @@ export async function POST(req: Request) {
         labId: lab?.id ?? null,
         nombre: d.nombre,
         whatsapp: d.whatsapp ?? null,
-        notas: typeof body.notas === "string" && body.notas.trim() ? body.notas.trim() : null,
+        notas: body.notas?.trim() ? body.notas.trim() : null,
         esPredeterminado: d.esPredeterminado === true,
         puntoDeRetiro: d.puntoDeRetiro === true,
         direccion: d.direccion ?? null,

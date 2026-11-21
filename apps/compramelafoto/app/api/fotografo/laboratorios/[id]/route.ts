@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma, Role } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
-import { validarContacto } from "@/lib/print-batches/contactos";
+import { leerCuerpoContacto, validarContacto } from "@/lib/print-batches/contactos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,25 +27,41 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   const actual = await propio(idTexto, user.id);
   if (!actual) return NextResponse.json({ error: NO_ENCONTRADO }, { status: 404 });
 
-  let body: any;
+  let body: NonNullable<ReturnType<typeof leerCuerpoContacto>>;
   try {
-    body = await req.json();
+    const leido = leerCuerpoContacto(await req.json());
+    if (!leido) return NextResponse.json({ error: "Datos inválidos." }, { status: 400 });
+    body = leido;
   } catch {
     return NextResponse.json({ error: "No pudimos leer los datos enviados." }, { status: 400 });
   }
 
+  const email = (body.email !== undefined ? body.email : actual.email).trim().toLowerCase();
+  // Si cambió el correo, el vínculo con el directorio se recalcula con el correo nuevo.
+  let labId: number | null = actual.labId;
+  let labVinculado: { address: string | null } | null = actual.lab ? { address: actual.lab.address } : null;
+  if (email !== actual.email) {
+    const lab = email
+      ? await prisma.lab.findFirst({
+          where: { email: { equals: email, mode: "insensitive" }, approvalStatus: "APPROVED" },
+          select: { id: true, address: true },
+        })
+      : null;
+    labId = lab?.id ?? null;
+    labVinculado = lab ? { address: lab.address } : null;
+  }
+
   const v = validarContacto(
     {
-      nombre: body.nombre !== undefined ? String(body.nombre) : actual.nombre,
-      email: body.email !== undefined ? String(body.email) : actual.email,
+      nombre: body.nombre !== undefined ? body.nombre : actual.nombre,
+      email,
       whatsapp: body.whatsapp !== undefined ? body.whatsapp : actual.whatsapp ?? undefined,
-      puntoDeRetiro: body.puntoDeRetiro !== undefined ? body.puntoDeRetiro === true : actual.puntoDeRetiro,
+      puntoDeRetiro: body.puntoDeRetiro !== undefined ? body.puntoDeRetiro : actual.puntoDeRetiro,
       direccion: body.direccion !== undefined ? body.direccion : actual.direccion ?? undefined,
       horario: body.horario !== undefined ? body.horario : actual.horario ?? undefined,
-      esPredeterminado:
-        body.esPredeterminado !== undefined ? body.esPredeterminado === true : actual.esPredeterminado,
+      esPredeterminado: body.esPredeterminado !== undefined ? body.esPredeterminado : actual.esPredeterminado,
     },
-    actual.lab ? { address: actual.lab.address } : null,
+    labVinculado,
   );
   if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
   const d = v.datos;
@@ -63,9 +79,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         data: {
           nombre: d.nombre,
           email: d.email,
+          labId,
           whatsapp: d.whatsapp ?? null,
           notas:
-            body.notas !== undefined ? (String(body.notas).trim() || null) : actual.notas,
+            body.notas !== undefined ? (body.notas.trim() || null) : actual.notas,
           esPredeterminado: d.esPredeterminado === true,
           puntoDeRetiro: d.puntoDeRetiro === true,
           direccion: d.direccion ?? null,

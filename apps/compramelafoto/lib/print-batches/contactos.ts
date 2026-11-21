@@ -51,3 +51,26 @@ export function validarContacto(
     },
   };
 }
+
+function texto(v: unknown): string | undefined {
+  return typeof v === "string" ? v : undefined;
+}
+
+/** Normaliza el cuerpo crudo de la petición: null o campos que no son texto no rompen nada. */
+export function leerCuerpoContacto(
+  raw: unknown,
+): { nombre?: string; email?: string; whatsapp?: string; direccion?: string; horario?: string; notas?: string; puntoDeRetiro?: boolean; esPredeterminado?: boolean } | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>;
+  const bool = (v: unknown) => (typeof v === "boolean" ? v : undefined);
+  return {
+    nombre: texto(o.nombre),
+    email: texto(o.email),
+    whatsapp: texto(o.whatsapp),
+    direccion: texto(o.direccion),
+    horario: texto(o.horario),
+    notas: texto(o.notas),
+    puntoDeRetiro: bool(o.puntoDeRetiro),
+    esPredeterminado: bool(o.esPredeterminado),
+  };
+}
