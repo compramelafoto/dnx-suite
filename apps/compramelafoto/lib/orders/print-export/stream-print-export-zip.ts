@@ -110,7 +110,8 @@ async function writePlan(
 export function streamPrintExportZip(
   plans: PrintExportPlan[],
   zipName: string,
-  extras: Array<{ name: string; content: string }> = [],
+  /** Archivos sueltos en la raíz del ZIP: texto (el resumen) o binarios (el remito en PDF). */
+  extras: Array<{ name: string; content: string | Uint8Array }> = [],
   leer: LectorDeArchivos = leerDeR2,
 ): Response {
   const archive = archiver("zip", { store: true });
@@ -120,7 +121,10 @@ export function streamPrintExportZip(
     try {
       const usadas = new Set<string>();
       for (const plan of plans) await writePlan(archive, plan, leer, usadas);
-      for (const extra of extras) await appendAndWait(archive, extra.content, ajustarRuta(extra.name, usadas));
+      for (const extra of extras) {
+        const data = typeof extra.content === "string" ? extra.content : Buffer.from(extra.content);
+        await appendAndWait(archive, data, ajustarRuta(extra.name, usadas));
+      }
       await archive.finalize();
     } catch (err) {
       console.error("[print-export] ZIP interrumpido", err);

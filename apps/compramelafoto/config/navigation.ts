@@ -84,6 +84,16 @@ export function getPhotographerSidebarItems(icons: {
     { id: "inicio", label: "Inicio", path: "/fotografo/dashboard", icon: icons.home },
     { id: "pedidos", label: "Pedidos", path: "/fotografo/pedidos", icon: icons.orders },
     {
+      id: "impresiones",
+      label: "Impresiones",
+      path: "/fotografo/impresiones",
+      icon: icons.lab ?? icons.orders,
+      children: [
+        { id: "impresiones-lotes", label: "Para imprimir y lotes", path: "/fotografo/impresiones" },
+        { id: "impresiones-laboratorios", label: "Mis laboratorios", path: "/fotografo/impresiones/laboratorios" },
+      ],
+    },
+    {
       id: "albumes",
       label: "Álbumes",
       path: "/dashboard/albums",

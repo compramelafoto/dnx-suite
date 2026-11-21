@@ -184,6 +184,10 @@ export default function AlbumResumenPage() {
   const [quoteLoading, setQuoteLoading] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [albumPricing, setAlbumPricing] = useState<AlbumPricing | null>(null);
+  /** Punto de retiro que el cliente eligió en el carrito (laboratorios del fotógrafo). */
+  const [pickupPoint, setPickupPoint] = useState<
+    { id: number; nombre: string; direccion: string; horario: string | null } | null
+  >(null);
   const [photographer, setPhotographer] = useState<Photographer>(null);
   const [buyerName, setBuyerName] = useState("");
   const [buyerEmail, setBuyerEmail] = useState("");
@@ -216,6 +220,8 @@ export default function AlbumResumenPage() {
   useEffect(() => {
     const ap = sessionStorage.getItem(`album_${albumId}_pricing`);
     if (ap) try { setAlbumPricing(JSON.parse(ap)); } catch {}
+    const pp = sessionStorage.getItem(`album_${albumId}_pickupPoint`);
+    if (pp) try { setPickupPoint(JSON.parse(pp)); } catch {}
     
     const photographerData = sessionStorage.getItem(`album_${albumId}_photographer`);
     if (photographerData) {
@@ -478,6 +484,14 @@ export default function AlbumResumenPage() {
 
   const canjeAplicado =
     quote?.canje?.ok === true && (quote.canje.creditedPrintUnits ?? 0) > 0 ? quote.canje : null;
+  // Punto de retiro elegido en el carrito: sólo con impresas y sin canje (el servidor lo ignora).
+  const pickupPointToShow =
+    pickupPoint &&
+    typeof pickupPoint.id === "number" &&
+    !(canjeAplicado && canjeToken) &&
+    items.some((item) => (item.tipo ?? "digital") === "impresa")
+      ? pickupPoint
+      : null;
   // El combo pagado se muestra aparte: no es un descuento por cantidad del fotógrafo.
   const bulkDiscountArs = Math.max(0, totalDiscountArs - (canjeAplicado?.discountDigitalArs ?? 0));
   const photoTotalArs = totals.displayTotalCents;
@@ -646,6 +660,7 @@ export default function AlbumResumenPage() {
           termsAccepted: true,
           ...(faceBulkPackPhotoIds.length > 0 ? { faceBulkPackPhotoIds } : {}),
           ...(canjeAplicado && canjeToken ? { canjeToken } : {}),
+          ...(pickupPointToShow ? { pickupLabContactId: pickupPointToShow.id } : {}),
           // Los videos elegidos viajan en el MISMO pedido que las fotos: el
           // cliente paga una sola vez y descarga todo del mismo lugar.
           ...(videoCartIds.length > 0 ? { videoIds: videoCartIds } : {}),
@@ -914,8 +929,23 @@ export default function AlbumResumenPage() {
             </Card>
           )}
 
+          {/* Dónde retira el cliente (lo eligió en el carrito) */}
+          {pickupPointToShow && (
+            <Card className="bg-blue-50 border border-blue-200">
+              <div className="space-y-2">
+                <h3 className="text-sm font-semibold text-blue-900 mb-2">
+                  📍 Retirás tus copias en
+                </h3>
+                <p className="text-sm text-blue-900 font-medium">{pickupPointToShow.nombre}</p>
+                <p className="text-xs text-blue-700">
+                  {[pickupPointToShow.direccion, pickupPointToShow.horario].filter(Boolean).join(" · ")}
+                </p>
+              </div>
+            </Card>
+          )}
+
           {/* Mensaje de retiro de fotos impresas */}
-          {albumPricing?.pickupInfo && items.some((item) => (item.tipo ?? "digital") === "impresa") && (
+          {!pickupPointToShow && albumPricing?.pickupInfo && items.some((item) => (item.tipo ?? "digital") === "impresa") && (
             <Card className="bg-blue-50 border border-blue-200">
               <div className="space-y-2">
                 <h3 className="text-sm font-semibold text-blue-900 mb-2">

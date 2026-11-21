@@ -4,13 +4,10 @@
  * se sacó acá para que la descarga de un pedido y la de varios armen exactamente lo mismo.
  */
 
-import path from "path";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { prisma, Role } from "@/lib/prisma";
-import { urlToR2Key } from "@/lib/r2-client";
-import { safeFilename } from "@/lib/safe-filename";
 import { formatBuyerContactForPhotographer } from "@/lib/orders/resolve-album-order-buyer-contact";
-import type { PrintExportFile, PrintExportPlan } from "./stream-print-export-zip";
+import type { PrintExportPlan } from "./stream-print-export-zip";
 import {
   acabadoParaExportar,
   chosenProductNameFromMetadata,
@@ -19,16 +16,14 @@ import {
 } from "./export-product-name";
 import { alumnoDesdeRefs, rotuloDeAlumno, type AlumnoDelPedido } from "./alumno-del-pedido";
 import { copiasFueraDelDiseno } from "./copias-fuera-del-diseno";
+import { archivosDelPedido } from "./archivos-del-pedido";
 import { loadOrderDesigns } from "./order-designs";
-import { acabadoCorto, carpetaDeImpresion, carpetaDePedido, nombreDeCopia, recortar, tamanoCorto } from "./rutas-cortas";
+import { carpetaDePedido } from "./rutas-cortas";
+import { cabeceraDelPdf, clienteEnElPdf, encabezadoDelManifest, rotuloDelCliente } from "./datos-del-cliente";
 
 export type PlanResult = { ok: true; plan: PrintExportPlan } | { ok: false; status: number; error: string };
 
 export type PrintExportUser = { id: number; role: string; labId?: number | null };
-
-function safeName(name: string): string {
-  return safeFilename(name, "Cliente");
-}
 
 
 function formatDate(d: Date) {
@@ -50,7 +45,8 @@ async function buildPdf(
   buyer: { name: string | null; email: string | null; phone: string | null },
   getProductName: (size: string, acabado: string, metadata?: unknown) => string,
   extraLines: string[] = [],
-  alumno: AlumnoDelPedido | null = null
+  alumno: AlumnoDelPedido | null = null,
+  paraLaboratorio = false
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -66,9 +62,9 @@ async function buildPdf(
   page.drawText("RESUMEN PEDIDO ÁLBUM - IMPRESIONES", { x: left, y, size: 16, font });
   y -= 28;
 
-  draw(`Pedido N°: ${order.id}`, 12);
-  draw(`Fecha: ${formatDate(order.createdAt)}`, 12);
-  draw(`Total: $${order.totalCents} ARS`, 12);
+  for (const linea of cabeceraDelPdf({ orderId: order.id, fecha: formatDate(order.createdAt), totalCents: order.totalCents, paraLaboratorio })) {
+    draw(linea, 12);
+  }
   y -= 10;
 
   if (alumno) {
@@ -78,9 +74,7 @@ async function buildPdf(
     y -= 10;
   }
   draw(alumno ? "Adulto que hizo el pedido" : "Datos del cliente", 13);
-  draw(`Nombre: ${buyer.name || "-"}`, 12);
-  draw(`Email: ${buyer.email || "-"}`, 12);
-  draw(`WhatsApp / teléfono: ${buyer.phone || "-"}`, 12);
+  for (const linea of clienteEnElPdf(buyer, paraLaboratorio)) draw(linea, 12);
   y -= 10;
 
   const summary: Record<string, Record<string, Record<string, { photos: number; copies: number }>>> = {};
@@ -121,7 +115,7 @@ async function buildPdf(
   return await pdfDoc.save();
 }
 
-export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExportUser): Promise<PlanResult> {
+async function cargarPlan(orderId: number, user: PrintExportUser | null, incluirDisenos: boolean, paraLaboratorio = false): Promise<PlanResult> {
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: {
@@ -134,8 +128,9 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
     },
   });
 
-  const isAdmin = user.role === Role.ADMIN;
-  if (!order || (!isAdmin && order.album?.userId !== user.id)) {
+  const isAdmin = user?.role === Role.ADMIN;
+  // Sin usuario (lote de impresión) un pedido sin álbum no tiene fotógrafo: no hay plan.
+  if (!order || (!user && !order.album) || (user && !isAdmin && order.album?.userId !== user.id)) {
     return { ok: false, status: 404, error: "Pedido no encontrado o sin permiso" };
   }
   if (order.status !== "PAID") {
@@ -148,7 +143,7 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
     order.items,
     designs.flatMap((d) => d.photoIds),
   );
-  if (sueltas.length === 0 && designs.length === 0) {
+  if (sueltas.length === 0 && (!incluirDisenos || designs.length === 0)) {
     return { ok: false, status: 400, error: "Este pedido no tiene ítems de impresión" };
   }
 
@@ -194,71 +189,16 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
   const codigo = String(order.id);
   const folder = alumno
     ? carpetaDePedido(codigo, rotuloDeAlumno(alumno), 32)
-    : carpetaDePedido(codigo, buyer.name || buyer.email || "Cliente");
+    : carpetaDePedido(codigo, rotuloDelCliente(buyer, paraLaboratorio));
 
-  const files: PrintExportFile[] = sueltasLimpias.map((it) => {
-    const finish = acabadoCorto(it.finish);
-    const size = tamanoCorto(it.size);
-    const qty = Number(it.quantity || 0);
-    const productName = safeName(getProductName(String(it.size || ""), String(it.finish || ""), it.metadata));
-    const originalKey = it.photo?.originalKey ?? "";
-    const baseName = path.basename(originalKey) || `foto-${it.photoId}`;
-    const impresion = { producto: productName, acabado: finish, tamano: size, copias: qty };
-    const zipPath = `${folder}/${carpetaDeImpresion(impresion)}/${nombreDeCopia(qty, baseName)}`;
-    return {
-      zipPath,
-      r2Key: urlToR2Key(originalKey),
-      manifestLine: `${productName} | ${finish || "-"} | ${size} | ${qty} | ${zipPath}`,
-      missingLine: `${productName} | ${finish || "-"} | ${size} | ${qty} | (FALTA ARCHIVO)`,
-      impresion,
-    };
+  const { files, notes, designLines } = archivosDelPedido({
+    items: order.items,
+    sueltas: sueltasLimpias,
+    designs,
+    folder,
+    getProductName,
+    incluirDisenos,
   });
-
-  // Carpeta del producto de cada diseño: la de las fotos que lo forman.
-  const productoDeDiseno = (photoIds: number[]) => {
-    const it = order.items.find((i) => photoIds.includes(i.photoId));
-    return safeName(
-      recortar(it ? getProductName(String(it.size || ""), String(it.finish || ""), it.metadata) : "Disenos", 24)
-    );
-  };
-  const notes: Array<{ name: string; content: string }> = [];
-  const designLines: string[] = [];
-  for (const d of designs) {
-    const producto = productoDeDiseno(d.photoIds);
-    const titulo = recortar(safeName(`Diseno ${d.id}${d.templateName ? ` ${d.templateName}` : ""}`), 30);
-    if (d.ready && d.pdfUrl) {
-      const pdfPath = `${folder}/${producto}/${titulo}.pdf`;
-      files.push({
-        zipPath: pdfPath,
-        r2Key: urlToR2Key(d.pdfUrl),
-        manifestLine: `${producto} | DISEÑO | ${d.id} | 1 | ${pdfPath}`,
-        missingLine: `${producto} | DISEÑO | ${d.id} | 1 | (FALTA EL PDF DEL DISEÑO)`,
-      });
-      d.jpgUrls.forEach((url, i) => {
-        const jpgPath = `${folder}/${producto}/${titulo} caras/Cara ${i + 1}.jpg`;
-        files.push({
-          zipPath: jpgPath,
-          r2Key: urlToR2Key(url),
-          manifestLine: `${producto} | DISEÑO cara ${i + 1} | ${d.id} | 1 | ${jpgPath}`,
-          missingLine: `${producto} | DISEÑO cara ${i + 1} | ${d.id} | 1 | (FALTA ARCHIVO)`,
-        });
-      });
-      designLines.push(`  • ${producto}: diseño ${d.id} listo (PDF incluido)`);
-    } else {
-      notes.push({
-        name: `DISENO ${d.id} PENDIENTE DE APROBAR.txt`,
-        content: [
-          `El diseño ${d.id}${d.templateName ? ` (${d.templateName})` : ""} todavía no está aprobado.`,
-          "",
-          "Aprobalo desde el panel, en Diseños. Cuando esté aprobado, volvé a exportar este pedido:",
-          "el PDF listo para imprimir va a aparecer en esta carpeta.",
-          "",
-          `Fotos que lleva: ${d.photoIds.length}. No se incluyen sueltas porque se imprimen dentro del diseño.`,
-        ].join("\n"),
-      });
-      designLines.push(`  • ${producto}: diseño ${d.id} PENDIENTE DE APROBAR`);
-    }
-  }
 
   return {
     ok: true,
@@ -266,26 +206,37 @@ export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExport
       folder,
       codigo,
       notes,
-      manifestHeader: [
-        `Pedido Álbum: ${order.id}`,
-        ...(alumno ? [`Alumno: ${alumno.alumno}`, `Curso: ${alumno.curso || "-"}`] : []),
-        `${alumno ? "Adulto" : "Nombre"}: ${buyer.name || "-"}`,
-        `Email: ${buyer.email || "-"}`,
-        `WhatsApp / teléfono: ${buyer.phone || "-"}`,
-        `Fecha: ${order.createdAt.toISOString()}`,
-        `Total: ${order.totalCents} ARS`,
-        "",
-        "ITEMS IMPRESIÓN:",
-        "Producto | Acabado | Tamaño | Cantidad | Ruta ZIP",
-      ],
+      manifestHeader: encabezadoDelManifest({
+        orderId: order.id, alumno, buyer, createdAt: order.createdAt, totalCents: order.totalCents, paraLaboratorio,
+      }),
       files,
       pdfBytes: await buildPdf(
         { ...order, items: sueltasLimpias },
         buyer,
         getProductName,
         designLines.length ? ["Diseños (carpetas, libritos)", ...designLines] : [],
-        alumno
+        alumno,
+        paraLaboratorio
       ),
     },
   };
+}
+
+/** Descarga del fotógrafo o del admin: el plan completo (con los diseños), si el pedido es suyo. */
+export async function loadAlbumOrderPrintPlan(orderId: number, user: PrintExportUser): Promise<PlanResult> {
+  return cargarPlan(orderId, user, true);
+}
+
+/**
+ * El mismo plan sin chequear quién lo pide: el que llama ya verificó el permiso (p. ej. el lote
+ * de impresión es del fotógrafo). Con `incluirDisenos: false` van sólo las copias sueltas: ni el
+ * PDF ni las caras de un librito o carpeta, ni el aviso de un diseño pendiente. Con
+ * `paraLaboratorio: true` (ZIP del lote de impresión) el MANIFEST y el PDF no llevan correo,
+ * teléfono ni total, y la carpeta no se llama como el correo del comprador.
+ */
+export async function cargarPlanDePedidoDeAlbum(
+  orderId: number,
+  { incluirDisenos = true, paraLaboratorio = false }: { incluirDisenos?: boolean; paraLaboratorio?: boolean } = {},
+): Promise<PlanResult> {
+  return cargarPlan(orderId, null, incluirDisenos, paraLaboratorio);
 }
