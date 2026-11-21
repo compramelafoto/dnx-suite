@@ -6,8 +6,13 @@
 /*
  * v2 (2026-09-25): la media recortada recorta de verdad, y sólo un empate que
  * decide un premio exige desempate manual; los demás comparten el puesto.
+ *
+ * v3 (2026-10-06): estrategia PARTICIPANT_TOTAL para Clickatón desde la 2ª
+ * edición. Dos criterios y nada más: el promedio del jurado y, si empata, la
+ * suma de todas las fotos del participante en las consignas que puntúan. Si
+ * aun así empatan, comparten el puesto (y el premio).
  */
-export const RANKING_ENGINE_VERSION = "clickaton-ranking-v2";
+export const RANKING_ENGINE_VERSION = "clickaton-ranking-v3";
 
 export type AggregationMethod =
   | "WEIGHTED_AVERAGE"
@@ -21,7 +26,8 @@ export type TieBreakStrategy =
   | "PRIORITY_CRITERION_THEN_MEDIAN_THEN_DISPERSION"
   | "MEDIAN_THEN_DISPERSION"
   | "MANUAL_ONLY"
-  | "SHARED_TIE";
+  | "SHARED_TIE"
+  | "PARTICIPANT_TOTAL";
 
 export type CoverageStatus = "COMPLETE" | "INCOMPLETE" | "INVALID" | "REVIEW_REQUIRED";
 
@@ -59,6 +65,13 @@ export type EntryMeta = {
   promptExternalId: string | null;
   admissionStatus: string;
   entryStatus: string;
+  /**
+   * Quién mandó la foto (en Clickatón, la inscripción). Sólo lo usa
+   * PARTICIPANT_TOTAL, para sumar las fotos de cada participante.
+   */
+  participantKey?: string | null;
+  /** false para la consigna sorpresa: se juzga pero no suma al total. */
+  countsForParticipantTotal?: boolean;
 };
 
 export type RankedWork = {
@@ -180,15 +193,18 @@ export function scopeKeyFor(
   }
 }
 
-function compareForTieBreak(
-  a: RankedWork & { priorityAvg: number | null },
-  b: RankedWork & { priorityAvg: number | null },
-  strategy: TieBreakStrategy,
-): number {
+type WorkAcc = RankedWork & { priorityAvg: number | null; participantTotal: number | null };
+
+function compareForTieBreak(a: WorkAcc, b: WorkAcc, strategy: TieBreakStrategy): number {
   if (strategy === "MANUAL_ONLY" || strategy === "SHARED_TIE") return 0;
 
   const scoreCmp = (b.normalizedScore ?? -Infinity) - (a.normalizedScore ?? -Infinity);
   if (Math.abs(scoreCmp) > 1e-9) return scoreCmp;
+
+  if (strategy === "PARTICIPANT_TOTAL") {
+    const total = (b.participantTotal ?? -Infinity) - (a.participantTotal ?? -Infinity);
+    return Math.abs(total) > 1e-9 ? total : 0;
+  }
 
   if (strategy === "PRIORITY_CRITERION_THEN_MEDIAN_THEN_DISPERSION") {
     const p = (b.priorityAvg ?? -Infinity) - (a.priorityAvg ?? -Infinity);
@@ -232,7 +248,6 @@ export function computeRanking(input: {
     bySnap.set(ev.snapshotId, list);
   }
 
-  type WorkAcc = RankedWork & { priorityAvg: number | null };
   const works: WorkAcc[] = [];
 
   for (const entry of eligibleEntries) {
@@ -278,7 +293,28 @@ export function computeRanking(input: {
       engineVersion: RANKING_ENGINE_VERSION,
       ruleSetVersion: input.rules.ruleSetVersion,
       priorityAvg,
+      participantTotal: null,
     });
+  }
+
+  /*
+   * Total del participante: la suma de los promedios de todas sus fotos, en
+   * todos los ámbitos, salvo las consignas que no puntúan. Se suma el puntaje
+   * normalizado para no mezclar escalas; el orden es el mismo.
+   */
+  if (input.rules.tieBreakStrategy === "PARTICIPANT_TOTAL") {
+    const metaPorSnapshot = new Map(eligibleEntries.map((e) => [e.snapshotId, e]));
+    const totales = new Map<string, number>();
+    for (const w of works) {
+      const meta = metaPorSnapshot.get(w.snapshotId);
+      if (!meta?.participantKey || meta.countsForParticipantTotal === false) continue;
+      if (w.normalizedScore == null) continue;
+      totales.set(meta.participantKey, (totales.get(meta.participantKey) ?? 0) + w.normalizedScore);
+    }
+    for (const w of works) {
+      const clave = metaPorSnapshot.get(w.snapshotId)?.participantKey;
+      w.participantTotal = clave ? (totales.get(clave) ?? null) : null;
+    }
   }
 
   // Agrupar por scopeKey y rankear
@@ -323,6 +359,7 @@ export function computeRanking(input: {
         const decidePremio = position <= (input.rules.winnersPerScope ?? 1);
         const exigeDesempate =
           input.rules.tieBreakStrategy !== "SHARED_TIE" &&
+          input.rules.tieBreakStrategy !== "PARTICIPANT_TOTAL" &&
           (decidePremio || input.rules.tieBreakStrategy === "MANUAL_ONLY");
         for (let k = i; k < j; k++) {
           const w = rankable[k]!;
@@ -353,8 +390,9 @@ export function computeRanking(input: {
   // Orden estable de salida: scopeKey + position + anonymousCode (solo para orden de lista, no desempate)
   const output = works
     .map((w) => {
-      const { priorityAvg, ...rest } = w;
+      const { priorityAvg, participantTotal, ...rest } = w;
       void priorityAvg;
+      void participantTotal;
       return rest;
     })
     .sort((a, b) => {
