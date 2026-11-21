@@ -14,6 +14,8 @@ import { HIDDEN_ALBUM_GRANT_COOKIE } from "@/lib/hidden-album-audit";
 import ProtectedAlbumWrapper from "@/components/photo/ProtectedAlbumWrapper";
 import HiddenAlbumVerificationGate from "@/components/photo/HiddenAlbumVerificationGate";
 import CanjeFlow from "@/components/canje-externo/CanjeFlow";
+import CanjeCompartidoForm from "@/components/canje-externo/CanjeCompartidoForm";
+import { loadSharedGiftLinkByToken } from "@/lib/canje-externo/shared-voucher-link";
 
 export const dynamic = "force-dynamic";
 
@@ -48,6 +50,35 @@ function Aviso({ titulo, texto, albumHref }: { titulo: string; texto: string; al
  */
 export default async function CanjePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
+
+  // Link compartido de regalo: primero la familia deja sus datos y recibe su propio combo.
+  const shared = await loadSharedGiftLinkByToken(token);
+  if (shared) {
+    if (!shared.ok) {
+      return <Aviso titulo="Este link ya no está disponible" texto="Escribile al fotógrafo para que te pase uno nuevo." />;
+    }
+    const sharedAlbum = await prisma.album.findUnique({
+      where: { id: shared.link.albumId },
+      select: { title: true, deletedAt: true, isHidden: true, user: { select: { name: true } } },
+    });
+    if (!sharedAlbum || sharedAlbum.deletedAt || sharedAlbum.isHidden) {
+      return (
+        <Aviso
+          titulo="La galería no está disponible por ahora"
+          texto="Escribile al fotógrafo para coordinar la entrega de tus fotos."
+        />
+      );
+    }
+    return (
+      <CanjeCompartidoForm
+        token={token}
+        albumTitle={sharedAlbum.title}
+        photographerName={sharedAlbum.user?.name ?? null}
+        giftLabel={shared.link.refs.label}
+      />
+    );
+  }
+
   const lookup = await loadExternalVoucherByToken(token);
   if (!lookup.ok) {
     // Combo deshabilitado (link anulado, combo cancelado o vencido): a la galería, a
@@ -138,7 +169,11 @@ export default async function CanjePage({ params }: { params: Promise<{ token: s
             {nombreFamilia ? `Hola, ${nombreFamilia}` : "Hola"}
           </h1>
           <p className="m-0 mt-2 text-[#4b4f56]">
-            {alumno ? `El combo de ${alumno} ya está pago. ` : "Tu combo ya está pago. "}
+            {voucher.refs.isGift
+              ? "Tus fotos de regalo te esperan. "
+              : alumno
+                ? `El combo de ${alumno} ya está pago. `
+                : "Tu combo ya está pago. "}
             En esta galería cada familia ve sólo sus fotos: primero verificá con una selfie y
             después elegís las fotos del combo.
           </p>
@@ -175,6 +210,7 @@ export default async function CanjePage({ params }: { params: Promise<{ token: s
           includesDigital: voucher.refs.includesDigital,
           parentName: nombreFamilia,
           studentName: alumno,
+          isGift: voucher.refs.isGift === true,
         }}
         product={product}
         photos={photos}

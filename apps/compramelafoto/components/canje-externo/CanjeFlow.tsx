@@ -43,6 +43,8 @@ type Props = {
     includesDigital: boolean;
     parentName: string | null;
     studentName: string | null;
+    /** Regalo del link compartido: no se dice "ya está pago". */
+    isGift?: boolean;
   };
   product: ComboPrintProduct;
   photos: Array<{ id: number; sellPrint: boolean; sellDigital: boolean }>;
@@ -397,7 +399,11 @@ export default function CanjeFlow({ token, album, combo, product, photos }: Prop
               {combo.parentName ? `Hola, ${primerNombre(combo.parentName)}` : "Hola"}
             </h1>
             <p className="m-0 mt-2 text-lg text-[#2f7d5b]">
-              {alumno ? `El combo de ${alumno} ya está pago` : "Tu combo ya está pago"}
+              {combo.isGift
+                ? `Tenés ${n} fotos de regalo`
+                : alumno
+                  ? `El combo de ${alumno} ya está pago`
+                  : "Tu combo ya está pago"}
             </p>
             <div className="my-7">
               <ComboFrames slots={n} photoIds={[]} thumbUrl={thumbUrl} size="lg" />
@@ -412,8 +418,8 @@ export default function CanjeFlow({ token, album, combo, product, photos }: Prop
                   1
                 </span>
                 <span>
-                  <strong>Ahora elegí las {n} fotos de tu combo.</strong> Ya están pagas: no vas a pagar nada por
-                  ellas.
+                  <strong>Ahora elegí las {n} fotos de tu combo.</strong> {combo.isGift ? "Son de regalo" : "Ya están pagas"}: no vas a pagar
+                  nada por ellas.
                 </span>
               </li>
               <li className="flex gap-3">
