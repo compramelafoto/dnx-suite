@@ -32,8 +32,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ token: stri
       return responder({ error: "Esa parte del lote no existe." }, 404);
     }
     const res = await responderZipDeLaParte(batchId, parte, nombreDeLaParte(lote.nombre, parte, lote.partes), async (p) => {
-      const remito = await remitoDelLote(batchId, p);
-      return remito ? [{ name: "REMITO.pdf", content: remito }] : [];
+      // El remito es un archivo de control: si falla, el ZIP sale igual sin él.
+      try {
+        const remito = await remitoDelLote(batchId, p);
+        return remito ? [{ name: "REMITO.pdf", content: remito }] : [];
+      } catch (e) {
+        console.error("REMITO DEL ZIP ERROR >>>", e);
+        return [];
+      }
     });
     if (res.ok) await marcarDescargado(batchId);
     for (const [k, v] of Object.entries(CABECERAS)) res.headers.set(k, v);

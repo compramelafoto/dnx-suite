@@ -19,7 +19,7 @@ async function cargar(batchId: number) {
   const b = await prisma.printBatch.findUnique({
     where: { id: batchId },
     select: {
-      id: true, nombre: true, labContactId: true,
+      id: true, nombre: true, estado: true, labContactId: true,
       photographer: { select: { name: true, companyName: true } },
       entries: {
         where: { quitadoAt: null }, orderBy: { id: "asc" },
@@ -27,7 +27,7 @@ async function cargar(batchId: number) {
       },
     },
   });
-  if (!b) return null;
+  if (!b || b.estado === "ANULADO") return null;
   const ids = [b.labContactId, ...b.entries.map((e) => e.pickupLabContactId)].filter((x): x is number => x != null);
   const contactos = ids.length
     ? await prisma.photographerLabContact.findMany({ where: { id: { in: ids } }, select: { id: true, nombre: true } })
@@ -51,6 +51,7 @@ export async function sobresDelLote(batchId: number): Promise<Uint8Array | null>
   const sobres: SobreDePedido[] = d.filas.map(({ e, r, pedido, labDelPedido }) => ({
     fotografo: d.fotografo, cliente: r.cliente, album: r.album, pedido, contenido: textoDeContenido(r.copias), lote: d.b.nombre,
     retiraCliente: e.retiraCliente, laboratorio: e.retiraCliente ? labDelPedido || d.laboratorio : d.laboratorio,
+    // El respaldo con el QR del lote es defensivo: `armarLote` siempre conecta el pedido espejo.
     qrUrl: e.printOrderId != null
       ? `${base}/pedido/entrega/${codigoDeEntregaDePedido(e.printOrderId, secreto)}`
       : `${base}/fotografo/impresiones?lote=${d.b.id}`,

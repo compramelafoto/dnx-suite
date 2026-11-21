@@ -39,8 +39,14 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     ).length;
     if (parte > total) return NextResponse.json({ error: "Esa parte del lote no existe." }, { status: 404 });
     return await responderZipDeLaParte(batchId, parte, nombreDeLaParte(lote.nombre, parte, total), async (p) => {
-      const remito = await remitoDelLote(batchId, p);
-      return remito ? [{ name: "REMITO.pdf", content: remito }] : [];
+      // El remito es un archivo de control: si falla, el ZIP sale igual sin él.
+      try {
+        const remito = await remitoDelLote(batchId, p);
+        return remito ? [{ name: "REMITO.pdf", content: remito }] : [];
+      } catch (e) {
+        console.error("REMITO DEL ZIP ERROR >>>", e);
+        return [];
+      }
     });
   } catch (err: unknown) {
     if (err instanceof LoteError) return NextResponse.json({ error: err.message }, { status: 404 });

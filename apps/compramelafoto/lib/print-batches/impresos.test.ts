@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { PDFDocument } from "pdf-lib";
 
-import { lineasDelSobre, pdfDeSobres, pdfEtiquetaDeLote, pdfRemito, textoDeContenido, type SobreDePedido } from "./impresos";
+import { limpio, lineasDelSobre, pdfDeSobres, pdfEtiquetaDeLote, pdfRemito, textoDeContenido, type SobreDePedido } from "./impresos";
 
 const sobre = (n: number, extra: Partial<SobreDePedido> = {}): SobreDePedido => ({
   fotografo: "Ana Foto", cliente: "María Pérez", album: "Egresados", pedido: 100 + n, contenido: "2× 10x15",
@@ -55,5 +55,19 @@ describe("pdfEtiquetaDeLote y pdfRemito", () => {
     const dos = await pdfRemito({ lote: "Lote 3", fotografo: "Ana", laboratorio: "Lab", filas: Array.from({ length: 50 }, (_, i) => fila(i)), noIncluidos: ["Pedido 9: sin fotos"] });
     assert.equal(await paginas(uno), 1);
     assert.equal(await paginas(dos), 2);
+  });
+});
+
+describe("limpio", () => {
+  it("conserva tildes, ñ, «×» y «·», y saca los emojis", () => {
+    assert.equal(limpio("Peña José"), "Peña José");
+    const c = textoDeContenido([{ medida: "13x18", acabado: "brillo", cantidad: 3 }, { medida: "10x15", acabado: "", cantidad: 2 }]);
+    assert.equal(limpio(c), c);
+    assert.equal(limpio("Ana 😀 Foto"), "Ana  Foto");
+    for (const l of lineasDelSobre(sobre(1, { cliente: "Peña", contenido: c }))) assert.equal(limpio(l), l);
+  });
+  it("un sobre con esos textos no rompe el PDF", async () => {
+    const b = await pdfDeSobres([sobre(1, { cliente: "Peña 😀", contenido: "2× 10x15 · 3× 13x18 brillo", retiraCliente: true, laboratorio: "Lab ñandú" })]);
+    assert.equal(await paginas(b), 1);
   });
 });

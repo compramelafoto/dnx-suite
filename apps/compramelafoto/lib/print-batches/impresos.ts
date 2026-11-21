@@ -15,8 +15,11 @@ export type SobreDePedido = {
   retiraCliente: boolean; laboratorio?: string; qrUrl: string;
 };
 
-/** Los PDFs usan fuentes estándar (WinAnsi): sin tildes ni caracteres raros que las rompan. */
-export const limpio = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\x20-\x7E]/g, "");
+/**
+ * Los PDFs usan fuentes estándar (WinAnsi). Se conserva el Latin-1 imprimible (tildes, ñ, ü, «×», «·»,
+ * que Helvetica sí codifica) y se saca lo demás (emojis, símbolos) para que no rompa el PDF.
+ */
+export const limpio = (s: string) => s.normalize("NFC").replace(/[^\x20-\x7E\xA0-\xFF]/g, "");
 
 /** «3× 13x18 brillo · 2× 10x15»: junta medida + acabado, ordenado por medida; sin acabado se omite. */
 export function textoDeContenido(copias: Array<{ medida: string; acabado: string; cantidad: number }>): string {
