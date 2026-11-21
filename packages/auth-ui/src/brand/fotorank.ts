@@ -25,6 +25,6 @@ export const fotorankAuthBrand: DnxAuthBrandConfig = {
     createAccountCta: "Crear cuenta",
     forgotTitle: "¿Olvidaste tu contraseña?",
     forgotDescription:
-      "Te enviaremos un enlace si existe una Cuenta DNX asociada. La nueva contraseña vale en todas las plataformas DNX habilitadas.",
+      "Ingresá el email con el que creaste tu Cuenta DNX y te enviamos un enlace para elegir una contraseña nueva. Vale en todas las plataformas DNX habilitadas.",
   },
 };
