@@ -7,13 +7,18 @@
  * guardada pero se puede cambiar hasta que el jurado envía todo. Recién ahí se
  * cierra, y las que quedaron a medias no entran.
  */
-import { prisma } from "@repo/db";
-
 import { requireJudgeAuth } from "../lib/judge-auth";
 import { JuryError } from "../lib/fotorank/jury/errors";
 import { upsertJuryEvaluation } from "../lib/fotorank/jury/evaluation-service";
 import { colaParaElVisor } from "../lib/fotorank/jury/visor-service";
-import { sumarAlLatido } from "../lib/fotorank/jury/ritmoDelJurado";
+import {
+  limpiarTiempoPorFoto,
+  sumarAlLatido,
+} from "../lib/fotorank/jury/ritmoDelJurado";
+import {
+  baseDelConcurso,
+  type ClienteDeJurado,
+} from "../lib/fotorank/jury/baseDelConcurso";
 
 export type ResultadoDelVisor = { ok: boolean; mensaje?: string };
 
@@ -152,20 +157,34 @@ export async function renovarFotosAction(input: {
  * Lo manda el visor cada tanto mientras la pantalla está a la vista y hay
  * actividad. Si el jurado minimizó, se fue a otra solapa o dejó de tocar el
  * teclado, el visor no lo manda y el tiempo no corre.
+ *
+ * Escribe en la base del concurso. Escribía siempre en la de FotoRank, y una
+ * maratón vive en la de Clickatón: el concurso no existía ahí, la escritura
+ * fallaba y el visor tiraba el error en silencio. En la 1ª edición de
+ * Clickatón no quedó guardado ni un segundo.
+ *
+ * Además del total, anota el tiempo de cada foto en su calificación. La
+ * columna existía desde la etapa 16A y nadie la escribía.
  */
 export async function latidoDelVisorAction(input: {
   contestId: string;
   segundosDesdeElUltimo: number;
-}): Promise<{ segundosActivos: number; calificadas: number }> {
+  porFoto?: Array<{ snapshotId: string; segundos: number }>;
+}): Promise<{
+  segundosActivos: number;
+  calificadas: number;
+  fotosAnotadas: string[];
+}> {
   const judge = await requireJudgeAuth();
+  const { db } = await baseDelConcurso(input.contestId);
 
-  const sesion = await prisma.fotorankJuryScoringSession.findFirst({
+  const sesion = await db.fotorankJuryScoringSession.findFirst({
     where: { contestId: input.contestId, status: "OPEN" },
     orderBy: { openedAt: "desc" },
     select: { id: true },
   });
 
-  const existente = await prisma.fotorankJuryActivityHeartbeat.findFirst({
+  const existente = await db.fotorankJuryActivityHeartbeat.findFirst({
     where: { contestId: input.contestId, jurorId: judge.id },
     select: { id: true, activeSecondsAccumulated: true },
   });
@@ -180,7 +199,7 @@ export async function latidoDelVisorAction(input: {
   });
 
   if (existente) {
-    await prisma.fotorankJuryActivityHeartbeat.update({
+    await db.fotorankJuryActivityHeartbeat.update({
       where: { id: existente.id },
       data: {
         activeSecondsAccumulated: acumulado,
@@ -189,7 +208,7 @@ export async function latidoDelVisorAction(input: {
       },
     });
   } else {
-    await prisma.fotorankJuryActivityHeartbeat.create({
+    await db.fotorankJuryActivityHeartbeat.create({
       data: {
         contestId: input.contestId,
         jurorId: judge.id,
@@ -200,7 +219,13 @@ export async function latidoDelVisorAction(input: {
     });
   }
 
-  const calificadas = await prisma.fotorankJuryEvaluation.count({
+  const fotosAnotadas = await anotarTiempoDeLasFotos(db, {
+    contestId: input.contestId,
+    jurorId: judge.id,
+    porFoto: limpiarTiempoPorFoto(input.porFoto),
+  });
+
+  const calificadas = await db.fotorankJuryEvaluation.count({
     where: {
       jurorId: judge.id,
       contestId: input.contestId,
@@ -208,5 +233,50 @@ export async function latidoDelVisorAction(input: {
     },
   });
 
-  return { segundosActivos: acumulado, calificadas };
+  return { segundosActivos: acumulado, calificadas, fotosAnotadas };
+}
+
+/**
+ * Suma los segundos a la calificación de cada foto.
+ *
+ * Sólo a las que ya tienen fila: una foto mirada antes de la primera nota no
+ * la tiene todavía, y su tiempo vuelve en el latido siguiente. Devuelve cuáles
+ * quedaron anotadas para que el visor las descuente.
+ */
+async function anotarTiempoDeLasFotos(
+  db: ClienteDeJurado,
+  input: {
+    contestId: string;
+    jurorId: string;
+    porFoto: Array<{ snapshotId: string; segundos: number }>;
+  },
+): Promise<string[]> {
+  if (input.porFoto.length === 0) return [];
+
+  const conFila = await db.fotorankJuryEvaluation.findMany({
+    where: {
+      contestId: input.contestId,
+      jurorId: input.jurorId,
+      juryEntrySnapshotId: { in: input.porFoto.map((f) => f.snapshotId) },
+      voidedAt: null,
+    },
+    select: { id: true, juryEntrySnapshotId: true },
+  });
+  if (conFila.length === 0) return [];
+
+  const segundosDe = new Map(input.porFoto.map((f) => [f.snapshotId, f.segundos]));
+  await db.$transaction(
+    conFila.map((e) =>
+      db.fotorankJuryEvaluation.update({
+        where: { id: e.id },
+        data: {
+          activeSecondsAccumulated: {
+            increment: segundosDe.get(e.juryEntrySnapshotId) ?? 0,
+          },
+        },
+      }),
+    ),
+  );
+
+  return [...new Set(conFila.map((e) => e.juryEntrySnapshotId))];
 }
