@@ -269,6 +269,15 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // Enlace secreto del lote para el laboratorio: el token va en la URL, que no se filtre ni se guarde.
+      ...["/lab/lote/:path*", "/api/lab-lote/:path*"].map((source) => ({
+        source,
+        headers: [
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Cache-Control", value: "no-store" },
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+        ],
+      })),
     ];
   },
   outputFileTracingIncludes: {
