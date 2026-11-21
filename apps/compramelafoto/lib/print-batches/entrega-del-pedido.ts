@@ -28,9 +28,10 @@ const ANTES_DE_LISTO = new Set(["CREATED", "IN_PRODUCTION", "READY", "SHIPPED"])
 
 /**
  * Lo que puede hacer cada actor con el pedido del sobre:
- * - Fotógrafo dueño: «Listo para retirar» sólo si lo retira él (si retira el cliente en el
- *   laboratorio, ese aviso lo dispara el laboratorio con el lote); «Entregado» siempre que no esté
- *   terminado.
+ * - Fotógrafo dueño: «Listo para retirar» (antes de estarlo) y «Entregado», siempre que no esté
+ *   terminado. También si retira el cliente en el laboratorio: el fotógrafo siempre puede mover
+ *   cualquier paso a mano (por ejemplo, si el laboratorio no usa la plataforma); el correo sale con
+ *   la variante de retiro en el laboratorio.
  * - Laboratorio (enlace o cuenta): sólo «Entregado», y sólo si retira el cliente en el laboratorio.
  * - Sin sesión (el cliente): «Confirmar que lo recibí» sólo con el pedido «Listo para retirar».
  */
@@ -38,7 +39,7 @@ export function accionesPermitidas(p: { actor: ActorDelSobre; retiraCliente: boo
   if (TERMINADOS.has(p.status)) return [];
   switch (p.actor) {
     case "FOTOGRAFO":
-      return !p.retiraCliente && ANTES_DE_LISTO.has(p.status) ? ["LISTO", "ENTREGADO"] : ["ENTREGADO"];
+      return ANTES_DE_LISTO.has(p.status) ? ["LISTO", "ENTREGADO"] : ["ENTREGADO"];
     case "LAB_ENLACE":
     case "LAB_CUENTA":
       return p.retiraCliente ? ["ENTREGADO"] : [];
@@ -69,6 +70,21 @@ const ESTADOS: Record<string, string> = {
 };
 export function textoDelEstadoDelPedido(status: string): string {
   return ESTADOS[status] ?? "En preparación";
+}
+
+/**
+ * El código como llega en la URL. Next ya decodifica los parámetros; por si llega todavía
+ * codificado se decodifica una vez, y un «%» suelto da null (código inválido) en vez de un error.
+ */
+export function codigoDeLaRuta(crudo: unknown): string | null {
+  let t = String(crudo ?? "");
+  try {
+    t = decodeURIComponent(t);
+  } catch {
+    return null;
+  }
+  t = t.trim();
+  return t ? t : null;
 }
 
 export const CODIGO_INVALIDO = "Este código no es válido.";

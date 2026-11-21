@@ -31,14 +31,20 @@ const TEXTO_HECHO: Record<AccionDelSobre, string> = {
   RECIBIDO_POR_CLIENTE: "¡Gracias! Quedó registrado que lo recibiste.",
 };
 
+const CONFIRMAR_LISTO = "Se le va a avisar al cliente por correo que ya puede retirar. ¿Seguimos?";
+
 export default function EntregaDelSobre(p: Props) {
   const router = useRouter();
   const [enviando, setEnviando] = useState<AccionDelSobre | null>(null);
   const [mensaje, setMensaje] = useState<{ tono: "ok" | "error"; texto: string } | null>(null);
   const esLab = p.actor === "LAB_ENLACE" || p.actor === "LAB_CUENTA";
   const entregado = p.status === "DELIVERED" || p.status === "RETIRED";
+  const cancelado = p.status === "CANCELED";
+  /** Ni entregado ni cancelado: el pedido sigue su curso. */
+  const enCurso = !entregado && !cancelado;
 
   async function hacer(accion: AccionDelSobre) {
+    if (accion === "LISTO" && !window.confirm(CONFIRMAR_LISTO)) return;
     setEnviando(accion);
     setMensaje(null);
     try {
@@ -75,18 +81,22 @@ export default function EntregaDelSobre(p: Props) {
         </h1>
         {p.album ? <p className="mt-1 text-sm text-gray-600">{p.album}</p> : null}
 
-        <div className={`mt-4 rounded-xl px-4 py-3 ${entregado ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-900"}`}>
+        <div className={`mt-4 rounded-xl px-4 py-3 ${entregado ? "bg-emerald-50 text-emerald-800" : cancelado ? "bg-gray-100 text-gray-700" : "bg-amber-50 text-amber-900"}`}>
           <p className="text-xs uppercase tracking-wide opacity-70">Estado</p>
           <p className="text-lg font-semibold">{entregado ? `${p.textoDelEstado} ✓` : p.textoDelEstado}</p>
         </div>
 
-        {esLab && p.retiraCliente && !entregado ? (
+        {cancelado && p.actor === "ANONIMO" ? (
+          <p className="mt-3 rounded-lg bg-gray-100 px-3 py-2 text-sm font-medium text-gray-700">Este pedido se canceló.</p>
+        ) : null}
+
+        {esLab && p.retiraCliente && enCurso ? (
           <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
             PAGADO — no cobrar al cliente; lo factura el fotógrafo.
           </p>
         ) : null}
 
-        {p.retiraCliente && p.dondeRetirar && !esLab ? (
+        {p.retiraCliente && p.dondeRetirar && !esLab && enCurso ? (
           <div className="mt-4 rounded-xl border border-gray-200 px-4 py-3 text-sm text-gray-700">
             <p className="text-xs uppercase tracking-wide text-gray-500">Dónde retirar</p>
             <p className="mt-1 font-semibold text-gray-900">{p.dondeRetirar.nombre}</p>
@@ -105,7 +115,7 @@ export default function EntregaDelSobre(p: Props) {
           </p>
         ) : null}
 
-        {p.acciones.length ? (
+        {p.acciones.length && enCurso ? (
           <div className="mt-5 space-y-3">
             {p.acciones.includes("LISTO") ? (
               <button type="button" disabled={enviando !== null} onClick={() => void hacer("LISTO")} className={botonSecundario}>
@@ -123,13 +133,13 @@ export default function EntregaDelSobre(p: Props) {
               </button>
             ) : null}
           </div>
-        ) : !entregado && p.actor === "ANONIMO" ? (
+        ) : enCurso && p.actor === "ANONIMO" ? (
           <p className="mt-5 text-sm text-gray-500">
             {p.retiraCliente
               ? "Cuando esté listo para retirar te avisamos por correo. Al retirarlo, vas a poder confirmar acá que lo recibiste."
               : "Cuando esté listo, el fotógrafo te avisa por correo cómo retirarlo."}
           </p>
-        ) : !entregado && esLab ? (
+        ) : enCurso && esLab && !p.retiraCliente ? (
           <p className="mt-5 text-sm text-gray-500">Este pedido lo retira el fotógrafo: no se entrega en el laboratorio.</p>
         ) : null}
       </div>

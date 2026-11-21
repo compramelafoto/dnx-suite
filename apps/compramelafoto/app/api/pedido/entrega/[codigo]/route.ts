@@ -19,6 +19,7 @@ import {
   CODIGO_INVALIDO,
   NO_PODES,
   accionesPermitidas,
+  codigoDeLaRuta,
   esAccionDelSobre,
   notaDelHistorial,
   textoDelEstadoDelPedido,
@@ -46,7 +47,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ codigo: st
     const accion = body?.accion;
     if (!esAccionDelSobre(accion)) return responder({ ok: false, error: "Acción desconocida." }, 400);
 
-    const sobre = await cargarSobre(decodeURIComponent(String(codigo || "")).trim());
+    const limpio = codigoDeLaRuta(codigo);
+    if (!limpio) return responder({ ok: false, error: CODIGO_INVALIDO }, 404);
+    const sobre = await cargarSobre(limpio);
     if (esErrorDeSecreto(sobre)) {
       console.error("PEDIDO ENTREGA QR >>> falta SCHOOL_DELIVERY_QR_SECRET / CRON_SECRET");
       return responder({ ok: false, error: ERROR_GENERICO }, 500);

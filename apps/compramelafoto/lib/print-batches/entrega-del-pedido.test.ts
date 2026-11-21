@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   accionesPermitidas,
   actorDelSobre,
+  codigoDeLaRuta,
   esAccionDelSobre,
   notaDelHistorial,
   textoDelEstadoDelPedido,
@@ -18,7 +19,7 @@ const TERMINADOS = new Set(["DELIVERED", "CANCELED", "RETIRED"]);
 function esperado(actor: ActorDelSobre, retiraCliente: boolean, status: string): string[] {
   if (TERMINADOS.has(status)) return [];
   if (actor === "FOTOGRAFO") {
-    if (!retiraCliente && status !== "READY_TO_PICKUP") return ["LISTO", "ENTREGADO"];
+    if (status !== "READY_TO_PICKUP") return ["LISTO", "ENTREGADO"];
     return ["ENTREGADO"];
   }
   if (actor === "LAB_ENLACE" || actor === "LAB_CUENTA") return retiraCliente ? ["ENTREGADO"] : [];
@@ -54,8 +55,9 @@ describe("accionesPermitidas: casos que importan", () => {
       assert.ok(!a.includes("ENTREGADO") && !a.includes("LISTO"));
     }
   });
-  it("el fotógrafo no dispara «Listo» si retira el cliente en el laboratorio", () => {
-    assert.deepEqual(accionesPermitidas({ actor: "FOTOGRAFO", retiraCliente: true, status: "READY" }), ["ENTREGADO"]);
+  it("el fotógrafo también puede marcar «Listo» si retira el cliente en el laboratorio", () => {
+    assert.deepEqual(accionesPermitidas({ actor: "FOTOGRAFO", retiraCliente: true, status: "READY" }), ["LISTO", "ENTREGADO"]);
+    assert.deepEqual(accionesPermitidas({ actor: "FOTOGRAFO", retiraCliente: true, status: "READY_TO_PICKUP" }), ["ENTREGADO"]);
   });
   it("un estado desconocido no habilita «Listo» ni la confirmación del cliente", () => {
     assert.deepEqual(accionesPermitidas({ actor: "FOTOGRAFO", retiraCliente: false, status: "RARO" }), ["ENTREGADO"]);
@@ -91,5 +93,19 @@ describe("textos", () => {
     assert.equal(notaDelHistorial("ANONIMO", "RECIBIDO_POR_CLIENTE"), "Confirmado por el cliente");
     assert.match(notaDelHistorial("LAB_ENLACE", "ENTREGADO"), /laboratorio/);
     assert.match(notaDelHistorial("FOTOGRAFO", "ENTREGADO"), /fotógrafo/);
+  });
+});
+
+describe("codigoDeLaRuta", () => {
+  it("deja el código tal cual o lo decodifica una vez", () => {
+    assert.equal(codigoDeLaRuta("p844.abc_-XYZ"), "p844.abc_-XYZ");
+    assert.equal(codigoDeLaRuta("  p844.abc  "), "p844.abc");
+    assert.equal(codigoDeLaRuta("p844%2Eabc"), "p844.abc");
+  });
+  it("un «%» suelto o un código vacío dan null, sin tirar error", () => {
+    assert.equal(codigoDeLaRuta("p844.%"), null);
+    assert.equal(codigoDeLaRuta("%E0%A4%A"), null);
+    assert.equal(codigoDeLaRuta(""), null);
+    assert.equal(codigoDeLaRuta(undefined), null);
   });
 });

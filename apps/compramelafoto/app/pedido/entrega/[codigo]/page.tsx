@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { getAuthUser } from "@/lib/auth";
 import { actorParaElSobre, cargarSobre, esErrorDeSecreto } from "@/lib/print-batches/sobre-del-pedido";
-import { CODIGO_INVALIDO, accionesPermitidas } from "@/lib/print-batches/entrega-del-pedido";
+import { CODIGO_INVALIDO, accionesPermitidas, codigoDeLaRuta } from "@/lib/print-batches/entrega-del-pedido";
 import EntregaDelSobre from "./EntregaDelSobre";
 
 /**
@@ -32,8 +32,9 @@ function VistaInvalida() {
 
 export default async function PedidoEntregaPage({ params }: { params: Promise<{ codigo: string }> }) {
   const { codigo: crudo } = await params;
-  const codigo = decodeURIComponent(String(crudo || "")).trim();
-  const sobre = codigo ? await cargarSobre(codigo) : null;
+  const codigo = codigoDeLaRuta(crudo);
+  if (!codigo) return <VistaInvalida />;
+  const sobre = await cargarSobre(codigo);
   if (!sobre || esErrorDeSecreto(sobre)) return <VistaInvalida />;
 
   const auth = await getAuthUser();
