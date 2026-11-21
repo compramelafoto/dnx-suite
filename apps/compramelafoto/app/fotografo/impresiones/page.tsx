@@ -33,15 +33,15 @@ export default function ImpresionesPage() {
       <PhotographerDashboardHeader photographer={null} />
       <DsPageShell className="py-8">
         <DsDashboardInner className="space-y-6">
-          <div className="ds-split-panel sm:items-start sm:justify-between">
-            <div className="ds-split-panel__main">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
               <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">Impresiones</h1>
               <p className="ds-readable-text ds-readable-text--fluid text-gray-600">
                 Las copias de tus pedidos, desde que el cliente paga hasta que las recibe. Tocá un paso para ver sus
                 pedidos y lo que tenés que hacer.
               </p>
             </div>
-            <div className="ds-split-panel__aside flex shrink-0 flex-col items-start gap-2 sm:items-end">
+            <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
               <Link
                 href="/fotografo/impresiones/laboratorios"
                 className="inline-flex items-center gap-2 rounded-lg bg-[#1f2937] px-4 py-2 text-sm font-semibold text-white hover:bg-[#111827]"
