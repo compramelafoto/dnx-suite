@@ -59,6 +59,25 @@ export default function OrderDetailDrawer({
 
   useEffect(() => setMounted(true), []);
 
+  // Estado en el panel «Impresiones» (lote y estado), sólo para pedidos de álbum pagados con copias.
+  // Se pide al abrir la ficha: no engorda el listado de pedidos.
+  const [impresion, setImpresion] = useState<{ albumOrderId: number; texto: string; loteId: number } | null>(null);
+  const albumOrderConCopias =
+    open && order && order.source === "ALBUM_ORDER" && isOrderPaid(order) && getPrintStatusLabel(order) != null ? order.id : null;
+  useEffect(() => {
+    if (albumOrderConCopias == null) return;
+    let activo = true;
+    fetch(`/api/fotografo/impresiones/pedidos/${albumOrderConCopias}`, { credentials: "include", cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (activo && d?.impresion) setImpresion({ albumOrderId: albumOrderConCopias, ...d.impresion });
+      })
+      .catch(() => {});
+    return () => {
+      activo = false;
+    };
+  }, [albumOrderConCopias]);
+
   useEffect(() => {
     if (open) {
       requestAnimationFrame(() => setVisible(true));
@@ -92,6 +111,7 @@ export default function OrderDetailDrawer({
   const timeline = buildOrderTimeline(order);
   const hasEventSale = Boolean(order.eventOrganizerSale?.active);
   const printStatus = getPrintStatusLabel(order);
+  const enLote = impresion && impresion.albumOrderId === order.id ? impresion : null;
 
   return createPortal(
     <div className="fixed inset-0 z-[100]" role="dialog" aria-modal="true" aria-labelledby="order-drawer-title">
@@ -149,7 +169,16 @@ export default function OrderDetailDrawer({
                 </div>
                 <SummaryRow label="Estado pago" value={getPaymentStatusLabel(order)} />
                 <SummaryRow label="Descarga" value={getDownloadStatusLabel(order)} />
-                {printStatus ? <SummaryRow label="Impresión" value={printStatus} /> : null}
+                {enLote ? (
+                  <div className="flex items-baseline justify-between gap-3 text-xs">
+                    <span className="text-gray-500 shrink-0">Impresión</span>
+                    <a href={`/fotografo/impresiones?lote=${enLote.loteId}`} className="text-right truncate font-medium text-[#c27b3d] hover:underline">
+                      {enLote.texto}
+                    </a>
+                  </div>
+                ) : printStatus ? (
+                  <SummaryRow label="Impresión" value={printStatus} />
+                ) : null}
                 {order.labName && order.labName !== "-" ? (
                   <SummaryRow label="Laboratorio" value={order.labName} />
                 ) : null}
