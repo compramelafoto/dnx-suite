@@ -7,13 +7,13 @@ import {
   getGoogleOAuthCredentials,
   hashEmailForLog,
   parseAndVerifyGoogleOAuthTransit,
-  resolveAppBaseUrl,
   resolveGoogleRedirectUri,
   resolveOrLinkGoogleUser,
 } from "@repo/auth";
 import { reportSuiteReferralSignup, SUITE_REFERRAL_COOKIE } from "@repo/auth/suite-referral";
 import { prisma } from "@repo/db";
 import { adjuntarSesion, OPCIONES_COOKIE } from "@/lib/sesion";
+import { baseDeIngreso } from "@/lib/base-oauth";
 import { APP_OAUTH } from "@/lib/google-app";
 import { rutaInternaSegura } from "@/lib/ruta-segura";
 import { codigoDeReferidoParaReportar } from "@/lib/referido-suite";
@@ -34,12 +34,7 @@ function volverAlLogin(baseUrl: string, mensaje: string) {
 }
 
 export async function GET(req: Request) {
-  const origin = new URL(req.url).origin;
-  const baseOAuth = resolveAppBaseUrl({
-    originFromRequest: origin,
-    envKeys: ["APP_URL", "NEXT_PUBLIC_APP_URL", "AUTH_URL"],
-    fallback: "http://localhost:3014",
-  });
+  const baseOAuth = baseDeIngreso(req);
 
   try {
     const url = new URL(req.url);
@@ -54,13 +49,13 @@ export async function GET(req: Request) {
     });
 
     if (!transito) {
-      return volverAlLogin(origin, "El ingreso con Google venció. Probá de nuevo.");
+      return volverAlLogin(baseOAuth, "El ingreso con Google venció. Probá de nuevo.");
     }
 
     const errorGoogle = url.searchParams.get("error");
     if (errorGoogle) {
       return volverAlLogin(
-        origin,
+        baseOAuth,
         errorGoogle === "access_denied"
           ? "Cancelaste el ingreso con Google."
           : "No pudimos ingresar con Google. Volvé a intentarlo.",
@@ -68,11 +63,11 @@ export async function GET(req: Request) {
     }
 
     const code = url.searchParams.get("code");
-    if (!code) return volverAlLogin(origin, "Google no devolvió el código de autorización.");
+    if (!code) return volverAlLogin(baseOAuth, "Google no devolvió el código de autorización.");
 
     const credenciales = getGoogleOAuthCredentials();
     if (!credenciales) {
-      return volverAlLogin(origin, "El ingreso con Google no está configurado.");
+      return volverAlLogin(baseOAuth, "El ingreso con Google no está configurado.");
     }
 
     const { accessToken } = await exchangeGoogleAuthCode({
@@ -111,7 +106,7 @@ export async function GET(req: Request) {
       // El correo se registra hasheado: sirve para rastrear el caso sin guardar el dato.
       console.info("[muestras] login con Google rechazado", hashEmailForLog(google.email), msg);
       return volverAlLogin(
-        origin,
+        baseOAuth,
         msg.includes("vinculad") ? msg : "No pudimos ingresar con Google. Volvé a intentarlo.",
       );
     }
@@ -124,7 +119,7 @@ export async function GET(req: Request) {
     // El `next` ya se filtró al iniciar el ingreso, pero se vuelve a filtrar acá: es lo que
     // efectivamente se usa para redirigir, y el costo de repetirlo es nulo.
     const destino = rutaInternaSegura(transito.next) ?? "/panel";
-    const respuesta = NextResponse.redirect(new URL(destino, origin));
+    const respuesta = NextResponse.redirect(new URL(destino, baseOAuth));
 
     respuesta.cookies.set(DNX_GOOGLE_OAUTH_COOKIE, "", {
       ...OPCIONES_COOKIE,
@@ -160,6 +155,6 @@ export async function GET(req: Request) {
     return respuesta;
   } catch (err) {
     console.error("[muestras] error en el callback de Google", err);
-    return volverAlLogin(origin, "No pudimos completar el ingreso. Volvé a intentarlo.");
+    return volverAlLogin(baseOAuth, "No pudimos completar el ingreso. Volvé a intentarlo.");
   }
 }
