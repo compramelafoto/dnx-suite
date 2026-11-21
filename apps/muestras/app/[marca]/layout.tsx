@@ -30,8 +30,8 @@ export async function generateMetadata({ params }: LayoutProps<"/[marca]">): Pro
 
 /**
  * Layout de cada marca. El `<html>` y el `<body>` viven en `app/layout.tsx` (sin segmento
- * dinámico): así el 404 se dibuja dentro de este layout, con encabezado y pie, gracias a
- * `not-found.tsx` y al comodín `[...resto]`.
+ * dinámico). Un `notFound()` de una página de la marca se dibuja dentro de este layout con
+ * `[marca]/not-found.tsx`; las URLs que no existen las atiende `app/not-found.tsx`.
  */
 export default async function LayoutDeMarca({ children, params }: LayoutProps<"/[marca]">) {
   const marca = await marcaDeParams(params);

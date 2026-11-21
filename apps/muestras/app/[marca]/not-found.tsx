@@ -1,18 +1,10 @@
-import Link from "next/link";
+import { CuerpoNoEncontrada } from "@/components/no-encontrada/no-encontrada";
 
 /**
- * 404 dentro del sitio de cada marca. Hace falta porque el layout raíz vive en `[marca]`: sin
- * este archivo, un `notFound()` sube hasta el 404 global de Next, que se dibuja sin el layout
- * (sin `lang="es"`, encabezado, pie ni fuente).
+ * 404 de un `notFound()` dentro de una página de la marca (p. ej. `/m/<slug>` de una muestra que
+ * no existe): se dibuja dentro de `app/[marca]/layout.tsx`, con encabezado y pie. Las URLs que no
+ * corresponden a ninguna página no pasan por acá: las atiende `app/not-found.tsx`.
  */
 export default function NoEncontrada() {
-  return (
-    <main className="mx-auto max-w-2xl space-y-4 p-4 leading-relaxed sm:p-8">
-      <h1 className="mf-titulo text-[2.45rem]">No encontramos esta página</h1>
-      <p>Puede que el enlace esté mal escrito o que la página ya no esté publicada.</p>
-      <p>
-        <Link href="/" className="underline">Volver al inicio</Link>
-      </p>
-    </main>
-  );
+  return <CuerpoNoEncontrada />;
 }
