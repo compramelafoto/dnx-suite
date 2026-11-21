@@ -71,6 +71,20 @@ export function estadoDelPedidoPara(lote: EstadoLote, retiraCliente: boolean): E
   }
 }
 
+/**
+ * Estado del pedido espejo al mover el lote de `desde` a `hacia`: el último no nulo de los estados
+ * recorridos (un salto ENVIADO → RECIBIDO pasa por LISTO). Si `desde === hacia` se recalcula desde
+ * el principio, para reparar pedidos que quedaron atrás. null = no se toca.
+ */
+export function estadoDelPedidoEnElTramo(desde: EstadoLote, hacia: EstadoLote, retiraCliente: boolean): EstadoPedidoEspejo | null {
+  const j = ORDEN.indexOf(hacia);
+  if (j < 0) return null;
+  const i = desde === hacia ? 0 : ORDEN.indexOf(desde) + 1;
+  let estado: EstadoPedidoEspejo | null = null;
+  for (const e of ORDEN.slice(i, j + 1)) estado = estadoDelPedidoPara(e, retiraCliente) ?? estado;
+  return estado;
+}
+
 /** Al cliente sólo se le avisa al entrar a «Listo para retirar». */
 export function avisaAlCliente(anterior: string, nuevo: string): boolean {
   return nuevo === "READY_TO_PICKUP" && anterior !== "READY_TO_PICKUP";

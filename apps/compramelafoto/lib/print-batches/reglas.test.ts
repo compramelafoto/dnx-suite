@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   avisaAlCliente,
+  estadoDelPedidoEnElTramo,
   estadoDelPedidoPara,
   loteCerrado,
   motivoParaNoEntrar,
@@ -109,4 +110,19 @@ test("motivoParaNoEntrar", () => {
   assert.equal(motivoParaNoEntrar({ ...ok, esCanjeVoucher: true }), "Es un canje: va por Pedidos escolares.");
   assert.equal(motivoParaNoEntrar({ ...ok, copiasSueltas: 0 }), "No tiene copias sueltas para imprimir.");
   assert.equal(motivoParaNoEntrar({ ...ok, enLoteVivo: true }), "Ya está en otro lote.");
+});
+
+test("estadoDelPedidoEnElTramo toma el último estado del recorrido", () => {
+  // Salto del fotógrafo ENVIADO → RECIBIDO: el que retira el cliente queda listo para retirar.
+  assert.equal(estadoDelPedidoEnElTramo("ENVIADO", "RECIBIDO", true), "READY_TO_PICKUP");
+  assert.equal(estadoDelPedidoEnElTramo("ENVIADO", "RECIBIDO", false), "READY_TO_PICKUP");
+  assert.equal(estadoDelPedidoEnElTramo("ENVIADO", "LISTO", false), "READY");
+  assert.equal(estadoDelPedidoEnElTramo("ENVIADO", "EN_PRODUCCION", true), "IN_PRODUCTION");
+  assert.equal(estadoDelPedidoEnElTramo("ARMADO", "ENVIADO", true), "CREATED");
+  // Mismo estado: se recalcula desde el principio (reparación idempotente).
+  assert.equal(estadoDelPedidoEnElTramo("LISTO", "LISTO", false), "READY");
+  assert.equal(estadoDelPedidoEnElTramo("LISTO", "LISTO", true), "READY_TO_PICKUP");
+  assert.equal(estadoDelPedidoEnElTramo("ARMADO", "ARMADO", true), null);
+  assert.equal(estadoDelPedidoEnElTramo("ARMADO", "ANULADO", true), null);
+  assert.equal(estadoDelPedidoEnElTramo("ANULADO", "ANULADO", false), null);
 });

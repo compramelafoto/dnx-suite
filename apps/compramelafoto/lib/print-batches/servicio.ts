@@ -7,7 +7,7 @@ import { esPedidoDemo } from "@/lib/canje-externo/pack-de-prueba";
 import { nombreDelProximoLote } from "@/lib/design-v2/produccion-reglas";
 import { fileExistsInR2, urlToR2Key } from "@/lib/r2-client";
 import { queueEmail } from "@/lib/email-queue";
-import { avisaAlCliente, estadoDelPedidoPara, loteCerrado, motivoParaNoEntrar, puedeMover, type EstadoLote } from "./reglas";
+import { avisaAlCliente, estadoDelPedidoEnElTramo, loteCerrado, motivoParaNoEntrar, puedeMover, type EstadoLote } from "./reglas";
 import { nuevoTokenDeLote } from "./codigos";
 import { correoAlLaboratorio, correoListoRetiraEnLaboratorio, correoListoRetiraFotografo, resumirCopias, type CopiaResumen } from "./correos";
 
@@ -25,12 +25,11 @@ export type PedidoParaImprimir = {
   retiraCliente: boolean; pickupLabContactId: number | null; pagadoAt: Date; motivo: string | null;
 };
 type Candidato = PedidoParaImprimir & {
-  buyerEmail: string; buyerPhone: string | null; loteVivo: string | null;
+  buyerEmail: string; buyerPhone: string | null; loteVivo: string | null; espejoResuelto: boolean;
   itemsImpresos: Array<{ fileKey: string; size: string; acabado: string; quantity: number; unitPrice: number; subtotal: number }>;
   r2Keys: string[];
 };
 
-const ORDEN: EstadoLote[] = ["ARMADO", "ENVIADO", "EN_PRODUCCION", "LISTO", "DESPACHADO", "RECIBIDO", "CERRADO"];
 type MarcaDeTiempo = "enProduccionAt" | "listoAt" | "despachadoAt" | "recibidoAt" | "cerradoAt";
 const MARCA_DE_TIEMPO: Partial<Record<EstadoLote, MarcaDeTiempo>> = {
   EN_PRODUCCION: "enProduccionAt", LISTO: "listoAt", DESPACHADO: "despachadoAt", RECIBIDO: "recibidoAt", CERRADO: "cerradoAt",
@@ -116,7 +115,7 @@ async function cargarCandidatos(photographerId: number, ids?: number[]): Promise
       album: o.album.title, copias, totalCopias, retiraCliente,
       pickupLabContactId: retiraCliente ? o.pickupLabContactId ?? predeterminado?.id ?? null : null,
       pagadoAt: o.createdAt, motivo,
-      buyerEmail: o.buyerEmail, buyerPhone: o.buyerPhone, loteVivo: o.printBatchEntries[0]?.batch.nombre ?? null,
+      buyerEmail: o.buyerEmail, buyerPhone: o.buyerPhone, espejoResuelto: !!espejo && ESPEJO_RESUELTO.includes(espejo.status), loteVivo: o.printBatchEntries[0]?.batch.nombre ?? null,
       itemsImpresos: o.items.map((it) => ({
         fileKey: it.photo.originalKey, size: String(it.size || "").trim(), acabado: String(it.finish || "BRILLO").trim().toUpperCase() || "BRILLO",
         quantity: it.quantity, unitPrice: it.priceCents, subtotal: it.subtotalCents,
@@ -129,7 +128,7 @@ async function cargarCandidatos(photographerId: number, ids?: number[]): Promise
 
 export async function listarParaImprimir(photographerId: number): Promise<PedidoParaImprimir[]> {
   const candidatos = await cargarCandidatos(photographerId);
-  return candidatos.map(({ buyerEmail: _e, buyerPhone: _p, loteVivo: _l, itemsImpresos: _i, r2Keys: _k, ...p }) => p);
+  return candidatos.map(({ buyerEmail: _e, buyerPhone: _p, loteVivo: _l, espejoResuelto: _r, itemsImpresos: _i, r2Keys: _k, ...p }) => p);
 }
 
 /** El primer pedido al que le falta algún original en R2, o null. */
@@ -163,6 +162,7 @@ export async function armarLote(photographerId: number, albumOrderIds: number[],
     const p = porId.get(id);
     if (!p) throw new LoteError(`El pedido #${id} no se puede imprimir: no es tuyo o no está pagado.`);
     if (p.loteVivo) throw new LoteError(`Ese pedido ya está en el ${p.loteVivo}.`);
+    if (p.espejoResuelto) throw new LoteError("Ese pedido ya fue entregado o cancelado.");
     if (p.motivo) throw new LoteError(`Pedido #${id}: ${p.motivo}`);
     if (p.pickupLabContactId != null) {
       if (labDelLote == null) labDelLote = p.pickupLabContactId;
@@ -190,9 +190,10 @@ export async function armarLote(photographerId: number, albumOrderIds: number[],
           albumOrderId: id, photographerId, customerName: p.cliente, customerEmail: p.buyerEmail,
           customerPhone: p.buyerPhone, printItems: p.itemsImpresos,
         });
+        if (!espejo) throw new LoteError(`Al pedido #${id} no se le pudo armar la impresión.`);
         entries.push({
           albumOrder: { connect: { id } },
-          ...(espejo ? { printOrder: { connect: { id: espejo.printOrderId } } } : {}),
+          printOrder: { connect: { id: espejo.printOrderId } },
           retiraCliente: p.retiraCliente, pickupLabContactId: p.pickupLabContactId,
           resumen: { cliente: p.cliente, pedido: id, album: p.album, copias: p.copias, totalCopias: p.totalCopias },
         });
@@ -247,12 +248,10 @@ async function cambiarEstadoDelPedido(printOrderId: number, anterior: PrintOrder
   });
 }
 
-/** Lleva los pedidos vivos del lote al estado que corresponde a `hacia` (pasando por los intermedios). */
+/** Lleva los pedidos vivos del lote al estado que corresponde a `hacia` (los que ya están, quedan igual). */
 async function aplicarAPedidos(batch: { nombre: string; entries: Array<{ printOrderId: number | null; retiraCliente: boolean; entregadoAt: Date | null }> }, desde: EstadoLote, hacia: EstadoLote, userId: number | null) {
-  const tramo = ORDEN.slice(ORDEN.indexOf(desde) + 1, ORDEN.indexOf(hacia) + 1);
-  const destino = (retira: boolean) => tramo.map((e) => estadoDelPedidoPara(e, retira)).filter((s) => s != null).pop() ?? null;
   for (const e of batch.entries) {
-    const nuevo = destino(e.retiraCliente);
+    const nuevo = estadoDelPedidoEnElTramo(desde, hacia, e.retiraCliente);
     if (!e.printOrderId || e.entregadoAt || !nuevo) continue;
     const po = await prisma.printOrder.findUnique({ where: { id: e.printOrderId }, select: { status: true } });
     if (!po || po.status === nuevo || po.status === "DELIVERED" || po.status === "CANCELED") continue;
@@ -287,30 +286,33 @@ export async function enviarLote(photographerId: number, batchId: number, opts: 
     mensaje: opts.mensaje, enlace: `${appUrl()}/lab/lote/${token}`, labTieneCuenta: lab.labId != null,
     labEmail: lab.email, baseUrl: appUrl(),
   });
-  let encolado: { queued: boolean };
+  // Lote y correo en la misma transacción: o queda ENVIADO con su correo en la cola, o nada.
   try {
-    encolado = await queueEmail({
-      to: lab.email, subject: correo.subject, body: correo.body, htmlBody: correo.htmlBody,
-      idempotencyKey: `lote-enviado-${b.id}`, replyTo: b.photographer.email,
+    await prisma.$transaction(async (tx) => {
+      const r = await tx.printBatch.updateMany({
+        where: { id: b.id, estado: "ARMADO" },
+        data: {
+          estado: "ENVIADO", enviadoAt: new Date(), tokenHash: hash, labContactId: lab.id, labId: lab.labId,
+          mensajeAlLab: opts.mensaje?.trim() || null, entregaPreferida: opts.entregaPreferida, fechaPrometida: opts.fechaPrometida ?? null,
+        },
+      });
+      if (r.count === 0) throw new LoteError("Este lote ya fue enviado o se deshizo.");
+      // Si retira el cliente y no había elegido dónde, retira donde se imprime.
+      await tx.printBatchEntry.updateMany({
+        where: { batchId: b.id, quitadoAt: null, retiraCliente: true, pickupLabContactId: null },
+        data: { pickupLabContactId: lab.id },
+      });
+      const encolado = await queueEmail({
+        to: lab.email, subject: correo.subject, body: correo.body, htmlBody: correo.htmlBody,
+        idempotencyKey: `lote-enviado-${b.id}`, replyTo: b.photographer.email,
+      }, tx);
+      if (!encolado.queued) throw new Error("Ya había un correo de envío para este lote.");
     });
-  } catch {
+  } catch (e) {
+    if (e instanceof LoteError) throw e;
+    console.error("[lotes] No se pudo enviar el lote", b.id, e);
     throw new LoteError(ERROR_CORREO_LAB);
   }
-  if (!encolado.queued) {
-    // Otro envío del mismo lote ganó: si ya quedó ENVIADO está todo bien; si no, el correo encolado
-    // lleva un token que no se guardó y no hay que pisarlo.
-    const ahora = await prisma.printBatch.findUnique({ where: { id: b.id }, select: { estado: true } });
-    if (ahora?.estado === "ARMADO") throw new LoteError(ERROR_CORREO_LAB);
-    return;
-  }
-  const r = await prisma.printBatch.updateMany({
-    where: { id: b.id, estado: "ARMADO" },
-    data: {
-      estado: "ENVIADO", enviadoAt: new Date(), tokenHash: hash, labContactId: lab.id, labId: lab.labId,
-      mensajeAlLab: opts.mensaje?.trim() || null, entregaPreferida: opts.entregaPreferida, fechaPrometida: opts.fechaPrometida ?? null,
-    },
-  });
-  if (r.count === 0) throw new LoteError("El lote cambió mientras lo mandabas. Recargá la página.");
   await aplicarAPedidos(b, "ARMADO", "ENVIADO", photographerId);
 }
 
@@ -337,6 +339,12 @@ export async function moverLote(batchId: number, hacia: EstadoLote, actor: Actor
       (actor.tipo === "LABORATORIO" && b.tokenHash != null && b.tokenHash === actor.tokenHash) ||
       (actor.tipo === "LABORATORIO_CUENTA" && b.labId != null && b.labId === actor.labId));
   if (!b || !esDueno) throw new LoteError("Lote no encontrado.");
+  if (b.estado === hacia) {
+    // Reparación: volver a aplicar el estado a los pedidos que hayan quedado atrás.
+    if (hacia !== "ARMADO" && hacia !== "ANULADO") await aplicarAPedidos(b, hacia, hacia, actor.tipo === "LABORATORIO" ? null : actor.userId);
+    await cerrarSiCorresponde(batchId);
+    return;
+  }
   if (b.estado === "ARMADO" && hacia !== "ANULADO") throw new LoteError("Para mandarlo al laboratorio usá «Enviar al laboratorio».");
   if (hacia === "ANULADO" && actor.tipo === "FOTOGRAFO") return deshacerLote(actor.userId, batchId);
   const quien = actor.tipo === "FOTOGRAFO" ? "FOTOGRAFO" : "LABORATORIO";
@@ -372,24 +380,33 @@ export async function quitarPedido(photographerId: number, entryId: number, moti
   await cerrarSiCorresponde(e.batch.id);
 }
 
-/** Datos para el correo «listo» de un pedido espejo: el pedido de álbum, el fotógrafo y dónde se retira. */
-async function datosDelAviso(printOrderId: number, tags: string[], customerEmail: string | null) {
-  const entry = await prisma.printBatchEntry.findFirst({ where: { printOrderId, quitadoAt: null }, orderBy: { id: "desc" } });
-  const albumOrderId = entry?.albumOrderId ?? Number(tags.find((t) => t.startsWith("ALBUM_ORDER:"))?.slice(12) || 0);
-  const order = albumOrderId
+/** El pedido espejo de álbum con su entrada viva en un lote no anulado; si no, LoteError. */
+async function pedidoEnLote(printOrderId: number) {
+  const po = await prisma.printOrder.findUnique({ where: { id: printOrderId }, select: { status: true, tags: true, customerEmail: true } });
+  const entry = po?.tags.some((t) => t.startsWith("ALBUM_ORDER:"))
+    ? await prisma.printBatchEntry.findFirst({
+        where: { printOrderId, quitadoAt: null, batch: { estado: { not: "ANULADO" } } },
+        orderBy: { id: "desc" },
+      })
+    : null;
+  if (!po || !entry) throw new LoteError("Ese pedido no está en ningún lote.");
+  return { po, entry };
+}
+
+/** Datos para el correo «listo»: el pedido de álbum, el fotógrafo y dónde se retira. */
+async function datosDelAviso(entry: { albumOrderId: number | null; retiraCliente: boolean; pickupLabContactId: number | null }, customerEmail: string | null) {
+  const order = entry.albumOrderId
     ? await prisma.order.findUnique({
-        where: { id: albumOrderId },
-        select: { buyerEmail: true, buyerName: true, isTest: true, origin: true, pickupLabContactId: true,
+        where: { id: entry.albumOrderId },
+        select: { buyerEmail: true, buyerName: true, isTest: true, origin: true,
           buyerUser: { select: { name: true } },
-          album: { select: { isTest: true, pickupBy: true, userId: true, user: { select: { name: true, companyName: true, email: true, whatsapp: true, phone: true } } } } },
+          album: { select: { isTest: true, userId: true, user: { select: { name: true, companyName: true, email: true, whatsapp: true, phone: true } } } } },
       })
     : null;
   if (!order || esPedidoDemo(order) || order.isTest || order.album.isTest) return null;
-  const retiraCliente = entry?.retiraCliente ?? order.album.pickupBy === "CLIENT";
-  const labContactId = entry?.pickupLabContactId ?? order.pickupLabContactId;
-  const lab = retiraCliente
+  const lab = entry.retiraCliente
     ? await prisma.photographerLabContact.findFirst({
-        where: labContactId ? { id: labContactId } : { photographerId: order.album.userId, activo: true, esPredeterminado: true },
+        where: entry.pickupLabContactId ? { id: entry.pickupLabContactId } : { photographerId: order.album.userId, activo: true, esPredeterminado: true },
         select: { nombre: true, direccion: true, horario: true, lab: { select: { name: true, address: true, city: true } } },
       })
     : null;
@@ -402,14 +419,18 @@ async function datosDelAviso(printOrderId: number, tags: string[], customerEmail
   };
 }
 
+/**
+ * Pasa un pedido de un lote a «Listo para retirar» y le avisa al cliente (una vez por entrada a ese
+ * estado). Sólo pedidos espejo de álbum con entrada viva en un lote no anulado.
+ * Quien llama ya autorizó al actor (dueño o laboratorio del lote: lo hace la Tarea 9).
+ */
 export async function marcarListoParaRetirar(printOrderId: number, quien: { userId?: number; nota: string }): Promise<void> {
-  const po = await prisma.printOrder.findUnique({ where: { id: printOrderId }, select: { status: true, tags: true, customerEmail: true } });
-  if (!po) throw new LoteError("Pedido no encontrado.");
+  const { po, entry } = await pedidoEnLote(printOrderId);
   if (po.status === "DELIVERED" || po.status === "CANCELED") throw new LoteError("Ese pedido ya está cerrado.");
   if (!avisaAlCliente(po.status, "READY_TO_PICKUP")) return;
   const historialId = await cambiarEstadoDelPedido(printOrderId, po.status, "READY_TO_PICKUP", quien.userId ?? null, quien.nota);
   if (historialId == null) return;
-  const d = await datosDelAviso(printOrderId, po.tags, po.customerEmail);
+  const d = await datosDelAviso(entry, po.customerEmail);
   if (!d?.para) return;
   const correo = d.lab
     ? correoListoRetiraEnLaboratorio({
@@ -428,14 +449,23 @@ export async function marcarListoParaRetirar(printOrderId: number, quien: { user
   }
 }
 
+/**
+ * Marca entregado un pedido de un lote (estado, historial y `entregadoAt` juntos) y cierra el lote si
+ * corresponde. Si ya estaba entregado, sólo completa lo que falte (reparación).
+ * Quien llama ya autorizó al actor (dueño o laboratorio del lote: lo hace la Tarea 9).
+ */
 export async function marcarEntregado(printOrderId: number, quien: { userId?: number; nota: string }): Promise<void> {
-  const po = await prisma.printOrder.findUnique({ where: { id: printOrderId }, select: { status: true } });
-  if (!po) throw new LoteError("Pedido no encontrado.");
-  if (po.status === "DELIVERED") return;
+  const { po, entry } = await pedidoEnLote(printOrderId);
   if (po.status === "CANCELED") throw new LoteError("Ese pedido está cancelado.");
-  if ((await cambiarEstadoDelPedido(printOrderId, po.status, "DELIVERED", quien.userId ?? null, quien.nota)) == null) return;
-  const entry = await prisma.printBatchEntry.findFirst({ where: { printOrderId, quitadoAt: null }, select: { id: true, batchId: true } });
-  if (!entry) return;
-  await prisma.printBatchEntry.update({ where: { id: entry.id }, data: { entregadoAt: new Date() } });
+  const ahora = new Date();
+  await prisma.$transaction(async (tx) => {
+    if (po.status !== "DELIVERED") {
+      const r = await tx.printOrder.updateMany({ where: { id: printOrderId, status: po.status }, data: { status: "DELIVERED", statusUpdatedAt: ahora } });
+      if (r.count > 0) {
+        await tx.printOrderStatusHistory.create({ data: { printOrderId, status: "DELIVERED", changedByUserId: quien.userId ?? null, notes: quien.nota } });
+      }
+    }
+    await tx.printBatchEntry.updateMany({ where: { id: entry.id, entregadoAt: null }, data: { entregadoAt: ahora } });
+  });
   await cerrarSiCorresponde(entry.batchId);
 }

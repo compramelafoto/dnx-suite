@@ -2,7 +2,7 @@
  * Sistema de cola de emails con templates e idempotency
  */
 
-import { prisma } from "@/lib/prisma";
+import { prisma, type Prisma } from "@/lib/prisma";
 import { randomBytes } from "crypto";
 import { conResponderA } from "@/lib/email-reply-to";
 
@@ -27,7 +27,8 @@ export interface EmailTemplateData {
 }
 
 /**
- * Agrega un email a la cola
+ * Agrega un email a la cola. `db` permite encolarlo dentro de una transacción
+ * (si la transacción se deshace, el correo tampoco queda); por defecto, el cliente común.
  */
 export async function queueEmail(params: {
   to: string;
@@ -41,7 +42,7 @@ export async function queueEmail(params: {
   idempotencyKey?: string; // Para evitar duplicados
   /** A quién le llega si el destinatario toca "Responder" (p. ej. el fotógrafo). */
   replyTo?: string | null;
-}): Promise<{ id: number; queued: boolean }> {
+}, db: Pick<Prisma.TransactionClient, "emailQueue"> = prisma): Promise<{ id: number; queued: boolean }> {
   const {
     to,
     subject,
@@ -62,7 +63,7 @@ export async function queueEmail(params: {
 
   // Verificar si ya existe un email con esta key
   if (idempotencyKey) {
-    const existing = await prisma.emailQueue.findUnique({
+    const existing = await db.emailQueue.findUnique({
       where: { idempotencyKey: finalIdempotencyKey },
     });
 
@@ -71,7 +72,7 @@ export async function queueEmail(params: {
     }
   }
 
-  const email = await prisma.emailQueue.create({
+  const email = await db.emailQueue.create({
     data: {
       to,
       subject,
