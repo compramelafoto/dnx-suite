@@ -16,9 +16,38 @@ import {
   TURISMO_COURSE_TAGLINE,
 } from "./turismo-course";
 import { TURISMO_COURSE_DETAILS } from "./turismo-course-details";
+import {
+  FOTOGRAFO_NUEVO_COURSE_BLOCKS,
+  FOTOGRAFO_NUEVO_COURSE_LESSON_COUNT,
+  FOTOGRAFO_NUEVO_COURSE_PATH,
+  FOTOGRAFO_NUEVO_COURSE_SETTINGS_KEY,
+  FOTOGRAFO_NUEVO_COURSE_TAGLINE,
+} from "./fotografo-nuevo-course";
+import { FOTOGRAFO_NUEVO_COURSE_DETAILS } from "./fotografo-nuevo-course-details";
 
 /** Los cursos en video de /tutoriales, en el orden en que se muestran. */
 export const TUTORIAL_COURSES: TutorialCourse[] = [
+  {
+    slug: "empeza-a-vender",
+    path: FOTOGRAFO_NUEVO_COURSE_PATH,
+    settingsKey: FOTOGRAFO_NUEVO_COURSE_SETTINGS_KEY,
+    title: "Empezá a vender en ComprameLaFoto",
+    tagline: FOTOGRAFO_NUEVO_COURSE_TAGLINE,
+    intro:
+      "grabadas sobre las pantallas reales de ComprameLaFoto con una cuenta demo: los clientes son inventados y los pagos son de prueba.",
+    blocks: FOTOGRAFO_NUEVO_COURSE_BLOCKS,
+    details: FOTOGRAFO_NUEVO_COURSE_DETAILS,
+    lessonCount: FOTOGRAFO_NUEVO_COURSE_LESSON_COUNT,
+    extras: [COSTO_LESSON],
+    cover: {
+      src: "/images/organizador/hero-marketing.jpg",
+      alt: "El panel de un evento de ComprameLaFoto, con sus carpetas, sus ventas y la galería en el celular",
+    },
+    closing: {
+      title: "Subí tu primer evento",
+      text: "Creá tu cuenta, conectá Mercado Pago y armá tu primer álbum con el asistente paso a paso.",
+    },
+  },
   {
     slug: "escolar",
     path: ESCOLAR_COURSE_PATH,
