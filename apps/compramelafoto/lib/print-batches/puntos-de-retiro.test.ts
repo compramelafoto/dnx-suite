@@ -45,24 +45,24 @@ const uno = [{ id: 7, nombre: "A", direccion: "x", horario: null }];
 const dos = [...uno, { id: 9, nombre: "B", direccion: "y", horario: null }];
 
 test("sin puntos no se elige nada", () => {
-  assert.deepEqual(elegirPuntoDeRetiro([], undefined), { ok: true, id: null });
-  assert.deepEqual(elegirPuntoDeRetiro([], 3), { ok: true, id: null });
+  assert.deepEqual(elegirPuntoDeRetiro([], undefined), { id: null, faltaElegir: false });
+  assert.deepEqual(elegirPuntoDeRetiro([], 3), { id: null, faltaElegir: false });
 });
 
 test("un solo punto y sin id: ese", () => {
-  assert.deepEqual(elegirPuntoDeRetiro(uno), { ok: true, id: 7 });
-  assert.deepEqual(elegirPuntoDeRetiro(uno, null), { ok: true, id: 7 });
+  assert.deepEqual(elegirPuntoDeRetiro(uno), { id: 7, faltaElegir: false });
+  assert.deepEqual(elegirPuntoDeRetiro(uno, null), { id: 7, faltaElegir: false });
 });
 
-test("varios puntos y sin id: pide elegir", () => {
-  assert.deepEqual(elegirPuntoDeRetiro(dos), { ok: false, error: "Elegí dónde retirar tus copias." });
+test("varios puntos y sin id: queda nulo y avisa que falta elegir (no frena)", () => {
+  assert.deepEqual(elegirPuntoDeRetiro(dos), { id: null, faltaElegir: true });
 });
 
-test("id que no está entre los puntos: pide elegir; uno válido (número o texto) pasa", () => {
-  assert.equal(elegirPuntoDeRetiro(dos, 99).ok, false);
-  assert.equal(elegirPuntoDeRetiro(uno, 9).ok, false);
-  assert.equal(elegirPuntoDeRetiro(dos, "abc").ok, false);
-  assert.equal(elegirPuntoDeRetiro(dos, 9.5).ok, false);
-  assert.deepEqual(elegirPuntoDeRetiro(dos, 9), { ok: true, id: 9 });
-  assert.deepEqual(elegirPuntoDeRetiro(dos, "7"), { ok: true, id: 7 });
+test("id que no está entre los puntos: nulo y falta elegir; uno válido (número o texto) pasa", () => {
+  assert.deepEqual(elegirPuntoDeRetiro(dos, 99), { id: null, faltaElegir: true });
+  assert.deepEqual(elegirPuntoDeRetiro(uno, 9), { id: null, faltaElegir: true });
+  assert.deepEqual(elegirPuntoDeRetiro(dos, "abc"), { id: null, faltaElegir: true });
+  assert.deepEqual(elegirPuntoDeRetiro(dos, 9.5), { id: null, faltaElegir: true });
+  assert.deepEqual(elegirPuntoDeRetiro(dos, 9), { id: 9, faltaElegir: false });
+  assert.deepEqual(elegirPuntoDeRetiro(dos, "7"), { id: 7, faltaElegir: false });
 });

@@ -482,6 +482,7 @@ export async function POST(
 
     // Dónde retira el cliente sus copias (diseño §4.2): sólo la compra común con impresas en un
     // álbum donde retira el cliente. Canje y carrito de evento no lo guardan; sin puntos, nada cambia.
+    // El servidor nunca devuelve error por esto (p. ej. CanjeExtrasStep no manda la elección).
     let pickupLabContactId: number | null = null;
     const pickupByAlbum = (album.pickupBy ?? "CLIENT") as string;
     if (
@@ -499,11 +500,8 @@ export async function POST(
         // Si la consulta falla no se frena la venta: el pedido queda sin punto elegido.
         console.error("[order] puntos de retiro", err);
       }
-      const eleccion = elegirPuntoDeRetiro(puntos, body?.pickupLabContactId);
-      if (!eleccion.ok) {
-        return NextResponse.json({ error: eleccion.error, code: "ELEGIR_RETIRO" }, { status: 400 });
-      }
-      pickupLabContactId = eleccion.id;
+      // Nunca frena la venta: sin una elección válida queda nulo y el lote usa el predeterminado.
+      pickupLabContactId = elegirPuntoDeRetiro(puntos, body?.pickupLabContactId).id;
     }
 
     const marketplaceFeeCents = Math.round(Number(totals.marketplaceFeeCents) || 0);

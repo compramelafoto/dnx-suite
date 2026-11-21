@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import CanjeComboBanner from "@/components/canje-externo/CanjeComboBanner";
+import { readCanjeToken } from "@/lib/canje-externo/canje-token-storage";
 import { resolveAvailableFormats } from "@/lib/albums/available-formats";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import OrderItem from "@/components/order/OrderItem";
@@ -349,6 +350,11 @@ export default function ComprarClient() {
   const [slideIndex, setSlideIndex] = useState(0);
   const [continueSubmitting, setContinueSubmitting] = useState(false);
   const [pickupPointId, setPickupPointId] = useState<number | null>(null);
+  // Con un canje de combo el servidor no guarda el punto de retiro: no se pregunta.
+  const [hasCanjeToken, setHasCanjeToken] = useState(false);
+  useEffect(() => {
+    setHasCanjeToken(readCanjeToken(albumId) != null);
+  }, [albumId]);
 
   // Precios del laboratorio
   const [labPricing, setLabPricing] = useState<LabPricing>({
@@ -1369,7 +1375,7 @@ export default function ComprarClient() {
   // Dónde retirar las copias: sólo con impresas y si el fotógrafo cargó puntos de retiro.
   const pickupPoints = albumPricing?.puntosDeRetiro ?? [];
   const pickupPointsApply =
-    !redeemMode && pickupPoints.length > 0 && items.some((item) => (item.tipo || "digital") === "impresa");
+    !redeemMode && !hasCanjeToken && pickupPoints.length > 0 && items.some((item) => (item.tipo || "digital") === "impresa");
   const chosenPickupPoint =
     pickupPoints.length === 1
       ? pickupPoints[0]

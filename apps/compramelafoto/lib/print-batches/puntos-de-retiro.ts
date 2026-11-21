@@ -65,19 +65,21 @@ export function puntosDeRetiroDelAlbum(
   return puntos;
 }
 
-/** Valida la elección del cliente. Sin puntos no hay nada que elegir (id nulo). */
+/**
+ * Resuelve la elección del cliente. Nunca frena una venta: con un id válido devuelve ese; con un
+ * solo punto y sin id, ese; en cualquier otro caso `id: null` (al armar el lote se usa el
+ * laboratorio predeterminado del fotógrafo). `faltaElegir` avisa que había varios y no eligió
+ * uno válido: el carrito lo usa para pedir la elección con `ERROR_ELEGIR_RETIRO`.
+ */
 export function elegirPuntoDeRetiro(
   puntos: PuntoDeRetiro[],
   pedidoId?: unknown,
-): { ok: true; id: number | null } | { ok: false; error: typeof ERROR_ELEGIR_RETIRO } {
-  if (puntos.length === 0) return { ok: true, id: null };
-  const vacio = pedidoId === undefined || pedidoId === null || pedidoId === "";
-  if (vacio) {
-    if (puntos.length === 1) return { ok: true, id: puntos[0].id };
-    return { ok: false, error: ERROR_ELEGIR_RETIRO };
-  }
-  const n = typeof pedidoId === "number" ? pedidoId : typeof pedidoId === "string" ? Number(pedidoId) : NaN;
+): { id: number | null; faltaElegir: boolean } {
+  if (puntos.length === 0) return { id: null, faltaElegir: false };
+  const n = typeof pedidoId === "number" ? pedidoId : typeof pedidoId === "string" && pedidoId.trim() ? Number(pedidoId) : NaN;
   const punto = Number.isInteger(n) ? puntos.find((p) => p.id === n) : undefined;
-  if (!punto) return { ok: false, error: ERROR_ELEGIR_RETIRO };
-  return { ok: true, id: punto.id };
+  if (punto) return { id: punto.id, faltaElegir: false };
+  const vacio = pedidoId === undefined || pedidoId === null || pedidoId === "";
+  if (vacio && puntos.length === 1) return { id: puntos[0].id, faltaElegir: false };
+  return { id: null, faltaElegir: true };
 }
