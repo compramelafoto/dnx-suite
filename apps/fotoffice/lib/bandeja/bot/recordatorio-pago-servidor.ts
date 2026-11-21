@@ -17,6 +17,7 @@ import {
   tocaSeguimientoDeEvento,
   type PendienteDePago,
 } from "./recordatorio-pago";
+import { marcaRecordatorioAnuncio } from "./recordatorio-anuncio";
 import { decidirSeguimiento, DIAS_ENTRE_SEGUIMIENTOS, horarioDeSeguimiento, MARCA_SEGUIMIENTO_CONSULTA, textoSeguimientoConsulta } from "./seguimiento-consulta";
 
 /**
@@ -119,7 +120,7 @@ const POR_OMISION: Required<Omit<DepsRecordatorio, "ahora">> = {
       prisma.fotofficePrintOrder.count({ where: { workspaceId: chat.workspaceId, waChatId: chat.id, createdAt: { gte: haceDias(PEDIDO_MAXIMO_DIAS) } } }),
       chatWa ? prisma.fotofficePresupuestoAprobacion.count({ where: { workspaceId: chat.workspaceId, waId: chatWa.waId, createdAt: { gte: haceDias(30) } } }) : 0,
       prisma.fotofficeWaMensaje.count({
-        where: { workspaceId: chat.workspaceId, chatId: chat.id, direccion: "SISTEMA", texto: { startsWith: MARCA_SEGUIMIENTO_CONSULTA }, createdAt: { gte: haceDias(DIAS_ENTRE_SEGUIMIENTOS) } },
+        where: { workspaceId: chat.workspaceId, chatId: chat.id, direccion: "SISTEMA", OR: [{ texto: { startsWith: MARCA_SEGUIMIENTO_CONSULTA } }, { texto: { startsWith: marcaRecordatorioAnuncio(2) } }], createdAt: { gte: haceDias(DIAS_ENTRE_SEGUIMIENTOS) } },
       }),
     ]);
     if (pedidos + copias + cotizaciones + seguidos > 0) return null;

@@ -14,8 +14,8 @@ describe("guía del bot de atención", () => {
     expect(g).toContain("PRIMER MENSAJE DE XV");
     expect(g).toContain("No mandes el enlace del portfolio, los paquetes ni precios en el primer mensaje");
     expect(g).not.toContain("https://www.compramelafoto.com/dnx/xv");
-    const ejemplo = g.split("\n").find((l) => l.startsWith("- Ejemplo: \"¡Hola Laura!"))!;
-    expect(ejemplo).toBe('- Ejemplo: "¡Hola Laura! Gracias por escribirnos 😊 ¿Para qué fecha es la fiesta? 🎉"');
+    expect(g).toContain("tomalos como tono, no los copies: variá cada vez");
+    expect(g).toContain("¿para qué fecha es la fiesta? Así me fijo si la tenemos libre 🎉");
     expect(g).toMatch(/si la herramienta dice que no hay precio, no digas ninguno/);
   });
 
@@ -234,7 +234,21 @@ describe("guía del bot de atención", () => {
     const g = guiaDeAtencion();
     expect(g).toContain('TEMA: cobertura fotográfica de una fiesta de XV');
     expect(g).toContain("no le preguntes si quiere retocar fotos que ya tiene");
-    expect(g).toContain("¿Para qué fecha es la fiesta? 🎉");
+    expect(g).toContain("UNA sola pregunta, la fecha de la fiesta");
+  });
+
+  it("anuncio de VHS: el primer mensaje da el precio del catálogo y pregunta cuántos casetes son", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("PRIMER MENSAJE DE VHS");
+    expect(g).toContain('Buscá el precio con buscar_productos ("vhs")');
+    expect(g).toContain("si no, no inventes ninguno");
+    expect(g).not.toContain('"¿Qué tipo de videos tenés para digitalizar?"');
+  });
+
+  it("anuncio: el primer mensaje suena a una persona y varía de una charla a otra", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("no arranques siempre con la misma frase");
+    expect(g).toContain("nunca digas que sos un asistente");
   });
 
   it("en Instagram pide el WhatsApp para cotizar y manda las copias e impresiones a WhatsApp por el enlace", () => {
