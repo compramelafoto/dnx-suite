@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import CanjeComboBanner from "@/components/canje-externo/CanjeComboBanner";
+import { readCanjeToken } from "@/lib/canje-externo/canje-token-storage";
 import { resolveAvailableFormats } from "@/lib/albums/available-formats";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import OrderItem from "@/components/order/OrderItem";
@@ -103,6 +104,8 @@ type AlbumPricing = {
     province: string | null;
     country: string | null;
   } | null;
+  /** Laboratorios del fotógrafo donde el cliente puede retirar (sólo si retira el cliente). */
+  puntosDeRetiro?: Array<{ id: number; nombre: string; direccion: string; horario: string | null }>;
   /** % fee sobre precio base digital (alineado con pricing-engine / order-photos). */
   digitalClientFeePercent?: number;
   enableFaceBulkPurchase?: boolean;
@@ -346,6 +349,12 @@ export default function ComprarClient() {
   const [showSlide, setShowSlide] = useState(false);
   const [slideIndex, setSlideIndex] = useState(0);
   const [continueSubmitting, setContinueSubmitting] = useState(false);
+  const [pickupPointId, setPickupPointId] = useState<number | null>(null);
+  // Con un canje de combo el servidor no guarda el punto de retiro: no se pregunta.
+  const [hasCanjeToken, setHasCanjeToken] = useState(false);
+  useEffect(() => {
+    setHasCanjeToken(readCanjeToken(albumId) != null);
+  }, [albumId]);
 
   // Precios del laboratorio
   const [labPricing, setLabPricing] = useState<LabPricing>({
@@ -1363,10 +1372,24 @@ export default function ComprarClient() {
     router.push(albumGalleryHref);
   }
 
+  // Dónde retirar las copias: sólo con impresas y si el fotógrafo cargó puntos de retiro.
+  const pickupPoints = albumPricing?.puntosDeRetiro ?? [];
+  const pickupPointsApply =
+    !redeemMode && !hasCanjeToken && pickupPoints.length > 0 && items.some((item) => (item.tipo || "digital") === "impresa");
+  const chosenPickupPoint =
+    pickupPoints.length === 1
+      ? pickupPoints[0]
+      : pickupPoints.find((p) => p.id === pickupPointId) ?? null;
+  const pickupChoiceMissing = pickupPointsApply && !chosenPickupPoint;
+
   function handleContinue() {
     if (continueSubmitting) return;
     if (items.length === 0) {
       setError("No hay fotos configuradas para comprar");
+      return;
+    }
+    if (pickupChoiceMissing) {
+      setError("Elegí dónde retirar tus copias.");
       return;
     }
     setContinueSubmitting(true);
@@ -1425,6 +1448,12 @@ export default function ComprarClient() {
     sessionStorage.setItem(`album_${albumId}_itemsToSend`, JSON.stringify(itemsToSend));
     if (albumPricing) {
       sessionStorage.setItem(`album_${albumId}_pricing`, JSON.stringify(albumPricing));
+    }
+    // Punto de retiro elegido: el resumen lo muestra y lo manda en el pedido.
+    if (pickupPointsApply && chosenPickupPoint) {
+      sessionStorage.setItem(`album_${albumId}_pickupPoint`, JSON.stringify(chosenPickupPoint));
+    } else {
+      sessionStorage.removeItem(`album_${albumId}_pickupPoint`);
     }
     if (checkoutDebugEnabled) {
       console.info("[checkout-debug] Continuar al resumen", {
@@ -2276,8 +2305,55 @@ export default function ComprarClient() {
                 })}
               </div>
 
+              {/* Dónde retirar las copias (laboratorios del fotógrafo) */}
+              {pickupPointsApply && (
+                <Card className="bg-blue-50 border border-blue-200">
+                  <div className="space-y-2">
+                    <h3 className="text-sm font-semibold text-blue-900 mb-2">
+                      📍 ¿Dónde querés retirar tus copias?
+                    </h3>
+                    {pickupPoints.length === 1 ? (
+                      <div>
+                        <p className="text-sm text-blue-900 font-medium">{pickupPoints[0].nombre}</p>
+                        <p className="text-xs text-blue-700">
+                          {[pickupPoints[0].direccion, pickupPoints[0].horario].filter(Boolean).join(" · ")}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2" role="radiogroup" aria-label="¿Dónde querés retirar tus copias?">
+                        {pickupPoints.map((p) => (
+                          <label
+                            key={p.id}
+                            className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer bg-white ${
+                              chosenPickupPoint?.id === p.id ? "border-blue-500" : "border-blue-100"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="pickupPoint"
+                              className="mt-1"
+                              checked={chosenPickupPoint?.id === p.id}
+                              onChange={() => setPickupPointId(p.id)}
+                            />
+                            <span>
+                              <span className="block text-sm text-blue-900 font-medium">{p.nombre}</span>
+                              <span className="block text-xs text-blue-700">
+                                {[p.direccion, p.horario].filter(Boolean).join(" · ")}
+                              </span>
+                            </span>
+                          </label>
+                        ))}
+                        {pickupChoiceMissing && (
+                          <p className="text-xs text-blue-800">Elegí dónde retirar tus copias para continuar.</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              )}
+
               {/* Mensaje de retiro de fotos impresas */}
-              {!redeemMode && albumPricing?.pickupInfo && items.some((item) => (item.tipo || "digital") === "impresa") && (
+              {!redeemMode && !pickupPointsApply && albumPricing?.pickupInfo && items.some((item) => (item.tipo || "digital") === "impresa") && (
                 <Card className="bg-blue-50 border border-blue-200">
                   <div className="space-y-2">
                     <h3 className="text-sm font-semibold text-blue-900 mb-2">
@@ -2354,7 +2430,7 @@ export default function ComprarClient() {
                     {redeemSubmitting ? "Canjeando…" : "Confirmar canje del pack"}
                   </Button>
                 ) : (
-                  <Button variant="primary" onClick={handleContinue} disabled={continueSubmitting}>
+                  <Button variant="primary" onClick={handleContinue} disabled={continueSubmitting || pickupChoiceMissing}>
                     {continueSubmitting ? "Abriendo resumen..." : "Continuar al resumen"}
                   </Button>
                 )}
