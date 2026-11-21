@@ -3,12 +3,13 @@
 Uso: python3 montar.py C01 [C02 ...]
 La voz sale de limpio/Cxx.wav; cada toma empieza donde la voz dice su «ancla» (txl/Cxx.json, palabra por palabra).
 """
-import json, os, re, subprocess, sys, unicodedata
+import difflib, json, os, re, subprocess, sys, unicodedata
 from clases import CLASES
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 F = os.path.join(AQUI, "filmar")
-MUSICA = "/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-suite/tools/video/biblioteca/musica/tutorial-calmo.mp3"
+PISTAS = sorted(f for f in os.listdir(os.path.join(AQUI, "musica")) if f.endswith(".wav"))  # compuestas con musica.py
+def musica(c): return os.path.join(AQUI, "musica", PISTAS[(int(c[1:]) - 1) % len(PISTAS)])
 APERTURA, CIERRE, FPS = 3.2, 3.5, 30
 os.makedirs(os.path.join(AQUI, "videos"), exist_ok=True)
 os.makedirs(os.path.join(AQUI, "trozos"), exist_ok=True)
@@ -28,18 +29,22 @@ def ancla(ws, texto, desde):
     obj = norm(texto)
     for i in range(len(ws) - len(obj) + 1):
         if ws[i][0] + 0.01 < desde: continue
-        if [w for _, w in ws[i:i + len(obj)]] == obj: return ws[i][0]
+        if all(difflib.SequenceMatcher(None, a, b).ratio() >= 0.7 for (_, a), b in zip(ws[i:i + len(obj)], obj)): return ws[i][0]
     raise SystemExit(f"No encontré «{texto}» después de {desde:.1f}s")
 
 _cache = {}
+def tam(f):
+    w, h = subprocess.check_output(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", f]).decode().strip().split(",")
+    return int(w), int(h)
 def marcas_reales(nombre):
     """Tiempos de cada marca en el video, leídos del cuadradito de color de la esquina (rojo/verde/azul)."""
     if nombre in _cache: return _cache[nombre]
     m = json.load(open(os.path.join(F, "tomas", nombre + ".json")))
     orden = m.get("__orden")
     if not orden: _cache[nombre] = m; return m
+    W, H = tam(os.path.join(F, "tomas", nombre + ".webm"))
     raw = subprocess.check_output(["ffmpeg", "-v", "error", "-i", os.path.join(F, "tomas", nombre + ".webm"), "-vf",
-                                   "fps=30,crop=4:4:1274:714,scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
+                                   f"fps=30,crop=4:4:{W - 6}:{H - 6},scale=1:1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"])
     seg = []
     for i in range(0, len(raw), 3):
         r, g, b = raw[i], raw[i + 1], raw[i + 2]
@@ -74,7 +79,12 @@ def trozo(salida, D, fuente):
     vel = 1.0
     if L > D: vel = min(L / D, 2.5)
     usado = min(L, D * vel)
-    filtros = f"trim={ta:.3f}:{ta + usado:.3f},setpts=(PTS-STARTPTS)/{vel:.4f},fps={FPS},crop=1266:712:0:0,scale=1920:1080:flags=lanczos"
+    W, H = tam(os.path.join(F, "tomas", nombre + ".webm"))
+    if W >= H:
+        encuadre = "crop=1266:712:0:0,scale=1920:1080:flags=lanczos"
+    else:  # celular: al centro, sobre el fondo crema del curso
+        encuadre = f"crop={W - 12}:{H - 12}:0:0,scale=-2:1000:flags=lanczos,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0xefe9e1"
+    filtros = f"trim={ta:.3f}:{ta + usado:.3f},setpts=(PTS-STARTPTS)/{vel:.4f},fps={FPS},{encuadre}"
     resto = D - usado / vel
     if resto > 0.02: filtros += f",tpad=stop_mode=clone:stop_duration={resto:.3f}"
     entradas = ["-i", os.path.join(F, "tomas", nombre + ".webm")]
@@ -87,7 +97,7 @@ def trozo(salida, D, fuente):
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-an", salida)
 
 def montar(c):
-    cl = CLASES[c]; voz = os.path.join(AQUI, "limpio", c + ".wav"); DV = dur(voz)
+    cl = CLASES[c]; voz = os.path.join(AQUI, "final", c + ".wav"); DV = dur(voz)
     ws = palabras(c); inicios = []; t = 0
     for toma in cl["tomas"]:
         t = 0.0 if not inicios else max(0, ancla(ws, toma["voz"], t) - 0.12)
@@ -109,9 +119,11 @@ def montar(c):
     total = dur(mudo)
     salida = os.path.join(AQUI, "videos", f"{c}.mp4")
     fc = (f"[1:a]adelay={int(APERTURA * 1000)}|{int(APERTURA * 1000)},apad[v];"
-          f"[2:a]aloop=loop=-1:size=2e9,atrim=0:{total:.3f},volume=-23dB,afade=t=in:d=1.5,afade=t=out:st={total - 2.5:.3f}:d=2.5[m];"
-          f"[v][m]amix=inputs=2:duration=first:normalize=0,atrim=0:{total:.3f}[a]")
-    run("ffmpeg", "-v", "error", "-y", "-i", mudo, "-i", voz, "-i", MUSICA, "-filter_complex", fc,
+          f"[v]asplit=2[v1][llave];"
+          f"[2:a]aloop=loop=-1:size=2e9,atrim=0:{total:.3f},aformat=channel_layouts=stereo,volume=-9dB,afade=t=in:d=1.2,afade=t=out:st={total - 2.5:.3f}:d=2.5[m0];"
+          f"[llave]aformat=channel_layouts=stereo[ll];[m0][ll]sidechaincompress=threshold=0.015:ratio=8:attack=60:release=700:makeup=1[m];"
+          f"[v1]aformat=channel_layouts=stereo[vv];[vv][m]amix=inputs=2:duration=first:normalize=0,atrim=0:{total:.3f}[a]")
+    run("ffmpeg", "-v", "error", "-y", "-i", mudo, "-i", voz, "-i", musica(c), "-filter_complex", fc,
         "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart", salida)
     print(c, "listo:", salida, f"{total:.1f}s")
 

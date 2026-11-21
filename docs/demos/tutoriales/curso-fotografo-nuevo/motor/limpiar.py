@@ -1,13 +1,15 @@
 # Saca las tomas repetidas (CORTES) y acorta los silencios largos. Resultado: limpio/Cxx.wav (48 kHz) normalizado.
 import subprocess, json
 CORTES = {"C01": [(16.84, 30.09), (81.56, 103.15)], "C02": [(36.94, 63.42)], "C03": [(37.49, 44.39)],
-          "C06": [(51.44, 76.47), (87.62, 130.10)]}
+          "C06": [(51.44, 76.47), (87.62, 130.10)],
+          # C13: tres intentos del punto 5. C14: la indicación del principio («quedate con lo que yo grabo») y los intentos del punto 3.
+          "C13": [(43.20, 58.63)], "C14": [(0, 11.47), (35.69, 81.50)]}
 MAX_SIL, DEJA = 0.65, 0.42
 def dur(f): return float(subprocess.check_output(["ffprobe","-v","error","-show_entries","format=duration","-of","csv=p=0",f]))
 def sil(c):
     L=open(f"sil/{c}.txt").read().split(); return [(float(L[i+1]),float(L[i+3])) for i in range(0,len(L)-3,4)]
 import os; os.makedirs("limpio", exist_ok=True)
-for n in range(1, 11):
+for n in range(1, 17):
     c=f"C{n:02d}"; D=dur(f"audios/{c}.m4a")
     quitar=list(CORTES.get(c, []))
     for s,e in sil(c):
@@ -29,7 +31,7 @@ for n in range(1, 11):
     print(c, f"{D:.1f}s →", f"{dur(f'limpio/{c}.wav'):.1f}s")
 
 # Segunda pasada: repeticiones que aparecieron al transcribir palabra por palabra (tiempos del audio ya limpio).
-POSTCORTES = {"C09": [(31.75, 36.67)], "C10": [(22.82, 26.69)]}
+POSTCORTES = {"C09": [(31.75, 36.67)], "C10": [(22.82, 26.69)], "C13": [(38.85, 45.05)]}
 for c, cortes in POSTCORTES.items():
     (a, b), = cortes
     fc = f"[0:a]atrim=0:{a},asetpts=PTS-STARTPTS[x];[0:a]atrim={b},asetpts=PTS-STARTPTS[y];[x][y]concat=n=2:v=0:a=1[o]"

@@ -9,12 +9,18 @@ Se corre desde una carpeta de trabajo fuera del repo (los audios, las filmacione
 3. **Limpiar** (`limpiar.py`): en `CORTES` van los tramos repetidos (se corta en los silencios) y en `POSTCORTES` los
    que aparecen al transcribir el audio limpio. Siempre se queda la última toma, la buena. Verificar re-transcribiendo
    `limpio/` palabra por palabra a `txl/`.
+   **Toses y carraspeos:** el transcriptor no los anota y les asigna mal el tiempo. `ruidos2.py` corta el audio en
+   tramos y transcribe cada uno solo; `quitar_ruido.py` saca los tramos sin palabras reales que además no tienen tono
+   de voz (`tono.py`: la voz da 0,7 o más; una tos, 0,3 o menos). El audio final queda en `final/` y se vuelve a
+   transcribir a `txl/` para verificar y sincronizar.
 4. **Filmar** (`filmar/*.mjs`): Playwright con la sesión de la demo (`login.mjs` abre Chrome para que Daniel inicie
    sesión; guarda `sesion.json`, que dura 12 h). Cada `h.toma(n)` cambia el color de un cuadradito en la esquina, y el
    montaje lo detecta para sincronizar sin desfase. Nunca se toca «Crear álbum», «Crear cuenta», «Pedir invitación»
-   ni «Desconectar».
+   ni «Desconectar», ni «Confirmar pedido», ni «Crear pack». Nunca usar Escape: activa el recorrido de la demo escolar.
+   La vista de celular (`{ celular: true }`) se monta al centro, sobre fondo crema.
 5. **Placas** (`placas.py`): apertura y cierre de cada clase, y las pantallas que la demo no puede mostrar (Mercado Pago
    sin conectar o vencido, el cartel del cobro dividido) con los textos reales del código.
 6. **Montar** (`montar.py C01 …`): cada toma de `clases.py` empieza donde la voz dice su «ancla». El video se acelera
-   (hasta 2,5×) o se congela para durar lo mismo que la voz. Música `tutorial-calmo.mp3` muy baja. `revisar.py` arma
+   (hasta 2,5×) o se congela para durar lo mismo que la voz. Cada clase lleva una pista distinta de `musica.py` (ocho composiciones propias, con
+   numpy), que baja sola mientras habla Daniel. `revisar.py` arma
    una grilla con un cuadro por toma para controlar.

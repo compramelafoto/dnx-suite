@@ -5,7 +5,7 @@ for c in sys.argv[1:]:
     ws = montar.palabras(c); ini=[]; t=0
     for tm in CLASES[c]["tomas"]:
         t = 0.0 if not ini else max(0, montar.ancla(ws, tm["voz"], t) - 0.12); ini.append(t)
-    ini.append(montar.dur(f"limpio/{c}.wav")); fs=[]
+    ini.append(montar.dur(f"final/{c}.wav")); fs=[]
     for i in range(len(ini)-1):
         tt = montar.APERTURA + ini[i] + 0.7*(ini[i+1]-ini[i]); f=f"filmar/cuadros/r{i}.png"
         subprocess.run(["ffmpeg","-v","error","-y","-ss",f"{tt:.2f}","-i",f"videos/{c}.mp4","-frames:v","1","-vf","scale=640:-1",f],check=True); fs.append(f)

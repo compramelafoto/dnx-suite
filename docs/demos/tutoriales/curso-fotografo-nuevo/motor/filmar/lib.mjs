@@ -5,7 +5,7 @@ const require = createRequire("/Users/danielcuart/Desktop/PROGRAMACIONES/dnx-sui
 const { chromium } = require("playwright");
 export const DIR = new URL(".", import.meta.url).pathname;
 export const BASE = "https://www.compramelafoto.com";
-const VW = 1280, VH = 720;
+const VW0 = 1280, VH0 = 720;
 
 const CSS = '[class*="z-[9995]"],[class*="z-[10000]"],.dnxbot-raiz,.dnx-tour-bubble,[data-sonner-toaster]{display:none!important}' +
   '#cursor-falso{position:fixed;left:0;top:0;width:24px;height:24px;z-index:2147483647;pointer-events:none;transform:translate(-3px,-2px);transition:transform .08s}' +
@@ -14,7 +14,8 @@ const CSS = '[class*="z-[9995]"],[class*="z-[10000]"],.dnxbot-raiz,.dnx-tour-bub
 
 export async function grabar(nombre, opciones, cuerpo) {
   const b = await chromium.launch({ headless: true });
-  const ctxOpts = { viewport: { width: VW, height: VH }, deviceScaleFactor: 1, locale: "es-AR",
+  const VW = opciones.celular ? 406 : VW0, VH = opciones.celular ? 720 : VH0;
+  const ctxOpts = { viewport: { width: VW, height: VH }, deviceScaleFactor: 1, locale: "es-AR", isMobile: !!opciones.celular, hasTouch: !!opciones.celular,
     recordVideo: { dir: DIR + "video", size: { width: VW, height: VH } } };
   if (opciones.sesion !== false) ctxOpts.storageState = DIR + "sesion.json";
   const ctx = await b.newContext(ctxOpts);
@@ -38,7 +39,7 @@ export async function grabar(nombre, opciones, cuerpo) {
   }, CSS);
   const p = await ctx.newPage();
   const t0 = Date.now(); const marcas = {}; const orden = []; const COLORES = ["#ff0000", "#00ff00", "#0000ff"];
-  let cx = 640, cy = 360;
+  let cx = VW / 2, cy = VH / 2;
   const h = {
     p,
     async toma(n) {

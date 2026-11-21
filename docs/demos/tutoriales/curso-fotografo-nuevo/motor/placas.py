@@ -128,6 +128,14 @@ PLACAS["cobro-activo"] = pagina(f'''<img class="chico" src="{LOGO}"><div class="
 <p style="font-size:38px;font-weight:700">Cobro dividido al instante</p>
 <div style="background:#e7f7ee;border:2px solid #9fdcb9;border-radius:18px;padding:30px 34px;margin-top:26px;font-size:32px"><b style="display:inline;font-size:34px;color:#15803d">✅ Cobro dividido activo</b><br>En cada venta, Mercado Pago te deposita tu parte en el momento en tu cuenta.</div></div></div>''')
 
+PLACAS["consejos-subida"] = pasos("Dos consejos para subir", [("📏", "Hasta 10 MB por foto"), ("⚠️", "Si una se pasa, no sube ninguna"), ("📶", "En el celular, con buena señal")],
+                                  "Exportá tus fotos en un tamaño razonable.")
+PLACAS["pago-aprobado"] = pagina(f'''<img class="chico" src="{LOGO}"><div class="fondo"><div class="caja" style="width:1150px;text-align:left;padding:54px 64px;font-weight:400">
+<p style="font-size:44px;font-weight:800;color:#15803d">✅ Pago aprobado</p>
+<p style="font-size:30px;color:#374151;margin-top:14px">Pago confirmado. Ya podés ver y descargar tus fotos desde tu centro de descargas.</p>
+<div style="background:#f9fafb;border-radius:18px;padding:28px 32px;margin-top:28px"><p style="font-size:32px;font-weight:700">📷 Tus fotos están listas</p>
+<span class="btn">Ver mis fotos</span></div></div></div>''')
+
 if __name__ == "__main__":
     tmp = os.path.join(OUT, "html"); os.makedirs(tmp, exist_ok=True); args = []
     for nombre, html in PLACAS.items():
