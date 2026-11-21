@@ -77,7 +77,7 @@ Postgres (Neon), `pdf-lib` + `qrcode`, R2, `queueEmail`.
 
 ---
 
-### Tarea 1: Esquema y migración
+### Task 1 (Tarea 1): Esquema y migración
 
 **Archivos:**
 - Modificar: `packages/db/prisma/schema.prisma` (junto a `PrintOrder`, ~línea 4505)
@@ -140,7 +140,7 @@ de `PrintBatchEntry` a `PrintBatch`.
 
 ---
 
-### Tarea 2: Reglas puras de estados y elegibilidad
+### Task 2 (Tarea 2): Reglas puras de estados y elegibilidad
 
 **Archivos:**
 - Crear: `apps/compramelafoto/lib/print-batches/reglas.ts`, `apps/compramelafoto/lib/print-batches/reglas.test.ts`
@@ -182,7 +182,7 @@ export function motivoParaNoEntrar(p: PedidoCandidato): string | null; // null =
 
 ---
 
-### Tarea 3: Código del QR del pedido y token del lote
+### Task 3 (Tarea 3): Código del QR del pedido y token del lote
 
 **Archivos:** crear `lib/print-batches/codigos.ts` y `codigos.test.ts`; sumar el test al script.
 
@@ -203,7 +203,7 @@ letra `p`; secreto: `secretoDeEntrega()` de ese archivo.
 
 ---
 
-### Tarea 4: Servicio de lotes (listar, armar, enviar, mover, reimprimir)
+### Task 4 (Tarea 4): Servicio de lotes (listar, armar, enviar, mover, reimprimir)
 
 **Archivos:** crear `lib/print-batches/servicio.ts`, `lib/print-batches/correos.ts`.
 
@@ -260,7 +260,7 @@ Textos de `correos.ts` (exactos):
 
 ---
 
-### Tarea 5: «Mis laboratorios»
+### Task 5 (Tarea 5): «Mis laboratorios»
 
 **Archivos:** crear `lib/print-batches/contactos.ts` (+ test), `app/api/fotografo/laboratorios/route.ts`
 (GET, POST), `app/api/fotografo/laboratorios/[id]/route.ts` (PATCH, DELETE = `activo false`),
@@ -286,7 +286,7 @@ export function validarContacto(i: ContactoInput, labVinculado: { address: strin
 
 ---
 
-### Tarea 6: ZIP del lote por partes
+### Task 6 (Tarea 6): ZIP del lote por partes
 
 **Archivos:** crear `lib/print-batches/zip-del-lote.ts` (+ test), `app/api/fotografo/impresiones/lotes/[id]/zip/route.ts`.
 
@@ -312,7 +312,7 @@ diseños (sólo `copiasFueraDelDiseno`). `responderZipDeLaParte` arma con `organ
 
 ---
 
-### Tarea 7: Puerta del laboratorio sin cuenta
+### Task 7 (Tarea 7): Puerta del laboratorio sin cuenta
 
 **Archivos:** crear `app/lab/lote/[token]/page.tsx`, `app/api/lab-lote/[token]/route.ts` (GET datos,
 POST `{ hacia }`), `app/api/lab-lote/[token]/zip/route.ts` (`?parte=k`).
@@ -333,7 +333,7 @@ POST `{ hacia }`), `app/api/lab-lote/[token]/zip/route.ts` (`?parte=k`).
 
 ---
 
-### Tarea 8: Sobres, etiqueta del lote y remito
+### Task 8 (Tarea 8): Sobres, etiqueta del lote y remito
 
 **Archivos:** crear `lib/print-batches/impresos.ts` (+ test), `app/api/fotografo/impresiones/lotes/[id]/{sobres,etiqueta,remito}/route.ts`.
 
@@ -359,7 +359,7 @@ export async function pdfRemito(l: { lote: string; fotografo: string; laboratori
 
 ---
 
-### Tarea 9: QR del sobre
+### Task 9 (Tarea 9): QR del sobre
 
 **Archivos:** crear `app/pedido/entrega/[codigo]/page.tsx`, `app/api/pedido/entrega/[codigo]/route.ts`
 (POST `{ accion: "LISTO" | "ENTREGADO" | "RECIBIDO_POR_CLIENTE" }`).
@@ -380,7 +380,7 @@ export async function pdfRemito(l: { lote: string; fotografo: string; laboratori
 
 ---
 
-### Tarea 10: Elegir dónde retirar en la compra
+### Task 10 (Tarea 10): Elegir dónde retirar en la compra
 
 **Archivos:** modificar `app/api/a/[id]/order-photos/route.ts` (~línea 564), `app/a/[id]/comprar/ComprarClient.tsx`
 (~línea 2280), `app/api/a/[id]/orders/route.ts` (lectura del body ~línea 116 y `prisma.order.create` ~líneas 704/727).
@@ -401,7 +401,7 @@ export async function pdfRemito(l: { lote: string; fotografo: string; laboratori
 
 ---
 
-### Tarea 11: Panel «Impresiones»
+### Task 11 (Tarea 11): Panel «Impresiones»
 
 **Archivos:** crear `app/fotografo/impresiones/page.tsx`, `app/api/fotografo/impresiones/route.ts` (GET
 panel), `app/api/fotografo/impresiones/lotes/route.ts` (POST armar),
@@ -427,7 +427,7 @@ modificar el menú del fotógrafo (entrada «Impresiones» junto a «Pedidos») 
 
 ---
 
-### Tarea 12: Puesta en producción
+### Task 12 (Tarea 12): Puesta en producción
 
 - [ ] **Paso 1:** pedirle a Daniel permiso para aplicar la migración en la base de CLF; aplicarla con
   `run_sql_transaction` en `br-autumn-rain-ad18wq7y` y registrarla en `_prisma_migrations` con el checksum
