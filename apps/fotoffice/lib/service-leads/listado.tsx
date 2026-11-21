@@ -15,6 +15,8 @@ import { ACCIONES_CONSULTAS } from "./lote";
 import { SERVICE_LEAD_EVENT_TYPE_LABELS } from "./form-definitions";
 import { TIPO_CONSULTA } from "./numero";
 import { PuntoSemaforo } from "@/components/consultas/punto-semaforo";
+import { buildWhatsappUrl } from "@/lib/contact/whatsapp";
+import { AlarmClock, MessageCircle, Phone } from "lucide-react";
 import { semaforosDeConsultas } from "@/lib/consultas/semaforo";
 import type { Semaforo } from "@/lib/consultas/semaforo-puro";
 
@@ -385,11 +387,54 @@ function Chip({ texto, clase }: { texto: string; clase: string }) {
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${clase}`}>{texto}</span>;
 }
 
+/** Etapa (o resultado) y, debajo, cuánto lleva ahí y cuándo vence: en rojo si ya venció. */
 function celdaEtapa(f: FilaCaptacion) {
   const r = f.recorrido;
   if (!r) return <span className="text-[var(--fo-muted)]">Sin ordenar</span>;
   if (r.outcome) return <Chip texto={ETIQUETA_SALIDA[r.outcome] ?? r.outcome} clase={r.outcome === "GANADA" ? claseDeColorEtiqueta("verde") : claseDeColorEtiqueta("rojo")} />;
-  return <Chip texto={r.etapa?.nombre ?? "—"} clase={claseDeColorEtiqueta(r.etapa?.color ?? "gris")} />;
+  const ahora = new Date();
+  const dias = diasEnEtapa(r.enteredStageAt, ahora);
+  const vencida = r.stageDueAt !== null && estaVencida(r.stageDueAt, ahora);
+  return (
+    <span className="inline-flex flex-col items-start gap-1">
+      <Chip texto={r.etapa?.nombre ?? "—"} clase={claseDeColorEtiqueta(r.etapa?.color ?? "gris")} />
+      <span className={`inline-flex items-center gap-1 whitespace-nowrap text-xs ${vencida ? "font-medium text-[var(--fo-danger)]" : "text-[var(--fo-muted)]"}`}>
+        {vencida ? <AlarmClock className="size-3" aria-hidden /> : null}
+        {dias === 0 ? "Hoy" : dias === 1 ? "1 día" : `${dias} días`}
+        {r.stageDueAt ? ` · ${vencida ? "venció" : "vence"} ${fechaAR.format(r.stageDueAt).slice(0, 5)}` : ""}
+      </span>
+    </span>
+  );
+}
+
+/** Nombre (a la ficha) y, debajo, cómo contactarla: teléfono y WhatsApp a un toque. */
+function celdaNombre(f: FilaCaptacion) {
+  const whatsapp = buildWhatsappUrl(f.phone);
+  return (
+    <span className="flex min-w-0 flex-col gap-0.5">
+      <Link href={`/consultas/${encodeURIComponent(f.id)}`} className="font-semibold text-[var(--fo-text)] hover:text-[var(--fo-accent-hover)] hover:underline">
+        {f.name}
+      </Link>
+      {f.phone || f.email ? (
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[var(--fo-muted)]">
+          {f.phone ? (
+            <a href={`tel:${f.phone}`} className="inline-flex items-center gap-1 tabular-nums hover:text-[var(--fo-text)]">
+              <Phone className="size-3" aria-hidden />
+              {f.phone}
+            </a>
+          ) : (
+            <span className="truncate">{f.email}</span>
+          )}
+          {whatsapp ? (
+            <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 font-medium text-[var(--fo-success)] hover:underline">
+              <MessageCircle className="size-3" aria-hidden />
+              WhatsApp
+            </a>
+          ) : null}
+        </span>
+      ) : null}
+    </span>
+  );
 }
 
 function textoResultado(r: RecorridoDeFila | null): string | null {
@@ -407,17 +452,13 @@ export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
       clave: "numero",
       titulo: "N°",
       orden: "numero",
-      celda: (f) => (f.numero ? <span className="whitespace-nowrap tabular-nums">{f.numero}</span> : "—"),
+      celda: (f) => (f.numero ? <span className="whitespace-nowrap text-xs tabular-nums text-[var(--fo-muted)]">{f.numero}</span> : "—"),
     },
     {
       clave: "nombre",
       titulo: "Nombre",
       orden: "nombre",
-      celda: (f) => (
-        <Link href={`/consultas/${encodeURIComponent(f.id)}`} className="font-medium text-[var(--fo-text)] hover:underline">
-          {f.name}
-        </Link>
-      ),
+      celda: celdaNombre,
     },
     { clave: "categoria", titulo: "Categoría", celda: categoriaDe },
     {
@@ -442,29 +483,11 @@ export const listadoCaptacion: DefinicionListado<FilaCaptacion> = {
       alinear: "derecha",
       celda: (f) => {
         const v = valorDe(f);
-        return v === null ? "—" : <span className="whitespace-nowrap tabular-nums">{formatoPesos(v)}</span>;
+        return v === null ? "—" : <span className="whitespace-nowrap font-semibold tabular-nums">{formatoPesos(v)}</span>;
       },
     },
     { clave: "responsable", titulo: "Responsable", celda: (f) => f.recorrido?.responsable ?? "—" },
     { clave: "origen", titulo: "Origen", secundaria: true, celda: (f) => f.fotofficeConsulta?.origin?.name ?? "—" },
-    {
-      clave: "dias",
-      titulo: "Días en la etapa",
-      secundaria: true,
-      alinear: "derecha",
-      celda: (f) => (f.recorrido && !f.recorrido.outcome ? diasEnEtapa(f.recorrido.enteredStageAt, new Date()) : "—"),
-    },
-    {
-      clave: "vence",
-      titulo: "Vence",
-      secundaria: true,
-      celda: (f) => {
-        const r = f.recorrido;
-        if (!r || r.outcome || !r.stageDueAt) return "—";
-        const vencida = estaVencida(r.stageDueAt, new Date());
-        return <span className={vencida ? "font-medium text-red-700" : undefined}>{fechaAR.format(r.stageDueAt)}</span>;
-      },
-    },
     { clave: "alta", titulo: "Alta", orden: "alta", secundaria: true, celda: (f) => fechaAR.format(f.createdAt) },
   ],
   filtros: [
