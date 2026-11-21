@@ -77,18 +77,22 @@ export function avisaAlCliente(anterior: string, nuevo: string): boolean {
 }
 
 /**
- * El lote se cierra cuando está recibido (o más) y todos los pedidos vigentes
- * que retira el cliente ya fueron entregados. Las filas quitadas no cuentan.
+ * El lote se cierra cuando todos sus pedidos vigentes (sin quitar) están
+ * entregados o recibidos por el fotógrafo. Un pedido que retira el cliente
+ * está hecho al entregarse; uno que retira el fotógrafo, al entregarse o al
+ * recibir el lote. Sin pedidos vigentes o fuera de LISTO en adelante: no cierra.
  */
 export function loteCerrado(
   entries: Array<{ quitadoAt: Date | null; entregadoAt: Date | null; retiraCliente: boolean }>,
   estado: EstadoLote,
 ): boolean {
-  if (estado === "ANULADO") return false;
-  if (estado !== "RECIBIDO" && estado !== "CERRADO") return false;
-  return entries
-    .filter((e) => e.quitadoAt == null)
-    .every((e) => !e.retiraCliente || e.entregadoAt != null);
+  if (estado !== "LISTO" && estado !== "DESPACHADO" && estado !== "RECIBIDO" && estado !== "CERRADO") {
+    return false;
+  }
+  const vigentes = entries.filter((e) => e.quitadoAt == null);
+  if (vigentes.length === 0) return false;
+  const recibido = estado === "RECIBIDO" || estado === "CERRADO";
+  return vigentes.every((e) => e.entregadoAt != null || (!e.retiraCliente && recibido));
 }
 
 export type PedidoCandidato = {

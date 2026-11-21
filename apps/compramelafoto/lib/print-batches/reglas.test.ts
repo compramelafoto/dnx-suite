@@ -66,6 +66,7 @@ test("estadoDelPedidoPara", () => {
   assert.equal(estadoDelPedidoPara("LISTO", true), "READY_TO_PICKUP");
   assert.equal(estadoDelPedidoPara("RECIBIDO", false), "READY_TO_PICKUP");
   assert.equal(estadoDelPedidoPara("RECIBIDO", true), null);
+  assert.equal(estadoDelPedidoPara("DESPACHADO", false), null);
   assert.equal(estadoDelPedidoPara("ENVIADO", false), "CREATED");
   assert.equal(estadoDelPedidoPara("ENVIADO", true), "CREATED");
 });
@@ -86,12 +87,24 @@ test("loteCerrado", () => {
   assert.equal(loteCerrado([entregado, delFotografo], "LISTO"), false);
   assert.equal(loteCerrado([entregado, quitado], "RECIBIDO"), true);
   assert.equal(loteCerrado([sinEntregar, delFotografo], "RECIBIDO"), false);
+  // Todos retira cliente: se cierra sin pasar por RECIBIDO.
+  assert.equal(loteCerrado([entregado, entregado], "LISTO"), true);
+  assert.equal(loteCerrado([entregado, sinEntregar], "LISTO"), false);
+  // Mixto: los del fotógrafo se dan por hechos recién al recibir el lote.
+  assert.equal(loteCerrado([entregado, delFotografo], "LISTO"), false);
+  assert.equal(loteCerrado([entregado, delFotografo], "RECIBIDO"), true);
+  // Sin pedidos vigentes, o antes de LISTO, o anulado: no cierra.
+  assert.equal(loteCerrado([quitado], "LISTO"), false);
+  assert.equal(loteCerrado([], "LISTO"), false);
+  assert.equal(loteCerrado([entregado], "EN_PRODUCCION"), false);
+  assert.equal(loteCerrado([entregado], "ANULADO"), false);
 });
 
 test("motivoParaNoEntrar", () => {
   const ok: PedidoCandidato = { orderStatus: "PAID", esDemo: false, esCanjeVoucher: false, copiasSueltas: 2, enLoteVivo: false };
   assert.equal(motivoParaNoEntrar(ok), null);
   assert.equal(motivoParaNoEntrar({ ...ok, orderStatus: "PENDING" }), "El pedido todavía no está pagado.");
+  assert.equal(motivoParaNoEntrar({ ...ok, orderStatus: "PENDING", esDemo: true }), "El pedido todavía no está pagado.");
   assert.equal(motivoParaNoEntrar({ ...ok, esDemo: true }), "Es un pedido de prueba.");
   assert.equal(motivoParaNoEntrar({ ...ok, esCanjeVoucher: true }), "Es un canje: va por Pedidos escolares.");
   assert.equal(motivoParaNoEntrar({ ...ok, copiasSueltas: 0 }), "No tiene copias sueltas para imprimir.");
