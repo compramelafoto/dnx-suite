@@ -23,7 +23,7 @@ export async function cargarInauguracionPanel(id: string, usuario: Quien) {
     select: {
       id: true, slug: true, title: true, type: true, reviewStatus: true, isVirtualOnly: true, isCancelled: true,
       openingAt: true, openingEndsAt: true, openingNote: true, endsAt: true,
-      rsvpStatus: true, rsvpCapacity: true, rsvpMaxCompanions: true, rsvpSummary: true, rsvpPurgedAt: true,
+      rsvpStatus: true, rsvpCapacity: true, rsvpMaxCompanions: true, rsvpSummary: true, rsvpPurgedAt: true, primaryDiscipline: true,
     },
   });
   let a = await leer();
@@ -56,7 +56,7 @@ export type AsistenciaDelPanel = NonNullable<Awaited<ReturnType<typeof cargarIna
 const SELECT_INVITACION = {
   id: true, slug: true, title: true, type: true, coverImageUrl: true, organizersText: true, venueName: true, address: true, city: true,
   province: true, latitude: true, longitude: true, isVirtualOnly: true, isCancelled: true, reviewStatus: true, openingAt: true,
-  openingEndsAt: true, openingNote: true, rsvpStatus: true, rsvpMaxCompanions: true, updatedAt: true,
+  openingEndsAt: true, openingNote: true, rsvpStatus: true, rsvpMaxCompanions: true, updatedAt: true, primaryDiscipline: true,
 } as const;
 
 /**

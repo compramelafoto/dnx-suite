@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { LARGOS, datosParaGuardar, esImagenPropia, leerObrasDeTextos, fichaDesdeFormData as mapearConBase } from "./mapear";
+import type { MarcaId } from "@/lib/marca";
+import { LARGOS, datosParaGuardar, esImagenPropia, leerObrasDeTextos, validarFicha, fichaDesdeFormData as mapearConBase } from "./mapear";
 
 const BASE = "https://pub-test.r2.dev";
 /** Los tests inyectan la base pública de imágenes en vez de depender del entorno. */
-const fichaDesdeFormData = (f: FormData) => mapearConBase(f, { baseImagenes: BASE });
+const fichaDesdeFormData = (f: FormData, o: { marca?: MarcaId } = {}) => mapearConBase(f, { baseImagenes: BASE, marca: o.marca ?? "FOTOGRAFIA" });
 
 function fd(o: Record<string, string>) {
   const f = new FormData();
@@ -131,7 +132,7 @@ describe("imágenes ajenas", () => {
   });
   it("sin base configurada no acepta ninguna (falla cerrado)", () => {
     expect(esImagenPropia(`${BASE}/muestras/7/abc.webp`, null)).toBe(false);
-    const f = mapearConBase(fd(base), { baseImagenes: null });
+    const f = mapearConBase(fd(base), { baseImagenes: null, marca: "FOTOGRAFIA" });
     expect(f.coverImageUrl).toBeNull();
     expect(f.works).toEqual([]);
   });
@@ -151,7 +152,7 @@ describe("imágenes ajenas", () => {
     const antes = process.env.R2_PUBLIC_URL;
     process.env.R2_PUBLIC_URL = `${BASE}/`;
     try {
-      expect(mapearConBase(fd(base)).coverImageUrl).toBe(`${BASE}/muestras/7/p.webp`);
+      expect(mapearConBase(fd(base), { marca: "FOTOGRAFIA" }).coverImageUrl).toBe(`${BASE}/muestras/7/p.webp`);
     } finally {
       if (antes === undefined) delete process.env.R2_PUBLIC_URL; else process.env.R2_PUBLIC_URL = antes;
     }
@@ -224,5 +225,38 @@ describe("leerObrasDeTextos (etapa 5)", () => {
     const [o] = leerObrasDeTextos(JSON.stringify([{ id: "w1", title: "x".repeat(500) }]));
     expect(o!.title).toHaveLength(LARGOS.obraTitle);
     expect(leerObrasDeTextos(JSON.stringify([{ id: "w1", title: "  " }]))[0]!.title).toBe("");
+  });
+});
+
+describe("disciplina (Muestras de Arte, etapa 2)", () => {
+  /** La ficha base más campos; un arreglo se manda como varios valores con el mismo nombre. */
+  function fdBase(extra: Record<string, string | string[]> = {}) {
+    const f = fd(base);
+    for (const [k, v] of Object.entries(extra)) for (const x of Array.isArray(v) ? v : [v]) f.append(k, x);
+    return f;
+  }
+  it("en fotografía, sin campo, la disciplina es FOTOGRAFIA", () =>
+    expect(fichaDesdeFormData(fdBase(), { marca: "FOTOGRAFIA" }).primaryDiscipline).toBe("FOTOGRAFIA"));
+  it("en arte la disciplina es obligatoria", () =>
+    expect(validarFicha(fichaDesdeFormData(fdBase(), { marca: "ARTE" }))).toContain("Elegí la disciplina principal."));
+  it("en arte, una disciplina que no existe también cuenta como no elegida", () =>
+    expect(validarFicha(fichaDesdeFormData(fdBase({ primaryDiscipline: "MAGIA" }), { marca: "ARTE" }))).toContain("Elegí la disciplina principal."));
+  it("con disciplina elegida no hay error de disciplina", () => {
+    expect(validarFicha(fichaDesdeFormData(fdBase({ primaryDiscipline: "PINTURA" }), { marca: "ARTE" }))).toEqual([]);
+    expect(validarFicha(fichaDesdeFormData(fdBase(), { marca: "FOTOGRAFIA" }))).toEqual([]);
+  });
+  it("guarda la principal y las secundarias limpias", () =>
+    expect(datosParaGuardar(fichaDesdeFormData(fdBase({ primaryDiscipline: "PINTURA", otherDisciplines: ["DIBUJO", "PINTURA"] }), { marca: "ARTE" })))
+      .toMatchObject({ primaryDiscipline: "PINTURA", otherDisciplines: ["DIBUJO"] }));
+  it("en fotografía también se puede elegir otra disciplina (desde Más opciones)", () => {
+    const f = fichaDesdeFormData(fdBase({ primaryDiscipline: "ESCULTURA", otherDisciplines: ["FOTOGRAFIA", "NADA"] }), { marca: "FOTOGRAFIA" });
+    expect(f.primaryDiscipline).toBe("ESCULTURA");
+    expect(f.otherDisciplines).toEqual(["FOTOGRAFIA"]);
+  });
+  it("en fotografía, un valor que no existe vuelve a FOTOGRAFIA", () =>
+    expect(fichaDesdeFormData(fdBase({ primaryDiscipline: "MAGIA" }), { marca: "FOTOGRAFIA" }).primaryDiscipline).toBe("FOTOGRAFIA"));
+  it("validarFicha junta las reglas que ya frenaban el guardado", () => {
+    expect(validarFicha(fichaDesdeFormData(fd({ ...base, title: " " })))).toContain("Poné al menos un título para guardar.");
+    expect(validarFicha(fichaDesdeFormData(fd({ ...base, openingClock: "19:00" })))).toContain("Para poner la hora, elegí también el día de la inauguración.");
   });
 });

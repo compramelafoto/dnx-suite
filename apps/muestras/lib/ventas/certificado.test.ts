@@ -10,7 +10,9 @@ type Fila = Record<string, unknown>;
 const t = vi.hoisted(() => ({ db: null as unknown as Record<string, unknown>, bucket: new Map<string, Buffer>() }));
 const qr = vi.hoisted(() => ({ urls: [] as string[] }));
 vi.mock("@repo/db", () => ({ prisma: new Proxy({}, { get: (_x, k: string) => t.db[k] }) }));
-vi.mock("@/lib/fichas/cargar", () => ({ baseUrlPublica: () => "https://muestrasfotograficas.com" }));
+vi.mock("@/lib/fichas/cargar", () => ({
+  baseUrlPublica: (_env: unknown, pd?: string | null) => (pd && pd !== "FOTOGRAFIA" ? "https://muestrasdearte.com" : "https://muestrasfotograficas.com"),
+}));
 vi.mock("@/lib/fichas/qr", () => ({
   matrizDelQr: (url: string) => {
     qr.urls.push(url);
@@ -128,6 +130,23 @@ describe("PDF del certificado y etiqueta", () => {
     await expect(cert.pdfDeCertificado(datos({ firmaPng: new Uint8Array(png) }))).resolves.toBeInstanceOf(Uint8Array);
   });
 
+  it("una muestra de PINTURA: QR y «Verificá en muestrasdearte.com/verificar» (etapa 2)", async () => {
+    const espia = vi.spyOn(PDFPage.prototype, "drawText");
+    await cert.pdfDeEtiqueta(datos({ primaryDiscipline: "PINTURA" }));
+    const textos = espia.mock.calls.map((c) => String(c[0])).join(" ");
+    espia.mockRestore();
+    expect(textos).toContain("Verificá en muestrasdearte.com/verificar");
+    expect(textos).not.toContain("muestrasfotograficas");
+    await cert.pdfDeCertificado(datos({ primaryDiscipline: "PINTURA" }));
+    expect(qr.urls).toEqual(["https://muestrasdearte.com/verificar/ABCDEFGHJKMN", "https://muestrasdearte.com/verificar/ABCDEFGHJKMN"]);
+  });
+  it("fotografía: el texto de siempre", async () => {
+    const espia = vi.spyOn(PDFPage.prototype, "drawText");
+    await cert.pdfDeEtiqueta(datos());
+    const textos = espia.mock.calls.map((c) => String(c[0])).join(" ");
+    espia.mockRestore();
+    expect(textos).toContain("Verificá en muestrasfotograficas.com/verificar");
+  });
   it("la etiqueta: A4 con el QR del código", async () => {
     const doc = await PDFDocument.load(await cert.pdfDeEtiqueta(datos()));
     expect(Math.round(doc.getPage(0).getWidth())).toBe(595);
@@ -212,8 +231,19 @@ describe("certificarCopia, archivo firmado y verificación", () => {
     const xmp = meta.xmp!.toString();
     expect(xmp).toContain(String(copias[0]!.certificateCode));
     expect(xmp).toContain(String(copias[0]!.certificateSignature));
-    expect(xmp).toContain("/verificar/");
+    expect(xmp).toContain(`https://muestrasfotograficas.com/verificar/${copias[0]!.certificateCode}`);
     expect(t.bucket.has(`ventas/o1/${copias[0]!.certificateCode}.jpg`)).toBe(true);
+  });
+
+  it("archivo firmado de una muestra de arte: el XMP apunta a muestrasdearte.com (etapa 2)", async () => {
+    const original = await sharp({ create: { width: 64, height: 48, channels: 3, background: "#336699" } }).png().toBuffer();
+    (t.db.culturalSaleFile as { filas: Record<string, unknown>[] }).filas[0]!.sha256 = createHash("sha256").update(original).digest("hex");
+    await certificarCopia("c1", emitida);
+    t.bucket.set("originales/50/aw1", original);
+    const previa = (t.db.culturalActivity as { findUnique: () => Promise<Record<string, unknown>> }).findUnique;
+    t.db.culturalActivity = { findUnique: async () => ({ ...(await previa()), primaryDiscipline: "PINTURA" }) };
+    const xmp = (await sharp((await archivoFirmado("o1"))!.bytes).metadata()).xmp!.toString();
+    expect(xmp).toContain(`https://muestrasdearte.com/verificar/${copias[0]!.certificateCode}`);
   });
 
   it("archivo firmado: si el original del bucket no coincide con su huella, no se entrega", async () => {

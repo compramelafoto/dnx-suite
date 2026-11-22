@@ -31,7 +31,12 @@ export const LIMITED_EDITION_MIN = 2;
 export const LIMITED_EDITION_MAX = 999;
 /** La venta cierra 30 días después del cierre de la muestra (decisión de Daniel del 2026-10-11). */
 export const SALE_CLOSE_DAYS_AFTER_END = 30;
-export const SALE_STATEMENT_DESCRIPTOR = "MUESTRAS FOTO";
+/** Lo que lee el comprador en el resumen de la tarjeta, según la marca de la muestra. */
+export function saleStatementDescriptor(brand: "FOTOGRAFIA" | "ARTE"): string {
+  return brand === "ARTE" ? "MUESTRAS ARTE" : "MUESTRAS FOTO";
+}
+/** El de fotografía (el de siempre). */
+export const SALE_STATEMENT_DESCRIPTOR = saleStatementDescriptor("FOTOGRAFIA");
 export const REVIEW_NOTE_MAX = 500;
 
 export const SALE_UNAVAILABLE_TEXT = "La venta de esta obra todavía no está disponible.";

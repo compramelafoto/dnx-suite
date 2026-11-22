@@ -3,7 +3,7 @@ import {
   canBuy, offerProblems, offerPurchasable, offerTransition, parseSaleExternalReference, receiverPlan,
   saleAmounts, saleExternalReference, saleOrderTransition, salePageState, salesMode, splitProblems,
   fulfillmentTransition, deliveryOptions, offerSellingPrice, saleWindowOpen, saleClosesAt, splitExample,
-  PRICE_MIN_ARS, SALE_PRICE_MAX_ARS, SALE_SPLIT_TEXT,
+  PRICE_MIN_ARS, SALE_PRICE_MAX_ARS, SALE_SPLIT_TEXT, SALE_STATEMENT_DESCRIPTOR, saleStatementDescriptor,
 } from "./sales";
 
 const base = { ventasEnVivo: false, ordersProduccion: false, mpEnv: "sandbox" as const, tokenEsDePrueba: true, faltan: [] };
@@ -228,5 +228,13 @@ describe("más reglas de la venta", () => {
     expect(saleOrderTransition("REJECTED", { orderStatus: "FAILED", paymentStatus: "rejected" }).next).toBeNull();
     expect(saleOrderTransition("PENDING_PAYMENT", { orderStatus: "processed", paymentStatus: "accredited" }).next).toBe("PAID");
     expect(saleOrderTransition("PENDING_PAYMENT", { orderStatus: "PROCESSED", paymentStatus: null }).next).toBeNull();
+  });
+});
+
+describe("saleStatementDescriptor (etapa 2 de arte)", () => {
+  it("cada marca con lo suyo; el de siempre es el de fotografía", () => {
+    expect(saleStatementDescriptor("FOTOGRAFIA")).toBe("MUESTRAS FOTO");
+    expect(saleStatementDescriptor("ARTE")).toBe("MUESTRAS ARTE");
+    expect(SALE_STATEMENT_DESCRIPTOR).toBe("MUESTRAS FOTO");
   });
 });

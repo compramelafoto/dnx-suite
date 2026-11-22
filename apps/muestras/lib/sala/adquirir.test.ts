@@ -43,8 +43,8 @@ vi.mock("@/lib/ventas/modo", () => ({ configVerificada: async () => ({ modo: est
 vi.mock("@/lib/ventas/comprable", () => comprable);
 vi.mock("@/lib/actividades/consultas", () => ({ buscarPorSlug: async () => estado.publica }));
 
-const { default: AdquirirObra } = await import("@/app/m/[slug]/sala/o/[workId]/adquirir/page");
-const { default: AdquirirObraPublica } = await import("@/app/m/[slug]/o/[workId]/adquirir/page");
+const { default: AdquirirObra } = await import("@/app/[marca]/m/[slug]/sala/o/[workId]/adquirir/page");
+const { default: AdquirirObraPublica } = await import("@/app/[marca]/m/[slug]/o/[workId]/adquirir/page");
 const { firmarPase } = await import("./llave");
 const { SALE_ASK_TEXT, SALE_UNAVAILABLE_TEXT, visibilityFromPreset } = await import("@repo/muestras");
 const { resetRateLimit } = await import("@/lib/limite");
@@ -71,7 +71,7 @@ function todoDe(n: unknown, vistos = new Set<unknown>()): string {
   return Object.entries(n as Record<string, unknown>).filter(([k]) => k !== "_owner").map(([, v]) => todoDe(v, vistos)).join(" ");
 }
 const abrir = () => AdquirirObra({ params: Promise.resolve({ slug: "silos", workId: "w1" }) });
-const abrirPublica = () => AdquirirObraPublica({ params: Promise.resolve({ slug: "silos", workId: "w1" }) });
+const abrirPublica = () => AdquirirObraPublica({ params: Promise.resolve({ marca: "fotografia", slug: "silos", workId: "w1" }) });
 
 const oferta = (extra: Record<string, unknown> = {}) => ({
   id: "of1", format: "DIGITAL", editionKind: "LIMITED", editionSize: 10, proofCount: 0, paper: null, widthCm: null, heightCm: null,

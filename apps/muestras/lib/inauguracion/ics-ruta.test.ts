@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const db = vi.hoisted(() => ({ culturalActivity: { findFirst: vi.fn() } }));
 vi.mock("@repo/db", () => ({ prisma: db }));
-const { GET } = await import("@/app/m/[slug]/inauguracion/evento.ics/route");
+const { GET } = await import("@/app/[marca]/m/[slug]/inauguracion/evento.ics/route");
 
 const muestra = (extra: Record<string, unknown> = {}) => ({
   id: "a1", slug: "rosario", title: "Rosario", type: "MUESTRA", reviewStatus: "APPROVED", isVirtualOnly: false, isCancelled: false,
@@ -26,6 +26,14 @@ describe("GET evento.ics", () => {
       expect(cuerpo).toMatch(/UID:inauguracion-a1@muestrasfotograficas\.com/);
       expect(cuerpo).toMatch(/DTSTART:20261114T220000Z/);
     }
+  });
+  it("una muestra de arte enlaza a la invitación en muestrasdearte.com (etapa 2)", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    db.culturalActivity.findFirst.mockResolvedValue(muestra({ primaryDiscipline: "PINTURA" }));
+    const cuerpo = (await (await pedir()).text()).replace(/\r\n /g, "");
+    vi.unstubAllEnvs();
+    expect(cuerpo).toContain("https://muestrasdearte.com/m/rosario/inauguracion");
+    expect(cuerpo).not.toContain("https://muestrasfotograficas.com");
   });
   it("UNAVAILABLE o inexistente → 404", async () => {
     db.culturalActivity.findFirst.mockResolvedValue(muestra({ openingAt: new Date("2026-11-14T03:00:00Z") }));

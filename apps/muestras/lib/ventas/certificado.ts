@@ -4,6 +4,7 @@ import { PDFDocument, degrees, rgb, type PDFPage } from "pdf-lib";
 import { prisma } from "@repo/db";
 import { formatArDayLong, formatCertificateCode } from "@repo/muestras";
 import { baseUrlPublica } from "@/lib/fichas/cargar";
+import { marcaDeDisciplina } from "@/lib/marca";
 import { GRIS, LINEA, MM, TINTA, bloque, bloqueCentrado, cargarFuentes, dibujarQr, prepararDocumento } from "@/lib/piezas/dibujo";
 import { credencialesDeVentas } from "./config";
 import { leerPrivado, subirPrivado } from "./r2-privado";
@@ -65,8 +66,9 @@ export function verificarFirma(payload: string, signature: string, kid: string):
   }
 }
 
-export function urlDeVerificacion(codigo: string): string {
-  return `${baseUrlPublica()}/verificar/${codigo}`;
+/** `/verificar` anda en los dos dominios: se imprime el de la casa de la muestra. */
+export function urlDeVerificacion(codigo: string, primaryDiscipline?: string | null): string {
+  return `${baseUrlPublica(undefined, primaryDiscipline)}/verificar/${codigo}`;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -89,6 +91,8 @@ export type DatosDelCertificado = {
   /** PNG de la firma escaneada del autor, o null. */
   firmaPng: Uint8Array | null;
   prueba: boolean;
+  /** La disciplina de la muestra: decide el dominio del QR y del texto. Sin ella, fotografía. */
+  primaryDiscipline?: string | null;
 };
 
 const A4 = { ancho: 210, alto: 297 };
@@ -153,7 +157,7 @@ export async function pdfDeCertificado(d: DatosDelCertificado): Promise<Uint8Arr
 
   // Abajo: el QR (4 cm) y, a su derecha, el código, la huella y la firma digital.
   const lado = 40 * MM;
-  const url = urlDeVerificacion(d.codigo);
+  const url = urlDeVerificacion(d.codigo, d.primaryDiscipline);
   dibujarQr(p, url, m, m, lado);
   const xT = m + lado + 8 * MM;
   const anchoT = ancho - m - xT;
@@ -196,14 +200,14 @@ export async function pdfDeEtiqueta(d: DatosDelCertificado): Promise<Uint8Array>
 
   const pad = 4 * MM;
   const lado = 40 * MM;
-  dibujarQr(p, urlDeVerificacion(d.codigo), x + pad, y + (h - lado) / 2, lado);
+  dibujarQr(p, urlDeVerificacion(d.codigo, d.primaryDiscipline), x + pad, y + (h - lado) / 2, lado);
   const xT = x + pad + lado + 4 * MM;
   const anchoT = x + w - pad - xT;
   let yT = bloque(p, d.numero, { x: xT, y: y + h - pad, ancho: anchoT, size: 20, font: f.negrita, color: TINTA, maxLineas: 1 });
   yT = bloque(p, d.obra, { x: xT, y: yT - 2, ancho: anchoT, size: 10, font: f.negrita, color: TINTA, maxLineas: 2 });
   yT = bloque(p, d.autor, { x: xT, y: yT, ancho: anchoT, size: 9, font: f.normal, color: TINTA, maxLineas: 1 });
   yT = bloque(p, formatCertificateCode(d.codigo), { x: xT, y: yT - 4, ancho: anchoT, size: 9, font: f.negrita, color: TINTA, maxLineas: 1 });
-  bloque(p, "Verificá en muestrasfotograficas.com/verificar", { x: xT, y: yT - 2, ancho: anchoT, size: 7, font: f.normal, color: GRIS, maxLineas: 2 });
+  bloque(p, `Verificá en ${marcaDeDisciplina(d.primaryDiscipline).dominio}/verificar`, { x: xT, y: yT - 2, ancho: anchoT, size: 7, font: f.normal, color: GRIS, maxLineas: 2 });
   if (d.prueba) bloque(p, "PRUEBA - SIN VALIDEZ", { x: x + pad, y: y + pad + 8, ancho: w, size: 7, font: f.negrita, color: rgb(0.75, 0.2, 0.15), maxLineas: 1 });
   bloqueCentrado(p, "Recortá por las marcas y pegala al dorso de la impresión.", { x: 0, y: y - 10 * MM, ancho, size: 9, font: f.normal, color: GRIS, maxLineas: 1 });
   return pdf.save();
@@ -228,7 +232,7 @@ export async function datosDelCertificado(copyId: string): Promise<DatosDelCerti
   const oferta = await prisma.culturalWorkOffer.findUnique({ where: { id: c.offerId }, select: { activityId: true, authorUserId: true, activityWorkId: true } });
   if (!oferta) return null;
   const [actividad, firma, archivo] = await Promise.all([
-    prisma.culturalActivity.findUnique({ where: { id: oferta.activityId }, select: { venueName: true, city: true, isVirtualOnly: true } }),
+    prisma.culturalActivity.findUnique({ where: { id: oferta.activityId }, select: { venueName: true, city: true, isVirtualOnly: true, primaryDiscipline: true } }),
     prisma.culturalAuthorSignature.findUnique({ where: { userId: oferta.authorUserId }, select: { storageKey: true } }),
     prisma.culturalSaleFile.findUnique({ where: { activityWorkId: oferta.activityWorkId }, select: { widthPx: true, heightPx: true } }),
   ]);
@@ -253,6 +257,7 @@ export async function datosDelCertificado(copyId: string): Promise<DatosDelCerti
     originalSha256: s("originalSha256"),
     firmaPng: firmaPng ? new Uint8Array(firmaPng) : null,
     prueba: c.isTest,
+    primaryDiscipline: actividad?.primaryDiscipline ?? null,
   };
 }
 

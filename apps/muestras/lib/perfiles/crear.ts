@@ -1,6 +1,6 @@
 import "server-only";
 import type { Prisma } from "@repo/db";
-import { freeProfileSlug, profileSlugBase } from "@repo/muestras";
+import { freeProfileSlug, profileSlugBase, type Discipline } from "@repo/muestras";
 import type { PerfilForm } from "./mapear";
 
 type Tx = Prisma.TransactionClient;
@@ -8,7 +8,8 @@ type Tx = Prisma.TransactionClient;
 /**
  * El perfil propio dentro de una transacción, para quien se suma como expositor (etapa 6, D3).
  * Si la persona ya tiene perfil, no se pisa: sólo se completa la biografía si estaba vacía. Si no
- * tiene, se crea con el primer slug libre armado con su nombre.
+ * tiene, se crea con el primer slug libre armado con su nombre y con `disciplinasSiCrea` (la
+ * disciplina de la muestra a la que se suma). Las disciplinas de un perfil que ya existe no se tocan.
  *
  * Vive fuera de `acciones.ts` a propósito: un archivo `"use server"` expone cada función exportada
  * como acción, y ésta recibe el id de la cuenta como parámetro.
@@ -16,7 +17,8 @@ type Tx = Prisma.TransactionClient;
 export async function crearOActualizarPerfil(
   tx: Tx,
   userId: number,
-  datos: Omit<PerfilForm, "slug" | "website"> & { website?: string | null },
+  datos: Omit<PerfilForm, "slug" | "website" | "disciplines"> & { website?: string | null },
+  disciplinasSiCrea: Discipline[],
 ): Promise<{ id: string; slug: string; creado: boolean }> {
   const actual = await tx.photographerProfile.findUnique({ where: { userId }, select: { id: true, slug: true, bio: true } });
   if (actual) {
@@ -32,6 +34,7 @@ export async function crearOActualizarPerfil(
     data: {
       userId, slug, displayName: datos.displayName, bio: datos.bio, city: datos.city, province: datos.province,
       website: datos.website ?? null, instagram: datos.instagram, avatarUrl: datos.avatarUrl,
+      disciplines: disciplinasSiCrea,
     },
     select: { id: true, slug: true },
   });

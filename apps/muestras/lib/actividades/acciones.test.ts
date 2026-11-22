@@ -171,6 +171,69 @@ describe("guardarBorrador sobre una ficha publicada", () => {
   });
 });
 
+describe("guardarBorrador: disciplina y casa de la muestra (Muestras de Arte, etapa 2)", () => {
+  const completa = {
+    id: "a1", type: "CHARLA", title: "Charla", description: "d", coverImageUrl: "https://pub-test.r2.dev/muestras/7/p.webp", organizersText: "o",
+    startDay: "2026-11-05", endDay: "2026-11-06", scheduleText: "18", isVirtualOnly: "on", rightsConfirmed: "on",
+    works: "[]", editVersion: "0",
+  };
+  function fd(o: Record<string, string | string[]>) {
+    const f = new FormData();
+    for (const [k, v] of Object.entries(o)) for (const x of Array.isArray(v) ? v : [v]) f.append(k, x);
+    return f;
+  }
+  const AVISO = "Esta muestra va a pasar a verse en muestrasdearte.com. Confirmá el cambio.";
+  beforeEach(() => {
+    usuarioActual.valor = { id: 7, esSuperAdmin: false, email: "a@b", name: null };
+  });
+  it("publicada: pasar de FOTOGRAFIA a PINTURA sin confirmar no escribe", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, reviewStatus: "APPROVED", primaryDiscipline: "FOTOGRAFIA", otherDisciplines: [] });
+    const r = await guardarBorrador(fd({ ...completa, primaryDiscipline: "PINTURA" }));
+    expect(r).toEqual({ ok: false, errores: [AVISO] });
+    expect(db.culturalActivity.update).not.toHaveBeenCalled();
+  });
+  it("publicada: con confirmarCambioDeCasa=on guarda la disciplina nueva", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, reviewStatus: "APPROVED", primaryDiscipline: "FOTOGRAFIA", otherDisciplines: [] });
+    const r = await guardarBorrador(fd({ ...completa, primaryDiscipline: "PINTURA", otherDisciplines: ["DIBUJO", "PINTURA"], confirmarCambioDeCasa: "on" }));
+    expect(r.ok).toBe(true);
+    expect(db.culturalActivity.update.mock.calls[0]![0].data).toMatchObject({ primaryDiscipline: "PINTURA", otherDisciplines: ["DIBUJO"] });
+  });
+  it("en borrador no hace falta confirmar", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, primaryDiscipline: "FOTOGRAFIA", otherDisciplines: [] });
+    expect((await guardarBorrador(fd({ ...completa, primaryDiscipline: "PINTURA" }))).ok).toBe(true);
+  });
+  it("en arte, sin disciplina no guarda", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, primaryDiscipline: "PINTURA", otherDisciplines: [] });
+    const r = await guardarBorrador(fd({ ...completa, marca: "ARTE" }));
+    expect(r).toEqual({ ok: false, errores: ["Elegí la disciplina principal."] });
+    expect(db.culturalActivity.update).not.toHaveBeenCalled();
+  });
+  it("un formulario sin el campo (pestaña vieja) no le cambia la disciplina a una muestra de arte", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, primaryDiscipline: "ESCULTURA", otherDisciplines: ["CERAMICA"] });
+    expect((await guardarBorrador(fd(completa))).ok).toBe(true);
+    expect(db.culturalActivity.update.mock.calls[0]![0].data).toMatchObject({ primaryDiscipline: "ESCULTURA", otherDisciplines: ["CERAMICA"] });
+  });
+  it("al editar, una disciplina que no existe conserva la guardada (no vuelve a fotografía)", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, primaryDiscipline: "ESCULTURA", otherDisciplines: ["CERAMICA"] });
+    expect((await guardarBorrador(fd({ ...completa, primaryDiscipline: "MAGIA", otherDisciplines: ["DIBUJO"] }))).ok).toBe(true);
+    expect(db.culturalActivity.update.mock.calls[0]![0].data).toMatchObject({ primaryDiscipline: "ESCULTURA", otherDisciplines: ["CERAMICA"] });
+  });
+  it("al editar en arte, una disciplina que no existe frena igual que si faltara", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, primaryDiscipline: "PINTURA", otherDisciplines: [] });
+    const r = await guardarBorrador(fd({ ...completa, marca: "ARTE", primaryDiscipline: "MAGIA" }));
+    expect(r).toEqual({ ok: false, errores: ["Elegí la disciplina principal."] });
+    expect(db.culturalActivity.update).not.toHaveBeenCalled();
+  });
+  it("una muestra nueva en fotografía sin el campo nace FOTOGRAFIA", async () => {
+    db.culturalActivity.create.mockResolvedValue({ id: "n1" });
+    const nueva = fd(completa);
+    nueva.delete("id");
+    nueva.delete("editVersion");
+    expect((await guardarBorrador(nueva)).ok).toBe(true);
+    expect(db.culturalActivity.create.mock.calls[0]![0].data).toMatchObject({ primaryDiscipline: "FOTOGRAFIA", otherDisciplines: [] });
+  });
+});
+
 describe("topes por persona", () => {
   function fd(o: Record<string, string>) {
     const f = new FormData();

@@ -5,7 +5,7 @@ const emailSend = vi.fn();
 vi.mock("resend", () => ({ Resend: class { batch = { send: batchSend }; emails = { send: emailSend }; } }));
 vi.mock("@repo/db", () => ({ prisma: {} }));
 
-import { enviar, enviarEnLote, type Mensaje } from "./enviar";
+import { enviar, enviarEnLote, origenDeCorreo, remitente, type Mensaje } from "./enviar";
 
 const msgs = (n: number): Mensaje[] => Array.from({ length: n }, (_, i) => ({ to: `a${i}@x.com`, subject: "s", parrafos: ["p"] }));
 
@@ -48,5 +48,36 @@ describe("enviar", () => {
     vi.stubEnv("MUESTRAS_CORREOS_EN_VIVO", "false");
     expect(await enviar("a@x.com", "s", ["p"])).toBe(false);
     expect(emailSend).not.toHaveBeenCalled();
+  });
+});
+
+describe("marca de la muestra en el correo (etapa 2 de arte)", () => {
+  it("el remitente de una muestra de arte se llama «Muestras de Arte»; el de fotografía queda igual", () => {
+    expect(remitente("Muestras <hola@muestrasfotograficas.com>", "ARTE")).toBe("Muestras de Arte <hola@muestrasfotograficas.com>");
+    expect(remitente("m@x.com", "ARTE")).toBe("Muestras de Arte <m@x.com>");
+    expect(remitente("Muestras <hola@muestrasfotograficas.com>", "FOTOGRAFIA")).toBe("Muestras <hola@muestrasfotograficas.com>");
+    expect(remitente("m@x.com")).toBe("m@x.com");
+  });
+  it("enviar con la marca de arte: remitente y firma de arte", async () => {
+    emailSend.mockResolvedValue({ error: null });
+    await enviar("a@x.com", "s", ["p"], undefined, "ARTE");
+    await enviar("a@x.com", "s", ["p"]);
+    const [arte, foto] = emailSend.mock.calls.map((c) => c[0]);
+    expect(arte.from).toBe("Muestras de Arte <m@x.com>");
+    expect(arte.html).toContain(">Muestras de Arte</p>");
+    expect(foto.from).toBe("m@x.com");
+    expect(foto.html).toContain(">Muestras Fotográficas</p>");
+  });
+  it("en lote, cada mensaje con su marca", async () => {
+    batchSend.mockResolvedValue({ error: null });
+    await enviarEnLote([{ to: "a@x.com", subject: "s", parrafos: ["p"], marca: "ARTE" }, { to: "b@x.com", subject: "s", parrafos: ["p"] }]);
+    expect(batchSend.mock.calls[0]![0].map((m: { from: string }) => m.from)).toEqual(["Muestras de Arte <m@x.com>", "m@x.com"]);
+  });
+  it("los enlaces de una muestra de arte van a muestrasdearte.com; los de fotografía, a APP_URL", () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    expect(origenDeCorreo("PINTURA")).toBe("https://muestrasdearte.com");
+    expect(origenDeCorreo("FOTOGRAFIA")).toBe((process.env.APP_URL?.trim() || "https://muestrasfotograficas.com").replace(/\/+$/, ""));
+    expect(origenDeCorreo(null)).toBe(origenDeCorreo("FOTOGRAFIA"));
+    vi.unstubAllEnvs();
   });
 });

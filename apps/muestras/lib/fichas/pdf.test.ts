@@ -1,5 +1,5 @@
-import { PDFDocument } from "pdf-lib";
-import { describe, expect, it } from "vitest";
+import { PDFDocument, PDFPage } from "pdf-lib";
+import { describe, expect, it, vi } from "vitest";
 import { MM, pdfDeFichas, tramosOscuros } from "./pdf";
 
 const ficha = {
@@ -22,6 +22,17 @@ describe("pdfDeFichas", () => {
   it("aguanta textos largos y caracteres que la fuente no tiene", async () => {
     const raro = { ...ficha, titulo: "Un título larguísimo ".repeat(12), autor: "Łukasz 📷" };
     await expect(pdfDeFichas([raro], "A6")).resolves.toBeInstanceOf(Uint8Array);
+  });
+  it("el pie dice el dominio de la muestra: fotografía por defecto, arte si viene", async () => {
+    const espia = vi.spyOn(PDFPage.prototype, "drawText");
+    await pdfDeFichas([ficha], "A6");
+    expect(espia.mock.calls.some((c) => c[0] === "muestrasfotograficas.com")).toBe(true);
+    espia.mockClear();
+    await pdfDeFichas([{ ...ficha, dominio: "muestrasdearte.com" }], "A6");
+    const textos = espia.mock.calls.map((c) => String(c[0]));
+    expect(textos).toContain("muestrasdearte.com");
+    expect(textos.some((t) => t.includes("muestrasfotograficas"))).toBe(false);
+    espia.mockRestore();
   });
   it("sin obras no hay PDF", async () => {
     await expect(pdfDeFichas([], "A6")).rejects.toThrow("No hay obras");

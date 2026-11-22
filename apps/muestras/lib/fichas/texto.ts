@@ -1,7 +1,11 @@
 import { scanUrl } from "@repo/muestras";
 
 /** Lo que va impreso en la ficha de una obra. */
-export type FichaDeObra = { muestra: string; titulo: string; autor: string; detalle: string | null; url: string };
+export type FichaDeObra = {
+  muestra: string; titulo: string; autor: string; detalle: string | null; url: string;
+  /** El dominio que se lee al pie ("muestrasdearte.com" en una muestra de arte); sin él, el de fotografía. */
+  dominio?: string;
+};
 
 /**
  * Las fuentes estándar del PDF (Helvetica) sólo saben escribir WinAnsi: el castellano entra

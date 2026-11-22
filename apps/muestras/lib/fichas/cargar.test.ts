@@ -73,6 +73,17 @@ describe("cargarFichas", () => {
       "https://muestrasfotograficas.com/q/o/w2",
     ]);
   });
+  it("una muestra de arte: el QR y el pie con el dominio de arte; fotografía, el de siempre", async () => {
+    const r = await cargarFichas("a1", { id: 7, esSuperAdmin: false }, null);
+    expect(r?.fichas[0]?.dominio).toBe("muestrasfotograficas.com");
+    expect(db.culturalActivity.findFirst.mock.calls[0]![0].select.primaryDiscipline).toBe(true);
+    vi.stubEnv("VERCEL_ENV", "production");
+    db.culturalActivity.findFirst.mockResolvedValue({ ...muestra, primaryDiscipline: "PINTURA" });
+    const arte = await cargarFichas("a1", { id: 7, esSuperAdmin: false }, null);
+    vi.unstubAllEnvs();
+    expect(arte?.fichas.map((f) => f.url)).toEqual(["https://muestrasdearte.com/q/o/w1", "https://muestrasdearte.com/q/o/w2"]);
+    expect(arte?.fichas[0]?.dominio).toBe("muestrasdearte.com");
+  });
   it("una sola obra lleva su número en el nombre", async () => {
     const r = await cargarFichas("a1", { id: 7, esSuperAdmin: false }, "w2");
     expect(r?.nombre).toBe("ficha-miradas-abc123-2");
@@ -103,6 +114,36 @@ describe("baseUrlPublica (la dirección que va en el QR)", () => {
     aviso.mockRestore();
   });
   it("sin variables, el dominio público", () => expect(baseUrlPublica({})).toBe(DEFECTO));
+  it("con FOTOGRAFIA o sin disciplina, lo mismo de siempre", () => {
+    const env = { VERCEL_ENV: "production", APP_URL: "https://www.muestrasfotograficas.com" };
+    expect(baseUrlPublica(env, "FOTOGRAFIA")).toBe("https://www.muestrasfotograficas.com");
+    expect(baseUrlPublica(env, undefined)).toBe("https://www.muestrasfotograficas.com");
+    expect(baseUrlPublica(env, null)).toBe("https://www.muestrasfotograficas.com");
+    expect(baseUrlPublica({ NODE_ENV: "development", APP_URL: "http://localhost:3014/" }, "FOTOGRAFIA")).toBe("http://localhost:3014");
+  });
+});
+
+describe("baseUrlPublica de una muestra de arte (etapa 2)", () => {
+  const ARTE = "https://muestrasdearte.com";
+  it("en producción, el dominio de arte aunque APP_URL sea el de fotografía", () => {
+    expect(baseUrlPublica({ VERCEL_ENV: "production", APP_URL: "https://muestrasfotograficas.com" }, "PINTURA")).toBe(ARTE);
+    expect(baseUrlPublica({ VERCEL_ENV: "production" }, "ESCULTURA")).toBe(ARTE);
+  });
+  it("en local, muestrasdearte.localhost con el puerto de APP_URL", () => {
+    expect(baseUrlPublica({ NODE_ENV: "development", APP_URL: "http://localhost:3014/" }, "PINTURA")).toBe("http://muestrasdearte.localhost:3014");
+  });
+  it("un next start local (sin VERCEL_ENV) no imprime localhost, vercel.app, http ni el dominio de fotografía", () => {
+    const aviso = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(baseUrlPublica({ NODE_ENV: "production", APP_URL: "http://localhost:3014" }, "PINTURA")).toBe(ARTE);
+    expect(baseUrlPublica({ NODE_ENV: "production", APP_URL: "https://muestras-abc.vercel.app" }, "PINTURA")).toBe(ARTE);
+    expect(baseUrlPublica({ NODE_ENV: "production", APP_URL: "https://muestrasfotograficas.com" }, "PINTURA")).toBe(ARTE);
+    expect(baseUrlPublica({ NODE_ENV: "production", APP_URL: "no es una url" }, "PINTURA")).toBe(ARTE);
+    expect(aviso).toHaveBeenCalledTimes(1);
+    aviso.mockRestore();
+  });
+  it("con un dominio propio de arte en https, lo respeta", () => {
+    expect(baseUrlPublica({ NODE_ENV: "production", APP_URL: "https://www.muestrasdearte.com" }, "PINTURA")).toBe("https://www.muestrasdearte.com");
+  });
 });
 
 describe("cargarFichas con código de sala y datos del expositor (etapa 6)", () => {

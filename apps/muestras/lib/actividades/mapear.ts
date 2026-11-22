@@ -1,6 +1,10 @@
 import type { Prisma } from "@repo/db";
 import { encodeGeohash } from "@repo/geo";
-import { DEFAULT_COUNTRY, MAX_WORKS, dayEndAr, dayStartAr, isCountry, isGalleryMode, openingAtFrom, toArDay, type GalleryMode } from "@repo/muestras";
+import {
+  DEFAULT_COUNTRY, MAX_HIGHLIGHTS, MAX_WORKS, PHOTOGRAPHY, dayEndAr, dayStartAr, isCountry, isDiscipline, isGalleryMode, openingAtFrom,
+  openingProblems, parseOtherDisciplines, toArDay, type Discipline, type GalleryMode,
+} from "@repo/muestras";
+import type { MarcaId } from "@/lib/marca";
 
 export type ObraForm = {
   id?: string;
@@ -59,6 +63,14 @@ export type FichaForm = {
    * equipo guardó en el medio, no coincide y el guardado se frena. `null`: pestaña vieja.
    */
   editVersion: number | null;
+  /**
+   * Disciplina principal (Muestras de Arte). En fotografía, si no llega, es FOTOGRAFIA. En arte es
+   * obligatoria: si no llega (o no existe) queda `null` y `validarFicha` frena el guardado. Al
+   * editar, un valor que no existe cuenta como "no llegó": `guardarBorrador` conserva la guardada.
+   */
+  primaryDiscipline: Discipline | null;
+  /** Secundarias: únicas, válidas, sin la principal, máximo 5. */
+  otherDisciplines: Discipline[];
 };
 
 /**
@@ -183,10 +195,19 @@ function ids(raw: string): string[] {
 export type OpcionesFicha = {
   /** Base pública de las imágenes. Si no se pasa, se lee del entorno (para los tests se inyecta). */
   baseImagenes?: string | null;
+  /** El dominio desde el que se carga la ficha: decide si la disciplina es obligatoria. */
+  marca: MarcaId;
 };
 
-export function fichaDesdeFormData(fd: FormData, opciones: OpcionesFicha = {}): FichaForm {
+/** La marca que manda el formulario (campo `marca`). Lo que no sea ARTE es fotografía. */
+export function marcaDelFormulario(fd: FormData): MarcaId {
+  return fd.get("marca") === "ARTE" ? "ARTE" : "FOTOGRAFIA";
+}
+
+export function fichaDesdeFormData(fd: FormData, opciones: OpcionesFicha): FichaForm {
   const base = "baseImagenes" in opciones ? opciones.baseImagenes ?? null : baseImagenesPublicas();
+  const pedida = fd.get("primaryDiscipline");
+  const principal: Discipline | null = isDiscipline(pedida) ? pedida : opciones.marca === "ARTE" ? null : PHOTOGRAPHY;
   // Una muestra siempre tiene sede: aunque llegue la casilla, para una muestra no cuenta.
   const virtual = fd.get("isVirtualOnly") === "on" && fd.get("type") !== "MUESTRA";
   const modo = txt(fd, "galleryMode");
@@ -221,7 +242,25 @@ export function fichaDesdeFormData(fd: FormData, opciones: OpcionesFicha = {}): 
     works: obras(txt(fd, "works") || "[]", base),
     idsCargados: ids(txt(fd, "idsCargados") || "[]"),
     editVersion: /^\d{1,9}$/.test(txt(fd, "editVersion")) ? Number(txt(fd, "editVersion")) : null,
+    primaryDiscipline: principal,
+    otherDisciplines: principal ? parseOtherDisciplines(fd.getAll("otherDisciplines"), principal) : [],
   };
+}
+
+export const FALTA_DISCIPLINA = "Elegí la disciplina principal.";
+/** Una muestra publicada de fotografía que pasa a otra disciplina deja de verse en fotografía. */
+export const CONFIRMAR_CAMBIO_DE_CASA = "Esta muestra va a pasar a verse en muestrasdearte.com. Confirmá el cambio.";
+
+/**
+ * Lo que frena cualquier guardado de la ficha (borrador incluido). Devuelve el primer grupo de
+ * problemas que encuentra, en el mismo orden en que siempre se revisaron.
+ */
+export function validarFicha(f: FichaForm): string[] {
+  if (!f.title) return ["Poné al menos un título para guardar."];
+  if (!f.primaryDiscipline) return [FALTA_DISCIPLINA];
+  if (f.works.length > MAX_WORKS) return [`La galería admite hasta ${MAX_WORKS} obras.`];
+  if (f.works.filter((w) => w.isHighlight).length > MAX_HIGHLIGHTS) return [`Podés destacar hasta ${MAX_HIGHLIGHTS} obras.`];
+  return openingProblems({ openingDay: f.openingDay, openingClock: f.openingClock, openingEndClock: f.openingEndClock, endDay: f.endDay });
 }
 
 /** Forma AAAA-MM-DD y además un día real (descarta "2026-13-45"). */
@@ -267,6 +306,9 @@ export function datosParaGuardar(f: FichaForm) {
     geohash: f.latitude != null && f.longitude != null ? encodeGeohash(f.latitude, f.longitude) : null,
     galleryMode: f.galleryMode,
     rightsConfirmedAt: f.rightsConfirmed ? new Date() : null,
+    // `validarFicha` ya frenó la ficha sin principal; el respaldo es sólo para el tipo.
+    primaryDiscipline: f.primaryDiscipline ?? PHOTOGRAPHY,
+    otherDisciplines: f.otherDisciplines,
   } satisfies Prisma.CulturalActivityUncheckedUpdateInput;
 }
 

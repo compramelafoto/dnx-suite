@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
+import { sinPrefijoDeMarca } from "@/lib/ruta-marca";
 
 /** Alto del encabezado: cuando el banner ya no lo cubre, el encabezado pasa a fondo blanco. */
 const ALTO = 64;
@@ -12,7 +13,7 @@ const ALTO = 64;
  * Los hijos leen el estado con `group-data-[sobre-foto=true]:…`.
  */
 export function BarraEncabezado({ children }: { children: ReactNode }) {
-  const enPortada = usePathname() === "/";
+  const enPortada = sinPrefijoDeMarca(usePathname()) === "/";
   // Si el banner todavía queda debajo del encabezado. Sólo cuenta en la portada.
   const [bannerDebajo, setBannerDebajo] = useState(true);
   const sobreFoto = enPortada && bannerDebajo;

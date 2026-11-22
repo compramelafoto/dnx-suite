@@ -31,6 +31,28 @@ const nextConfig: NextConfig = {
       { source: "/proponer", destination: "/panel/proponer", permanent: false },
     ];
   },
+  // Un mismo código, dos sitios: las páginas viven en app/[marca] y cada dominio se reescribe a
+  // su carpeta (/fotografia o /arte). Van en `afterFiles` para que public/, _next/ y app/api se
+  // sirvan antes. La marca sale del segmento, no de headers(). Hoy las páginas igual se rinden a
+  // pedido por otra razón: el encabezado lee la sesión (cookies) en el servidor.
+  async rewrites() {
+    const resto = "/:path((?!api/|_next/).*)";
+    const arte = [{ type: "host" as const, value: "(www\\.)?muestrasdearte\\.(com|localhost)" }];
+    return {
+      // robots y sitemap dependen del dominio: los resuelve un handler que lee el host.
+      beforeFiles: [
+        { source: "/robots.txt", destination: "/api/sitio/robots" },
+        { source: "/sitemap.xml", destination: "/api/sitio/sitemap" },
+      ],
+      afterFiles: [
+        { source: "/", has: arte, destination: "/arte" },
+        { source: resto, has: arte, destination: "/arte/:path" },
+        { source: "/", destination: "/fotografia" },
+        { source: resto, destination: "/fotografia/:path" },
+      ],
+      fallback: [],
+    };
+  },
   // @repo/payments importa sus propios archivos .ts con extensión ".js" (estilo ESM de Node):
   // webpack los busca como .ts. Mismo ajuste que compramelafoto, fotoffice y clickaton.
   webpack(config) {

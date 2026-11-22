@@ -16,9 +16,9 @@ const db = vi.hoisted(() => ({
 }));
 vi.mock("@repo/db", () => ({ prisma: db }));
 
-const { default: Ficha, generateMetadata, revalidate } = await import("@/app/m/[slug]/page");
-const { default: PaginaDeObra, generateMetadata: metadatosDeObra } = await import("@/app/m/[slug]/o/[workId]/page");
-const { default: PerfilPublico, generateMetadata: metadatosDePerfil } = await import("@/app/fotografos/[slug]/page");
+const { default: Ficha, generateMetadata, revalidate } = await import("@/app/[marca]/m/[slug]/page");
+const { default: PaginaDeObra, generateMetadata: metadatosDeObra } = await import("@/app/[marca]/m/[slug]/o/[workId]/page");
+const { default: PerfilPublico, generateMetadata: metadatosDePerfil } = await import("@/app/[marca]/fotografos/[slug]/page");
 const { visibilityFromPreset, visibleWorks } = await import("@repo/muestras");
 
 // El tipo del elemento (componente o módulo) no es contenido: se reemplaza por su nombre.
@@ -159,5 +159,40 @@ describe("la publicación online respeta la sorpresa", () => {
     const html = arbol(await PaginaDeObra(p({ slug: "m", workId: "obra-2" })));
     expect(html).toContain("Esta obra se ve en la sala.");
     expect(html).not.toContain("archivo de la muestra");
+  });
+});
+
+describe("cada muestra en su dominio de casa", () => {
+  const digest = async (f: Promise<unknown>) => {
+    try {
+      await f;
+      return null;
+    } catch (e) {
+      return (e as { digest?: string }).digest ?? String(e);
+    }
+  };
+
+  it("una pintura pedida en fotografía va (308) a la misma ruta en arte; en arte se muestra", async () => {
+    db.culturalActivity.findFirst.mockResolvedValue(muestra(sorpresa, 3, { primaryDiscipline: "PINTURA" }));
+    const ficha = await digest(Ficha(p({ marca: "fotografia", slug: "m" })));
+    expect(ficha).toMatch(/^NEXT_REDIRECT;.*;https?:\/\/[^/]*muestrasdearte[^/]*\/m\/m;308;/);
+    const deObra = await digest(PaginaDeObra(p({ marca: "fotografia", slug: "m", workId: "obra-2" })));
+    expect(deObra).toMatch(/muestrasdearte[^/]*\/m\/m\/o\/obra-2;308;/);
+    expect(await digest(Ficha(p({ marca: "arte", slug: "m" })))).toBeNull();
+    expect((await generateMetadata(p({ marca: "arte", slug: "m" }))).alternates?.canonical).toMatch(/muestrasdearte[^/]*\/m\/m$/);
+  });
+
+  it("una de fotografía se ve en los dos dominios, con canonical al de fotografía", async () => {
+    db.culturalActivity.findFirst.mockResolvedValue(muestra(sorpresa, 3, { primaryDiscipline: "FOTOGRAFIA" }));
+    expect(await digest(Ficha(p({ marca: "fotografia", slug: "m" })))).toBeNull();
+    expect(await digest(Ficha(p({ marca: "arte", slug: "m" })))).toBeNull();
+    const canonical = String((await generateMetadata(p({ marca: "arte", slug: "m" }))).alternates?.canonical);
+    expect(canonical).toMatch(/\/m\/m$/);
+    expect(canonical).not.toContain("muestrasdearte");
+  });
+
+  it("un slug que no existe sigue siendo 404", async () => {
+    db.culturalActivity.findFirst.mockResolvedValue(null);
+    expect(await digest(Ficha(p({ marca: "fotografia", slug: "nada" })))).toMatch(/NEXT_HTTP_ERROR_FALLBACK;404|NEXT_NOT_FOUND/);
   });
 });

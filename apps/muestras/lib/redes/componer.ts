@@ -54,9 +54,11 @@ export async function armarPiezaRedes(p: {
   formato: SocialFormat;
   variante: SocialVariant;
   urlInvitacion: string;
+  /** El dominio que va al pie (el de la casa de la muestra); sin él, el de fotografía. */
+  dominio?: string;
 }): Promise<Buffer> {
   const l = socialLayout(p.formato, p.variante);
-  const t = socialTexts(p.variante, p.muestra, p.obra);
+  const t = socialTexts(p.variante, p.muestra, p.obra, p.dominio);
   const capas: sharp.OverlayOptions[] = [];
 
   // 1. Foto: la obra entera sobre fondo oscuro, o la portada llenando su caja.

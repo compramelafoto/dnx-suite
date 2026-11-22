@@ -15,6 +15,11 @@ describe("textoInvitacionEquipo", () => {
     expect(todo).toMatch(/cuenta de Google/);
     expect(todo).toMatch(/vence el 10 nov/);
   });
+  it("dice el sitio: fotografía por defecto, arte si viene", () => {
+    expect(t.parrafos.join(" ")).toContain("en Muestras Fotográficas, con el rol");
+    const arte = textoInvitacionEquipo({ muestra: "M", invita: "D", rol: "TEXT_EDITOR", url: "u", vence: new Date(), sitio: "Muestras de Arte" });
+    expect(arte.parrafos.join(" ")).toContain("en Muestras de Arte, con el rol");
+  });
   it("enlace para aceptar", () => {
     expect(t.enlace).toEqual({ texto: "Aceptar la invitación", url: "https://muestrasfotograficas.com/panel/equipo/invitacion/x" });
   });

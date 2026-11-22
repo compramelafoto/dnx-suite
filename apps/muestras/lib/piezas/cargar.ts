@@ -20,7 +20,7 @@ export async function cargarMuestraParaPiezas(
     select: {
       id: true, slug: true, title: true, organizersText: true, curatorialText: true, curatorCredits: true,
       startsAt: true, endsAt: true, scheduleText: true, venueName: true, address: true, city: true, province: true,
-      coverImageUrl: true, hangingPlan: true, updatedAt: true,
+      coverImageUrl: true, hangingPlan: true, updatedAt: true, primaryDiscipline: true,
       works: { orderBy: { sortOrder: "asc" }, select: { id: true, title: true, authorName: true, year: true, technique: true, imageUrl: true, sortOrder: true } },
     },
   });

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import type { Marca } from "@/lib/marca";
 import type { FotoPortada } from "@/lib/portada/fotos";
 import { BuscarCerca } from "./buscar-cerca";
 
@@ -13,7 +14,8 @@ const INTERVALO_MS = 6000;
  * Banner a sangre de la portada. Las fotos se funden lento una sobre otra; sin flechas ni
  * puntitos. Con "reducir movimiento" se queda en la primera. Sin fotos, fondo tinta.
  */
-export function Banner({ fotos }: { fotos: FotoPortada[] }) {
+export function Banner({ fotos, marca }: { fotos: FotoPortada[]; marca: Marca }) {
+  const [primera, ...resto] = marca.nombre.split(" ");
   const [actual, setActual] = useState(0);
   // Cuántas fotos ya se montaron: la actual y la siguiente, para que el fundido no espere a la
   // descarga. Las demás se piden recién cuando les toca.
@@ -57,9 +59,9 @@ export function Banner({ fotos }: { fotos: FotoPortada[] }) {
       <div className="mf-marco mf-texto-sobre-foto absolute inset-x-0 bottom-0 flex flex-col gap-8 pb-8 sm:flex-row sm:items-end sm:justify-between sm:pb-12">
         <div className="max-w-4xl">
           <h1 id="titulo-portada" className="mf-nombre text-[clamp(3.6rem,min(10.5vw,14svh),10.5rem)]">
-            Muestras<br />Fotográficas
+            {primera}<br />{resto.join(" ")}
           </h1>
-          <p className="mt-6 max-w-[36ch] text-balance text-lg leading-snug text-white/90 sm:text-xl">Muestras de fotografía para ver en persona, en todo el país.</p>
+          <p className="mt-6 max-w-[36ch] text-balance text-lg leading-snug text-white/90 sm:text-xl">{marca.id === "ARTE" ? "Muestras de arte para ver en persona, en todo el país." : "Muestras de fotografía para ver en persona, en todo el país."}</p>
           <BuscarCerca />
           <div className="mt-5 flex flex-wrap items-center gap-x-7 gap-y-3 text-[15px]">
             <a href="#muestras" className="inline-flex h-11 items-center border border-white/80 px-5 transition-colors hover:bg-white hover:text-[var(--mf-ink)]">Ver muestras</a>

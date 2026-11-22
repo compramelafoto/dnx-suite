@@ -48,6 +48,16 @@ describe("GET /api/piezas/[id]/[pieza]", () => {
     expect(r.headers.get("content-disposition")).toBe('attachment; filename="cartel-m-A3.pdf"');
     expect(armar.armarPieza.mock.calls[0]![1]).toEqual({ pieza: "cartel", tamano: "A2" });
   });
+  it("una muestra de arte arma los QR con el dominio de arte (etapa 2)", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    cargar.cargarMuestraParaPiezas.mockResolvedValue({ id: "a1", slug: "m", works: [], primaryDiscipline: "PINTURA" });
+    await pedir("cartel");
+    cargar.cargarMuestraParaPiezas.mockResolvedValue({ id: "a1", slug: "m", works: [], primaryDiscipline: "FOTOGRAFIA" });
+    vi.stubEnv("APP_URL", "https://muestrasfotograficas.com");
+    await pedir("cartel");
+    vi.unstubAllEnvs();
+    expect(armar.armarPieza.mock.calls.map((c) => c[2])).toEqual(["https://muestrasdearte.com", "https://muestrasfotograficas.com"]);
+  });
   it("si armar no encuentra la obra, 404; si se rompe, 500; los errores en texto, en español", async () => {
     armar.armarPieza.mockResolvedValue(null);
     const r404 = await pedir("marcos", "?obra=x");

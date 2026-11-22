@@ -5,7 +5,7 @@ const m = vi.hoisted(() => ({ permitida: vi.fn(), pase: vi.fn(), leerDeR2: vi.fn
 vi.mock("@/lib/sala/consultas", () => ({ imagenDeSalaPermitida: m.permitida, paseDeSala: m.pase }));
 vi.mock("@/lib/imagenes/r2", () => ({ leerDeR2: m.leerDeR2 }));
 
-const { GET } = await import("@/app/m/[slug]/sala/img/[id]/route");
+const { GET } = await import("@/app/[marca]/m/[slug]/sala/img/[id]/route");
 const { LIMITES_PUBLICOS, resetRateLimit } = await import("@/lib/limite");
 
 const URL_BUCKET = "https://pub-test.r2.dev/muestras/50/obra-oculta.webp";

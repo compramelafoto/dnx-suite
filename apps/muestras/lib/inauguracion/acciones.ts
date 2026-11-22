@@ -48,7 +48,7 @@ export async function guardarInauguracion(fd: FormData): Promise<ResultadoAccion
         where: conPermiso({ id, type: "MUESTRA" }, usuario, "rsvp"),
         select: {
           id: true, slug: true, title: true, reviewStatus: true, isVirtualOnly: true, isCancelled: true, openingAt: true, openingEndsAt: true,
-          venueName: true, address: true, city: true,
+          venueName: true, address: true, city: true, primaryDiscipline: true,
         },
       });
       if (!a) throw new Corte("La muestra no existe.");
@@ -97,7 +97,7 @@ export async function cambiarAsistencia(rsvpId: string, accion: string): Promise
     r = await prisma.$transaction(async (tx) => {
       const a = await tx.culturalActivity.findFirst({
         where: conPermiso({ id: k.activityId, type: "MUESTRA" }, usuario, "rsvp"),
-        select: { id: true, slug: true, title: true, rsvpCapacity: true, openingAt: true, openingEndsAt: true, venueName: true, address: true, city: true },
+        select: { id: true, slug: true, title: true, rsvpCapacity: true, openingAt: true, openingEndsAt: true, venueName: true, address: true, city: true, primaryDiscipline: true },
       });
       if (!a) throw new Corte("No encontramos esa confirmación.");
       await tx.$queryRaw`SELECT id FROM "CulturalActivity" WHERE id = ${a.id} FOR UPDATE`;

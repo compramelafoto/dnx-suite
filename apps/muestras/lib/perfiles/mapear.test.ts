@@ -2,19 +2,19 @@ import { describe, expect, it } from "vitest";
 import { perfilDesdeFormData } from "./mapear";
 
 const BASE = "https://pub-test.r2.dev";
-function fd(o: Record<string, string>) {
+function fd(o: Record<string, string | string[]>) {
   const f = new FormData();
-  for (const [k, v] of Object.entries(o)) f.set(k, v);
+  for (const [k, v] of Object.entries(o)) for (const x of Array.isArray(v) ? v : [v]) f.append(k, x);
   return f;
 }
-const leer = (o: Record<string, string>) => perfilDesdeFormData(fd(o), { baseImagenes: BASE });
+const leer = (o: Record<string, string | string[]>) => perfilDesdeFormData(fd(o), { baseImagenes: BASE });
 
 describe("perfilDesdeFormData", () => {
   it("normaliza slug, web e Instagram y vacía lo opcional", () => {
     const r = leer({ displayName: " Ana Pérez ", slug: "Ana Pérez", website: "ana.com", instagram: "@Ana.Foto", bio: " ", avatarUrl: `${BASE}/muestras/7/a.webp` });
     expect(r).toEqual({ ok: true, perfil: {
       displayName: "Ana Pérez", slug: "ana-perez", bio: null, city: null, province: null,
-      website: "https://ana.com/", instagram: "ana.foto", avatarUrl: `${BASE}/muestras/7/a.webp`,
+      website: "https://ana.com/", instagram: "ana.foto", avatarUrl: `${BASE}/muestras/7/a.webp`, disciplines: null,
     } });
   });
   it("sin slug escrito queda vacío (lo arma la acción)", () => {
@@ -45,5 +45,21 @@ describe("perfilDesdeFormData", () => {
   it("Instagram como dirección sin esquema", () => {
     const r = leer({ displayName: "Ana", instagram: "m.instagram.com/Ana" });
     expect(r.ok && r.perfil.instagram).toBe("ana");
+  });
+  it("disciplinas: sólo las válidas y sin repetir", () => {
+    const r = leer({ displayName: "Ana", disciplines: ["PINTURA", "X", "PINTURA", "GRABADO"] });
+    expect(r.ok && r.perfil.disciplines).toEqual(["PINTURA", "GRABADO"]);
+    const s = perfilDesdeFormData(fd({ displayName: "Ana", disciplines: ["PINTURA", "X"] }), { baseImagenes: BASE });
+    expect(s.ok && s.perfil.disciplines).toEqual(["PINTURA"]);
+  });
+  it("disciplinas: con la marca del formulario y ninguna marcada, fotografía", () => {
+    const r = leer({ displayName: "Ana", disciplinasEnviadas: "1" });
+    expect(r.ok && r.perfil.disciplines).toEqual(["FOTOGRAFIA"]);
+    const s = leer({ displayName: "Ana", disciplines: ["X"] });
+    expect(s.ok && s.perfil.disciplines).toEqual(["FOTOGRAFIA"]);
+  });
+  it("disciplinas: sin el campo ni la marca, null (se conserva lo guardado)", () => {
+    const r = leer({ displayName: "Ana" });
+    expect(r.ok && r.perfil.disciplines).toBeNull();
   });
 });

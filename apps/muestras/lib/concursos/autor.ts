@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma, type Prisma } from "@repo/db";
-import { CONTEST_EXHIBIT_TEXT_VERSION, EXHIBITOR_TEXT_LIMITS, contestConsentTransition, isContestConsentAction, temporalStatus, type ContestConsentAction } from "@repo/muestras";
+import { CONTEST_EXHIBIT_TEXT_VERSION, EXHIBITOR_TEXT_LIMITS, PHOTOGRAPHY, contestConsentTransition, isContestConsentAction, temporalStatus, type ContestConsentAction } from "@repo/muestras";
 import { frenarPorUsuario } from "@/lib/limite";
 import { crearOActualizarPerfil } from "@/lib/perfiles/crear";
 import { LARGOS_PERFIL, perfilDesdeFormData, type PerfilForm } from "@/lib/perfiles/mapear";
@@ -34,7 +34,10 @@ class Corte extends Error {}
  * "Cómo firmás" y el perfil, como en el alta de expositores (etapa 6): si ya tiene perfil, del
  * formulario sólo cuenta la biografía (y sólo si la suya está vacía); si no, se crea con su nombre.
  */
-async function datosDeFirma(fd: FormData, usuarioId: number): Promise<{ ok: true; firma: string; datos: PerfilForm } | { ok: false; errores: string[] }> {
+/** Las disciplinas no vienen del formulario: el perfil nuevo es de fotografía (los concursos son de fotos). */
+type DatosPerfil = Omit<PerfilForm, "disciplines">;
+
+async function datosDeFirma(fd: FormData, usuarioId: number): Promise<{ ok: true; firma: string; datos: DatosPerfil } | { ok: false; errores: string[] }> {
   const firma = String(fd.get("firma") ?? "").trim().slice(0, EXHIBITOR_TEXT_LIMITS.displayName).trim();
   if (!firma) return { ok: false, errores: ["Poné cómo firmás tus obras."] };
   const tienePerfil = await prisma.photographerProfile.findUnique({ where: { userId: usuarioId }, select: { id: true } });
@@ -56,9 +59,9 @@ async function datosDeFirma(fd: FormData, usuarioId: number): Promise<{ ok: true
 /** Guarda la firma y el perfil, y vuelve a sincronizar todas sus obras de la muestra (D28: firmar confirma el nombre). */
 async function aplicarFirma(
   tx: Prisma.TransactionClient,
-  p: { authorId: string; activityId: string; userId: number; firma: string; datos: PerfilForm },
+  p: { authorId: string; activityId: string; userId: number; firma: string; datos: DatosPerfil },
 ): Promise<(string | undefined)[]> {
-  const perfil = await crearOActualizarPerfil(tx, p.userId, p.datos);
+  const perfil = await crearOActualizarPerfil(tx, p.userId, p.datos, [PHOTOGRAPHY]);
   await tx.culturalContestAuthor.update({ where: { id: p.authorId }, data: { displayName: p.firma, profileId: perfil.id } });
   const suyas = await tx.culturalContestWork.findMany({ where: { activityId: p.activityId, authorUserId: p.userId }, select: { id: true } });
   const borrar: (string | undefined)[] = [];
@@ -117,7 +120,7 @@ export async function responderComoAutor(fd: FormData): Promise<ResultadoAutor> 
   });
   if (!autor) return error(OBRA_NO_EXISTE);
 
-  let firma: { firma: string; datos: PerfilForm } | null = null;
+  let firma: { firma: string; datos: DatosPerfil } | null = null;
   if (CON_TEXTO.includes(accion) && String(fd.get("firma") ?? "").trim()) {
     const leida = await datosDeFirma(fd, usuario.id);
     if (!leida.ok) return { ok: false, errores: leida.errores };

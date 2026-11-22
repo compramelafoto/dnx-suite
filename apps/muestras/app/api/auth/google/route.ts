@@ -4,9 +4,9 @@ import {
   buildGoogleAuthorizationUrl,
   createGoogleOAuthTransit,
   getGoogleOAuthCredentials,
-  resolveAppBaseUrl,
   resolveGoogleRedirectUri,
 } from "@repo/auth";
+import { baseDeIngreso, origenDelPedido } from "@/lib/base-oauth";
 import { APP_OAUTH } from "@/lib/google-app";
 import { rutaInternaSegura } from "@/lib/ruta-segura";
 import { OPCIONES_COOKIE } from "@/lib/sesion";
@@ -18,15 +18,12 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
-    const baseUrl = resolveAppBaseUrl({
-      originFromRequest: url.origin,
-      envKeys: ["APP_URL", "NEXT_PUBLIC_APP_URL", "AUTH_URL"],
-      fallback: "http://localhost:3014",
-    });
+    const baseUrl = baseDeIngreso(req);
+    const origin = origenDelPedido(req);
 
     const credenciales = getGoogleOAuthCredentials();
     if (!credenciales) {
-      const login = new URL("/login", baseUrl);
+      const login = new URL("/login", origin);
       login.searchParams.set("error", "El ingreso con Google no está configurado.");
       return NextResponse.redirect(login.toString());
     }
@@ -40,6 +37,7 @@ export async function GET(req: Request) {
     const respuesta = NextResponse.redirect(
       buildGoogleAuthorizationUrl({
         clientId: credenciales.clientId,
+        // Ojo: si GOOGLE_REDIRECT_URI estuviera en env, pisaría la base por dominio y rompería el ingreso de arte.
         redirectUri: resolveGoogleRedirectUri(baseUrl),
         state: transito.state,
       }),

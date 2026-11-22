@@ -9,7 +9,7 @@ type Quien = Pick<Usuario, "id" | "esSuperAdmin">;
 const SELECCION = {
   id: true, slug: true, title: true, type: true, reviewStatus: true, isCancelled: true, isVirtualOnly: true,
   startsAt: true, endsAt: true, openingAt: true, openingEndsAt: true, venueName: true, city: true, province: true,
-  coverImageUrl: true, rsvpStatus: true, galleryMode: true, visibility: true,
+  coverImageUrl: true, rsvpStatus: true, galleryMode: true, visibility: true, primaryDiscipline: true,
   works: { orderBy: { sortOrder: "asc" }, select: { id: true, title: true, authorName: true, year: true, imageUrl: true, isHighlight: true, sortOrder: true } },
 } as const;
 

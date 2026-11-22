@@ -1,6 +1,7 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "@repo/db";
+import type { MarcaId } from "@/lib/marca";
 
 /** El perfil de fotógrafo de una cuenta, o null si todavía no lo creó. */
 export function buscarPerfilPropio(userId: number) {
@@ -19,13 +20,17 @@ export function obrasVinculadas(profileId: string) {
 
 const PUBLICADA = { reviewStatus: "APPROVED", type: "MUESTRA" } as const;
 
+/** Perfiles de casa fotografía: sólo fotografía o ninguna disciplina (spec 6.1, `casaDePerfil`). */
+const CASA_FOTOGRAFIA = { OR: [{ disciplines: { equals: ["FOTOGRAFIA"] } }, { disciplines: { isEmpty: true } }] };
+
 /**
- * Perfiles con al menos una obra en una muestra publicada, para "Fotógrafos que expusieron".
+ * Perfiles con al menos una obra en una muestra publicada, para "Fotógrafos que expusieron"
+ * (sólo los de casa fotografía) o "Artistas que expusieron" (todos).
  * `cache`: los metadatos (para el `noindex` de la lista vacía) y la página la piden juntos.
  */
-export const listarFotografos = cache(() =>
+export const listarAutores = cache((marca: MarcaId) =>
   prisma.photographerProfile.findMany({
-    where: { works: { some: { activity: PUBLICADA } } },
+    where: { works: { some: { activity: PUBLICADA } }, ...(marca === "FOTOGRAFIA" ? CASA_FOTOGRAFIA : {}) },
     select: {
       slug: true, displayName: true, city: true, province: true, avatarUrl: true,
       works: { where: { activity: PUBLICADA }, select: { activityId: true } },
@@ -44,7 +49,7 @@ export const buscarPerfilPublico = cache(async (slug: string) => {
   const perfil = await prisma.photographerProfile.findUnique({
     where: { slug },
     select: {
-      id: true, slug: true, displayName: true, bio: true, city: true, province: true, website: true, instagram: true, avatarUrl: true,
+      id: true, slug: true, displayName: true, bio: true, city: true, province: true, website: true, instagram: true, avatarUrl: true, disciplines: true,
       // El portfolio es del artista: se ve siempre en su perfil (spec D14).
       portfolio: { orderBy: { sortOrder: "asc" }, select: { id: true, imageUrl: true, title: true, year: true, technique: true, caption: true } },
       // Las imágenes de sus obras expuestas (de cualquier muestra): ninguna se muestra como foto del portfolio (D15).

@@ -55,6 +55,28 @@ describe("guardarPerfil", () => {
     expect(r).toEqual({ ok: true, slug: "ana" });
     expect(db.photographerProfile.update).toHaveBeenCalledWith({ where: { id: "p7" }, data: expect.not.objectContaining({ userId: expect.anything() }) });
   });
+  it("sin el campo de disciplinas: el perfil que existe conserva las suyas", async () => {
+    db.photographerProfile.findUnique.mockImplementation(async ({ where }: { where: { userId?: number } }) =>
+      where.userId === 7 ? { id: "p7", slug: "ana" } : null);
+    await guardarPerfil(fd({ displayName: "Ana" }));
+    expect(db.photographerProfile.update.mock.calls[0][0].data).not.toHaveProperty("disciplines");
+  });
+  it("con la marca y ninguna marcada: guarda fotografía", async () => {
+    db.photographerProfile.findUnique.mockImplementation(async ({ where }: { where: { userId?: number } }) =>
+      where.userId === 7 ? { id: "p7", slug: "ana" } : null);
+    await guardarPerfil(fd({ displayName: "Ana", disciplinasEnviadas: "1" }));
+    expect(db.photographerProfile.update.mock.calls[0][0].data.disciplines).toEqual(["FOTOGRAFIA"]);
+  });
+  it("con la marca y una marcada: guarda esa", async () => {
+    db.photographerProfile.findUnique.mockImplementation(async ({ where }: { where: { userId?: number } }) =>
+      where.userId === 7 ? { id: "p7", slug: "ana" } : null);
+    await guardarPerfil(fd({ displayName: "Ana", disciplinasEnviadas: "1", disciplines: "PINTURA" }));
+    expect(db.photographerProfile.update.mock.calls[0][0].data.disciplines).toEqual(["PINTURA"]);
+  });
+  it("perfil nuevo sin el campo: fotografía", async () => {
+    await guardarPerfil(fd({ displayName: "Ana" }));
+    expect(db.photographerProfile.create.mock.calls[0][0].data.disciplines).toEqual(["FOTOGRAFIA"]);
+  });
   it("si el índice único frena una carrera, lo explica", async () => {
     db.photographerProfile.create.mockRejectedValue(Object.assign(new Error("único"), { code: "P2002" }));
     const r = await guardarPerfil(fd({ displayName: "Ana" }));

@@ -5,6 +5,7 @@ const db = vi.hoisted(() => ({
   culturalEditionCopy: { updateMany: vi.fn(), findUnique: vi.fn() },
   culturalWorkOffer: { findUnique: vi.fn() },
   culturalActivityWork: { findUnique: vi.fn() },
+  culturalActivity: { findUnique: vi.fn() },
   culturalSaleEvent: { create: vi.fn() },
   $transaction: vi.fn(),
 }));
@@ -40,7 +41,7 @@ const foto = (partners = [{ recipientId: "organizer", receiverId: ORG, cents: 2_
 });
 const pedidoBase = () => ({
   id: "o1", publicId: "abcd1234abcd1234", isTest: true, status: "PENDING_PAYMENT", providerOrderId: null, providerStatus: null,
-  holdExpiresAt: new Date(Date.now() + 10 * 60_000), copyId: "c1", offerId: "of1", totalCents: 10_000_000,
+  holdExpiresAt: new Date(Date.now() + 10 * 60_000), copyId: "c1", offerId: "of1", activityId: "a1", totalCents: 10_000_000,
   externalReference: "muestras-venta-abcd1234abcd1234", idempotencyKey: "idem-1", buyerEmail: "bea@testuser.com", splitSnapshot: foto(),
 });
 const entrada = (extra: Record<string, unknown> = {}) => ({
@@ -69,6 +70,7 @@ beforeEach(() => {
   db.culturalWorkOffer.findUnique.mockResolvedValue({ activityWorkId: "aw1", format: "PRINT", editionKind: "LIMITED", editionSize: 10, proofCount: 0 });
   db.culturalEditionCopy.findUnique.mockResolvedValue({ number: 3, kind: "COPY" });
   db.culturalActivityWork.findUnique.mockResolvedValue({ title: "Silos" });
+  db.culturalActivity.findUnique.mockResolvedValue({ primaryDiscipline: "FOTOGRAFIA" });
   conciliar.conciliarDesdeOrden.mockResolvedValue({ estado: "PAID", cambio: true });
   logs = (["log", "error", "warn", "info"] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
 });
@@ -113,6 +115,18 @@ describe("pagarPedido", () => {
     nadaSensibleEnLogs();
   });
 
+  it("el resumen de la tarjeta dice la marca de la muestra: MUESTRAS FOTO o MUESTRAS ARTE (etapa 2)", async () => {
+    mp.createSplitOrder.mockResolvedValue(respuesta("processed", "accredited"));
+    await pagarPedido(entrada());
+    expect(mp.createSplitOrder.mock.calls[0]![0].statementDescriptor).toBe("MUESTRAS FOTO");
+    expect(db.culturalActivity.findUnique).toHaveBeenCalledWith({ where: { id: "a1" }, select: { primaryDiscipline: true } });
+    mp.createSplitOrder.mockClear();
+    resetRateLimit();
+    estado.pedido = pedidoBase();
+    db.culturalActivity.findUnique.mockResolvedValue({ primaryDiscipline: "PINTURA" });
+    await pagarPedido(entrada());
+    expect(mp.createSplitOrder.mock.calls[0]![0].statementDescriptor).toBe("MUESTRAS ARTE");
+  });
   it("misma persona organiza y fotografía: un solo partner", async () => {
     estado.pedido = { ...pedidoBase(), splitSnapshot: foto([{ recipientId: "both", receiverId: ORG, cents: 8_500_000 }]) };
     estado.consent[50] = { status: "ACTIVE", receiverId: ORG, verificado: true };

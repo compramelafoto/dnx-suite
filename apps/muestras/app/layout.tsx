@@ -1,7 +1,5 @@
-import type { Metadata, Viewport } from "next";
+import type { Viewport } from "next";
 import localFont from "next/font/local";
-import { Encabezado } from "@/components/encabezado/encabezado";
-import { Pie } from "@/components/pie/pie";
 import "./globals.css";
 
 /**
@@ -18,31 +16,18 @@ const fuente = localFont({
   variable: "--mf-font",
 });
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.trim() || "https://muestrasfotograficas.com";
-
-export const metadata: Metadata = {
-  metadataBase: new URL(APP_URL),
-  title: { default: "Muestras Fotográficas", template: "%s | Muestras Fotográficas" },
-  description: "Muestras de fotografía para ver en persona, en todo el país: dónde quedan, fechas, horarios y cómo llegar.",
-  openGraph: {
-    siteName: "Muestras Fotográficas",
-    description: "Muestras de fotografía para ver en persona, en todo el país: dónde quedan, fechas, horarios y cómo llegar.",
-    locale: "es_AR",
-    type: "website",
-    images: ["/brand/muestras-logo-1254.webp"],
-  },
-};
-
 export const viewport: Viewport = { themeColor: "#ffffff" };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+/**
+ * Raíz común a las dos marcas: sólo el documento, la fuente y los estilos. Está fuera de
+ * `[marca]` porque Next no puede armar el 404 dentro de un layout raíz con segmento dinámico (lo
+ * mandaba suelto, sin `lang="es"` ni fuente). Los textos, metadatos, encabezado y pie de cada
+ * marca están en `app/[marca]/layout.tsx`.
+ */
+export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="es" className={fuente.variable}>
-      <body className="flex min-h-dvh flex-col antialiased">
-        <Encabezado />
-        <div className="flex-1">{children}</div>
-        <Pie />
-      </body>
+      <body className="flex min-h-dvh flex-col antialiased">{children}</body>
     </html>
   );
 }

@@ -16,6 +16,8 @@ type Props = {
   ahora: Date;
   /** Las primeras del listado se cargan enseguida; el resto, al acercarse. */
   prioridad?: boolean;
+  /** Sólo en Muestras de Arte: la disciplina principal. En fotografía no se pasa. */
+  disciplina?: string;
 };
 
 /**
@@ -41,6 +43,7 @@ export function TarjetaActividad(p: Props) {
       </span>
       <span className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-[var(--mf-muted)]">
         {p.tipo}
+        {p.disciplina ? <span>{p.disciplina}</span> : null}
         <EstadoActividad startsAt={p.startsAt} endsAt={p.endsAt} isCancelled={p.isCancelled} ahora={p.ahora} />
       </span>
       <span className="mf-titulo mt-2 block text-[clamp(1.35rem,2vw,1.6rem)] leading-[1.08] underline-offset-[5px] group-hover:underline">{p.title}</span>

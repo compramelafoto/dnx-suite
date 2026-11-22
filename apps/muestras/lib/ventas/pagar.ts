@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { prisma } from "@repo/db";
-import { OFFER_FORMAT_LABELS, SALE_STATEMENT_DESCRIPTOR, SALE_UNAVAILABLE_TEXT, editionLabel, isOfferFormat } from "@repo/muestras";
+import { OFFER_FORMAT_LABELS, SALE_UNAVAILABLE_TEXT, editionLabel, isOfferFormat, saleStatementDescriptor } from "@repo/muestras";
 import { mapMercadoPagoStatusDetailToUserMessage } from "@repo/payments/frontend";
 import {
   buildSplitEntriesFromDistribution,
@@ -12,6 +12,7 @@ import {
 import { money } from "@repo/payments/money";
 import type { CalculatedDistribution } from "@repo/payments/distribution";
 import { frenarPorPedido } from "@/lib/limite";
+import { marcaDeDisciplina } from "@/lib/marca";
 import { getUsuario } from "@/lib/usuario";
 import { puedeComprar } from "./config";
 import { conciliarDesdeOrden } from "./conciliar";
@@ -206,10 +207,13 @@ export async function pagarPedido(e: EntradaDePago): Promise<ResultadoDePago> {
   if (!adaptador) return no(SALE_UNAVAILABLE_TEXT);
 
   // Lo que dice el ítem de la Order (señal antifraude): obra, formato y número.
-  const [oferta, copia] = await Promise.all([
+  const [oferta, copia, actividad] = await Promise.all([
     prisma.culturalWorkOffer.findUnique({ where: { id: pedido.offerId }, select: { activityWorkId: true, format: true, editionKind: true, editionSize: true, proofCount: true } }),
     pedido.copyId ? prisma.culturalEditionCopy.findUnique({ where: { id: pedido.copyId }, select: { number: true, kind: true } }) : null,
+    prisma.culturalActivity.findUnique({ where: { id: pedido.activityId }, select: { primaryDiscipline: true } }),
   ]);
+  // Lo que lee el comprador en el resumen de la tarjeta: la marca de la muestra.
+  const descriptor = saleStatementDescriptor(marcaDeDisciplina(actividad?.primaryDiscipline).id);
   const obra = oferta ? await prisma.culturalActivityWork.findUnique({ where: { id: oferta.activityWorkId }, select: { title: true } }) : null;
   if (!oferta || !obra || !copia) return no(NO_SE_PUEDE);
   const formato = isOfferFormat(oferta.format) ? OFFER_FORMAT_LABELS[oferta.format] : oferta.format;
@@ -234,7 +238,7 @@ export async function pagarPedido(e: EntradaDePago): Promise<ResultadoDePago> {
       entries: buildSplitEntriesFromDistribution(distribucion, foto.ownerUserId, partnerReceiverIds, { partnerConsentsByRecipientId: consentimientos, amountType: "fixed" }),
       deviceSessionId: e.deviceSessionId,
       payerEmail: pedido.buyerEmail,
-      statementDescriptor: SALE_STATEMENT_DESCRIPTOR,
+      statementDescriptor: descriptor,
       items,
       itemsTotalRelation: "informative",
       partnerReceiverIds,
@@ -267,7 +271,7 @@ export async function pagarPedido(e: EntradaDePago): Promise<ResultadoDePago> {
       installments: 1,
       payerEmail: pedido.buyerEmail,
       payerProfile: { firstName: e.payerFirstName.trim(), lastName: e.payerLastName.trim(), identification: identificacion },
-      statementDescriptor: SALE_STATEMENT_DESCRIPTOR,
+      statementDescriptor: descriptor,
       items,
       itemsTotalRelation: "informative",
       partnerReceiverIds,

@@ -140,7 +140,7 @@ describe("responderComoAutor", () => {
 
   it("aceptar con la firma: guarda cómo firma, crea el perfil y vuelve a sincronizar todas sus obras", async () => {
     expect(await responder("accept", { firma: "Ana Pérez" })).toEqual({ ok: true, id: "cw1" });
-    expect(perfil.crearOActualizarPerfil).toHaveBeenCalledWith(db, 10, expect.objectContaining({ displayName: "Ana Pérez" }));
+    expect(perfil.crearOActualizarPerfil).toHaveBeenCalledWith(db, 10, expect.objectContaining({ displayName: "Ana Pérez" }), ["FOTOGRAFIA"]);
     expect(db.culturalContestAuthor.update.mock.calls.some((c) => c[0].data.displayName === "Ana Pérez" && c[0].data.profileId === "p1")).toBe(true);
     expect(gal.sincronizarObraConGaleria).toHaveBeenCalledWith(db, "a1", "cw2");
   });
@@ -163,7 +163,8 @@ describe("guardarFirmaDeAutor", () => {
   it("autor sin perfil: se crea con su nombre y sus obras pasan a su nombre (también las de 'Autoría reservada')", async () => {
     gal.sincronizarObraConGaleria.mockResolvedValue({ cambio: "ACTUALIZADA" });
     expect(await firmar()).toEqual({ ok: true, id: "au1" });
-    expect(perfil.crearOActualizarPerfil).toHaveBeenCalledWith(db, 10, expect.objectContaining({ displayName: "Ana Pérez" }));
+    expect(perfil.crearOActualizarPerfil).toHaveBeenCalledWith(db, 10, expect.objectContaining({ displayName: "Ana Pérez" }), ["FOTOGRAFIA"]);
+    // Las disciplinas del perfil nuevo las pone el alta, no el formulario.
     expect(db.culturalContestAuthor.update.mock.calls[0][0]).toMatchObject({ where: { id: "au1" }, data: { displayName: "Ana Pérez", profileId: "p1" } });
     // Todas sus obras de esta muestra, por su cuenta.
     expect(db.culturalContestWork.findMany.mock.calls[0][0].where).toMatchObject({ activityId: "a1", authorUserId: 10 });
@@ -176,5 +177,6 @@ describe("guardarFirmaDeAutor", () => {
     perfil.crearOActualizarPerfil.mockResolvedValue({ id: "p9", slug: "ana", creado: false });
     expect(await firmar({ bio: "Fotógrafa", city: "Otra" })).toEqual({ ok: true, id: "au1" });
     expect(perfil.crearOActualizarPerfil.mock.calls[0][2]).toMatchObject({ displayName: "Ana Pérez", bio: "Fotógrafa", city: null });
+    expect(perfil.crearOActualizarPerfil.mock.calls[0][2]).not.toHaveProperty("disciplines");
   });
 });

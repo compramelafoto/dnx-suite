@@ -34,7 +34,7 @@ const nombreDeArchivo = (titulo: string, codigo: string) => {
 
 /** El archivo firmado de un pedido pagado con copia certificada, o `null` si todavía no corresponde. */
 export async function archivoFirmado(orderId: string): Promise<ArchivoFirmado | null> {
-  const pedido = await prisma.culturalSaleOrder.findUnique({ where: { id: orderId }, select: { id: true, status: true, copyId: true, offerId: true } });
+  const pedido = await prisma.culturalSaleOrder.findUnique({ where: { id: orderId }, select: { id: true, status: true, copyId: true, offerId: true, activityId: true } });
   if (!pedido || pedido.status !== "PAID" || !pedido.copyId) return null;
   const copia = await prisma.culturalEditionCopy.findUnique({
     where: { id: pedido.copyId },
@@ -46,9 +46,10 @@ export async function archivoFirmado(orderId: string): Promise<ArchivoFirmado | 
     select: { activityWorkId: true, editionKind: true, editionSize: true, proofCount: true },
   });
   if (!oferta) return null;
-  const [obra, original] = await Promise.all([
+  const [obra, original, actividad] = await Promise.all([
     prisma.culturalActivityWork.findUnique({ where: { id: oferta.activityWorkId }, select: { title: true, authorName: true } }),
     prisma.culturalSaleFile.findUnique({ where: { activityWorkId: oferta.activityWorkId }, select: { storageKey: true, sha256: true, status: true } }),
+    prisma.culturalActivity.findUnique({ where: { id: pedido.activityId }, select: { primaryDiscipline: true } }),
   ]);
   if (!obra || !original || original.status !== "READY" || !original.sha256) return null;
 
@@ -69,7 +70,7 @@ export async function archivoFirmado(orderId: string): Promise<ArchivoFirmado | 
     title: obra.title,
     creator: obra.authorName,
     rights: `© ${obra.authorName}. Todos los derechos reservados. Copia ${editionLabel({ kind: copia.kind, number: copia.number, size: oferta.editionSize, editionKind: oferta.editionKind, proofCount: oferta.proofCount })} con certificado ${copia.certificateCode}.`,
-    webStatement: urlDeVerificacion(copia.certificateCode),
+    webStatement: urlDeVerificacion(copia.certificateCode, actividad?.primaryDiscipline),
     code: copia.certificateCode,
     edition: editionLabel({ kind: copia.kind, number: copia.number, size: oferta.editionSize, editionKind: oferta.editionKind, proofCount: oferta.proofCount }),
     originalSha256: original.sha256,

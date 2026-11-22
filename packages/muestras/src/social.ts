@@ -107,8 +107,11 @@ export function cleanSocialText(s: string, max: number): string {
 
 const lugar = (a: SocialActivity) => [a.venueName, a.city].filter(Boolean).join(", ");
 
-export function socialTexts(v: SocialVariant, a: SocialActivity, work: { title: string; authorName: string; year: number | null } | null): SocialTexts {
-  const footer = "muestrasfotograficas.com";
+/** `footer`: el dominio de la casa de la muestra ("muestrasdearte.com" en arte). */
+export function socialTexts(
+  v: SocialVariant, a: SocialActivity, work: { title: string; authorName: string; year: number | null } | null,
+  footer = "muestrasfotograficas.com",
+): SocialTexts {
   const titulo = cleanSocialText(a.title, 120);
   switch (v) {
     case "OPENING":

@@ -10,7 +10,10 @@ const db = vi.hoisted(() => ({
 const fr = vi.hoisted(() => ({ loteVigente: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@repo/db", () => ({ prisma: db }));
-vi.mock("@/lib/correos/enviar", () => ({ APP_URL: "https://muestras.test" }));
+vi.mock("@/lib/correos/enviar", () => ({
+  APP_URL: "https://muestras.test",
+  origenDeCorreo: (pd: string | null | undefined) => (pd && pd !== "FOTOGRAFIA" ? "https://arte.test" : "https://muestras.test"),
+}));
 vi.mock("./fotorank", () => fr);
 vi.mock("@/lib/usuario", () => ({ getUsuario: vi.fn() }));
 
@@ -60,6 +63,12 @@ describe("panelDelConcurso", () => {
       }),
     ]);
     expect(p.resumen).toMatchObject({ total: 2, enLaMuestra: 1, esperanAlAutor: 1, sacadas: 0 });
+  });
+  it("en una muestra de arte, el enlace para cada autor es de la casa de arte (etapa 2)", async () => {
+    db.culturalActivity.findFirst.mockResolvedValue(muestra({ primaryDiscipline: "PINTURA" }));
+    const p = (await panelDelConcurso("a1", ana))!;
+    expect(p.autores[0]!.url).toBe("https://arte.test/panel/expositor/concurso/au1");
+    expect(p.autores[0]!.mensaje).toContain("https://arte.test/panel/expositor/concurso/au1");
   });
   it("si el lote de FotoRank cambió (o ya no hay), avisa", async () => {
     fr.loteVigente.mockResolvedValue({ id: "b2", version: new Date("2026-10-01") });

@@ -7,13 +7,13 @@ import {
   getGoogleOAuthCredentials,
   hashEmailForLog,
   parseAndVerifyGoogleOAuthTransit,
-  resolveAppBaseUrl,
   resolveGoogleRedirectUri,
   resolveOrLinkGoogleUser,
 } from "@repo/auth";
 import { reportSuiteReferralSignup, SUITE_REFERRAL_COOKIE } from "@repo/auth/suite-referral";
 import { prisma } from "@repo/db";
 import { adjuntarSesion, OPCIONES_COOKIE } from "@/lib/sesion";
+import { baseDeIngreso, origenDelPedido } from "@/lib/base-oauth";
 import { APP_OAUTH } from "@/lib/google-app";
 import { rutaInternaSegura } from "@/lib/ruta-segura";
 import { codigoDeReferidoParaReportar } from "@/lib/referido-suite";
@@ -34,12 +34,8 @@ function volverAlLogin(baseUrl: string, mensaje: string) {
 }
 
 export async function GET(req: Request) {
-  const origin = new URL(req.url).origin;
-  const baseOAuth = resolveAppBaseUrl({
-    originFromRequest: origin,
-    envKeys: ["APP_URL", "NEXT_PUBLIC_APP_URL", "AUTH_URL"],
-    fallback: "http://localhost:3014",
-  });
+  const origin = origenDelPedido(req);
+  const baseOAuth = baseDeIngreso(req);
 
   try {
     const url = new URL(req.url);
@@ -79,6 +75,7 @@ export async function GET(req: Request) {
       code,
       clientId: credenciales.clientId,
       clientSecret: credenciales.clientSecret,
+      // Ojo: si GOOGLE_REDIRECT_URI estuviera en env, pisaría la base por dominio y rompería el ingreso de arte.
       redirectUri: resolveGoogleRedirectUri(baseOAuth),
     });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PASOS_MUESTRA } from "./funciones";
+import { PASOS_MUESTRA, TEXTOS_PORTADA, pasosDeMarca } from "./funciones";
 
 describe("pasos de la portada", () => {
   it("el concurso de FotoRank lleva su logo y dice lo que hace de verdad (etapa 7)", () => {
@@ -15,5 +15,22 @@ describe("pasos de la portada", () => {
     );
     // Lo que dejó de ser verdad o quedó repetido no aparece más.
     expect(vender.items).not.toContain("Copias impresas y archivos digitales.");
+  });
+});
+
+describe("textos de la portada por marca", () => {
+  it("fotografía usa exactamente los pasos y textos de siempre", () => {
+    expect(pasosDeMarca("FOTOGRAFIA")).toBe(PASOS_MUESTRA);
+    expect(TEXTOS_PORTADA.FOTOGRAFIA).toEqual({
+      paraQuien: "Para fotógrafos, organizadores, fotoclubes e instituciones, de la convocatoria al archivo.",
+      organizadores: "¿Organizás una muestra? Cargala con sus fotos y compartila con todo el mundo.",
+    });
+  });
+  it("arte no habla de fotógrafos, fotos ni FotoRank y mantiene los mismos pasos", () => {
+    const arte = pasosDeMarca("ARTE");
+    expect(arte.map((p) => p.titulo)).toEqual(PASOS_MUESTRA.map((p) => p.titulo));
+    const textos = [...arte.flatMap((p) => p.items), ...Object.values(TEXTOS_PORTADA.ARTE)];
+    for (const t of textos) expect(t, t).not.toMatch(/fot[oó]graf|fotos|fotoclub|\{FOTORANK\}/i);
+    expect(arte.find((p) => p.titulo === "Gestioná obras y artistas")!.items).toContain("Perfil público de cada artista, con su biografía y las muestras donde expuso.");
   });
 });

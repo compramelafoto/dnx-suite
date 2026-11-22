@@ -7,6 +7,8 @@ import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS, COUNTRIES, DEFAULT_COUNTRY, count
 import { enviarARevision, guardarBorrador } from "@/lib/actividades/acciones";
 import type { buscarParaEditar } from "@/lib/actividades/consultas";
 import type { ObraForm } from "@/lib/actividades/mapear";
+import type { MarcaId } from "@/lib/marca";
+import { CamposDeDisciplina } from "./disciplina";
 import { BuscadorDireccion } from "./buscador-direccion";
 import { EditorObras } from "./obras";
 import { subirImagen } from "./subir-imagen";
@@ -21,7 +23,7 @@ const campo = "w-full rounded-[2px] border border-[var(--mf-line)] bg-white px-3
  * `visibilidad`: con la sorpresa cargada (etapa 6), qué obras se ven online lo decide Visibilidad: la
  * casilla "Mostrar todas" se reemplaza por un enlace y el texto dice lo que eligió quien organiza.
  */
-export function FormularioActividad({ inicial, visibilidad }: { inicial?: ActividadEditable; visibilidad?: { conAjuste: boolean; queSeVe: string; enlace: string | null } }) {
+export function FormularioActividad({ marca, inicial, visibilidad }: { marca: MarcaId; inicial?: ActividadEditable; visibilidad?: { conAjuste: boolean; queSeVe: string; enlace: string | null } }) {
   const router = useRouter();
   const [pendiente, start] = useTransition();
   const [errores, setErrores] = useState<string[]>([]);
@@ -46,6 +48,8 @@ export function FormularioActividad({ inicial, visibilidad }: { inicial?: Activi
   // Las obras que este editor cargó: al guardar sólo se quitan de la galería las que estaban acá.
   // Si mientras tanto se sumaron otras (p. ej. al armar la muestra en otra pestaña), se conservan.
   const [idsCargados] = useState<string[]>(() => (inicial?.works ?? []).map((w) => w.id));
+  // Las salidas fotográficas no se ofrecen en arte (salvo que la actividad ya sea una).
+  const tipos = ACTIVITY_TYPES.filter((t) => marca !== "ARTE" || t !== "SALIDA" || inicial?.type === "SALIDA");
 
   function datos(form: HTMLFormElement) {
     const fd = new FormData(form);
@@ -83,12 +87,20 @@ export function FormularioActividad({ inicial, visibilidad }: { inicial?: Activi
 
   return (
     <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+      {/* El dominio desde el que se carga: en arte la disciplina es obligatoria. */}
+      <input type="hidden" name="marca" value={marca} />
       <fieldset className="space-y-3">
         <label className="block">Tipo de actividad
           <select name="type" className={campo} value={tipo} onChange={(e) => setTipo(e.target.value)}>
-            {ACTIVITY_TYPES.map((t) => <option key={t} value={t}>{ACTIVITY_TYPE_LABELS[t]}</option>)}
+            {tipos.map((t) => <option key={t} value={t}>{ACTIVITY_TYPE_LABELS[t]}</option>)}
           </select>
         </label>
+        <CamposDeDisciplina
+          marca={marca}
+          guardada={inicial?.primaryDiscipline}
+          otrasGuardadas={inicial?.otherDisciplines}
+          publicada={inicial?.reviewStatus === "APPROVED"}
+        />
         <label className="block">Título<input name="title" className={campo} defaultValue={inicial?.title} required /></label>
         <label className="block">Descripción<textarea name="description" rows={5} className={campo} defaultValue={inicial?.description} /></label>
         <label className="block">Organizadores<input name="organizersText" className={campo} defaultValue={inicial?.organizersText} placeholder="Personas o instituciones que la organizan" /></label>

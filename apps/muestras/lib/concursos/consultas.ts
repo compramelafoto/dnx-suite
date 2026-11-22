@@ -3,7 +3,7 @@ import { prisma } from "@repo/db";
 import {
   activityRole, authorCredit, authorPendingCount, canEdit, contestShareMessage, parseContestTiers, temporalStatus, type ReviewStatus,
 } from "@repo/muestras";
-import { APP_URL } from "@/lib/correos/enviar";
+import { origenDeCorreo } from "@/lib/correos/enviar";
 import { conPermiso, dondePuede, puede } from "@/lib/equipo/permisos";
 import { esUrlWeb } from "@/lib/url";
 import type { Usuario } from "@/lib/usuario";
@@ -69,7 +69,7 @@ export async function panelDelConcurso(activityId: string, usuario: Usuario) {
     where: conPermiso({ id: activityId }, usuario, "view"),
     select: {
       id: true, title: true, slug: true, type: true, reviewStatus: true, proposedByUserId: true, workspaceId: true, isCancelled: true,
-      startsAt: true, endsAt: true, members: filaPropia(usuario.id),
+      startsAt: true, endsAt: true, primaryDiscipline: true, members: filaPropia(usuario.id),
       contestImport: {
         select: {
           id: true, contestId: true, contestTitle: true, contestSlug: true, organizationName: true, tiers: true,
@@ -129,9 +129,10 @@ export async function panelDelConcurso(activityId: string, usuario: Usuario) {
   const cerrada = temporalStatus(a, new Date()) === "CLOSED";
   const contest = imp.contestTitle;
   // Los enlaces para mandar (con el nombre de cada autor) son de quien maneja la muestra.
+  const origen = origenDeCorreo(a.primaryDiscipline);
   const conCuenta = autores.filter((x) => puedeCambiar && x.userId != null).map((x) => {
     const suyas = obras.filter((o) => o.authorUserId === x.userId);
-    const url = `${APP_URL}/panel/expositor/concurso/${x.id}`;
+    const url = `${origen}/panel/expositor/concurso/${x.id}`;
     const nombre = x.displayName?.trim() || x.authorName;
     return {
       id: x.id, nombre, obras: suyas.length, pendientes: authorPendingCount(suyas), notifiedAt: x.notifiedAt, respondedAt: x.respondedAt,
@@ -140,7 +141,7 @@ export async function panelDelConcurso(activityId: string, usuario: Usuario) {
   });
 
   return {
-    muestra: { id: a.id, title: a.title, slug: a.slug, reviewStatus: a.reviewStatus, cerrada },
+    muestra: { id: a.id, title: a.title, slug: a.slug, reviewStatus: a.reviewStatus, primaryDiscipline: a.primaryDiscipline, cerrada },
     concurso: {
       id: imp.contestId, title: imp.contestTitle, slug: imp.contestSlug, organizationName: imp.organizationName,
       tiers: parseContestTiers(imp.tiers), syncedAt: imp.syncedAt,
