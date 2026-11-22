@@ -18,6 +18,8 @@ import {
   type AlbumStoryCandidate,
 } from "./album-stories-plan";
 import {
+  ajusteDelCollage,
+  elegirCollages,
   LOGO_BLANCO_REF,
   LOGO_COLOR_REF,
   pickStoryCollage,
@@ -270,6 +272,35 @@ describe("los 20 modelos", () => {
   });
 });
 
+describe("elegirCollages: modelos según la forma de las fotos", () => {
+  const promedio = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+
+  it("para fotos horizontales elige modelos donde entran más completas que el promedio", () => {
+    const elegidos = elegirCollages(1.5, 0, 3);
+    const todos = STORY_COLLAGES.map((c) => ajusteDelCollage(c, 1.5));
+    expect(promedio(elegidos.map((c) => ajusteDelCollage(c, 1.5)))).toBeGreaterThan(promedio(todos));
+  });
+
+  it("para fotos verticales elige otros modelos que para horizontales", () => {
+    const h = new Set(Array.from({ length: 20 }, (_, i) => elegirCollages(1.5, i, 1)[0]!.id));
+    const v = new Set(Array.from({ length: 20 }, (_, i) => elegirCollages(0.67, i, 1)[0]!.id));
+    expect([...v].some((id) => !h.has(id))).toBe(true);
+  });
+
+  it("devuelve modelos distintos y rota con el ordinal", () => {
+    const a = elegirCollages(1.5, 0, 3);
+    expect(new Set(a.map((c) => c.id)).size).toBe(3);
+    expect(elegirCollages(1.5, 1, 3)[0]!.id).toBe(a[1]!.id);
+  });
+
+  it("siempre tiene al menos 6 modelos para rotar", () => {
+    for (const aspecto of [0.5, 0.67, 1, 1.5, 2]) {
+      const ids = new Set(Array.from({ length: 30 }, (_, i) => elegirCollages(aspecto, i, 1)[0]!.id));
+      expect(ids.size).toBeGreaterThanOrEqual(6);
+    }
+  });
+});
+
 describe("cuentas extra para etiquetar", () => {
   it("acepta @, usuario o link; descarta repetidas, al fotógrafo y a la plataforma", () => {
     const r = normalizeExtraHandles(
@@ -299,8 +330,8 @@ describe("frase que va cambiando", () => {
     expect(delDia1.size).toBe(5);
   });
 
-  it("todas entran en una línea (≤ 32 caracteres)", () => {
-    for (const f of FRASES_POR_DIA.flat()) expect(f.length).toBeLessThanOrEqual(32);
+  it("todas entran en una línea con letra grande (≤ 28 caracteres)", () => {
+    for (const f of FRASES_POR_DIA.flat()) expect(f.length).toBeLessThanOrEqual(28);
   });
 });
 

@@ -278,7 +278,7 @@ export function repartirFotos(elegidas: number[], cantidades: number[]): number[
  * Frase grande de la historia, según el día de la secuencia (pedido 2026-11-22). El día 1
  * avisa que salieron, el 2 invita a buscarse y el 3 empuja a no quedarse sin ellas. Dentro
  * de cada día se elige una variante según el álbum, para que no se lea siempre igual.
- * Todas entran en una línea de la plantilla (≤ 32 caracteres).
+ * Todas entran en una línea de la plantilla con letra grande (≤ 28 caracteres).
  */
 export const FRASES_POR_DIA: readonly (readonly string[])[] = [
   ["¡Ya están disponibles!", "¡Buscá tus fotos!", "Las fotos ya están online", "¡Ya salieron las fotos!", "Tus fotos te esperan"],
