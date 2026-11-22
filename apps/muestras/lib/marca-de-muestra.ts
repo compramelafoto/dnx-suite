@@ -1,5 +1,5 @@
 import { permanentRedirect } from "next/navigation";
-import { MARCAS, marcaDeDisciplina, marcaPorSegmento, origenPublico, type MarcaId } from "./marca";
+import { MARCAS, esHostDeArte, marcaDeDisciplina, marcaPorSegmento, origenPublico, type MarcaId } from "./marca";
 
 type Env = Record<string, string | undefined>;
 
@@ -12,8 +12,11 @@ export type Casa = { tipo: "mostrar"; canonical: string } | { tipo: "redirigir";
  */
 export function decidirCasa(marcaPedida: MarcaId, primaryDiscipline: string, env: Env = process.env): Casa {
   const casa = marcaDeDisciplina(primaryDiscipline);
-  if (casa.id === "ARTE" && marcaPedida === "FOTOGRAFIA") return { tipo: "redirigir", destino: origenPublico(casa, env) };
-  return { tipo: "mostrar", canonical: origenPublico(casa, env) };
+  const origen = origenPublico(casa, env);
+  // Sólo se redirige a un host que el proxy reescribe a arte: con otro (una preview de Vercel,
+  // 127.0.0.1) se volvería a caer en fotografía y se redirigiría sin fin.
+  if (casa.id === "ARTE" && marcaPedida === "FOTOGRAFIA" && esHostDeArte(new URL(origen).host)) return { tipo: "redirigir", destino: origen };
+  return { tipo: "mostrar", canonical: origen };
 }
 
 /** La dirección canónica de una página de la muestra: el dominio de su casa más la ruta. */

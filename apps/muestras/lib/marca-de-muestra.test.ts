@@ -31,6 +31,13 @@ describe("decidirCasa", () => {
   });
 });
 
+describe("decidirCasa sin un host de arte", () => {
+  it("una preview de Vercel no redirige (sería un bucle): se muestra con canonical a su origen", () =>
+    expect(decidirCasa("FOTOGRAFIA", "PINTURA", { APP_URL: "https://x.vercel.app" })).toEqual({ tipo: "mostrar", canonical: "https://x.vercel.app" }));
+  it("127.0.0.1 tampoco redirige", () =>
+    expect(decidirCasa("FOTOGRAFIA", "PINTURA", { APP_URL: "http://127.0.0.1:3031" }).tipo).toBe("mostrar"));
+});
+
 describe("canonicalDe", () => {
   it("dominio de casa más la ruta", () => {
     expect(canonicalDe("FOTOGRAFIA", "/m/silos", PROD)).toBe("https://muestrasfotograficas.com/m/silos");
