@@ -13,6 +13,7 @@ import { GaleriaRotativa } from "@/components/ficha/galeria-rotativa";
 import { UltimosComentarios } from "@/components/libro/ultimos-comentarios";
 import { artistasDeMuestra } from "@/lib/actividades/artistas";
 import { buscarPorSlug } from "@/lib/actividades/consultas";
+import { asegurarCasa, canonicalDe } from "@/lib/marca-de-muestra";
 import { concursoDeMuestra } from "@/lib/concursos/publico";
 import { entradasPublicadas } from "@/lib/libro/consultas";
 import { esUrlWeb } from "@/lib/url";
@@ -21,21 +22,25 @@ import { esUrlWeb } from "@/lib/url";
 // unos minutos después de la medianoche argentina). Ninguna página pública lee cookies.
 export const revalidate = 300;
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = { params: Promise<{ marca: string; slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const a = await buscarPorSlug((await params).slug);
   if (!a) return {};
   return {
     title: a.title,
+    alternates: { canonical: canonicalDe(a.primaryDiscipline, `/m/${a.slug}`) },
     description: a.description.slice(0, 160),
     openGraph: { title: a.title, description: a.description.slice(0, 160), images: esUrlWeb(a.coverImageUrl) ? [a.coverImageUrl] : [] },
   };
 }
 
 export default async function Ficha({ params }: Props) {
-  const a = await buscarPorSlug((await params).slug);
+  const { marca, slug } = await params;
+  const a = await buscarPorSlug(slug);
   if (!a) notFound();
+  // Sin la búsqueda: leer `searchParams` volvería dinámica una página que se regenera cada 5 minutos.
+  asegurarCasa(marca, a.primaryDiscipline, `/m/${a.slug}`);
   const ahora = new Date();
   const v = parseVisibility(a.visibility, a.galleryMode);
   // La sorpresa (etapa 6): sólo lo que `visibleWorks` deja ver online. En "cambian para cada

@@ -71,7 +71,7 @@ function todoDe(n: unknown, vistos = new Set<unknown>()): string {
   return Object.entries(n as Record<string, unknown>).filter(([k]) => k !== "_owner").map(([, v]) => todoDe(v, vistos)).join(" ");
 }
 const abrir = () => AdquirirObra({ params: Promise.resolve({ slug: "silos", workId: "w1" }) });
-const abrirPublica = () => AdquirirObraPublica({ params: Promise.resolve({ slug: "silos", workId: "w1" }) });
+const abrirPublica = () => AdquirirObraPublica({ params: Promise.resolve({ marca: "fotografia", slug: "silos", workId: "w1" }) });
 
 const oferta = (extra: Record<string, unknown> = {}) => ({
   id: "of1", format: "DIGITAL", editionKind: "LIMITED", editionSize: 10, proofCount: 0, paper: null, widthCm: null, heightCm: null,

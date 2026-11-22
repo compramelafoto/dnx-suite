@@ -6,12 +6,16 @@ import { DatosInauguracion } from "@/components/inauguracion/datos-inauguracion"
 import { MiAsistencia } from "@/components/inauguracion/mi-asistencia";
 import { baseUrlPublica } from "@/lib/fichas/cargar";
 import { asistenciaPorToken, eventoDeInauguracion } from "@/lib/inauguracion/consultas";
+import { asegurarCasa, textoDeBusqueda } from "@/lib/marca-de-muestra";
 
 export const dynamic = "force-dynamic";
 // El token va en la URL: que no viaje como referencia a ningún otro sitio ni lo indexe nadie.
 export const metadata: Metadata = { title: "Tu lugar en la inauguración", referrer: "no-referrer", robots: { index: false, follow: false } };
 
-type Props = { params: Promise<{ slug: string; token: string }> };
+type Props = {
+  params: Promise<{ marca: string; slug: string; token: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
 
 const ESTADO: Record<string, string> = {
   CONFIRMED: "Tu lugar está confirmado.",
@@ -20,11 +24,12 @@ const ESTADO: Record<string, string> = {
 };
 
 /** El enlace personal de quien confirmó (D18): ver el estado y cancelar. */
-export default async function MiLugar({ params }: Props) {
-  const { slug, token } = await params;
+export default async function MiLugar({ params, searchParams }: Props) {
+  const { marca, slug, token } = await params;
   const r = await asistenciaPorToken(token);
   if (!r || r.activity.slug !== slug || r.activity.reviewStatus !== "APPROVED") notFound();
   const a = r.activity;
+  asegurarCasa(marca, a.primaryDiscipline, `/m/${a.slug}/inauguracion/r/${encodeURIComponent(token)}`, textoDeBusqueda((await searchParams) ?? {}));
   const ahora = new Date();
   const empezo = !!a.openingAt && ahora.getTime() >= a.openingAt.getTime();
   const personas = partySize(r.companions);

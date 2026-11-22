@@ -4,21 +4,27 @@ import { notFound } from "next/navigation";
 import { formatArDay, guestbookSignature, guestbookState } from "@repo/muestras";
 import { FormularioLibro } from "@/components/libro/formulario-libro";
 import { buscarPorSlug } from "@/lib/actividades/consultas";
+import { asegurarCasa, canonicalDe } from "@/lib/marca-de-muestra";
 import { entradasPublicadas } from "@/lib/libro/consultas";
 
 export const revalidate = 300;
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = { params: Promise<{ marca: string; slug: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const a = await buscarPorSlug((await params).slug);
   // Sin indexar: le quita a un spammer el incentivo de posicionar texto (D20).
-  return a ? { title: `Libro de visitas: ${a.title}`, robots: { index: false } } : {};
+  return a
+    ? { title: `Libro de visitas: ${a.title}`, robots: { index: false }, alternates: { canonical: canonicalDe(a.primaryDiscipline, `/m/${a.slug}/libro`) } }
+    : {};
 }
 
 export default async function LibroDeVisitas({ params }: Props) {
-  const a = await buscarPorSlug((await params).slug);
+  const { marca, slug } = await params;
+  const a = await buscarPorSlug(slug);
   if (!a || a.type !== "MUESTRA") notFound();
+  // Sin la búsqueda: leer `searchParams` volvería dinámica una página que se regenera cada 5 minutos.
+  asegurarCasa(marca, a.primaryDiscipline, `/m/${a.slug}/libro`);
   const estado = guestbookState(a, new Date());
   if (estado === "UNAVAILABLE") notFound();
   const entradas = await entradasPublicadas(a.id, 200);

@@ -6,23 +6,33 @@ import { DatosInauguracion } from "@/components/inauguracion/datos-inauguracion"
 import { FormularioAsistencia } from "@/components/inauguracion/formulario-asistencia";
 import { baseUrlPublica } from "@/lib/fichas/cargar";
 import { eventoDeInauguracion, invitacionPublica } from "@/lib/inauguracion/consultas";
+import { asegurarCasa, canonicalDe, textoDeBusqueda } from "@/lib/marca-de-muestra";
 import { esUrlWeb } from "@/lib/url";
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ slug: string }> };
+type Props = {
+  params: Promise<{ marca: string; slug: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const a = await invitacionPublica((await params).slug);
   if (!a || rsvpState(a, new Date()) === "UNAVAILABLE") return {};
   const titulo = `Inauguración: ${a.title}`;
-  return { title: titulo, openGraph: { title: titulo, images: esUrlWeb(a.coverImageUrl) ? [a.coverImageUrl] : [] } };
+  return {
+    title: titulo,
+    alternates: { canonical: canonicalDe(a.primaryDiscipline, `/m/${a.slug}/inauguracion`) },
+    openGraph: { title: titulo, images: esUrlWeb(a.coverImageUrl) ? [a.coverImageUrl] : [] },
+  };
 }
 
 /** La invitación pública a la inauguración (D14). No muestra quiénes ni cuántos van. */
-export default async function Invitacion({ params }: Props) {
-  const a = await invitacionPublica((await params).slug);
+export default async function Invitacion({ params, searchParams }: Props) {
+  const { marca, slug } = await params;
+  const a = await invitacionPublica(slug);
   if (!a) notFound();
+  asegurarCasa(marca, a.primaryDiscipline, `/m/${a.slug}/inauguracion`, textoDeBusqueda((await searchParams) ?? {}));
   const estado = rsvpState(a, new Date());
   if (estado === "UNAVAILABLE") notFound();
   const evento = eventoDeInauguracion(a, baseUrlPublica());

@@ -1,8 +1,9 @@
 import "server-only";
 import { cache } from "react";
 import { prisma } from "@repo/db";
-import { activityRole } from "@repo/muestras";
+import { PHOTOGRAPHY, activityRole } from "@repo/muestras";
 import { conPermiso, dondePuede } from "@/lib/equipo/permisos";
+import type { MarcaId } from "@/lib/marca";
 import type { Usuario } from "@/lib/usuario";
 
 type Quien = Pick<Usuario, "id" | "esSuperAdmin">;
@@ -15,14 +16,18 @@ const CAMPOS_PUBLICOS = {
   id: true, slug: true, type: true, title: true, coverImageUrl: true, organizersText: true,
   startsAt: true, endsAt: true, scheduleText: true, isVirtualOnly: true, venueName: true,
   city: true, province: true, country: true, latitude: true, longitude: true, isCancelled: true,
+  primaryDiscipline: true, otherDisciplines: true,
 } as const;
 
 export type ActividadPublica = Awaited<ReturnType<typeof listarPublicas>>[number];
 
-/** Todo lo publicado, incluido el archivo. El filtro por fecha y provincia se hace con `applyFilter`. */
-export function listarPublicas() {
+/**
+ * Todo lo publicado, incluido el archivo. El filtro por fecha y provincia se hace con `applyFilter`.
+ * En fotografía, sólo las de fotografía; en arte, todas (la fotografía también es arte).
+ */
+export function listarPublicas(marca: MarcaId) {
   return prisma.culturalActivity.findMany({
-    where: { reviewStatus: "APPROVED" },
+    where: marca === "FOTOGRAFIA" ? { reviewStatus: "APPROVED", primaryDiscipline: PHOTOGRAPHY } : { reviewStatus: "APPROVED" },
     select: CAMPOS_PUBLICOS,
     orderBy: { startsAt: "asc" },
     take: 2000,

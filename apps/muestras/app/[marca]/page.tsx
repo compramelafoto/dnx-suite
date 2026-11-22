@@ -22,7 +22,7 @@ export default async function Inicio({ params, searchParams }: { params: Promise
   const marca = await marcaDeParams(params);
   const sp = await searchParams;
   const ahora = new Date();
-  const todas = await listarPublicas();
+  const todas = await listarPublicas(marca.id);
   const paisDe = (a: (typeof todas)[number]) => a.country || DEFAULT_COUNTRY;
   // Argentina primero (es la mayoría); el resto, por orden alfabético.
   const paises = [...new Set(todas.map(paisDe))].sort((a, b) => (a === DEFAULT_COUNTRY ? -1 : b === DEFAULT_COUNTRY ? 1 : a.localeCompare(b, "es")));

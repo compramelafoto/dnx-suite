@@ -5,13 +5,14 @@ import { formatArDay, neighborWorks, parseVisibility, visibleWorks, workAccess, 
 import { ContarVisita } from "@/components/estadisticas/contar-visita";
 import { EstadoActividad } from "@/components/ficha/estado";
 import { buscarPorSlug } from "@/lib/actividades/consultas";
+import { asegurarCasa, canonicalDe } from "@/lib/marca-de-muestra";
 import { distinctionsForWorks, premioVisible } from "@/lib/concursos/publico";
 import { esUrlWeb } from "@/lib/url";
 import { obraALaVenta } from "@/lib/ventas/a-la-venta";
 
 export const revalidate = 300;
 
-type Props = { params: Promise<{ slug: string; workId: string }> };
+type Props = { params: Promise<{ marca: string; slug: string; workId: string }> };
 
 async function cargar(slug: string, workId: string, ahora: Date) {
   // `buscarPorSlug` ya filtra por reviewStatus "APPROVED": una muestra sin publicar no existe acá.
@@ -35,7 +36,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: titulo,
     description: descripcion,
-    alternates: { canonical: workPath(r.a.slug, r.obra.id) },
+    alternates: { canonical: canonicalDe(r.a.primaryDiscipline, workPath(r.a.slug, r.obra.id)) },
     // Sin la foto (la galería la reserva para la visita) no tiene sentido indexarla.
     robots: r.conFoto ? undefined : { index: false },
     openGraph: { title: titulo, description: descripcion, images: r.conFoto ? [r.obra.imageUrl] : [] },
@@ -43,11 +44,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function PaginaDeObra({ params }: Props) {
-  const { slug, workId } = await params;
+  const { marca, slug, workId } = await params;
   const ahora = new Date();
   const r = await cargar(slug, workId, ahora);
   if (!r) notFound();
   const { a, obra, conFoto, seRevela } = r;
+  // Sin la búsqueda: leer `searchParams` volvería dinámica una página que se regenera cada 5 minutos.
+  asegurarCasa(marca, a.primaryDiscipline, workPath(a.slug, obra.id));
   const autor = obra.authorName || "Autor sin indicar";
   // Reservada para la sala: sólo título y autor (ni año ni técnica, que la describen).
   const datos = conFoto ? [obra.year ? String(obra.year) : null, obra.technique].filter(Boolean).join(". ") : "";
