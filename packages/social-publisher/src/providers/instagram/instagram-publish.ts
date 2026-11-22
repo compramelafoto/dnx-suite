@@ -5,6 +5,10 @@ import { SocialPublisherError } from "../../types";
 import type { ProviderPublishInput, SocialPublishProvider } from "../types";
 import { createMetaGraphClient } from "./graph-client";
 
+/** Consultas del estado del contenedor antes de publicar: 20 × 2 s = 40 s como mucho. */
+const MAX_ESPERAS_CONTENEDOR = 20;
+const ESPERA_CONTENEDOR_MS = 2000;
+
 /** Piso de fotos para que un carrusel tenga sentido. */
 const CAROUSEL_MIN = 2;
 /** Tope de Meta para un carrusel. */
@@ -145,7 +149,10 @@ async function crearConColaboradores(
 export function createInstagramPublishProvider(options?: {
   apiVersion?: string;
   fetchImpl?: typeof fetch;
+  /** Para tests: reemplaza la espera entre consultas del estado del contenedor. */
+  sleepImpl?: (ms: number) => Promise<void>;
 }): SocialPublishProvider {
+  const dormir = options?.sleepImpl ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const client = createMetaGraphClient({
     apiVersion: options?.apiVersion,
     fetchImpl: options?.fetchImpl,
@@ -212,6 +219,30 @@ export function createInstagramPublishProvider(options?: {
         return r.id;
       }
 
+      async function esperarContenedor(id: string): Promise<void> {
+        for (let intento = 0; intento < MAX_ESPERAS_CONTENEDOR; intento++) {
+          const r = await client.request<{ status_code?: string; status?: string }>(
+            `/${id}?fields=status_code,status`,
+            { accessToken: input.accessToken },
+          );
+          // Sin `status_code` (respuestas viejas o de prueba) no hay nada que esperar.
+          if (!r.status_code || r.status_code === "FINISHED" || r.status_code === "PUBLISHED") return;
+          if (r.status_code === "ERROR" || r.status_code === "EXPIRED") {
+            throw new SocialPublisherError(
+              "CONTAINER_FAILED",
+              `Meta no pudo procesar la imagen (${r.status_code}${r.status ? `: ${r.status}` : ""})`,
+              true,
+            );
+          }
+          await dormir(ESPERA_CONTENEDOR_MS);
+        }
+        throw new SocialPublisherError(
+          "CONTAINER_TIMEOUT",
+          "Meta tardó demasiado en procesar la imagen; se reintenta más tarde",
+          true,
+        );
+      }
+
       let contenedorId: string;
       let droppedCollaborators: string[] = [];
       let etiquetasCaidas: string[] = [];
@@ -258,6 +289,11 @@ export function createInstagramPublishProvider(options?: {
         contenedorId = resultado.id;
         droppedCollaborators = resultado.dropped;
       }
+
+      // Meta procesa la imagen después de crear el contenedor. Publicar antes de que
+      // termine da «Media ID is not available» (pasó con la primera historia real,
+      // 2026-11-22): hay que esperar a que el contenedor diga FINISHED.
+      await esperarContenedor(contenedorId);
 
       const published = await client.request<{ id: string }>(`/${igUserId}/media_publish`, {
         method: "POST",
