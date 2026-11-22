@@ -355,6 +355,19 @@ publica en el momento sin esperar al cron.
 **Volumen real** (oct-nov 2026): ~140 álbumes de más de 50 fotos en 30 días, promedio 5
 por día, pico 11. El tope de 10 solo actúa en los picos.
 
-**Para encender:** `META_APP_ID`, `META_APP_SECRET` y `DNX_SOCIAL_VAULT_MASTER_KEY` en
-Vercel → conectar la cuenta desde `/admin/social` → revisar unos días en simulacro →
+**Conexión (cambio 2026-11-22): token de usuario del sistema, no inicio de sesión con
+Instagram.** Meta ya no ofrece «inicio de sesión con Instagram» en apps nuevas: la app
+«CLF Publicador» solo tiene inicio de sesión con Facebook/unificado. Además el motor publica
+contra `graph.facebook.com`, donde los tokens de Instagram Login no sirven. Se usa un token
+del usuario del sistema del negocio «Apps para fotógrafos» (activos asignados: página
+«Compramelafoto» y @compramelafoto con permiso Contenido, app «CLF Publicador»; permisos
+`instagram_basic`, `instagram_content_publish`, `pages_show_list`,
+`pages_read_engagement`; caducidad «Nunca»). Se carga en Vercel como
+`CLF_INSTAGRAM_SYSTEM_TOKEN` y el botón «Conectar Instagram» del panel lo verifica, lo
+cifra y lo guarda. No hay renovación: el cron diario solo controla que Meta lo siga
+aceptando y, si no, marca la cuenta caída. Se eliminaron las rutas
+`/api/social/instagram/connect` y `/callback`.
+
+**Para encender:** `CLF_INSTAGRAM_SYSTEM_TOKEN` y `DNX_SOCIAL_VAULT_MASTER_KEY` en Vercel
+→ «Conectar Instagram» en `/admin/social` → revisar unos días en simulacro →
 `DNX_SOCIAL_PUBLISHER_LIVE=true`.
