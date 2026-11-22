@@ -229,11 +229,11 @@ describe("los 20 modelos", () => {
     for (let i = 0; i < 20; i++) expect(fondo(i)).not.toBe(fondo(i + 1));
   });
 
-  it("todas llevan el logo y el botón «Comprar aquí»", () => {
+  it("todas llevan el logo y «COMPRAMELAFOTO.COM»", () => {
     for (const c of STORY_COLLAGES) {
       const bloques = c.document.sides[0]!.blocks;
       expect(bloques.some((b) => b.type === "image" && [LOGO_COLOR_REF, LOGO_BLANCO_REF].includes(b.resourceRef ?? ""))).toBe(true);
-      expect(bloques.some((b) => b.type === "text" && b.content === "Comprar aquí")).toBe(true);
+      expect(bloques.some((b) => b.type === "text" && b.content === "COMPRAMELAFOTO.COM")).toBe(true);
     }
   });
 
