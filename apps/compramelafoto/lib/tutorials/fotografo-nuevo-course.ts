@@ -54,28 +54,33 @@ export const FOTOGRAFO_NUEVO_COURSE_BLOCKS: CourseBlock[] = [
     ],
   },
   {
-    title: "Pedidos y entrega",
+    title: "Tu álbum en Instagram",
     lessons: [
-      { number: 17, title: "Te llegó una venta: la pantalla de pedidos", audience: "Fotógrafo", summary: "El aviso de venta y la pantalla de pedidos." },
-      { number: 18, title: "La ficha del pedido", audience: "Fotógrafo", summary: "Todo lo que pasó con un pedido, en su ficha." },
-      { number: 19, title: "La entrega de las fotos digitales", audience: "Fotógrafo", summary: "La entrega digital es automática." },
-      { number: 20, title: "La entrega de las fotos impresas", audience: "Fotógrafo", summary: "Lotes, laboratorio, sobres con QR y entregado." },
-      { number: 21, title: "Cuánto ganaste y cierre del curso", audience: "Fotógrafo", summary: "Cuánto ganaste, y el cierre del recorrido." },
+      { number: 17, title: "Que ComprameLaFoto publique historias de tu álbum", audience: "Fotógrafo", summary: "Activá las historias de tu álbum en el Instagram de ComprameLaFoto y sumá etiquetas." },
     ],
   },
   {
-    title: "La gestión de impresiones",
+    title: "Pedidos y entrega digital",
     lessons: [
-      { number: 22, title: "Tus laboratorios", audience: "Fotógrafo", summary: "Cargá tus laboratorios y marcá dónde retiran tus clientes." },
-      { number: 23, title: "Precios de impresión y quién entrega", audience: "Fotógrafo", summary: "Precios de impresión y quién le entrega las copias al cliente." },
-      { number: 24, title: "Cómo pide tu cliente las fotos impresas", audience: "Cliente", summary: "Qué elige tu cliente al pedir fotos impresas." },
+      { number: 18, title: "Te llegó una venta: la pantalla de pedidos", audience: "Fotógrafo", summary: "El aviso de venta y la pantalla de pedidos." },
+      { number: 19, title: "La ficha del pedido", audience: "Fotógrafo", summary: "Todo lo que pasó con un pedido, en su ficha." },
+      { number: 20, title: "La entrega de las fotos digitales", audience: "Fotógrafo", summary: "La entrega digital es automática." },
+    ],
+  },
+  {
+    title: "Fotos impresas",
+    lessons: [
+      { number: 21, title: "Tus laboratorios", audience: "Fotógrafo", summary: "Cargá tus laboratorios y marcá dónde retiran tus clientes." },
+      { number: 22, title: "Precios de impresión y quién entrega", audience: "Fotógrafo", summary: "Precios de impresión y quién le entrega las copias al cliente." },
+      { number: 23, title: "Cómo pide tu cliente las fotos impresas", audience: "Cliente", summary: "Qué elige tu cliente al pedir fotos impresas." },
+      { number: 24, title: "La entrega de las fotos impresas", audience: "Fotógrafo", summary: "Lotes, laboratorio, sobres con QR y entregado." },
       { number: 25, title: "Del lote al laboratorio, y el pago al laboratorio", audience: "Fotógrafo", summary: "El lote al laboratorio, el aviso al cliente y el pago al laboratorio." },
     ],
   },
   {
-    title: "Tu álbum en Instagram",
+    title: "Cierre",
     lessons: [
-      { number: 26, title: "Que ComprameLaFoto publique historias de tu álbum", audience: "Fotógrafo", summary: "Activá las historias de tu álbum en el Instagram de ComprameLaFoto y sumá etiquetas." },
+      { number: 26, title: "Cuánto ganaste y cierre del curso", audience: "Fotógrafo", summary: "Cuánto ganaste, y el cierre del recorrido." },
     ],
   },
 ];

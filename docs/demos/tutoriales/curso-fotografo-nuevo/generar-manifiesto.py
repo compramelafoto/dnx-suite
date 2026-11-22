@@ -41,6 +41,10 @@ TOMAS = {
     12: [3.2, 9.9, 20.4, 27.5, 40.4], 13: [3.2, 10.0, 13.9, 27.0, 38.8, 41.9, 46.5],
     14: [3.2, 11.9, 16.7, 25.2, 32.1, 45.3, 62.5], 15: [3.2, 10.5, 17.4, 22.7, 31.0, 33.3, 37.2, 48.1],
     16: [3.2, 10.7, 18.5, 20.9, 27.3, 30.7, 35.1],
+    17: [3.2, 17.2, 25.4, 37.7, 53.3, 61.8, 75.3], 18: [3.2, 16.6, 27.0, 35.3, 41.0], 19: [3.2, 15.4, 22.4, 29.5],
+    20: [3.2, 14.8, 20.4, 29.8, 33.6], 21: [3.2, 16.6, 24.6, 31.7, 42.4, 52.6], 22: [3.2, 18.2, 23.0, 34.1, 41.2, 57.1],
+    23: [3.2, 10.6, 21.8, 25.7, 34.5], 24: [3.2, 9.9, 16.8, 20.4, 25.5, 30.3, 38.7, 45.7, 54.7],
+    25: [3.2, 16.1, 20.5, 30.1, 33.9, 40.7, 47.2, 53.2], 26: [3.2, 18.6, 23.4, 29.9],
 }
 
 COPYS = [
@@ -152,6 +156,73 @@ COPYS = [
          caps=[(0, 'El álbum en el celular'), (1, 'Encontrar sus fotos'), (2, 'Elegir y comprar'),
                (5, 'El pago y el reparto')],
          etiquetas=['comprar fotos', 'mercado pago']),
+    dict(n=17, archivo='C17-historias-de-tu-album-en-instagram.mp4', titulo='Que ComprameLaFoto publique historias de tu álbum',
+         gancho=("ComprameLaFoto puede publicar historias de tu álbum en su Instagram, gratis: un collage con algunas de "
+                 "tus fotos, el nombre del álbum y tu etiqueta. Cargá tu Instagram en tu perfil y, en cada álbum, mirá la "
+                 "casilla de «Privacidad y acceso»: viene marcada y se guarda al instante. Sumá al organizador, al club o "
+                 "a los sponsors para que compartan la historia. Sólo entran los álbumes públicos, sin selfie y con más "
+                 "de 50 fotos."),
+         caps=[(0, 'Las historias de tu álbum'), (1, 'Tu Instagram en el perfil'), (2, 'La casilla del álbum'),
+               (3, 'Cuándo se publican'), (5, 'Sumar etiquetas'), (6, 'Qué álbumes entran')],
+         etiquetas=['instagram', 'historias de instagram', 'difundir album']),
+    dict(n=18, archivo='C18-te-llego-una-venta.mp4', titulo='Te llegó una venta: la pantalla de pedidos',
+         gancho=("Cuando alguien te compra, te llega un correo con el número de pedido, los datos del cliente y el "
+                 "total. Todo lo que vendiste está en «Pedidos»: arriba ves cuántos tenés, cuántos están pagados, cuántos "
+                 "se descargaron y cuántos hay que imprimir; con los filtros ves sólo lo que te interesa y con el "
+                 "buscador encontrás a cualquier cliente."),
+         caps=[(0, 'El correo de venta'), (1, 'La pantalla de pedidos'), (2, 'Los filtros'), (3, 'El buscador')],
+         etiquetas=['pedidos', 'ventas de fotos']),
+    dict(n=19, archivo='C19-la-ficha-del-pedido.mp4', titulo='La ficha del pedido',
+         gancho=("Tocás un pedido y se abre su ficha: si está pagado, si la descarga está lista, si lleva impresión y "
+                 "quién retira. Los datos del cliente, con WhatsApp a un toque, y la línea de tiempo con todo lo que "
+                 "pasó. Abajo, las acciones para entregar."),
+         caps=[(0, 'El resumen'), (1, 'Los datos del cliente'), (2, 'La línea de tiempo')],
+         etiquetas=['pedidos', 'atencion al cliente']),
+    dict(n=20, archivo='C20-la-entrega-de-las-fotos-digitales.mp4', titulo='La entrega de las fotos digitales',
+         gancho=("La entrega digital es automática: apenas se acredita el pago, al cliente le llega un correo con «Ver "
+                 "mis fotos». Ahí las baja una por una o todas juntas en un ZIP, hasta la fecha que dice «Disponible "
+                 "hasta». Y si te dice que no le llegó, le mandás el link desde la ficha del pedido."),
+         caps=[(0, 'El correo al cliente'), (1, 'El centro de descargas'), (3, 'Si no le llegó')],
+         etiquetas=['entrega digital', 'descargar fotos']),
+    dict(n=21, archivo='C21-tus-laboratorios.mp4', titulo='Tus laboratorios',
+         gancho=("Si vendés fotos impresas, empezá por cargar tus laboratorios en «Impresiones → Mis laboratorios»: lo "
+                 "elegís del directorio o lo cargás vos, con su correo (ahí le llegan los lotes). Si tus clientes pueden "
+                 "retirar ahí, cargás la dirección y el horario. Y el que más usás queda como predeterminado."),
+         caps=[(0, 'Mis laboratorios'), (1, 'Agregar un laboratorio'), (3, 'Punto de retiro'), (4, 'El predeterminado')],
+         etiquetas=['laboratorio fotografico', 'fotos impresas']),
+    dict(n=22, archivo='C22-precios-de-impresion-y-quien-entrega.mp4', titulo='Precios de impresión y quién entrega',
+         gancho=("Hay dos formas de ponerle precio a una foto impresa: tu propia lista en «Mis productos impresos», o los "
+                 "precios del laboratorio más tu margen. Y la decisión importante: si el cliente retira en el "
+                 "laboratorio o si las copias vuelven a vos y las entregás vos."),
+         caps=[(0, 'Tu lista de productos'), (2, 'De dónde salen los precios'), (3, 'Precios del laboratorio'),
+               (4, 'Quién entrega las copias')],
+         etiquetas=['fotos impresas', 'precios de impresion']),
+    dict(n=23, archivo='C23-como-pide-tu-cliente-las-fotos-impresas.mp4', titulo='Cómo pide tu cliente las fotos impresas',
+         gancho=("Así lo ve tu cliente: en cada foto elige digital o impresa; si es impresa, el tamaño, el acabado y "
+                 "cuántas copias, y el precio se calcula solo. Puede duplicar una foto para pedirla en dos tamaños y, si "
+                 "retira en un laboratorio, elige dónde."),
+         caps=[(0, 'Configurar el pedido'), (1, 'Tamaño, acabado y copias'), (3, 'Dónde retirar'), (4, 'El pago')],
+         etiquetas=['fotos impresas', 'comprar fotos']),
+    dict(n=24, archivo='C24-la-entrega-de-las-fotos-impresas.mp4', titulo='La entrega de las fotos impresas',
+         gancho=("Todo lo impreso se maneja en «Impresiones», en cuatro pasos: para imprimir, en el laboratorio, listos "
+                 "para entregar y entregados. Armás un lote, lo mandás al laboratorio, ves si lo abrió y si descargó las "
+                 "fotos, y con el QR de cada sobre avisás al cliente y marcás la entrega."),
+         caps=[(0, 'Los cuatro pasos'), (2, 'Armar el lote'), (3, 'Enviarlo al laboratorio'), (5, 'La tarjeta del lote'),
+               (7, 'El QR del sobre')],
+         etiquetas=['fotos impresas', 'laboratorio fotografico', 'entrega de pedidos']),
+    dict(n=25, archivo='C25-del-lote-al-laboratorio-y-el-pago.mp4', titulo='Del lote al laboratorio, y el pago al laboratorio',
+         gancho=("Los pedidos de impresión siempre pasan por tu panel. Armás un lote por laboratorio y lo mandás con un "
+                 "mensaje, cómo te lo entregan y la fecha en que lo necesitás. El laboratorio abre un enlace, sin cuenta, "
+                 "descarga las fotos ordenadas y marca cómo avanza. Al laboratorio le pagás vos, por fuera, y lo dejás "
+                 "registrado."),
+         caps=[(0, 'Tu panel de impresiones'), (2, 'Enviar el lote'), (3, 'Lo que ve el laboratorio'), (7, 'El pago al laboratorio')],
+         etiquetas=['laboratorio fotografico', 'fotos impresas']),
+    dict(n=26, archivo='C26-cuanto-ganaste-y-cierre.mp4', titulo='Cuánto ganaste y cierre del curso',
+         gancho=("Para ver cuánto ganaste entrás a «Analytics»: el neto es lo tuyo, sin la comisión, y filtrás por álbum y "
+                 "por período. Con el cobro dividido, tu parte llega a tu Mercado Pago en el momento de cada venta. Y el "
+                 "cierre del recorrido: ahora te toca a vos subir tu primer evento."),
+         caps=[(0, 'Analytics'), (1, 'Filtrar por álbum y período'), (2, 'El dinero en Mercado Pago'), (3, 'Todo el recorrido')],
+         etiquetas=['ganancias', 'mercado pago']),
 ]
 SIGUIENTE = {c['n']: COPYS[i + 1]['titulo'] if i + 1 < len(COPYS) else None for i, c in enumerate(COPYS)}
 
@@ -196,7 +267,14 @@ def manifiesto():
     }
 
 
+DETALLE = pathlib.Path(__file__).resolve().parents[4] / 'apps/compramelafoto/lib/tutorials/fotografo-nuevo-course-details.ts'
+
+
 def duracion(archivo):
+    if not os.path.exists(f'{VIDEOS}/{archivo}'):  # video ya subido y borrado del disco: la duración que quedó anotada
+        n = int(archivo[1:3])
+        m = re.search(rf'\n  {n}: {{\n    durationSeconds: (\d+)', DETALLE.read_text(encoding='utf-8'))
+        if m: return int(m.group(1))
     out = subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0',
                           f'{VIDEOS}/{archivo}'], capture_output=True, text=True, check=True).stdout
     return round(float(out))

@@ -36,6 +36,16 @@ PORTADAS = {
     14: ('C14-selfie-dorsal-y-aviso-de-fotos-nuevas.mp4', 36, (240, 0, 1440, 810), 'Selfie<br><em>y dorsal</em>'),
     15: ('C15-publica-y-difundi-tu-album.mp4', 39, (240, 100, 1440, 810), 'Difundí<br><em>tu álbum</em>'),
     16: ('C16-como-compra-tu-cliente.mp4', 22, (682, 40, 556, 1000), 'Así compra<br><em>tu cliente</em>'),
+    17: ('C17-historias-de-tu-album-en-instagram.mp4', 8, (0, 0, 1920, 1080), 'Tu álbum<br><em>en Instagram</em>'),
+    18: ('C18-te-llego-una-venta.mp4', 16, (240, 60, 1440, 810), 'Te llegó<br><em>una venta</em>'),
+    19: ('C19-la-ficha-del-pedido.mp4', 10, (480, 60, 1440, 810), 'La ficha<br><em>del pedido</em>'),
+    20: ('C20-la-entrega-de-las-fotos-digitales.mp4', 6, (0, 0, 1920, 1080), 'Entrega<br><em>digital</em>'),
+    21: ('C21-tus-laboratorios.mp4', 30, (240, 60, 1440, 810), 'Tus<br><em>laboratorios</em>'),
+    22: ('C22-precios-de-impresion-y-quien-entrega.mp4', 40, (240, 60, 1440, 810), 'Precios de<br><em>impresión</em>'),
+    23: ('C23-como-pide-tu-cliente-las-fotos-impresas.mp4', 15, (682, 40, 556, 1000), 'Así pide<br><em>impresas</em>'),
+    24: ('C24-la-entrega-de-las-fotos-impresas.mp4', 20, (240, 60, 1440, 810), 'Entregá<br><em>las impresas</em>'),
+    25: ('C25-del-lote-al-laboratorio-y-el-pago.mp4', 37, (240, 60, 1440, 810), 'El lote<br><em>al laboratorio</em>'),
+    26: ('C26-cuanto-ganaste-y-cierre.mp4', 9, (240, 60, 1440, 810), 'Cuánto<br><em>ganaste</em>'),
 }
 
 CSS = """

@@ -82,4 +82,54 @@ export const FOTOGRAFO_NUEVO_COURSE_DETAILS: Record<number, CourseLessonDetail> 
     description: "Así ve tu álbum el cliente desde el celular: encuentra sus fotos con una selfie o con su número, elige las que quiere, revisa el resumen, deja su nombre, su correo y su WhatsApp (sin crearse una cuenta) y paga. En ese momento el dinero se reparte y tu parte va a tu cuenta.",
     chapters: [{ at: 0, label: "El álbum en el celular" }, { at: 11, label: "Encontrar sus fotos" }, { at: 31, label: "El pago y el reparto" }],
   },
+  17: {
+    durationSeconds: 92,
+    description: "ComprameLaFoto puede publicar historias de tu álbum en su Instagram, gratis: un collage con algunas de tus fotos, el nombre del álbum y tu etiqueta. Cargá tu Instagram en tu perfil y, en cada álbum, mirá la casilla de «Privacidad y acceso»: viene marcada y se guarda al instante. Sumá al organizador, al club o a los sponsors para que compartan la historia. Sólo entran los álbumes públicos, sin selfie y con más de 50 fotos.",
+    chapters: [{ at: 0, label: "Las historias de tu álbum" }, { at: 17, label: "Tu Instagram en el perfil" }, { at: 38, label: "Cuándo se publican" }, { at: 62, label: "Sumar etiquetas" }, { at: 75, label: "Qué álbumes entran" }],
+  },
+  18: {
+    durationSeconds: 53,
+    description: "Cuando alguien te compra, te llega un correo con el número de pedido, los datos del cliente y el total. Todo lo que vendiste está en «Pedidos»: arriba ves cuántos tenés, cuántos están pagados, cuántos se descargaron y cuántos hay que imprimir; con los filtros ves sólo lo que te interesa y con el buscador encontrás a cualquier cliente.",
+    chapters: [{ at: 0, label: "El correo de venta" }, { at: 17, label: "La pantalla de pedidos" }, { at: 27, label: "Los filtros" }],
+  },
+  19: {
+    durationSeconds: 37,
+    description: "Tocás un pedido y se abre su ficha: si está pagado, si la descarga está lista, si lleva impresión y quién retira. Los datos del cliente, con WhatsApp a un toque, y la línea de tiempo con todo lo que pasó. Abajo, las acciones para entregar.",
+    chapters: [],
+  },
+  20: {
+    durationSeconds: 48,
+    description: "La entrega digital es automática: apenas se acredita el pago, al cliente le llega un correo con «Ver mis fotos». Ahí las baja una por una o todas juntas en un ZIP, hasta la fecha que dice «Disponible hasta». Y si te dice que no le llegó, le mandás el link desde la ficha del pedido.",
+    chapters: [{ at: 0, label: "El correo al cliente" }, { at: 15, label: "El centro de descargas" }, { at: 30, label: "Si no le llegó" }],
+  },
+  21: {
+    durationSeconds: 66,
+    description: "Si vendés fotos impresas, empezá por cargar tus laboratorios en «Impresiones → Mis laboratorios»: lo elegís del directorio o lo cargás vos, con su correo (ahí le llegan los lotes). Si tus clientes pueden retirar ahí, cargás la dirección y el horario. Y el que más usás queda como predeterminado.",
+    chapters: [{ at: 0, label: "Mis laboratorios" }, { at: 17, label: "Agregar un laboratorio" }, { at: 32, label: "Punto de retiro" }, { at: 42, label: "El predeterminado" }],
+  },
+  22: {
+    durationSeconds: 70,
+    description: "Hay dos formas de ponerle precio a una foto impresa: tu propia lista en «Mis productos impresos», o los precios del laboratorio más tu margen. Y la decisión importante: si el cliente retira en el laboratorio o si las copias vuelven a vos y las entregás vos.",
+    chapters: [{ at: 0, label: "Tu lista de productos" }, { at: 23, label: "De dónde salen los precios" }, { at: 34, label: "Precios del laboratorio" }],
+  },
+  23: {
+    durationSeconds: 46,
+    description: "Así lo ve tu cliente: en cada foto elige digital o impresa; si es impresa, el tamaño, el acabado y cuántas copias, y el precio se calcula solo. Puede duplicar una foto para pedirla en dos tamaños y, si retira en un laboratorio, elige dónde.",
+    chapters: [{ at: 0, label: "Configurar el pedido" }, { at: 11, label: "Tamaño, acabado y copias" }, { at: 26, label: "Dónde retirar" }],
+  },
+  24: {
+    durationSeconds: 64,
+    description: "Todo lo impreso se maneja en «Impresiones», en cuatro pasos: para imprimir, en el laboratorio, listos para entregar y entregados. Armás un lote, lo mandás al laboratorio, ves si lo abrió y si descargó las fotos, y con el QR de cada sobre avisás al cliente y marcás la entrega.",
+    chapters: [{ at: 0, label: "Los cuatro pasos" }, { at: 17, label: "Armar el lote" }, { at: 30, label: "La tarjeta del lote" }, { at: 46, label: "El QR del sobre" }],
+  },
+  25: {
+    durationSeconds: 69,
+    description: "Los pedidos de impresión siempre pasan por tu panel. Armás un lote por laboratorio y lo mandás con un mensaje, cómo te lo entregan y la fecha en que lo necesitás. El laboratorio abre un enlace, sin cuenta, descarga las fotos ordenadas y marca cómo avanza. Al laboratorio le pagás vos, por fuera, y lo dejás registrado.",
+    chapters: [{ at: 0, label: "Tu panel de impresiones" }, { at: 20, label: "Enviar el lote" }, { at: 53, label: "El pago al laboratorio" }],
+  },
+  26: {
+    durationSeconds: 49,
+    description: "Para ver cuánto ganaste entrás a «Analytics»: el neto es lo tuyo, sin la comisión, y filtrás por álbum y por período. Con el cobro dividido, tu parte llega a tu Mercado Pago en el momento de cada venta. Y el cierre del recorrido: ahora te toca a vos subir tu primer evento.",
+    chapters: [{ at: 0, label: "Analytics" }, { at: 19, label: "Filtrar por álbum y período" }, { at: 30, label: "Todo el recorrido" }],
+  },
 };
