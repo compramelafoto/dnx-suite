@@ -6,7 +6,7 @@ import { processSocialPublishRequest } from "@/lib/social/worker";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 90;
 
 /** Veto del admin: `{ action: "cancel" }` la saca de la cola; `{ action: "now" }` la adelanta. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

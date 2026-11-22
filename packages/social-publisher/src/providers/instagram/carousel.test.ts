@@ -38,7 +38,7 @@ function fetchEspia(llamadas: Llamada[], respuestas: string[]): typeof fetch {
 test("el carrusel crea un hijo por foto y un padre con caption y colaboradores", async () => {
   const llamadas: Llamada[] = [];
   const provider = createInstagramPublishProvider({
-    fetchImpl: fetchEspia(llamadas, ["hijo1", "hijo2", "hijo3", "padre", "post"]),
+    fetchImpl: fetchEspia(llamadas, ["hijo1", "hijo2", "hijo3", "padre", "estado", "post"]),
   });
 
   const r = await provider.publish({
@@ -71,8 +71,9 @@ test("el carrusel crea un hijo por foto y un padre con caption y colaboradores",
   assert.equal(padre.body.caption, "Las fotos ya están en compramelafoto.com");
   assert.deepEqual(JSON.parse(padre.body.collaborators!), ["fotografo", "organizador"]);
 
-  const publicar = llamadas[4]!;
-  assert.ok(publicar.url.includes("/media_publish"));
+  // Entre crear el padre y publicarlo se consulta su estado (ver «espera a que Meta…»).
+  assert.ok(llamadas[4]!.url.includes("/padre?fields=status_code"));
+  const publicar = llamadas.find((l) => l.url.includes("/media_publish"))!;
   assert.equal(publicar.body.creation_id, "padre");
 });
 
@@ -253,6 +254,61 @@ test("si la cuenta del fotógrafo es la mala, etiqueta igual al resto", async ()
     dryRun: false,
   });
   assert.deepEqual((r.providerRawSanitized as { droppedUserTags?: string[] }).droppedUserTags, ["fotografo_privado"]);
+});
+
+test("espera a que Meta termine de procesar la imagen antes de publicar", async () => {
+  const llamadas: string[] = [];
+  let consultas = 0;
+  const fetchImpl = (async (input: string | URL, init?: RequestInit) => {
+    const url = String(input);
+    llamadas.push(`${init?.method ?? "GET"} ${new URL(url).pathname}`);
+    if (url.includes("fields=status_code")) {
+      consultas++;
+      return new Response(JSON.stringify({ status_code: consultas < 3 ? "IN_PROGRESS" : "FINISHED" }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ id: url.includes("media_publish") ? "post1" : "cont1" }), { status: 200 });
+  }) as unknown as typeof fetch;
+  const esperas: number[] = [];
+  const provider = createInstagramPublishProvider({ fetchImpl, sleepImpl: async (ms) => void esperas.push(ms) });
+
+  const r = await provider.publish({
+    account: cuenta,
+    accessToken: "t",
+    caption: "",
+    format: "STORY",
+    assets: [{ assetId: "1", kind: "IMAGE", publicUrl: "https://cdn.test/s.jpg" }],
+    dryRun: false,
+  });
+
+  assert.equal(r.ok, true);
+  assert.equal(consultas, 3);
+  assert.equal(esperas.length, 2);
+  // Publica recién después de que el contenedor dijo FINISHED.
+  const iPublicar = llamadas.findIndex((l) => l.includes("media_publish"));
+  const iUltimaConsulta = llamadas.map((l, i) => (l.startsWith("GET /v21.0/cont1") ? i : -1)).filter((i) => i >= 0).pop()!;
+  assert.ok(iPublicar > iUltimaConsulta);
+});
+
+test("si Meta no puede procesar la imagen, no publica y se reintenta", async () => {
+  const fetchImpl = (async (input: string | URL) => {
+    const url = String(input);
+    if (url.includes("fields=status_code")) return new Response(JSON.stringify({ status_code: "ERROR" }), { status: 200 });
+    if (url.includes("media_publish")) throw new Error("no debería publicar");
+    return new Response(JSON.stringify({ id: "cont1" }), { status: 200 });
+  }) as unknown as typeof fetch;
+  const provider = createInstagramPublishProvider({ fetchImpl, sleepImpl: async () => {} });
+  await assert.rejects(
+    () =>
+      provider.publish({
+        account: cuenta,
+        accessToken: "t",
+        caption: "",
+        format: "STORY",
+        assets: [{ assetId: "1", kind: "IMAGE", publicUrl: "https://cdn.test/s.jpg" }],
+        dryRun: false,
+      }),
+    (e: unknown) => (e as { code?: string; retryable?: boolean }).code === "CONTAINER_FAILED" && (e as { retryable?: boolean }).retryable === true,
+  );
 });
 
 test("un carrusel necesita al menos dos fotos", async () => {

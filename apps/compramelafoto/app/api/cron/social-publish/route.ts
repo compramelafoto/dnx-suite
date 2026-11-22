@@ -4,6 +4,8 @@ import { runSocialPublishWorker } from "@/lib/social/worker";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+/** Cada publicación espera a que Meta procese la imagen (hasta 40 s): margen para varias. */
+export const maxDuration = 300;
 
 /** Cron autenticado; el worker solo usa Meta si DNX_SOCIAL_PUBLISHER_LIVE=true. */
 export async function GET(request: Request) {
