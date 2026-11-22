@@ -661,6 +661,46 @@ CURSO = [
             },
         ],
     },
+    {
+        "titulo": "Capítulo extra · Tu álbum en Instagram",
+        "clases": [
+            {
+                "cod": "C26", "titulo": "Que ComprameLaFoto publique historias de tu álbum", "dur": "3 min",
+                "arranca": "/fotografo/configuracion (pestaña «Perfil») y la sección «Configuración» de un álbum",
+                "tomas": [
+                    ("Instagram de ComprameLaFoto en el celular: una historia con el collage de fotos con marca de "
+                     "agua, la etiqueta del fotógrafo y el botón «Comprar aquí».",
+                     "ComprameLaFoto puede publicar historias de tu álbum en su Instagram, gratis. Es un collage con "
+                     "algunas de tus fotos, con marca de agua, tu etiqueta y un botón para comprar. Así tu evento "
+                     "llega a mucha más gente."),
+                    ("Configuración → «Perfil». Señalar el campo «Instagram» y escribir el usuario.",
+                     "Primero, cargá tu Instagram en tu perfil. Es la cuenta que vamos a etiquetar en cada historia: "
+                     "así la gente que ve las fotos llega a vos."),
+                    ("Abrir un álbum, sección «Configuración» → «Privacidad y acceso». Señalar la casilla «Difundir "
+                     "en las historias de Instagram de CompraMeLaFoto», ya marcada.",
+                     "Después, en cada álbum, entrás a «Configuración», en «Privacidad y acceso». Esta casilla viene "
+                     "marcada: todos tus álbumes ya entran. Y se guarda al instante, no hace falta tocar «Guardar»."),
+                    ("Señalar el texto de ayuda: «Si el álbum tiene más de 50 fotos, publicamos 3 historias en días "
+                     "distintos…».",
+                     "Para entrar, el álbum tiene que tener más de cincuenta fotos. Si las tiene, publicamos tres "
+                     "historias en días distintos, cada una con tres o cuatro fotos. Las armamos solas en los días "
+                     "siguientes a que creás el álbum: vos no tenés que hacer nada más."),
+                    ("En «Etiquetar también», escribir un usuario (por ejemplo el del organizador) y tocar "
+                     "«Agregar». Mostrar la etiqueta con la «×».",
+                     "Acá podés sumar otras cuentas para etiquetar: el organizador, el club, la empresa o los "
+                     "sponsors del evento. Hasta veinte. A ellos les llega la notificación y pueden compartir la "
+                     "historia, que es justo lo que querés."),
+                    ("Marcar «Fotos ocultas hasta selfie» y mostrar que la casilla se apaga con «Solo los álbumes "
+                     "públicos y sin selfie pueden aparecer en las historias». Volver a desmarcar.",
+                     "Ojo: sólo entran los álbumes públicos y sin selfie. Si tu álbum es privado, no aparece en las "
+                     "historias. Y si en algún álbum no querés que se publique, desmarcás la casilla y listo."),
+                ],
+                "ojo": "La casilla sólo aparece si la cuenta de Instagram de ComprameLaFoto está conectada. Filmar en "
+                       "un álbum público, sin selfie. Para la primera toma, usar una historia real ya publicada o "
+                       "una vista previa de /admin/social (no la pantalla de admin).",
+            },
+        ],
+    },
 ]
 
 # Shorts verticales: un video corto por cada configuración o acción. (gancho, paso, cierre)
@@ -835,6 +875,12 @@ SHORTS = [
      ("Correo «Lote N…», «Descargar el ZIP», «Está listo».",
       "Le llega un correo, baja las fotos ordenadas por medida y, cuando están listas, el cliente recibe el aviso."),
      ("«Pagado al laboratorio».", "Le pagás vos y lo marcás: cada lote, bajo control.")),
+    ("S32", "Tu álbum en las historias de ComprameLaFoto", "C26",
+     ("Historia de ComprameLaFoto con el botón «Comprar aquí».", "¿Querés que tu evento llegue a más gente, gratis?"),
+     ("Casilla «Difundir en las historias de Instagram de CompraMeLaFoto» y «Etiquetar también».",
+      "Cargá tu Instagram en el perfil y dejá marcada esta casilla en el álbum. Publicamos tres historias con tus "
+      "fotos y te etiquetamos. Sumá al organizador o a los sponsors para que la compartan."),
+     ("«Solo los álbumes públicos y sin selfie…».", "Sólo para álbumes públicos y sin selfie.")),
 ]
 
 # Cosas encontradas en el código que el guion esquiva (para decidir si se arreglan antes de grabar).
@@ -855,4 +901,7 @@ HALLAZGOS = [
     "Lo que se elige en «Configuración de ventas» sobre quién entrega las impresiones no se usa en la compra: "
     "manda lo que se elige en la pestaña «Venta» de cada álbum.",
     "Al laboratorio se le paga por fuera de la plataforma: «Pagado al laboratorio» es solo un registro.",
+    "Historias de Instagram: con 50 fotos o menos el álbum no entra. Se buscan álbumes creados hace entre 6 horas y "
+    "3 días, se arman hasta 8 por corrida y salen como máximo 10 historias por día, así que en semanas cargadas "
+    "pueden demorarse. El admin puede sacar una historia antes de que salga, desde /admin/social.",
 ]

@@ -72,6 +72,12 @@ export const FOTOGRAFO_NUEVO_COURSE_BLOCKS: CourseBlock[] = [
       { number: 25, title: "Del lote al laboratorio, y el pago al laboratorio", audience: "Fotógrafo", summary: "El lote al laboratorio, el aviso al cliente y el pago al laboratorio." },
     ],
   },
+  {
+    title: "Tu álbum en Instagram",
+    lessons: [
+      { number: 26, title: "Que ComprameLaFoto publique historias de tu álbum", audience: "Fotógrafo", summary: "Activá las historias de tu álbum en el Instagram de ComprameLaFoto y sumá etiquetas." },
+    ],
+  },
 ];
 
 export const FOTOGRAFO_NUEVO_COURSE_LESSON_COUNT = countLessons(FOTOGRAFO_NUEVO_COURSE_BLOCKS);
