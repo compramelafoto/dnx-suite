@@ -156,6 +156,39 @@ test("si Meta rechaza la etiqueta, la historia sale igual sin etiqueta", async (
   ]);
 });
 
+test("si una etiqueta extra falla, la historia sale con la del fotógrafo", async () => {
+  const llamadas: Llamada[] = [];
+  const fetchImpl = (async (input: string | URL, init?: RequestInit) => {
+    const body = Object.fromEntries(
+      new URLSearchParams(typeof init?.body === "string" ? init.body : ""),
+    ) as Record<string, string>;
+    llamadas.push({ url: String(input), body });
+    if (body.user_tags && JSON.parse(body.user_tags).length > 1) {
+      return new Response(JSON.stringify({ error: { message: "Invalid user_tags", code: 100 } }), {
+        status: 400,
+      });
+    }
+    return new Response(JSON.stringify({ id: `id${llamadas.length}` }), { status: 200 });
+  }) as unknown as typeof fetch;
+  const provider = createInstagramPublishProvider({ fetchImpl });
+
+  const r = await provider.publish({
+    account: cuenta,
+    accessToken: "t",
+    caption: "",
+    format: "STORY",
+    userTags: ["fotografo", "cuenta_privada"],
+    assets: [{ assetId: "1", kind: "IMAGE", publicUrl: "https://cdn.test/s.jpg" }],
+    dryRun: false,
+  });
+
+  assert.equal(r.ok, true);
+  assert.deepEqual(JSON.parse(llamadas[1]!.body.user_tags!), [{ username: "fotografo" }]);
+  assert.deepEqual((r.providerRawSanitized as { droppedUserTags?: string[] }).droppedUserTags, [
+    "cuenta_privada",
+  ]);
+});
+
 test("un carrusel necesita al menos dos fotos", async () => {
   const provider = createInstagramPublishProvider({
     fetchImpl: fetchEspia([], []),

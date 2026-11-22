@@ -327,9 +327,9 @@ Reemplaza, **solo para los álbumes de CLF**, lo dicho en §5 (carrusel + histor
 | Qué álbumes | Los que el fotógrafo marcó | Públicos de **más de 50 fotos**. Nunca privados, ocultos, protegidos por selfie, de prueba ni escolares |
 | Permiso | Tilde por álbum, apagado | Por álbum, **encendido por defecto**, en «Privacidad y acceso». Solo se guarda el «no» |
 | Fotos | Elige el fotógrafo (3-4) | **Automático**, repartidas a lo largo del álbum, con marca de agua; si el fotógrafo marcó fotos, van primero |
-| Diseño | Una foto a sangre | **Cinco collages** de 3 o 4 fotos que rotan (`album-story-collages.ts`) |
-| Etiqueta | No se podía | **`user_tags` en historias** (Meta lo habilitó en julio de 2025). Al fotógrafo le llega la notificación. Si Meta rechaza la etiqueta, la historia sale igual |
-| Link | Impreso | Igual: impreso. El sticker de enlace **sigue sin existir por API** |
+| Diseño | Una foto a sangre | **Veinte modelos sobrios** (blanco, negro, hueso), fotos grandes y logo de CLF, que rotan sin repetir fondo dos veces seguidas (`album-story-collages.ts`) |
+| Etiqueta | No se podía | **`user_tags` en historias** (Meta lo habilitó en julio de 2025): el fotógrafo y hasta **5 cuentas extra** que él carga en «Privacidad y acceso» (organizador, empresas). Si Meta rechaza alguna, se reintenta solo con el fotógrafo y, si no, sin etiquetas: la historia sale igual |
+| Link | Impreso | Botón dibujado **«Comprar aquí»** con la dirección debajo. No se puede tocar: el sticker de enlace **sigue sin existir por API** |
 | Aprobación | Un clic por pieza | **Sale sola a su hora**; el admin puede sacarla o adelantarla en `/admin/social` |
 | Ritmo | — | **Hasta 10 por día**, horarios fijos de 10:00 a 21:15 (hora argentina). Lo que no entra espera, con horizonte de 7 días |
 

@@ -29,11 +29,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const r = await albumDelFotografo(params);
   if ("res" in r) return r.res;
-  const body = (await req.json().catch(() => ({}))) as { enabled?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { enabled?: unknown; extraHandles?: unknown };
   if (typeof body.enabled !== "boolean") {
     return NextResponse.json({ error: "Falta indicar si se activa o no" }, { status: 400 });
   }
+  if (body.extraHandles !== undefined && !Array.isArray(body.extraHandles)) {
+    return NextResponse.json({ error: "La lista de cuentas no es válida" }, { status: 400 });
+  }
   return NextResponse.json(
-    await setAlbumStoryConsent({ albumId: r.albumId, enabled: body.enabled, userId: r.user.id }),
+    await setAlbumStoryConsent({
+      albumId: r.albumId,
+      enabled: body.enabled,
+      extraHandles: body.extraHandles,
+      userId: r.user.id,
+    }),
   );
 }

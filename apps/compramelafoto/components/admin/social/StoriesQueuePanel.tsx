@@ -166,8 +166,9 @@ export default function StoriesQueuePanel({
                       </p>
                       <p className="m-0 line-clamp-2 text-sm text-gray-800">{s.albumTitle}</p>
                       <p className="m-0 text-xs text-gray-500">
-                        {s.photographer || "Sin Instagram del fotógrafo"}
-                        {s.userTags.length ? " · etiquetado" : ""}
+                        {s.userTags.length
+                          ? `Etiqueta a ${s.userTags.map((t) => `@${t}`).join(", ")}`
+                          : s.photographer || "Sin Instagram del fotógrafo"}
                       </p>
                       {s.lastError && s.status === "FAILED" ? (
                         <p className="m-0 text-xs text-red-600">{s.lastError}</p>

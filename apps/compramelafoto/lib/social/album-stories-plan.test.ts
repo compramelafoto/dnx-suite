@@ -9,7 +9,16 @@ import {
   storyCredit,
   type AlbumStoryCandidate,
 } from "./album-stories-plan";
-import { pickStoryCollage, STORY_COLLAGES } from "./album-story-collages";
+import {
+  LOGO_BLANCO_REF,
+  LOGO_COLOR_REF,
+  pickStoryCollage,
+  readStoryBrandResource,
+  SEGURA_ABAJO,
+  SEGURA_ARRIBA,
+  STORY_COLLAGES,
+} from "./album-story-collages";
+import { normalizeExtraHandles } from "./album-social-consent";
 
 const base: AlbumStoryCandidate = {
   isPublic: true,
@@ -119,6 +128,75 @@ describe("plantillas", () => {
       expect(fotos).toHaveLength(c.fotos);
       for (const v of c.contract.variables) expect(v.key).not.toMatch(/dni|documento|cuit|cuil/i);
     }
+  });
+});
+
+describe("los 20 modelos", () => {
+  it("son 20, con identificador único", () => {
+    expect(STORY_COLLAGES).toHaveLength(20);
+    expect(new Set(STORY_COLLAGES.map((c) => c.id)).size).toBe(20);
+  });
+
+  it("dos seguidas nunca repiten fondo (contando la vuelta del final al principio)", () => {
+    const fondo = (i: number) => STORY_COLLAGES[i % 20]!.document.sides[0]!.background;
+    for (let i = 0; i < 20; i++) expect(fondo(i)).not.toBe(fondo(i + 1));
+  });
+
+  it("todas llevan el logo y el botón «Comprar aquí»", () => {
+    for (const c of STORY_COLLAGES) {
+      const bloques = c.document.sides[0]!.blocks;
+      expect(bloques.some((b) => b.type === "image" && [LOGO_COLOR_REF, LOGO_BLANCO_REF].includes(b.resourceRef ?? ""))).toBe(true);
+      expect(bloques.some((b) => b.type === "text" && b.content === "Comprar aquí")).toBe(true);
+    }
+  });
+
+  it("logo, textos y botón quedan dentro de la zona que no tapa Instagram", () => {
+    for (const c of STORY_COLLAGES) {
+      for (const b of c.document.sides[0]!.blocks) {
+        const esFoto = b.type === "image" && Boolean(b.variableKey);
+        if (esFoto) continue;
+        expect(b.y, `${c.id} · ${b.id}`).toBeGreaterThanOrEqual(SEGURA_ARRIBA);
+        expect(b.y + b.height, `${c.id} · ${b.id}`).toBeLessThanOrEqual(SEGURA_ABAJO);
+      }
+    }
+  });
+
+  it("las fotos no se pisan con el texto ni se salen de la hoja", () => {
+    for (const c of STORY_COLLAGES) {
+      const bloques = c.document.sides[0]!.blocks;
+      const fotos = bloques.filter((b) => b.type === "image" && b.variableKey);
+      const textos = bloques.filter((b) => b.type === "text" || b.type === "rect" || (b.type === "image" && !b.variableKey));
+      for (const f of fotos) {
+        expect(f.x).toBeGreaterThanOrEqual(0);
+        expect(f.x + f.width).toBeLessThanOrEqual(1080);
+        for (const t of textos) {
+          const seCruzan = f.x < t.x + t.width && t.x < f.x + f.width && f.y < t.y + t.height && t.y < f.y + f.height;
+          expect(seCruzan, `${c.id}: ${f.id} pisa ${t.id}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("el logo se resuelve a un PNG", () => {
+    const png = readStoryBrandResource(LOGO_COLOR_REF)!;
+    expect([...png.slice(1, 4)].map((n) => String.fromCharCode(n)).join("")).toBe("PNG");
+    expect(readStoryBrandResource(LOGO_BLANCO_REF)).not.toBeNull();
+    expect(readStoryBrandResource("otra-cosa")).toBeNull();
+  });
+});
+
+describe("cuentas extra para etiquetar", () => {
+  it("acepta @, usuario o link; descarta repetidas, al fotógrafo y a la plataforma", () => {
+    const r = normalizeExtraHandles(
+      ["@club.atletico", "https://instagram.com/sponsor_sa", "CLUB.ATLETICO", "@foto", "@compramelafoto", "no válido!!"],
+      ["foto"],
+    );
+    expect(r.handles).toEqual(["club.atletico", "sponsor_sa"]);
+    expect(r.invalid).toEqual(["no válido!!"]);
+  });
+
+  it("corta en 5", () => {
+    expect(normalizeExtraHandles(["a1", "a2", "a3", "a4", "a5", "a6"]).handles).toHaveLength(5);
   });
 });
 

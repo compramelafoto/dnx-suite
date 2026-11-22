@@ -165,23 +165,27 @@ export function createInstagramPublishProvider(options?: {
           media_type: "STORIES",
         };
         const etiquetas = (input.userTags ?? []).filter(Boolean);
-        if (etiquetas.length === 0) {
-          contenedorId = await crearContenedor(baseHistoria);
-        } else {
+        // Se prueba con todas; si Meta rechaza alguna (usuario inexistente, cuenta
+        // privada), se reintenta solo con la primera (el fotógrafo) y, si tampoco, sin
+        // etiquetas. La historia sale siempre: el @ del fotógrafo ya va impreso.
+        const intentos: string[][] = [etiquetas];
+        if (etiquetas.length > 1) intentos.push(etiquetas.slice(0, 1));
+        if (etiquetas.length > 0) intentos.push([]);
+        let creado: string | null = null;
+        for (const lista of intentos) {
           try {
-            contenedorId = await crearContenedor({
-              ...baseHistoria,
-              user_tags: JSON.stringify(etiquetas.map((username) => ({ username }))),
-            });
+            creado = await crearContenedor(
+              lista.length > 0
+                ? { ...baseHistoria, user_tags: JSON.stringify(lista.map((username) => ({ username }))) }
+                : baseHistoria,
+            );
+            etiquetasCaidas = etiquetas.filter((e) => !lista.includes(e));
+            break;
           } catch (e) {
-            // Una etiqueta inválida (usuario que no existe, cuenta privada) no debe
-            // frenar la historia: se publica sin etiqueta y se deja constancia. El @ ya
-            // va impreso en la imagen.
-            if (!esErrorDeEtiquetas(e)) throw e;
-            contenedorId = await crearContenedor(baseHistoria);
-            etiquetasCaidas = etiquetas;
+            if (lista.length === 0 || !esErrorDeEtiquetas(e)) throw e;
           }
         }
+        contenedorId = creado as string;
       } else {
         const baseImagen: Record<string, string> = {
           image_url: fotos[0]!.publicUrl as string,

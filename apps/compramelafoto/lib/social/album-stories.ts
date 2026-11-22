@@ -7,6 +7,7 @@ import {
   albumConsentKey,
   getAlbumSocialConsent,
   normalizeConsentHandle,
+  normalizeExtraHandles,
   saveAlbumSocialConsent,
 } from "./album-social-consent";
 import {
@@ -19,7 +20,7 @@ import {
   storyCredit,
   type AlbumStorySkipReason,
 } from "./album-stories-plan";
-import { pickStoryCollage, STORY_COLLAGE_MAX_PHOTOS } from "./album-story-collages";
+import { pickStoryCollage, readStoryBrandResource, STORY_COLLAGE_MAX_PHOTOS } from "./album-story-collages";
 import { logSocialRequest, resolveClfInstagramAccount } from "./prisma-store";
 
 /**
@@ -65,28 +66,57 @@ export type AlbumStoryConsentView = {
   /** Si la cuenta de Instagram de CLF no está conectada, la opción no se muestra. */
   available: boolean;
   enabled: boolean;
+  /** Cuentas extra a etiquetar (organizador, empresas), sin @. */
+  extraHandles: string[];
+  /** El @ del fotógrafo según su perfil: siempre se etiqueta, no hace falta cargarlo. */
+  photographerHandle: string | null;
+  /** Lo que se descartó en el último guardado por no ser un usuario válido. */
+  invalid?: string[];
 };
 
+async function handleDelFotografo(albumId: number): Promise<string | null> {
+  const a = await prisma.album.findUnique({ where: { id: albumId }, select: { user: { select: { instagram: true } } } });
+  return normalizeConsentHandle(a?.user.instagram ?? null);
+}
+
 export async function getAlbumStoryConsent(albumId: number): Promise<AlbumStoryConsentView> {
-  const account = await resolveClfInstagramAccount();
-  const consent = await getAlbumSocialConsent(albumId);
-  return { available: Boolean(account), enabled: consent ? consent.consentGiven : true };
+  const [account, consent, photographerHandle] = await Promise.all([
+    resolveClfInstagramAccount(),
+    getAlbumSocialConsent(albumId),
+    handleDelFotografo(albumId),
+  ]);
+  return {
+    available: Boolean(account),
+    enabled: consent ? consent.consentGiven : true,
+    extraHandles: consent?.extraHandles ?? [],
+    photographerHandle,
+  };
 }
 
 export async function setAlbumStoryConsent(input: {
   albumId: number;
   enabled: boolean;
+  /** Sin valor, se conservan las que ya estaban. */
+  extraHandles?: unknown;
   userId: number;
 }): Promise<AlbumStoryConsentView> {
-  const account = await resolveClfInstagramAccount();
-  if (!account) return { available: false, enabled: input.enabled };
-  const previo = await getAlbumSocialConsent(input.albumId);
+  const [account, previo, photographerHandle] = await Promise.all([
+    resolveClfInstagramAccount(),
+    getAlbumSocialConsent(input.albumId),
+    handleDelFotografo(input.albumId),
+  ]);
+  if (!account) return { available: false, enabled: input.enabled, extraHandles: [], photographerHandle };
+  const extras =
+    input.extraHandles === undefined
+      ? { handles: previo?.extraHandles ?? [], invalid: [] }
+      : normalizeExtraHandles(input.extraHandles, [photographerHandle]);
   await saveAlbumSocialConsent({
     albumId: input.albumId,
     socialAccountId: account.id,
     consentGiven: input.enabled,
     selectedPhotoIds: previo?.selectedPhotoIds ?? [],
     photographerHandle: previo?.photographerHandle ?? null,
+    extraHandles: extras.handles,
     userId: input.userId,
   });
   // Si el fotógrafo apaga el permiso con la historia ya en cola, se saca de la cola.
@@ -96,7 +126,13 @@ export async function setAlbumStoryConsent(input: {
       data: { status: "CANCELLED", rejectionReason: "El fotógrafo desactivó la difusión" },
     });
   }
-  return { available: true, enabled: input.enabled };
+  return {
+    available: true,
+    enabled: input.enabled,
+    extraHandles: extras.handles,
+    photographerHandle,
+    invalid: extras.invalid,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -219,7 +255,8 @@ export async function generateDailyAlbumStories(now: Date = new Date()): Promise
         skip("NO_PHOTOS");
         continue;
       }
-      const preferidas = (await getAlbumSocialConsent(album.id))?.selectedPhotoIds ?? [];
+      const permiso = await getAlbumSocialConsent(album.id);
+      const preferidas = permiso?.selectedPhotoIds ?? [];
       const elegidas = pickStoryPhotos(
         fotos.map((f) => f.id),
         Math.min(collage.fotos, STORY_COLLAGE_MAX_PHOTOS),
@@ -252,6 +289,12 @@ export async function generateDailyAlbumStories(now: Date = new Date()): Promise
 
       const menciones: MentionCandidate[] = [
         ...(handle ? [{ handle, priority: 1, role: "PHOTOGRAPHER" }] : []),
+        // Las cuentas que sumó el fotógrafo (organizador, empresas), en su orden.
+        ...normalizeExtraHandles(permiso?.extraHandles ?? [], [handle]).handles.map((h, n) => ({
+          handle: h,
+          priority: 2 + n * 0.1,
+          role: "TAGGED",
+        })),
         { handle: PLATFORM_HANDLE, priority: 100, role: "PLATFORM" },
       ];
       const input = buildPublishRequestInput(
@@ -314,6 +357,8 @@ export async function generateDailyAlbumStories(now: Date = new Date()): Promise
 
 /** El Designer no sabe de red: acá se bajan los bytes de cada foto con marca de agua. */
 async function leerFoto(ref: string): Promise<Uint8Array | null> {
+  const marca = readStoryBrandResource(ref);
+  if (marca) return marca;
   if (!/^https?:\/\//.test(ref)) return null;
   try {
     const r = await fetch(ref, { signal: AbortSignal.timeout(20_000) });
