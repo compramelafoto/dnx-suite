@@ -69,7 +69,7 @@ export async function panelDelConcurso(activityId: string, usuario: Usuario) {
     where: conPermiso({ id: activityId }, usuario, "view"),
     select: {
       id: true, title: true, slug: true, type: true, reviewStatus: true, proposedByUserId: true, workspaceId: true, isCancelled: true,
-      startsAt: true, endsAt: true, members: filaPropia(usuario.id),
+      startsAt: true, endsAt: true, primaryDiscipline: true, members: filaPropia(usuario.id),
       contestImport: {
         select: {
           id: true, contestId: true, contestTitle: true, contestSlug: true, organizationName: true, tiers: true,
@@ -140,7 +140,7 @@ export async function panelDelConcurso(activityId: string, usuario: Usuario) {
   });
 
   return {
-    muestra: { id: a.id, title: a.title, slug: a.slug, reviewStatus: a.reviewStatus, cerrada },
+    muestra: { id: a.id, title: a.title, slug: a.slug, reviewStatus: a.reviewStatus, primaryDiscipline: a.primaryDiscipline, cerrada },
     concurso: {
       id: imp.contestId, title: imp.contestTitle, slug: imp.contestSlug, organizationName: imp.organizationName,
       tiers: parseContestTiers(imp.tiers), syncedAt: imp.syncedAt,

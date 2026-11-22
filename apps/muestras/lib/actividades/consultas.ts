@@ -70,7 +70,7 @@ export async function listarMias(usuario: Quien) {
     where: dondePuede(usuario, "view", { listado: true }),
     select: {
       id: true, slug: true, title: true, type: true, reviewStatus: true, rejectionReason: true, startsAt: true, endsAt: true, isCancelled: true,
-      proposedByUserId: true, members: miFila(usuario),
+      primaryDiscipline: true, proposedByUserId: true, members: miFila(usuario),
     },
     orderBy: { updatedAt: "desc" },
   });
@@ -103,6 +103,7 @@ export async function buscarParaEditar(id: string, usuario: Quien) {
       galleryMode: true, visibility: true, rightsConfirmedAt: true, reviewStatus: true, rejectionReason: true, isCancelled: true,
       editVersion: true, updatedAt: true, lastEditedByUserId: true, lastEditedAt: true, lastEditedPart: true,
       proposedByUserId: true, workspaceId: true,
+      primaryDiscipline: true, otherDisciplines: true,
       works: {
         orderBy: { sortOrder: "asc" },
         select: {

@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { ACTIVITY_ROLE_LABELS, ACTIVITY_TYPE_LABELS, REVIEW_STATUS_LABELS, activitySalesHref, toArDay, type ActivityType, type ReviewStatus } from "@repo/muestras";
+import { ACTIVITY_ROLE_LABELS, ACTIVITY_TYPE_LABELS, PHOTOGRAPHY, REVIEW_STATUS_LABELS, activitySalesHref, toArDay, type ActivityType, type ReviewStatus } from "@repo/muestras";
 import { listarMias } from "@/lib/actividades/consultas";
+import { marcaDeDisciplina } from "@/lib/marca";
 import { puede } from "@/lib/equipo/permisos";
 import { pendientesDelConcurso } from "@/lib/concursos/consultas";
 import { pendientesPorMuestra } from "@/lib/expositores/consultas";
@@ -18,7 +19,8 @@ export default async function MisMuestras({ searchParams }: { searchParams: Prom
   const [pendientes, delConcurso, formatos] = await Promise.all([
     pendientesPorMuestra(mias.filter((m) => m.type === "MUESTRA" && puede(usuario, "exhibitors", m.rol)).map((m) => m.id)),
     // Obras de concursos que esperan al autor (etapa 7): las ve quien ve la muestra.
-    pendientesDelConcurso(mias.filter((m) => m.type === "MUESTRA").map((m) => m.id)),
+    // Los concursos son de fotografía: sólo las de disciplina principal FOTOGRAFIA.
+    pendientesDelConcurso(mias.filter((m) => m.type === "MUESTRA" && m.primaryDiscipline === PHOTOGRAPHY).map((m) => m.id)),
     // Formatos a la venta esperando aprobación (etapa 8): sólo donde aprueba (`sales`).
     formatosParaRevisar(mias.filter((m) => m.type === "MUESTRA" && puede(usuario, "sales", m.rol)).map((m) => m.id)),
   ]);
@@ -39,6 +41,10 @@ export default async function MisMuestras({ searchParams }: { searchParams: Prom
               <div>
                 <Link href={`/panel/muestras/${m.id}`} className="font-medium underline">{m.title}</Link>
                 {m.rol && m.rol !== "OWNER" ? <span className="ml-2 text-sm text-[var(--mf-muted)]">{ACTIVITY_ROLE_LABELS[m.rol]}</span> : null}
+                {/* El dominio donde vive: fotografía o arte (según la disciplina principal). */}
+                <span className="ml-2 rounded-[2px] border border-[var(--mf-line)] px-1.5 py-0.5 text-xs text-[var(--mf-muted)]">
+                  {marcaDeDisciplina(m.primaryDiscipline).id === "ARTE" ? "Arte" : "Fotografía"}
+                </span>
                 <p className="text-sm text-[var(--mf-muted)]">
                   {ACTIVITY_TYPE_LABELS[m.type as ActivityType] ?? m.type}, del {toArDay(m.startsAt)} al {toArDay(m.endsAt)}
                   {m.isCancelled ? ". Cancelada" : ""}

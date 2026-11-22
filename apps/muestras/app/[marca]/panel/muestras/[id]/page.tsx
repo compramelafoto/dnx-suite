@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  ACTIVITY_ROLE_LABELS, AVISO_PERFIL_EN_PUBLICADA, activitySalesHref, showActivitySales, REVIEW_STATUS_LABELS, VISIBILITY_PRESET_LABELS, canEdit, canEditTexts, parseVisibility,
+  ACTIVITY_ROLE_LABELS, AVISO_PERFIL_EN_PUBLICADA, PHOTOGRAPHY, activitySalesHref, showActivitySales, REVIEW_STATUS_LABELS, VISIBILITY_PRESET_LABELS, canEdit, canEditTexts, parseVisibility,
   type ReviewStatus,
 } from "@repo/muestras";
 import { FormularioActividad } from "@/components/formulario/formulario-actividad";
@@ -14,6 +14,7 @@ import { pendientesPorMuestra } from "@/lib/expositores/consultas";
 import { pendientesDelConcurso } from "@/lib/concursos/consultas";
 import { textoDelUltimoCambio } from "@/lib/equipo/registro";
 import { queSeVeOnline } from "@/lib/visibilidad/texto";
+import { marcaDeParams } from "@/lib/ruta-marca";
 import { requireUsuario } from "@/lib/usuario";
 
 export const dynamic = "force-dynamic";
@@ -28,10 +29,11 @@ export default async function EditarActividad({
   params,
   searchParams,
 }: {
-  params: Promise<{ id: string }>;
+  params: Promise<{ id: string; marca: string }>;
   searchParams: Promise<{ faltan?: string | string[]; aviso?: string | string[] }>;
 }) {
   const { id } = await params;
+  const marca = await marcaDeParams(params);
   const sp = await searchParams;
   const faltan = faltantes(sp.faltan);
   // Sólo una marca conocida: el texto del aviso nunca sale de la URL.
@@ -48,8 +50,9 @@ export default async function EditarActividad({
   const ultimo = await textoDelUltimoCambio(a);
   const revisaExpositores = a.type === "MUESTRA" && puede(usuario, "exhibitors", rol);
   const paraRevisar = revisaExpositores ? (await pendientesPorMuestra([a.id])).get(a.id) ?? 0 : 0;
-  // Obras traídas de un concurso de FotoRank (etapa 7): el panel lo ve quien ve la muestra.
-  const delConcurso = a.type === "MUESTRA" && a.tieneConcurso ? (await pendientesDelConcurso([a.id])).get(a.id) ?? 0 : null;
+  // Obras traídas de un concurso de FotoRank (etapa 7): el panel lo ve quien ve la muestra. Los
+  // concursos son de fotografía: con otra disciplina principal, el acceso no aparece.
+  const delConcurso = a.type === "MUESTRA" && a.tieneConcurso && a.primaryDiscipline === PHOTOGRAPHY ? (await pendientesDelConcurso([a.id])).get(a.id) ?? 0 : null;
   const enlaces = a.type === "MUESTRA"
     ? [
         revisaExpositores
@@ -112,6 +115,7 @@ export default async function EditarActividad({
       {/* La clave cambia con cada guardado: el editor vuelve a cargar las obras con sus ids nuevos. */}
       {editable ? <FormularioActividad
           key={a.updatedAt.toISOString()}
+          marca={marca.id}
           inicial={a}
           visibilidad={{
             conAjuste: visibilidad.visibility != null,

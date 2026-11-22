@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
 import {
-  AVISO_PERFIL_EN_PUBLICADA, MAX_HIGHLIGHTS, MAX_WORKS, OBRA_QUITADA_DE_LA_GALERIA, activityRole, allowedAuthorProfileId,
-  canEdit, canPerform, editorGalleryPlan, missingForSubmission, newSlug, nextStatus, openingProblems, resolveAuthorProfileId, toArDay,
+  AVISO_PERFIL_EN_PUBLICADA, OBRA_QUITADA_DE_LA_GALERIA, PHOTOGRAPHY, activityRole, allowedAuthorProfileId,
+  canEdit, canPerform, editorGalleryPlan, isDiscipline, missingForSubmission, newSlug, nextStatus, parseOtherDisciplines, resolveAuthorProfileId, toArDay,
   type ReviewAction, type ReviewStatus,
 } from "@repo/muestras";
 import { getUsuario } from "@/lib/usuario";
@@ -15,7 +15,9 @@ import { OBRA_DE_EXPOSITOR_QUITADA, copiarTextosAExpositores } from "@/lib/expos
 import { borrarImagenDeConcurso } from "@/lib/concursos/imagen";
 import { Choque, PAGINA_VIEJA, mensajeDeChoque } from "./choque";
 import { frenarPorUsuario } from "@/lib/limite";
-import { datosParaGuardar, fichaDesdeFormData, modoDeGaleriaAlGuardar, type FichaForm } from "./mapear";
+import {
+  CONFIRMAR_CAMBIO_DE_CASA, datosParaGuardar, fichaDesdeFormData, marcaDelFormulario, modoDeGaleriaAlGuardar, validarFicha, type FichaForm,
+} from "./mapear";
 
 /** `avisos`: cosas que no frenaron el guardado pero conviene contarle a la persona. */
 export type ResultadoAccion =
@@ -115,14 +117,9 @@ async function obrasParaGuardar(
 export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
   const usuario = await getUsuario();
   if (!usuario) return SIN_SESION;
-  const f = fichaDesdeFormData(fd);
-  if (!f.title) return { ok: false, errores: ["Poné al menos un título para guardar."] };
-  if (f.works.length > MAX_WORKS) return { ok: false, errores: [`La galería admite hasta ${MAX_WORKS} obras.`] };
-  if (f.works.filter((w) => w.isHighlight).length > MAX_HIGHLIGHTS) {
-    return { ok: false, errores: [`Podés destacar hasta ${MAX_HIGHLIGHTS} obras.`] };
-  }
-  const inauguracion = openingProblems({ openingDay: f.openingDay, openingClock: f.openingClock, openingEndClock: f.openingEndClock, endDay: f.endDay });
-  if (inauguracion.length) return { ok: false, errores: inauguracion };
+  const f = fichaDesdeFormData(fd, { marca: marcaDelFormulario(fd) });
+  const problemas = validarFicha(f);
+  if (problemas.length) return { ok: false, errores: problemas };
   const datos: ReturnType<typeof datosParaGuardar> = datosParaGuardar(f);
 
   if (!f.id) {
@@ -151,6 +148,19 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
     return { ok: false, errores: ["No podés editar esta actividad ahora."] };
   }
   if (f.editVersion == null) return { ok: false, errores: [PAGINA_VIEJA] };
+  // Disciplina (Muestras de Arte): un formulario que no la manda (pestaña de antes del cambio)
+  // conserva la guardada; nunca vuelve sola a fotografía.
+  const principalGuardada = isDiscipline(actual.primaryDiscipline) ? actual.primaryDiscipline : PHOTOGRAPHY;
+  if (!fd.has("primaryDiscipline")) {
+    datos.primaryDiscipline = principalGuardada;
+    datos.otherDisciplines = parseOtherDisciplines(actual.otherDisciplines ?? [], principalGuardada);
+  }
+  if (
+    actual.reviewStatus === "APPROVED" && principalGuardada === PHOTOGRAPHY && datos.primaryDiscipline !== PHOTOGRAPHY
+    && fd.get("confirmarCambioDeCasa") !== "on"
+  ) {
+    return { ok: false, errores: [CONFIRMAR_CAMBIO_DE_CASA] };
+  }
   // Una ficha ya enviada o publicada no puede quedar incompleta por una edición. Cuentan también
   // las obras que se conservan aunque el editor no las haya visto (ver `editorGalleryPlan`).
   if (actual.reviewStatus !== "DRAFT" && actual.reviewStatus !== "REJECTED") {

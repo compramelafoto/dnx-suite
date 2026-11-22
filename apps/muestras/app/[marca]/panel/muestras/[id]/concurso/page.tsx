@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { formatArDayLong } from "@repo/muestras";
+import { PHOTOGRAPHY, formatArDayLong } from "@repo/muestras";
 import { CopiarImagenes } from "@/components/concursos/copiar-imagenes";
 import { EnlaceAutor } from "@/components/concursos/enlace-autor";
 import { enlace, nota, seccion } from "@/components/concursos/estilos";
@@ -22,7 +22,8 @@ export default async function DelConcurso({ params, searchParams }: Props) {
   const { id } = await params;
   const usuario = await requireUsuario(`/panel/muestras/${id}/concurso`);
   const p = await panelDelConcurso(id, usuario);
-  if (!p) notFound();
+  // Los concursos (FotoRank, Clickatón) son de fotografía: con otra disciplina no hay panel (spec 6.12).
+  if (!p || p.muestra.primaryDiscipline !== PHOTOGRAPHY) notFound();
   const recienArmada = (await searchParams).nueva === "1";
   const { muestra: m, concurso: c, resumen: r } = p;
 
