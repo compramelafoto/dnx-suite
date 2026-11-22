@@ -98,6 +98,64 @@ test("la historia va sin caption y sin colaboradores", async () => {
   assert.equal(contenedor.body.collaborators, undefined);
 });
 
+test("la historia etiqueta al fotógrafo con user_tags, sin coordenadas", async () => {
+  const llamadas: Llamada[] = [];
+  const provider = createInstagramPublishProvider({
+    fetchImpl: fetchEspia(llamadas, ["cont", "post"]),
+  });
+
+  await provider.publish({
+    account: cuenta,
+    accessToken: "t",
+    caption: "",
+    format: "STORY",
+    userTags: ["fotografo"],
+    assets: [{ assetId: "1", kind: "IMAGE", publicUrl: "https://cdn.test/s.jpg" }],
+    dryRun: false,
+  });
+
+  assert.equal(llamadas[0]!.body.media_type, "STORIES");
+  assert.deepEqual(JSON.parse(llamadas[0]!.body.user_tags!), [{ username: "fotografo" }]);
+});
+
+test("si Meta rechaza la etiqueta, la historia sale igual sin etiqueta", async () => {
+  const llamadas: Llamada[] = [];
+  let n = 0;
+  const fetchImpl = (async (input: string | URL, init?: RequestInit) => {
+    const body = Object.fromEntries(
+      new URLSearchParams(typeof init?.body === "string" ? init.body : ""),
+    ) as Record<string, string>;
+    llamadas.push({ url: String(input), body });
+    n++;
+    if (n === 1) {
+      return new Response(
+        JSON.stringify({ error: { message: "Invalid user_tags: user not found", code: 100 } }),
+        { status: 400 },
+      );
+    }
+    return new Response(JSON.stringify({ id: `id${n}`, permalink: "https://ig.test/s/1/" }), {
+      status: 200,
+    });
+  }) as unknown as typeof fetch;
+  const provider = createInstagramPublishProvider({ fetchImpl });
+
+  const r = await provider.publish({
+    account: cuenta,
+    accessToken: "t",
+    caption: "",
+    format: "STORY",
+    userTags: ["no_existe"],
+    assets: [{ assetId: "1", kind: "IMAGE", publicUrl: "https://cdn.test/s.jpg" }],
+    dryRun: false,
+  });
+
+  assert.equal(r.ok, true);
+  assert.equal(llamadas[1]!.body.user_tags, undefined);
+  assert.deepEqual((r.providerRawSanitized as { droppedUserTags?: string[] }).droppedUserTags, [
+    "no_existe",
+  ]);
+});
+
 test("un carrusel necesita al menos dos fotos", async () => {
   const provider = createInstagramPublishProvider({
     fetchImpl: fetchEspia([], []),

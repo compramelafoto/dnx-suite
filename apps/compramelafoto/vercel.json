@@ -35,6 +35,14 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/social-album-stories",
+      "schedule": "0 11 * * *"
+    },
+    {
+      "path": "/api/cron/social-token-refresh",
+      "schedule": "30 11 * * *"
+    },
+    {
       "path": "/api/cron/process-photo-exif-devices",
       "schedule": "*/10 * * * *"
     },

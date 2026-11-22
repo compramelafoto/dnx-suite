@@ -22,6 +22,12 @@ function esErrorDeColaboradores(e: unknown): boolean {
   return msg.includes("collaborator");
 }
 
+/** Meta tampoco tiene código propio para una etiqueta rechazada: se mira el mensaje. */
+function esErrorDeEtiquetas(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message.toLowerCase() : "";
+  return msg.includes("user_tags") || msg.includes("tag") || msg.includes("username");
+}
+
 /**
  * Crea el contenedor bajando un colaborador por intento.
  *
@@ -130,6 +136,7 @@ export function createInstagramPublishProvider(options?: {
 
       let contenedorId: string;
       let droppedCollaborators: string[] = [];
+      let etiquetasCaidas: string[] = [];
 
       if (format === "CAROUSEL") {
         // Los hijos van pelados: caption y collaborators en un hijo hacen fallar
@@ -152,11 +159,29 @@ export function createInstagramPublishProvider(options?: {
         contenedorId = resultado.id;
         droppedCollaborators = resultado.dropped;
       } else if (format === "STORY") {
-        // Meta no acepta caption ni colaboradores en historias.
-        contenedorId = await crearContenedor({
+        // Meta no acepta caption ni colaboradores en historias, pero sí `user_tags`.
+        const baseHistoria: Record<string, string> = {
           image_url: fotos[0]!.publicUrl as string,
           media_type: "STORIES",
-        });
+        };
+        const etiquetas = (input.userTags ?? []).filter(Boolean);
+        if (etiquetas.length === 0) {
+          contenedorId = await crearContenedor(baseHistoria);
+        } else {
+          try {
+            contenedorId = await crearContenedor({
+              ...baseHistoria,
+              user_tags: JSON.stringify(etiquetas.map((username) => ({ username }))),
+            });
+          } catch (e) {
+            // Una etiqueta inválida (usuario que no existe, cuenta privada) no debe
+            // frenar la historia: se publica sin etiqueta y se deja constancia. El @ ya
+            // va impreso en la imagen.
+            if (!esErrorDeEtiquetas(e)) throw e;
+            contenedorId = await crearContenedor(baseHistoria);
+            etiquetasCaidas = etiquetas;
+          }
+        }
       } else {
         const baseImagen: Record<string, string> = {
           image_url: fotos[0]!.publicUrl as string,
@@ -196,6 +221,7 @@ export function createInstagramPublishProvider(options?: {
           mediaId: published.id,
           format,
           ...(droppedCollaborators.length > 0 ? { droppedCollaborators } : {}),
+          ...(etiquetasCaidas.length > 0 ? { droppedUserTags: etiquetasCaidas } : {}),
         },
       };
     },

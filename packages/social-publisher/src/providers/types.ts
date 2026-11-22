@@ -15,6 +15,12 @@ export type ProviderPublishInput = {
   format?: PublishFormat;
   /** Usuarios sin @, ya repartidos por planMentions. */
   collaborators?: string[];
+  /**
+   * Solo historias: usuarios sin @ que se etiquetan en la imagen (`user_tags`). Meta lo
+   * admite en historias desde julio de 2025; la persona recibe la notificación y puede
+   * compartir la historia. Sin coordenadas: en historias son opcionales.
+   */
+  userTags?: string[];
   /** Si true, no llama a Meta; simula éxito. */
   dryRun: boolean;
 };

@@ -272,6 +272,7 @@ export function createSocialPublisherEngine(
         const meta = (r.metadata ?? {}) as {
           format?: PublishFormat;
           collaborators?: string[];
+          userTags?: string[];
         };
         const result = await provider.publish({
           account,
@@ -280,6 +281,7 @@ export function createSocialPublisherEngine(
           assets: r.assets,
           format: meta.format ?? "SINGLE_IMAGE",
           collaborators: Array.isArray(meta.collaborators) ? meta.collaborators : [],
+          userTags: Array.isArray(meta.userTags) ? meta.userTags : [],
           dryRun,
         });
         if (!result.ok) {

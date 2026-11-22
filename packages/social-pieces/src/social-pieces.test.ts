@@ -183,6 +183,32 @@ test("una historia va como imagen sola y sin colaboradores", () => {
   assert.deepEqual((input.metadata as { collaborators: string[] }).collaborators, []);
   // En una historia nadie se pierde: quien no puede ir etiquetado queda registrado.
   assert.deepEqual(input.mentions, ["fotografo"]);
+  // …y se etiqueta sobre la imagen (user_tags), menos la plataforma que publica.
+  assert.deepEqual((input.metadata as { userTags: string[] }).userTags, ["fotografo"]);
+});
+
+test("una historia etiqueta por prioridad y deja afuera a la plataforma", () => {
+  const input = buildPublishRequestInput(
+    {
+      application: "COMPRAMELAFOTO",
+      entityType: "ALBUM",
+      entityId: "42",
+      pieceId: "clf-album-story",
+      format: "STORY",
+      caption: "",
+      mentionCandidates: [
+        { handle: "compramelafoto", priority: 100, role: "PLATFORM" },
+        { handle: "organizador", priority: 2, role: "ORGANIZER" },
+        { handle: "fotografo", priority: 1, role: "PHOTOGRAPHER" },
+      ],
+      socialAccountId: "acc1",
+      idempotencyKey: "clf:album-story:42",
+      approvalRequired: false,
+    },
+    ["https://cdn.test/s.jpg"],
+  );
+  assert.deepEqual((input.metadata as { userTags: string[] }).userTags, ["fotografo", "organizador"]);
+  assert.equal(input.approvalRequired, false);
 });
 
 test("la solicitud nace pendiente de aprobación", () => {

@@ -29,6 +29,11 @@ export type PublishPieceInput = {
   idempotencyKey: string;
   maxCollaborators?: number;
   createdByUserId?: number | null;
+  /**
+   * Por defecto, `true`: nada sale sin un clic. Las historias diarias de álbumes de CLF
+   * pasan `false` porque salen solas a su hora y el admin solo puede vetarlas.
+   */
+  approvalRequired?: boolean;
   extraMetadata?: Record<string, unknown>;
 };
 
@@ -66,13 +71,23 @@ export function buildPublishRequestInput(
     mentions: plan.captionMentions,
     assets,
     target: { platform: "INSTAGRAM", socialAccountId: input.socialAccountId },
-    approvalRequired: true,
+    approvalRequired: input.approvalRequired ?? true,
     idempotencyKey: input.idempotencyKey,
     createdByUserId: input.createdByUserId ?? null,
     metadata: {
       ...(input.extraMetadata ?? {}),
       format: input.format,
       collaborators: plan.collaborators,
+      // En historias no hay colaboradores pero sí etiquetas sobre la imagen. Se etiqueta a
+      // todos menos a la plataforma, que es la que publica.
+      ...(input.format === "STORY"
+        ? {
+            userTags: input.mentionCandidates
+              .filter((c) => c.role !== "PLATFORM")
+              .sort((a, b) => a.priority - b.priority)
+              .map((c) => c.handle),
+          }
+        : {}),
       pieceId: input.pieceId,
     },
   };

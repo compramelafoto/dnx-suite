@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import EventLocationSearch from "@/components/organizer/EventLocationSearch";
 import AlbumCoverManager from "@/components/dashboard/albums/AlbumCoverManager";
+import AlbumInstagramStoriesToggle from "@/components/dashboard/albums/AlbumInstagramStoriesToggle";
 import AlbumEventScheduleFields, {
   type AlbumEventScheduleValue,
 } from "@/components/dashboard/albums/AlbumEventScheduleFields";
@@ -235,6 +236,12 @@ export default function AlbumConfigurationSection({
               </span>
             </label>
           ) : null}
+
+          <AlbumInstagramStoriesToggle
+            albumId={albumId}
+            isPublic={isPublic}
+            hiddenPhotosEnabled={hiddenPhotosEnabled}
+          />
 
           <label className="flex items-start gap-3 rounded-lg border border-[#e5e7eb] bg-[#fafafa] p-3 cursor-pointer">
             <input
