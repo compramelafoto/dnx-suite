@@ -1,6 +1,7 @@
 import { distanceKm } from "@repo/geo";
 import type { ActivityType } from "./constants";
 import { temporalStatus } from "./dates";
+import { hasDiscipline, type Discipline } from "./disciplines";
 
 type Coords = { latitude: number; longitude: number };
 
@@ -19,11 +20,19 @@ export function withDistance<A extends { latitude: number | null; longitude: num
     .sort((x, y) => (x.distanceKm ?? Infinity) - (y.distanceKm ?? Infinity));
 }
 
-export type PublicFilter = { country?: string; province?: string; type?: ActivityType; openNow?: boolean; includeClosed?: boolean };
+export type PublicFilter = {
+  country?: string;
+  province?: string;
+  type?: ActivityType;
+  openNow?: boolean;
+  includeClosed?: boolean;
+  /** Coincide con la disciplina principal o con alguna secundaria. */
+  discipline?: Discipline;
+};
 
 const fold = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase().trim();
 
-export function applyFilter<A extends { country?: string | null; province: string | null; type: string; startsAt: Date; endsAt: Date }>(
+export function applyFilter<A extends { country?: string | null; province: string | null; type: string; startsAt: Date; endsAt: Date; primaryDiscipline?: string | null; otherDisciplines?: readonly string[] | null }>(
   items: A[],
   f: PublicFilter,
   now: Date,
@@ -36,6 +45,7 @@ export function applyFilter<A extends { country?: string | null; province: strin
     // Sin país cargado es Argentina: así se guardaba todo antes de la columna.
     if (f.country && fold(a.country || "Argentina") !== fold(f.country)) return false;
     if (f.province && fold(a.province ?? "") !== fold(f.province)) return false;
+    if (f.discipline && !hasDiscipline(a, f.discipline)) return false;
     return true;
   });
 }

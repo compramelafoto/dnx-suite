@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { ACTIVITY_TYPE_LABELS, DEFAULT_COUNTRY, applyFilter, cleanPlaceLabel, formatArDay, formatNearParam, isActivityType, parseNearParam, temporalStatus, withDistance, type ActivityType } from "@repo/muestras";
-import { Filtros } from "@/components/listado/filtros";
+import { ACTIVITY_TYPE_LABELS, DEFAULT_COUNTRY, DISCIPLINE_LABELS, applyFilter, cleanPlaceLabel, formatArDay, formatNearParam, isActivityType, isDiscipline, parseNearParam, temporalStatus, withDistance, type ActivityType } from "@repo/muestras";
+import { ChipsDisciplina, Filtros } from "@/components/listado/filtros";
 import { TarjetaActividad } from "@/components/listado/tarjeta-actividad";
 import { MapaNacionalCliente } from "@/components/mapa/mapa-nacional-cliente";
 import { GrillaArte } from "@/components/portada/grilla-arte";
@@ -8,12 +8,13 @@ import { marcaDeParams } from "@/lib/ruta-marca";
 import { Banner } from "@/components/portada/banner";
 import { listarPublicas } from "@/lib/actividades/consultas";
 import { FOTOS_PORTADA } from "@/lib/portada/fotos";
-import { PASOS_MUESTRA } from "@/lib/portada/funciones";
+import { TEXTOS_PORTADA, pasosDeMarca } from "@/lib/portada/funciones";
+import { chipsDeDisciplina, muestrasParaGrilla } from "@/lib/portada/disciplinas";
 import { TextoDePaso } from "@/components/portada/texto-de-paso";
 
 export const revalidate = 300;
 
-type Busqueda = { pais?: string; provincia?: string; tipo?: string; abiertas?: string; archivo?: string; cerca?: string; lugar?: string };
+type Busqueda = { pais?: string; provincia?: string; tipo?: string; abiertas?: string; archivo?: string; cerca?: string; lugar?: string; disciplina?: string };
 
 const accionFina = "inline-flex h-11 items-center border border-[var(--mf-ink)] px-5 text-[15px] transition-colors hover:bg-[var(--mf-ink)] hover:text-white";
 
@@ -30,19 +31,23 @@ export default async function Inicio({ params, searchParams }: { params: Promise
   const provincias = [...new Set(todas.filter((a) => !sp.pais || paisDe(a) === sp.pais).map((a) => a.province).filter((p): p is string => !!p))].sort((a, b) => a.localeCompare(b, "es"));
   // Cambiar de país con una provincia de otro elegida no deja la lista vacía: esa provincia se ignora.
   const provincia = sp.provincia && provincias.includes(sp.provincia) ? sp.provincia : undefined;
-  const filtradas = applyFilter(todas, {
+  // La disciplina sólo existe en Muestras de Arte: en fotografía `?disciplina=` no hace nada.
+  const esArte = marca.id === "ARTE";
+  const disciplina = esArte && isDiscipline(sp.disciplina) ? sp.disciplina : null;
+  const filtro = {
     country: sp.pais || undefined,
     province: provincia,
     type: isActivityType(sp.tipo) ? sp.tipo : undefined,
     openNow: sp.abiertas === "1",
     includeClosed: sp.archivo === "1",
-  }, ahora);
+  };
+  const filtradas = applyFilter(todas, { ...filtro, discipline: disciplina ?? undefined }, ahora);
   // "Cerca de": viene de la URL, así que se valida estricto; `lugar` es sólo texto para mostrar.
   const origen = parseNearParam(sp.cerca);
   const lugarBuscado = origen ? (cleanPlaceLabel(sp.lugar) ?? "el punto elegido") : null;
   const lista = origen ? withDistance(origen, filtradas) : filtradas.map((a) => ({ ...a, distanceKm: null as number | null }));
   const sinCerca = new URLSearchParams(
-    Object.entries({ pais: sp.pais, provincia, tipo: sp.tipo, abiertas: sp.abiertas, archivo: sp.archivo })
+    Object.entries({ pais: sp.pais, provincia, tipo: sp.tipo, abiertas: sp.abiertas, archivo: sp.archivo, disciplina: disciplina ?? undefined })
       .filter((e): e is [string, string] => typeof e[1] === "string" && e[1] !== ""),
   ).toString();
   // Una muestra siempre tiene sede; "Online" sólo puede aparecer en charlas o talleres.
@@ -52,6 +57,13 @@ export default async function Inicio({ params, searchParams }: { params: Promise
     : []));
   const abiertasHoy = todas.filter((a) => a.type === "MUESTRA" && !a.isCancelled && temporalStatus(a, ahora) === "OPEN").length;
 
+  // Los chips salen de la lista con los demás filtros, así elegir una disciplina no borra las otras.
+  const chips = esArte
+    ? chipsDeDisciplina(applyFilter(todas, filtro, ahora), { pais: sp.pais, provincia, tipo: sp.tipo, abiertas: sp.abiertas, archivo: sp.archivo, cerca: origen ? formatNearParam(origen) : undefined, lugar: origen ? cleanPlaceLabel(sp.lugar) : undefined }, disciplina)
+    : [];
+  const pasos = pasosDeMarca(marca.id);
+  const textos = TEXTOS_PORTADA[marca.id];
+
   const cuenta = [
     lista.length === 1 ? "1 actividad" : `${lista.length} actividades`,
     abiertasHoy > 0 ? (abiertasHoy === 1 ? "1 muestra abierta hoy" : `${abiertasHoy} muestras abiertas hoy`) : null,
@@ -60,14 +72,14 @@ export default async function Inicio({ params, searchParams }: { params: Promise
   return (
     <main>
       <Banner fotos={marca.id === "ARTE" ? [] : FOTOS_PORTADA} marca={marca} />
-      {marca.id === "ARTE" ? <GrillaArte muestras={[]} /> : null}
+      {esArte ? <GrillaArte muestras={muestrasParaGrilla(todas, ahora)} /> : null}
 
       <section aria-labelledby="titulo-funciones" className="mf-marco pt-20 sm:pt-28">
         <h2 id="titulo-funciones" className="mf-titulo max-w-[16ch] text-[clamp(2rem,4.5vw,3.5rem)]">Todo lo que podés hacer con tu muestra</h2>
         <p className="mt-5 max-w-[52ch] text-balance text-xl leading-snug">Organizás una muestra en una sala, una galería o un centro cultural. Acá encontrás todo para armarla, difundirla y llevar gente a verla.</p>
-        <p className="mt-3 max-w-[52ch] text-lg leading-snug text-[var(--mf-muted)]">Para fotógrafos, organizadores, fotoclubes e instituciones, de la convocatoria al archivo.</p>
+        <p className="mt-3 max-w-[52ch] text-lg leading-snug text-[var(--mf-muted)]">{textos.paraQuien}</p>
         <ol className="mt-12 border-t border-[var(--mf-line)] sm:mt-16">
-          {PASOS_MUESTRA.map((paso, i) => (
+          {pasos.map((paso, i) => (
             <li key={paso.titulo} className="grid gap-x-10 gap-y-4 border-b border-[var(--mf-line)] py-8 sm:py-10 md:grid-cols-12">
               <div className="flex items-baseline gap-4 md:col-span-4">
                 <span aria-hidden className="w-6 shrink-0 text-[15px] tabular-nums text-[var(--mf-muted)]">{i + 1}</span>
@@ -93,7 +105,8 @@ export default async function Inicio({ params, searchParams }: { params: Promise
             <Link href={`/${sinCerca ? `?${sinCerca}` : ""}#muestras`} className="text-[15px] text-[var(--mf-muted)] underline underline-offset-[6px] hover:text-[var(--mf-ink)]">Ver todas</Link>
           </p>
         ) : null}
-        {todas.length > 0 ? <div className="mb-6"><Filtros paises={paises} provincias={provincias} actual={{ ...sp, provincia }} cerca={origen ? { cerca: formatNearParam(origen), lugar: cleanPlaceLabel(sp.lugar) } : null} /></div> : null}
+        {todas.length > 0 ? <div className="mb-6"><Filtros paises={paises} provincias={provincias} actual={{ ...sp, provincia }} cerca={origen ? { cerca: formatNearParam(origen), lugar: cleanPlaceLabel(sp.lugar) } : null} disciplina={disciplina} /></div> : null}
+        {esArte && todas.length > 0 ? <div className="mb-6"><ChipsDisciplina chips={chips} /></div> : null}
 
         {todas.length === 0 ? (
           <div className="border-t border-[var(--mf-line)] pt-10 pb-4">
@@ -110,12 +123,13 @@ export default async function Inicio({ params, searchParams }: { params: Promise
           <ul className="grid gap-x-8 gap-y-14 border-t border-[var(--mf-line)] pt-10 sm:grid-cols-2 lg:grid-cols-3">
             {lista.map((a, i) => {
               const tipo = ACTIVITY_TYPE_LABELS[a.type as ActivityType] ?? a.type;
+              const etiquetaDisciplina = esArte && isDiscipline(a.primaryDiscipline) ? DISCIPLINE_LABELS[a.primaryDiscipline] : undefined;
               return (
                 <li key={a.id} className="min-w-0">
                   <TarjetaActividad
                     slug={a.slug} title={a.title} coverImageUrl={a.coverImageUrl} tipo={tipo} lugar={lugarDe(a) || tipo}
                     startsAt={a.startsAt} endsAt={a.endsAt} isCancelled={a.isCancelled} distanceKm={a.distanceKm} ahora={ahora}
-                    prioridad={i < 3}
+                    prioridad={i < 3} disciplina={etiquetaDisciplina}
                   />
                 </li>
               );
@@ -134,7 +148,7 @@ export default async function Inicio({ params, searchParams }: { params: Promise
 
       <section aria-labelledby="titulo-organizadores" className="mf-marco py-24 sm:py-36">
         <h2 id="titulo-organizadores" className="mf-titulo max-w-[20ch] text-[clamp(2.1rem,5vw,4.25rem)] leading-[0.98]">
-          ¿Organizás una muestra? Cargala con sus fotos y compartila con todo el mundo.
+          {textos.organizadores}
         </h2>
         <p className="mt-6 max-w-[48ch] text-lg leading-snug text-[var(--mf-muted)]">La muestra se vive en la sala. Acá la ponés en el mapa, contás cuándo y dónde, y mostrás un anticipo de las obras para que la gente vaya a verla.</p>
         <Link href="/proponer" className={`${accionFina} mt-10`}>Proponé tu muestra</Link>

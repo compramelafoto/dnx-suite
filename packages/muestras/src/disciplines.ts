@@ -81,3 +81,15 @@ export function parseOtherDisciplines(values: unknown[], primary: Discipline): D
   }
   return out;
 }
+
+type ConDisciplinas = { primaryDiscipline?: string | null; otherDisciplines?: readonly string[] | null };
+
+/** La muestra es de esa disciplina si es su principal o alguna de sus secundarias. */
+export function hasDiscipline(a: ConDisciplinas, d: Discipline): boolean {
+  return a.primaryDiscipline === d || (a.otherDisciplines ?? []).includes(d);
+}
+
+/** Disciplinas que aparecen en la lista (principal o secundaria), en el orden de `DISCIPLINES`. */
+export function disciplinesPresent(items: readonly ConDisciplinas[]): Discipline[] {
+  return DISCIPLINES.filter((d) => items.some((a) => hasDiscipline(a, d)));
+}

@@ -1,3 +1,5 @@
+import type { MarcaId } from "@/lib/marca";
+
 /**
  * Lo que se puede hacer con una muestra, paso a paso, para la portada. `{FOTORANK}` en un texto
  * se dibuja como el logo de FotoRank con enlace al sitio.
@@ -76,3 +78,44 @@ export const PASOS_MUESTRA: PasoMuestra[] = [
     ],
   },
 ];
+
+/**
+ * Muestras de Arte usa los mismos pasos con otras palabras: cambia sólo lo que en fotografía
+ * habla de fotógrafos o fotos. `null` saca el texto (FotoRank es de concursos de fotografía).
+ * Lo que no está acá se dice igual en las dos marcas.
+ */
+const EN_ARTE: Record<string, string | null> = {
+  "También charlas, talleres, salidas fotográficas, presentaciones de libros y proyecciones.":
+    "También charlas, talleres, presentaciones de libros y proyecciones.",
+  "Abrí una convocatoria para que los fotógrafos envíen sus obras desde cualquier lugar.":
+    "Abrí una convocatoria para que los artistas envíen sus obras desde cualquier lugar.",
+  "O traé los ganadores y preseleccionados de tu concurso de {FOTORANK}: te armamos el borrador de la muestra con sus obras.": null,
+  "Perfil público de cada fotógrafo, con su biografía y las muestras donde expuso.":
+    "Perfil público de cada artista, con su biografía y las muestras donde expuso.",
+  "Vendé copias digitales firmadas y copias impresas Fine Art, únicas o en edición limitada, con certificado y QR de autenticidad; el cobro se reparte solo entre la organización, el fotógrafo y la plataforma.":
+    "Vendé copias digitales firmadas y copias impresas Fine Art, únicas o en edición limitada, con certificado y QR de autenticidad; el cobro se reparte solo entre la organización, el artista y la plataforma.",
+};
+
+const PASOS_ARTE: PasoMuestra[] = PASOS_MUESTRA.map((p) => ({
+  titulo: p.titulo,
+  items: p.items.flatMap((item) => {
+    const otro = EN_ARTE[item];
+    return otro === undefined ? [item] : otro === null ? [] : [otro];
+  }),
+}));
+
+export function pasosDeMarca(marca: MarcaId): PasoMuestra[] {
+  return marca === "ARTE" ? PASOS_ARTE : PASOS_MUESTRA;
+}
+
+/** Los textos sueltos de la portada que cambian según la marca. */
+export const TEXTOS_PORTADA: Record<MarcaId, { paraQuien: string; organizadores: string }> = {
+  FOTOGRAFIA: {
+    paraQuien: "Para fotógrafos, organizadores, fotoclubes e instituciones, de la convocatoria al archivo.",
+    organizadores: "¿Organizás una muestra? Cargala con sus fotos y compartila con todo el mundo.",
+  },
+  ARTE: {
+    paraQuien: "Para artistas, organizadores, galerías e instituciones, de la convocatoria al archivo.",
+    organizadores: "¿Organizás una muestra? Cargala con sus obras y compartila con todo el mundo.",
+  },
+};

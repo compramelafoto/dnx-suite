@@ -40,6 +40,16 @@ describe("applyFilter", () => {
     expect(applyFilter(conPais, { country: "Argentina" }, now).map((x) => x.id)).toEqual(["abierta", "proxima"]);
     expect(applyFilter(conPais, { country: "Brasil", province: "sao paulo" }, now).map((x) => x.id)).toEqual(["sao-paulo"]);
   });
+  it("filtra por disciplina: coincide con la principal o con alguna secundaria", () => {
+    const deArte = [
+      { id: "pintura-dibujo", province: "Santa Fe", type: "MUESTRA", startsAt: dayStartAr("2026-11-01"), endsAt: dayEndAr("2026-11-30"), primaryDiscipline: "PINTURA", otherDisciplines: ["DIBUJO"] },
+      { id: "escultura", province: "Santa Fe", type: "MUESTRA", startsAt: dayStartAr("2026-11-01"), endsAt: dayEndAr("2026-11-30"), primaryDiscipline: "ESCULTURA", otherDisciplines: [] },
+      { id: "dibujo", province: "Santa Fe", type: "MUESTRA", startsAt: dayStartAr("2026-11-01"), endsAt: dayEndAr("2026-11-30"), primaryDiscipline: "DIBUJO", otherDisciplines: [] },
+    ];
+    expect(applyFilter(deArte, { discipline: "DIBUJO" }, now).map((x) => x.id)).toEqual(["pintura-dibujo", "dibujo"]);
+    expect(applyFilter(deArte, { discipline: "ESCULTURA" }, now).map((x) => x.id)).toEqual(["escultura"]);
+    expect(applyFilter(deArte, {}, now)).toHaveLength(3);
+  });
 });
 
 describe("parseNearParam", () => {
