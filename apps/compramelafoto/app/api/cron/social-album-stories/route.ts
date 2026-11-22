@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { assertCronAuth } from "@/lib/cron-auth";
 import { generateDailyAlbumStories } from "@/lib/social/album-stories";
-import { runSocialTokenRefresh } from "@/lib/social/connect-account";
+import { runSocialTokenCheck } from "@/lib/social/connect-account";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -11,8 +11,8 @@ export const maxDuration = 300;
 /**
  * Cron diario (08:00 hora argentina). Hace dos cosas, para no gastar un cron por cada una:
  *
- * 1. Renueva el permiso de Instagram si le quedan menos de 10 días (dura 60). Va primero:
- *    sin permiso vigente no se publica nada.
+ * 1. Controla que Meta siga aceptando el token de Instagram (token de usuario del sistema,
+ *    no vence). Si lo rechaza, la cuenta queda caída y el panel pide reconectar.
  * 2. Arma la historia de cada álbum público de más de 50 fotos y la deja agendada.
  *    Publicar lo hace `social-publish`, que corre solo en los diez horarios del día.
  */
@@ -20,16 +20,16 @@ export async function GET(request: Request) {
   const unauthorized = assertCronAuth(request);
   if (unauthorized) return unauthorized;
 
-  let tokenRefresh: unknown;
+  let tokenCheck: unknown;
   try {
-    tokenRefresh = await runSocialTokenRefresh();
+    tokenCheck = await runSocialTokenCheck();
   } catch (error) {
-    // Que falle la renovación no frena el armado: el permiso actual puede seguir vigente.
+    // Que falle el control no frena el armado: el token puede seguir vigente.
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`[cron social-album-stories] renovación del permiso: ${message}`);
-    tokenRefresh = { ok: false, error: message };
+    console.error(`[cron social-album-stories] control del token: ${message}`);
+    tokenCheck = { ok: false, error: message };
   }
 
   const stories = await generateDailyAlbumStories();
-  return NextResponse.json({ ...stories, tokenRefresh });
+  return NextResponse.json({ ...stories, tokenCheck });
 }

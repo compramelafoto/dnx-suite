@@ -29,12 +29,10 @@ const fmtHora = new Intl.DateTimeFormat("es-AR", {
 export default function StoriesQueuePanel({
   status,
   queue,
-  connectResult,
   preview,
 }: {
   status: Status;
   queue: StoryQueueItem[];
-  connectResult: string | null;
   /** Sección de vista previa: va antes de la cola. */
   preview?: ReactNode;
 }) {
@@ -60,6 +58,20 @@ export default function StoriesQueuePanel({
             ? "No se pudo publicar; se reintenta en el próximo horario."
             : "No se publicó: el álbum dejó de ser público o se desactivó la difusión.",
       );
+    setOcupado(null);
+    router.refresh();
+  }
+
+  async function conectar() {
+    setOcupado("conectar");
+    setAviso(null);
+    const r = await fetch("/api/admin/social/connect", { method: "POST" });
+    const d = await r.json().catch(() => null);
+    setAviso(
+      r.ok
+        ? `Instagram quedó conectado: @${d?.username ?? "?"}${d?.pageName ? ` (página ${d.pageName})` : ""}.`
+        : (d?.error ?? "No se pudo conectar Instagram."),
+    );
     setOcupado(null);
     router.refresh();
   }
@@ -105,24 +117,20 @@ export default function StoriesQueuePanel({
         {status.connected ? (
           <span className="text-sm text-gray-800">
             Cuenta conectada: <strong>@{status.username}</strong>
-            {status.expiresAt ? (
-              <span className="text-gray-500">
-                {" "}
-                · el permiso se renueva solo (vence {new Date(status.expiresAt).toLocaleDateString("es-AR")})
-              </span>
-            ) : null}
+            <span className="text-gray-500"> · con el token del usuario del sistema de Meta (no vence)</span>
           </span>
         ) : (
           <span className="text-sm text-red-700">La cuenta de Instagram no está conectada: no se arma ni se publica nada.</span>
         )}
-        {/* Es una ruta de API que redirige a Meta: tiene que ser navegación completa, no <Link>. */}
-        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-        <a
-          href="/api/social/instagram/connect"
-          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50"
+        <button
+          type="button"
+          onClick={conectar}
+          disabled={ocupado !== null}
+          title="Usa el token CLF_INSTAGRAM_SYSTEM_TOKEN cargado en Vercel"
+          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
         >
-          {status.connected ? "Reconectar" : "Conectar Instagram"}
-        </a>
+          {ocupado === "conectar" ? "Conectando…" : status.connected ? "Reconectar" : "Conectar Instagram"}
+        </button>
         <button
           type="button"
           onClick={armarAhora}
@@ -139,11 +147,6 @@ export default function StoriesQueuePanel({
           Modo simulacro: las historias se arman y «se publican» sin llegar a Instagram. Para que
           salgan de verdad falta activar <code>DNX_SOCIAL_PUBLISHER_LIVE=true</code> en Vercel.
         </div>
-      ) : null}
-      {connectResult === "connected" ? (
-        <div className="rounded-lg border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">Instagram quedó conectado.</div>
-      ) : connectResult === "error" ? (
-        <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900">No se pudo conectar Instagram. Probá de nuevo.</div>
       ) : null}
       {aviso ? <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">{aviso}</div> : null}
 
