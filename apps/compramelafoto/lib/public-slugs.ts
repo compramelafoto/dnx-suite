@@ -59,6 +59,7 @@ export const RESERVED_PUBLIC_SLUGS = new Set([
   "public",
   "registro",
   "reset-password",
+  "sorteos",
   "support",
   "terminos",
   "test",

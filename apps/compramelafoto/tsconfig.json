@@ -32,6 +32,7 @@
     "vitest.analysis.config.ts",
     "vitest.social.config.ts",
     "vitest.bot.config.ts",
-    "vitest.payments.config.ts"
+    "vitest.payments.config.ts",
+    "vitest.raffles.config.ts"
   ]
 }
