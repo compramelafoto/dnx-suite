@@ -14,8 +14,10 @@ import {
   artDateKey,
   decideAlbumStory,
   MIN_ALBUM_PHOTOS_FOR_STORY,
-  nextFreeStorySlots,
   pickStoryPhotos,
+  planAlbumStories,
+  repartirFotos,
+  STORIES_PER_ALBUM,
   storyAlbumTitle,
   storyCredit,
   type AlbumStorySkipReason,
@@ -49,11 +51,15 @@ const TIMEZONE = "America/Argentina/Buenos_Aires";
 const LOOKBACK_MS = 3 * 24 * 60 * 60 * 1000;
 /** Se deja pasar un rato desde la creación para que terminen de subir las fotos. */
 const SETTLE_MS = 6 * 60 * 60 * 1000;
-/** Tope por corrida: cada collage descarga fotos y renderiza, y la función tiene tiempo limitado. */
-const MAX_PER_RUN = 20;
+/**
+ * Tope de álbumes por corrida (cada uno son 3 collages): cada collage baja fotos y
+ * renderiza, y la función tiene tiempo limitado. Lo que no entra queda para mañana.
+ */
+const MAX_ALBUMS_PER_RUN = 8;
 
-export function albumStoryKey(albumId: number): string {
-  return `clf:album-story:${albumId}`;
+/** Clave idempotente de la historia `n` (1…3) de un álbum. */
+export function albumStoryKey(albumId: number, n: number): string {
+  return `clf:album-story:${albumId}:${n}`;
 }
 
 /** Estados que ocupan un horario en la agenda del día. */
@@ -129,7 +135,7 @@ export async function setAlbumStoryConsent(input: {
   // Si el fotógrafo apaga el permiso con la historia ya en cola, se saca de la cola.
   if (!input.enabled) {
     await prisma.dnxSocialPublishRequest.updateMany({
-      where: { idempotencyKey: albumStoryKey(input.albumId), status: "SCHEDULED" },
+      where: { entityType: ALBUM_STORY_ENTITY_TYPE, entityId: String(input.albumId), status: "SCHEDULED" },
       data: { status: "CANCELLED", rejectionReason: "El fotógrafo desactivó la difusión" },
     });
   }
@@ -150,7 +156,7 @@ export type DailyStoriesSummary = {
   ok: boolean;
   reason?: "NO_ACCOUNT";
   candidates: number;
-  scheduled: Array<{ albumId: number; scheduleAt: string; collage: string }>;
+  scheduled: Array<{ albumId: number; story: number; scheduleAt: string; collage: string }>;
   skipped: Partial<Record<AlbumStorySkipReason | "QUEUE_FULL" | "NO_PHOTOS", number>>;
   failed: Array<{ albumId: number; error: string }>;
 };
@@ -196,7 +202,7 @@ export async function generateDailyAlbumStories(now: Date = new Date()): Promise
   const ids = albums.map((a) => a.id);
   const [generados, permisos] = await Promise.all([
     prisma.dnxSocialPublishRequest.findMany({
-      where: { idempotencyKey: { in: ids.map(albumStoryKey) } },
+      where: { entityType: ALBUM_STORY_ENTITY_TYPE, entityId: { in: ids.map(String) } },
       select: { entityId: true },
     }),
     prisma.dnxSocialPublishRequest.findMany({
@@ -237,32 +243,32 @@ export async function generateDailyAlbumStories(now: Date = new Date()): Promise
     },
     select: { scheduleAt: true },
   });
-  const slots = nextFreeStorySlots(
+  const tanda = elegibles.slice(0, MAX_ALBUMS_PER_RUN);
+  // Lo que no entra en esta corrida queda para mañana: sigue dentro de la ventana de 3 días.
+  const plan = planAlbumStories(
     ocupados.map((o) => o.scheduleAt!).filter(Boolean),
     now,
-    Math.min(elegibles.length, MAX_PER_RUN),
+    tanda.length,
   );
-  for (let i = slots.length; i < elegibles.length; i++) skip("QUEUE_FULL");
 
   let ordinal = await prisma.dnxSocialPublishRequest.count({
     where: { application: APPLICATION, entityType: ALBUM_STORY_ENTITY_TYPE },
   });
 
-  for (let i = 0; i < slots.length; i++) {
-    const album = elegibles[i]!;
-    const scheduleAt = slots[i]!;
+  for (const [a, album] of tanda.entries()) {
+    const horarios = plan[a]!;
+    if (horarios.length === 0) {
+      skip("QUEUE_FULL");
+      continue;
+    }
     try {
-      const collage = pickStoryCollage(ordinal);
-      const armada = await renderAlbumStory(album, collage);
-      if (!armada) {
+      const collages = horarios.map((_, k) => pickStoryCollage(ordinal + k));
+      const armadas = await renderAlbumStories(album, collages);
+      if (!armadas) {
         skip("NO_PHOTOS");
         continue;
       }
-      const { bytes: imagenBytes, elegidas, handle, permiso } = armada;
-      const key = `social/clf/historias/${album.id}-${Date.now()}.jpg`;
-      await uploadToR2(Buffer.from(imagenBytes), key, "image/jpeg");
-      const publicUrl = getPublicUrl(key);
-
+      const { historias, handle, permiso } = armadas;
       const menciones: MentionCandidate[] = [
         ...(handle ? [{ handle, priority: 1, role: "PHOTOGRAPHER" }] : []),
         // Las cuentas que sumó el fotógrafo (organizador, empresas), en su orden.
@@ -273,58 +279,69 @@ export async function generateDailyAlbumStories(now: Date = new Date()): Promise
         })),
         { handle: PLATFORM_HANDLE, priority: 100, role: "PLATFORM" },
       ];
-      const input = buildPublishRequestInput(
-        {
-          application: APPLICATION,
-          entityType: ALBUM_STORY_ENTITY_TYPE,
-          entityId: String(album.id),
-          pieceId: collage.id,
-          format: "STORY",
-          caption: "",
-          mentionCandidates: menciones,
-          socialAccountId: account.id,
-          idempotencyKey: albumStoryKey(album.id),
-          approvalRequired: false,
-          extraMetadata: {
-            albumId: album.id,
-            albumTitle: album.title,
-            albumSlug: album.publicSlug,
-            photographerHandle: handle,
-            photographerName: album.user.name,
-            collage: collage.id,
-            photoIds: elegidas,
-          },
-        },
-        [publicUrl],
-      );
 
-      const creada = await prisma.dnxSocialPublishRequest.create({
-        data: {
-          application: input.application,
-          entityType: input.entityType,
-          entityId: input.entityId,
-          templateRef: input.templateRef ?? null,
-          caption: input.caption,
-          hashtags: input.hashtags ?? [],
-          mentions: input.mentions ?? [],
-          assets: input.assets as unknown as Prisma.InputJsonValue,
-          socialAccountId: account.id,
-          platform: "INSTAGRAM",
-          status: "SCHEDULED",
-          approvalRequired: false,
-          scheduleAt,
-          timezone: TIMEZONE,
-          idempotencyKey: input.idempotencyKey,
-          metadata: input.metadata as Prisma.InputJsonValue,
-        },
-      });
-      await logSocialRequest(creada.id, "SCHEDULED", null, { scheduleAt: scheduleAt.toISOString(), auto: true });
-      summary.scheduled.push({ albumId: album.id, scheduleAt: scheduleAt.toISOString(), collage: collage.id });
-      ordinal++;
+      for (const [k, historia] of historias.entries()) {
+        const scheduleAt = horarios[k]!;
+        const collage = collages[k]!;
+        const numero = k + 1;
+        const key = `social/clf/historias/${album.id}-${numero}-${Date.now()}.jpg`;
+        await uploadToR2(Buffer.from(historia.bytes), key, "image/jpeg");
+
+        const input = buildPublishRequestInput(
+          {
+            application: APPLICATION,
+            entityType: ALBUM_STORY_ENTITY_TYPE,
+            entityId: String(album.id),
+            pieceId: collage.id,
+            format: "STORY",
+            caption: "",
+            mentionCandidates: menciones,
+            socialAccountId: account.id,
+            idempotencyKey: albumStoryKey(album.id, numero),
+            approvalRequired: false,
+            extraMetadata: {
+              albumId: album.id,
+              albumTitle: album.title,
+              albumSlug: album.publicSlug,
+              photographerHandle: handle,
+              photographerName: album.user.name,
+              collage: collage.id,
+              photoIds: historia.photoIds,
+              storyNumber: numero,
+              storiesTotal: historias.length,
+            },
+          },
+          [getPublicUrl(key)],
+        );
+
+        const creada = await prisma.dnxSocialPublishRequest.create({
+          data: {
+            application: input.application,
+            entityType: input.entityType,
+            entityId: input.entityId,
+            templateRef: input.templateRef ?? null,
+            caption: input.caption,
+            hashtags: input.hashtags ?? [],
+            mentions: input.mentions ?? [],
+            assets: input.assets as unknown as Prisma.InputJsonValue,
+            socialAccountId: account.id,
+            platform: "INSTAGRAM",
+            status: "SCHEDULED",
+            approvalRequired: false,
+            scheduleAt,
+            timezone: TIMEZONE,
+            idempotencyKey: input.idempotencyKey,
+            metadata: input.metadata as Prisma.InputJsonValue,
+          },
+        });
+        await logSocialRequest(creada.id, "SCHEDULED", null, { scheduleAt: scheduleAt.toISOString(), auto: true });
+        summary.scheduled.push({ albumId: album.id, story: numero, scheduleAt: scheduleAt.toISOString(), collage: collage.id });
+      }
+      ordinal += historias.length;
     } catch (error) {
       // Un álbum que falla no frena a los demás.
       const msg = error instanceof Error ? error.message : String(error);
-      console.error(`[social] historia del álbum ${album.id} no se pudo armar: ${msg}`);
+      console.error(`[social] historias del álbum ${album.id} no se pudieron armar: ${msg}`);
       summary.failed.push({ albumId: album.id, error: msg.slice(0, 200) });
     }
   }
@@ -339,14 +356,16 @@ type AlbumParaHistoria = {
 };
 
 /**
- * Arma la imagen de la historia de un álbum con un modelo dado: elige las fotos (las que
- * tienen caras de buen tamaño primero), las encuadra con las caras adentro y renderiza.
- * No sube ni guarda nada: lo usan el cron (que después sube y agenda) y la vista previa
- * del panel, así lo que se ve en la vista previa es exactamente lo que sale.
+ * Arma las historias de un álbum, una por modelo de `collages` (hasta 3): elige las fotos
+ * (las que tienen caras de buen tamaño primero), las reparte entre las historias sin
+ * repetir, las encuadra con las caras adentro y renderiza. No sube ni guarda nada: lo
+ * usan el cron (que después sube y agenda) y la vista previa del panel, así lo que se ve
+ * en la vista previa es exactamente lo que sale.
  *
- * Devuelve `null` si el álbum no tiene fotos suficientes con marca de agua.
+ * `soloLa` (índice desde 0) renderiza una sola, para la vista previa. Devuelve `null` si
+ * el álbum no tiene fotos suficientes con marca de agua.
  */
-export async function renderAlbumStory(album: AlbumParaHistoria, collage: StoryCollage) {
+export async function renderAlbumStories(album: AlbumParaHistoria, collages: StoryCollage[], soloLa?: number) {
   const fotos = await prisma.photo.findMany({
     where: { albumId: album.id, isRemoved: false, previewWatermarkedKey: { not: null } },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -355,7 +374,8 @@ export async function renderAlbumStory(album: AlbumParaHistoria, collage: StoryC
   if (fotos.length < MIN_ALBUM_PHOTOS_FOR_STORY) return null;
   const permiso = await getAlbumSocialConsent(album.id);
   const preferidas = permiso?.selectedPhotoIds ?? [];
-  const cantidad = Math.min(collage.fotos, STORY_COLLAGE_MAX_PHOTOS);
+  const cantidades = collages.map((c) => Math.min(c.fotos, STORY_COLLAGE_MAX_PHOTOS));
+  const total = cantidades.reduce((x, y) => x + y, 0);
 
   // Caras detectadas (Rekognition) de todo el álbum: sirven para elegir fotos donde la
   // gente se ve y para encuadrar sin cortar cabezas.
@@ -370,35 +390,42 @@ export async function renderAlbumStory(album: AlbumParaHistoria, collage: StoryC
   }
   const todas = fotos.map((f) => f.id);
   const conCaras = fotosConCarasBuenas(todas, carasPorFoto);
-  const elegidas = pickStoryPhotos(conCaras.length >= cantidad ? conCaras : todas, cantidad, preferidas);
+  const elegidas = pickStoryPhotos(conCaras.length >= total ? conCaras : todas, total, preferidas);
+  const reparto = repartirFotos(elegidas, cantidades);
   const urlPorId = new Map(fotos.map((f) => [f.id, getPublicUrl(f.previewWatermarkedKey!)]));
   const handle = normalizeConsentHandle(album.user.instagram);
 
-  const bajadas: Array<{ bytes: Uint8Array; caras: CajaDeCara[] }> = [];
-  for (const id of elegidas) {
-    const bytes = await leerFoto(urlPorId.get(id)!);
-    if (!bytes) throw new Error(`No se pudo bajar la foto ${id}`);
-    bajadas.push({ bytes, caras: carasPorFoto.get(id) ?? [] });
+  const historias: Array<{ bytes: Uint8Array; photoIds: number[] }> = [];
+  for (const [k, collage] of collages.entries()) {
+    if (soloLa !== undefined && k !== soloLa) continue;
+    const ids = reparto[k]!;
+    if (ids.length < collage.fotos) break; // no hay fotos para esta historia: se arma una de menos
+    const bajadas: Array<{ bytes: Uint8Array; caras: CajaDeCara[] }> = [];
+    for (const id of ids) {
+      const bytes = await leerFoto(urlPorId.get(id)!);
+      if (!bytes) throw new Error(`No se pudo bajar la foto ${id}`);
+      bajadas.push({ bytes, caras: carasPorFoto.get(id) ?? [] });
+    }
+    const encuadradas = await prepararFotosDelCollage(collage, bajadas);
+    const pieza = await renderSocialPiece({
+      pieceId: collage.id,
+      format: "STORY",
+      document: collage.document,
+      contract: collage.contract,
+      values: {
+        nombreAlbum: storyAlbumTitle(album.title),
+        creditoFotografo: storyCredit(handle, album.user.name),
+        urlAlbum: albumPublicUrl(album.publicSlug),
+        ...encuadradas.values,
+      },
+      resources: { read: async (ref: string) => encuadradas.slots.get(ref) ?? leerFoto(ref) },
+      dpi: 96,
+    });
+    const imagen = pieza.images[0];
+    if (!imagen) throw new Error("El render no devolvió imagen");
+    historias.push({ bytes: imagen.bytes, photoIds: ids });
   }
-  const encuadradas = await prepararFotosDelCollage(collage, bajadas);
-
-  const pieza = await renderSocialPiece({
-    pieceId: collage.id,
-    format: "STORY",
-    document: collage.document,
-    contract: collage.contract,
-    values: {
-      nombreAlbum: storyAlbumTitle(album.title),
-      creditoFotografo: storyCredit(handle, album.user.name),
-      urlAlbum: albumPublicUrl(album.publicSlug),
-      ...encuadradas.values,
-    },
-    resources: { read: async (ref: string) => encuadradas.slots.get(ref) ?? leerFoto(ref) },
-    dpi: 96,
-  });
-  const imagen = pieza.images[0];
-  if (!imagen) throw new Error("El render no devolvió imagen");
-  return { bytes: imagen.bytes, elegidas, handle, permiso };
+  return { historias, handle, permiso };
 }
 
 // ---------------------------------------------------------------------------
@@ -476,15 +503,21 @@ export async function listPreviewCandidates(now: Date = new Date(), dias = 7): P
   });
 }
 
-/** Renderiza la vista previa de un álbum con el modelo `modelo` (0…19). No guarda nada. */
-export async function previewAlbumStory(albumId: number, modelo: number): Promise<Uint8Array | null> {
+/**
+ * Vista previa de la historia `historia` (1…3) de un álbum, con el modelo `modelo`
+ * (0…19) para la primera; las siguientes usan los modelos que siguen, como en el cron.
+ * No guarda nada.
+ */
+export async function previewAlbumStory(albumId: number, modelo: number, historia = 1): Promise<Uint8Array | null> {
   const album = await prisma.album.findUnique({
     where: { id: albumId },
     select: { id: true, title: true, publicSlug: true, user: { select: { name: true, instagram: true } } },
   });
   if (!album) return null;
-  const r = await renderAlbumStory(album, pickStoryCollage(modelo));
-  return r?.bytes ?? null;
+  const collages = Array.from({ length: STORIES_PER_ALBUM }, (_, k) => pickStoryCollage(modelo + k));
+  const indice = Math.min(Math.max(historia, 1), STORIES_PER_ALBUM) - 1;
+  const r = await renderAlbumStories(album, collages, indice);
+  return r?.historias[0]?.bytes ?? null;
 }
 
 /** El Designer no sabe de red: acá se bajan los bytes de cada foto con marca de agua. */
@@ -518,6 +551,9 @@ export type StoryQueueItem = {
   userTags: string[];
   /** Cuentas que Meta no dejó etiquetar al publicar (privadas o inexistentes). */
   droppedUserTags: string[];
+  /** «Historia 2 de 3». */
+  storyNumber: number | null;
+  storiesTotal: number | null;
   collage: string | null;
   permalink: string | null;
   lastError: string | null;
@@ -554,6 +590,8 @@ export async function listStoryQueue(now: Date = new Date()): Promise<StoryQueue
             : "",
       userTags: Array.isArray(m.userTags) ? (m.userTags as string[]) : [],
       droppedUserTags: Array.isArray(m.droppedUserTags) ? (m.droppedUserTags as string[]) : [],
+      storyNumber: typeof m.storyNumber === "number" ? m.storyNumber : null,
+      storiesTotal: typeof m.storiesTotal === "number" ? m.storiesTotal : null,
       collage: typeof m.collage === "string" ? m.collage : null,
       permalink: f.permalink,
       lastError: f.lastErrorMessage,

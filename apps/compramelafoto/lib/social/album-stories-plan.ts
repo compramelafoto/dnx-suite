@@ -19,8 +19,11 @@
 /** Más de 50 fotos: con menos, el álbum no tiene volumen para una historia. */
 export const MIN_ALBUM_PHOTOS_FOR_STORY = 51;
 
-/** Tope diario de historias. */
+/** Tope diario de historias, sumando todos los álbumes. */
 export const MAX_STORIES_PER_DAY = 10;
+
+/** Historias por álbum, cada una en un día distinto (pedido 2026-11-21). */
+export const STORIES_PER_ALBUM = 3;
 
 /** Cuántos días hacia adelante puede esperar una historia en la cola. */
 export const STORY_QUEUE_HORIZON_DAYS = 7;
@@ -188,4 +191,76 @@ export function storyCredit(handle: string | null, name: string | null): string 
 export function storyAlbumTitle(name: string): string {
   const limpio = name.replace(/\s+/g, " ").trim();
   return limpio.length > 60 ? `${limpio.slice(0, 57).trimEnd()}…` : limpio;
+}
+
+/**
+ * Agenda las historias de varios álbumes: hasta `porAlbum` por álbum, **cada una en un
+ * día distinto** del de la anterior, sin pasar de `MAX_STORIES_PER_DAY` por día.
+ *
+ * Va por rondas: primero la historia 1 de todos los álbumes, después la 2 y después la
+ * 3. Así un evento nuevo nunca queda atrás de la tercera historia de otro. Si para una
+ * historia no hay lugar dentro del horizonte, ese álbum se queda con las que ya tiene.
+ *
+ * Devuelve, por álbum (en el mismo orden), los horarios asignados: de 0 a `porAlbum`.
+ */
+export function planAlbumStories(
+  taken: Date[],
+  now: Date,
+  cantidadDeAlbumes: number,
+  porAlbum = STORIES_PER_ALBUM,
+  horizonDays = STORY_QUEUE_HORIZON_DAYS,
+): Date[][] {
+  const ocupados = [...taken];
+  const plan: Date[][] = Array.from({ length: cantidadDeAlbumes }, () => []);
+  const hoy = artDateKey(now);
+  for (let ronda = 0; ronda < porAlbum; ronda++) {
+    for (let a = 0; a < cantidadDeAlbumes; a++) {
+      const previas = plan[a]!;
+      if (previas.length < ronda) continue; // ya se quedó sin lugar en una ronda anterior
+      const desde = ronda === 0 ? hoy : addDays(artDateKey(previas[previas.length - 1]!), 1);
+      const slot = primerHorarioLibre(ocupados, now, desde, hoy, horizonDays);
+      if (!slot) continue;
+      previas.push(slot);
+      ocupados.push(slot);
+    }
+  }
+  return plan;
+}
+
+function primerHorarioLibre(taken: Date[], now: Date, desdeDia: string, hoy: string, horizonDays: number): Date | null {
+  const ocupados = new Set(taken.map((d) => d.getTime()));
+  const porDia = new Map<string, number>();
+  for (const d of taken) porDia.set(artDateKey(d), (porDia.get(artDateKey(d)) ?? 0) + 1);
+  for (let dia = 0; dia < horizonDays; dia++) {
+    const key = addDays(hoy, dia);
+    if (key < desdeDia) continue;
+    if ((porDia.get(key) ?? 0) >= MAX_STORIES_PER_DAY) continue;
+    for (const hhmm of STORY_SLOTS_ART) {
+      const t = slotInstant(key, hhmm);
+      if (t.getTime() < now.getTime() + MIN_LEAD_MS) continue;
+      if (!ocupados.has(t.getTime())) return t;
+    }
+  }
+  return null;
+}
+
+/**
+ * Reparte las fotos elegidas entre las historias de un álbum, alternando (la 1.ª a la
+ * historia 1, la 2.ª a la 2, …) para que cada historia tenga fotos de todo el evento y
+ * ninguna foto se repita. `cantidades` es cuántas pide cada plantilla (3 o 4).
+ */
+export function repartirFotos(elegidas: number[], cantidades: number[]): number[][] {
+  const reparto: number[][] = cantidades.map(() => []);
+  let i = 0;
+  let avanzo = true;
+  while (i < elegidas.length && avanzo) {
+    avanzo = false;
+    for (let h = 0; h < cantidades.length && i < elegidas.length; h++) {
+      if (reparto[h]!.length < cantidades[h]!) {
+        reparto[h]!.push(elegidas[i++]!);
+        avanzo = true;
+      }
+    }
+  }
+  return reparto;
 }

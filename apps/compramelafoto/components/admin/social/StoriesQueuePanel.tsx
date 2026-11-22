@@ -94,9 +94,10 @@ export default function StoriesQueuePanel({
       <div>
         <h1 className="text-2xl font-bold text-gray-900 m-0">Historias de Instagram</h1>
         <p className="text-gray-600 mt-1 m-0">
-          Cada mañana a las 08:00 se arma una historia por cada álbum público de más de 50 fotos y se
-          agenda: hasta 10 por día (10, 11, 12, 13, 14, 16, 18, 19, 20 y 21 h); lo que no entra espera
-          a los días siguientes. Salen solas a su hora; podés sacar cualquiera antes.
+          Cada mañana a las 08:00 se arman 3 historias por cada álbum público de más de 50 fotos, una
+          por día y con fotos distintas. Entre todos los álbumes salen hasta 10 por día (10, 11, 12,
+          13, 14, 16, 18, 19, 20 y 21 h); primero va la historia 1 de cada álbum nuevo. Salen solas a
+          su hora; podés sacar cualquiera antes.
         </p>
       </div>
 
@@ -178,6 +179,11 @@ export default function StoriesQueuePanel({
                         {s.scheduleAt ? fmtHora.format(new Date(s.scheduleAt)) : "—"} h
                       </p>
                       <p className="m-0 line-clamp-2 text-sm text-gray-800">{s.albumTitle}</p>
+                      {s.storyNumber && s.storiesTotal ? (
+                        <p className="m-0 text-xs text-gray-500">
+                          Historia {s.storyNumber} de {s.storiesTotal}
+                        </p>
+                      ) : null}
                       <p className="m-0 text-xs text-gray-500">
                         {s.userTags.length
                           ? `Etiqueta a ${s.userTags

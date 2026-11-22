@@ -9,6 +9,8 @@ import {
   pickStoryPhotos,
   storyAlbumTitle,
   storyCredit,
+  planAlbumStories,
+  repartirFotos,
   STORY_SLOTS_ART,
   type AlbumStoryCandidate,
 } from "./album-stories-plan";
@@ -127,6 +129,70 @@ describe("nextFreeStorySlots", () => {
     const semana = nextFreeStorySlots([], ahora, 1000);
     expect(semana).toHaveLength(70);
     expect(nextFreeStorySlots(semana, ahora, 1)).toHaveLength(0);
+  });
+});
+
+describe("planAlbumStories: 3 historias por álbum en días distintos", () => {
+  const ahora = new Date("2026-11-21T11:00:00Z"); // 08:00 ART
+
+  it("un álbum: hoy, mañana y pasado", () => {
+    const [plan] = planAlbumStories([], ahora, 1);
+    expect(plan!.map(artDateKey)).toEqual(["2026-11-21", "2026-11-22", "2026-11-23"]);
+  });
+
+  it("las tres historias de un álbum nunca caen el mismo día", () => {
+    for (const n of [1, 4, 7, 12]) {
+      for (const p of planAlbumStories([], ahora, n)) {
+        const dias = p.map(artDateKey);
+        expect(new Set(dias).size).toBe(dias.length);
+        expect([...dias].sort()).toEqual(dias); // y en orden
+      }
+    }
+  });
+
+  it("nunca más de 10 por día, sumando todos los álbumes", () => {
+    const plan = planAlbumStories([], ahora, 12).flat();
+    const porDia = new Map<string, number>();
+    for (const s of plan) porDia.set(artDateKey(s), (porDia.get(artDateKey(s)) ?? 0) + 1);
+    expect(Math.max(...porDia.values())).toBeLessThanOrEqual(MAX_STORIES_PER_DAY);
+  });
+
+  it("primero va la historia 1 de cada álbum: con 12 álbumes, hoy salen 10 historias 1", () => {
+    const plan = planAlbumStories([], ahora, 12);
+    const hoy = plan.flat().filter((s) => artDateKey(s) === "2026-11-21");
+    expect(hoy).toHaveLength(10);
+    // Las 10 de hoy son la primera historia de los 10 primeros álbumes.
+    for (let a = 0; a < 10; a++) expect(artDateKey(plan[a]![0]!)).toBe("2026-11-21");
+  });
+
+  it("respeta lo que ya estaba agendado", () => {
+    const yaAgendadas = planAlbumStories([], ahora, 3).flat(); // 9 historias
+    const [nuevo] = planAlbumStories(yaAgendadas, ahora, 1);
+    // Hoy quedaban 7 lugares: el nuevo entra hoy.
+    expect(artDateKey(nuevo![0]!)).toBe("2026-11-21");
+    expect(nuevo).toHaveLength(3);
+  });
+
+  it("si la semana está llena, el álbum se queda con menos historias en vez de esperar", () => {
+    const llena = planAlbumStories([], ahora, 30).flat(); // satura los 7 días
+    const [nuevo] = planAlbumStories(llena, ahora, 1);
+    expect(nuevo!.length).toBeLessThan(3);
+  });
+});
+
+describe("repartirFotos", () => {
+  it("alterna las fotos entre las historias, sin repetir", () => {
+    const r = repartirFotos([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], [4, 3, 4]);
+    expect(r).toEqual([
+      [1, 4, 7, 10],
+      [2, 5, 8],
+      [3, 6, 9, 11],
+    ]);
+    expect(new Set(r.flat()).size).toBe(11);
+  });
+
+  it("con pocas fotos, las últimas historias quedan cortas (y no se inventan fotos)", () => {
+    expect(repartirFotos([1, 2, 3, 4], [3, 3, 3])).toEqual([[1, 4], [2], [3]]);
   });
 });
 

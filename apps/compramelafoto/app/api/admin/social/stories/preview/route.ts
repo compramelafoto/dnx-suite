@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Vista previa de la historia de un álbum: `?albumId=…&modelo=0…19`. Devuelve el JPEG tal
+ * Vista previa de una historia de un álbum: `?albumId=…&modelo=0…19&historia=1…3`. Devuelve el JPEG tal
  * como saldría, sin subirlo ni guardar nada. Solo admin.
  */
 export async function GET(req: NextRequest) {
@@ -16,11 +16,12 @@ export async function GET(req: NextRequest) {
   if (error || !user) return NextResponse.json({ error: error ?? "No autorizado" }, { status: 401 });
   const albumId = Number(req.nextUrl.searchParams.get("albumId"));
   const modelo = Number(req.nextUrl.searchParams.get("modelo") ?? "0");
-  if (!Number.isInteger(albumId) || !Number.isInteger(modelo)) {
+  const historia = Number(req.nextUrl.searchParams.get("historia") ?? "1");
+  if (!Number.isInteger(albumId) || !Number.isInteger(modelo) || !Number.isInteger(historia)) {
     return NextResponse.json({ error: "Parámetros inválidos" }, { status: 400 });
   }
   try {
-    const bytes = await previewAlbumStory(albumId, modelo);
+    const bytes = await previewAlbumStory(albumId, modelo, historia);
     if (!bytes) return NextResponse.json({ error: "El álbum no tiene fotos suficientes" }, { status: 404 });
     return new NextResponse(Buffer.from(bytes), {
       headers: { "Content-Type": "image/jpeg", "Cache-Control": "private, no-store" },

@@ -23,6 +23,7 @@ const MODELOS = 20;
 export default function StoryPreviewSection({ candidates }: { candidates: PreviewCandidate[] }) {
   const [albumId, setAlbumId] = useState<number | null>(candidates.find((c) => c.eligible)?.albumId ?? null);
   const [modelo, setModelo] = useState(0);
+  const [historia, setHistoria] = useState(1);
   const [cargando, setCargando] = useState(false);
   const [fallo, setFallo] = useState(false);
 
@@ -36,14 +37,22 @@ export default function StoryPreviewSection({ candidates }: { candidates: Previe
     setCargando(true);
     setFallo(false);
   };
-  const src = albumId ? `/api/admin/social/stories/preview?albumId=${albumId}&modelo=${modelo}` : null;
+  const verHistoria = (n: number) => {
+    setHistoria(n);
+    setCargando(true);
+    setFallo(false);
+  };
+  const src = albumId
+    ? `/api/admin/social/stories/preview?albumId=${albumId}&modelo=${modelo}&historia=${historia}`
+    : null;
 
   return (
     <section className="space-y-3 rounded-lg border border-gray-200 bg-white p-4">
       <div>
         <h2 className="m-0 text-base font-semibold text-gray-900">Vista previa</h2>
         <p className="m-0 mt-1 text-sm text-gray-600">
-          Elegí un álbum de los últimos 7 días y mirá cómo saldría su historia. No se guarda ni se publica nada.
+          Elegí un álbum de los últimos 7 días y mirá cómo saldrían sus 3 historias (una por día, con fotos
+          distintas). No se guarda ni se publica nada.
         </p>
       </div>
       {candidates.length === 0 ? (
@@ -99,6 +108,21 @@ export default function StoryPreviewSection({ candidates }: { candidates: Previe
                   No se pudo armar la vista previa de este álbum.
                 </div>
               ) : null}
+            </div>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => verHistoria(n)}
+                  disabled={!src}
+                  className={`rounded border px-2 py-1 text-xs disabled:opacity-50 ${
+                    historia === n ? "border-[#c27b3d] bg-[#fdf6ef] font-medium" : "border-gray-300"
+                  }`}
+                >
+                  Día {n}
+                </button>
+              ))}
             </div>
             <div className="flex items-center gap-2">
               <button

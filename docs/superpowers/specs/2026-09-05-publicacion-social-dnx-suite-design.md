@@ -331,7 +331,8 @@ Reemplaza, **solo para los álbumes de CLF**, lo dicho en §5 (carrusel + histor
 | Etiqueta | No se podía | **`user_tags` en historias** (Meta lo habilitó en julio de 2025): el fotógrafo y hasta **20 cuentas extra** que él carga en «Privacidad y acceso» (organizador, empresas). Meta no documenta un máximo para historias. Si rechaza alguna (privada o inexistente), se busca por mitades cuál es y se saca **solo esa**; las caídas se ven en el panel. La historia sale siempre |
 | Link | Impreso | Botón dibujado **«Comprar aquí»** con la dirección debajo. No se puede tocar: el sticker de enlace **sigue sin existir por API** |
 | Aprobación | Un clic por pieza | **Sale sola a su hora**; el admin puede sacarla o adelantarla en `/admin/social` |
-| Ritmo | — | **Hasta 10 por día**, en hora justa: 10, 11, 12, 13, 14, 16, 18, 19, 20 y 21 h (hora argentina). Lo que no entra espera, con horizonte de 7 días |
+| Por álbum | — | **3 historias, cada una en un día distinto**, con otro modelo y fotos que no se repiten. La agenda va por rondas: primero la historia 1 de cada álbum nuevo, después las 2 y las 3. Si en la semana no hay lugar para la 2 o la 3, se hace una de menos |
+| Ritmo | — | **Hasta 10 por día** entre todos los álbumes, en hora justa: 10, 11, 12, 13, 14, 16, 18, 19, 20 y 21 h (hora argentina). Lo que no entra espera, con horizonte de 7 días |
 
 **Zona segura.** Instagram tapa ~250 px arriba y ~250 px abajo de la historia. Todo texto
 de las plantillas queda entre esas franjas.
