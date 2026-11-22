@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { carasValidas, encuadrarCaras, fotosConCarasBuenas } from "./story-photo-crop";
+import { asignarFotosAHuecos, carasValidas, encuadrarCaras, fotosConCarasBuenas, fraccionVisible } from "./story-photo-crop";
 
 const dentro = (r: { left: number; top: number; width: number; height: number }, imgW: number, imgH: number) =>
   r.left >= 0 && r.top >= 0 && r.left + r.width <= imgW && r.top + r.height <= imgH;
@@ -82,5 +82,29 @@ describe("selección de fotos con caras", () => {
 
   it("descarta cajas mal formadas", () => {
     expect(carasValidas([{ left: 0.1, top: 0.1, width: 0.1, height: 0.1 }, { left: "x" }, null, { left: 0, top: 0, width: 0, height: 0.1 }])).toHaveLength(1);
+  });
+});
+
+describe("asignarFotosAHuecos: cada foto en el hueco que mejor le queda", () => {
+  it("la foto vertical va al hueco vertical y la horizontal al ancho", () => {
+    // fotos: [horizontal 1,5 ; vertical 0,67] — huecos: [vertical 0,5 ; ancho 3]
+    expect(asignarFotosAHuecos([1.5, 0.67], [0.5, 3])).toEqual([1, 0]);
+  });
+
+  it("con 4 fotos encuentra el mejor reparto y no repite ninguna", () => {
+    const r = asignarFotosAHuecos([1.5, 0.67, 1.5, 0.67], [0.6, 1.6, 0.6, 1.6]);
+    expect(new Set(r).size).toBe(4);
+    expect(r.map((f) => [1.5, 0.67, 1.5, 0.67][f])).toEqual([0.67, 1.5, 0.67, 1.5]);
+  });
+
+  it("si todas tienen la misma forma, respeta el orden", () => {
+    expect(asignarFotosAHuecos([1.5, 1.5, 1.5], [0.5, 1, 2])).toEqual([0, 1, 2]);
+  });
+
+  it("acomodar por forma conserva más imagen que el orden original", () => {
+    const fotos = [1.5, 0.67];
+    const huecos = [0.5, 3];
+    const total = (orden: number[]) => orden.reduce((a, f, h) => a + fraccionVisible(fotos[f]!, huecos[h]!), 0);
+    expect(total(asignarFotosAHuecos(fotos, huecos))).toBeGreaterThan(total([0, 1]));
   });
 });

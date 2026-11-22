@@ -1,5 +1,6 @@
 import type { DesignBlock, DesignDocument, VariableContract } from "@repo/design-studio";
 import { CLF_LOGO_ASPECT, CLF_LOGO_COLOR_PNG_BASE64, CLF_LOGO_WHITE_PNG_BASE64 } from "./clf-logo-data";
+import { fraccionVisible } from "./story-photo-crop";
 
 /**
  * Plantillas de collage para la historia diaria de un álbum (1080×1920, 9:16).
@@ -252,10 +253,14 @@ function texto(
   } as DesignBlock;
 }
 
-const LOGO_H = 64;
+/*
+ * Medidas pensadas para leerse en el celular (2026-11-22: con 19-29 pt no se leía nada).
+ * En una historia de 1080 px de ancho, menos de ~50 px de alto de letra se pierde.
+ */
+const LOGO_H = 72;
 const LOGO_W = Math.round(LOGO_H * CLF_LOGO_ASPECT);
-const BOTON_W = 440;
-const BOTON_H = 92;
+const BOTON_W = 620;
+const BOTON_H = 120;
 
 function logo(t: Tema, x: number, y: number): DesignBlock {
   return { id: "logo", type: "image", x, y, width: LOGO_W, height: LOGO_H, resourceRef: t.logo, fit: "contain" } as DesignBlock;
@@ -265,7 +270,7 @@ function boton(t: Tema, x: number, y: number): DesignBlock[] {
   return [
     { id: "boton", type: "rect", x, y, width: BOTON_W, height: BOTON_H, fillColor: t.boton, cornerRadius: BOTON_H / 2 } as DesignBlock,
     texto("botonTexto", "Comprar aquí", x, y, BOTON_W, BOTON_H, {
-      size: 24,
+      size: 34,
       color: t.textoBoton,
       bold: true,
       align: "center",
@@ -275,7 +280,7 @@ function boton(t: Tema, x: number, y: number): DesignBlock[] {
 }
 
 /**
- * Bloque de texto abajo (y = 1274…1636): logo, la frase grande que va cambiando, el
+ * Bloque de texto abajo (y = 1144…1618): logo, la frase grande que va cambiando, el
  * nombre del álbum, el crédito, el botón y la dirección.
  */
 function textoAbajo(t: Tema, align: "left" | "center", margen: number): DesignBlock[] {
@@ -283,25 +288,25 @@ function textoAbajo(t: Tema, align: "left" | "center", margen: number): DesignBl
   const w = STORY_W - margen * 2;
   const xc = (ancho: number) => (align === "center" ? Math.round((STORY_W - ancho) / 2) : x);
   return [
-    logo(t, xc(LOGO_W), 1274),
-    texto("frase", "{{frase}}", x, 1344, w, 48, { size: 29, color: t.texto, bold: true, align }),
-    texto("titulo", "{{nombreAlbum}}", x, 1396, w, 66, { size: 19, color: t.texto, align, lines: 2 }),
-    texto("credito", "{{creditoFotografo}}", x, 1466, w, 30, { size: 16, color: t.suave, align }),
-    ...boton(t, xc(BOTON_W), 1502),
-    texto("url", "{{urlAlbum}}", x, 1602, w, 34, { size: 19, color: t.texto, bold: true, align }),
+    logo(t, xc(LOGO_W), 1144),
+    texto("frase", "{{frase}}", x, 1226, w, 62, { size: 38, color: t.texto, bold: true, align }),
+    texto("titulo", "{{nombreAlbum}}", x, 1292, w, 82, { size: 27, color: t.texto, align, lines: 2 }),
+    texto("credito", "{{creditoFotografo}}", x, 1378, w, 40, { size: 24, color: t.suave, bold: true, align }),
+    ...boton(t, xc(BOTON_W), 1428),
+    texto("url", "{{urlAlbum}}", x, 1562, w, 50, { size: 28, color: t.texto, bold: true, align }),
   ];
 }
 
-/** Logo, frase y nombre arriba (250…436); crédito, botón y dirección abajo (1464…1640). */
+/** Logo, frase y nombre arriba (250…476); crédito, botón y dirección abajo (1316…1556). */
 function textoArribaYAbajo(t: Tema, margen: number): DesignBlock[] {
   const w = STORY_W - margen * 2;
   return [
     logo(t, Math.round((STORY_W - LOGO_W) / 2), SEGURA_ARRIBA),
-    texto("frase", "{{frase}}", margen, 320, w, 48, { size: 29, color: t.texto, bold: true, align: "center" }),
-    texto("titulo", "{{nombreAlbum}}", margen, 370, w, 66, { size: 19, color: t.texto, align: "center", lines: 2 }),
-    texto("credito", "{{creditoFotografo}}", margen, 1464, w, 30, { size: 16, color: t.suave, align: "center" }),
-    ...boton(t, Math.round((STORY_W - BOTON_W) / 2), 1500),
-    texto("url", "{{urlAlbum}}", margen, 1604, w, 34, { size: 19, color: t.texto, bold: true, align: "center" }),
+    texto("frase", "{{frase}}", margen, 328, w, 62, { size: 38, color: t.texto, bold: true, align: "center" }),
+    texto("titulo", "{{nombreAlbum}}", margen, 392, w, 82, { size: 27, color: t.texto, align: "center", lines: 2 }),
+    texto("credito", "{{creditoFotografo}}", margen, 1316, w, 40, { size: 24, color: t.suave, bold: true, align: "center" }),
+    ...boton(t, Math.round((STORY_W - BOTON_W) / 2), 1364),
+    texto("url", "{{urlAlbum}}", margen, 1500, w, 50, { size: 28, color: t.texto, bold: true, align: "center" }),
   ];
 }
 
@@ -318,9 +323,9 @@ function textoArribaYAbajo(t: Tema, margen: number): DesignBlock[] {
 type Composicion = "sangre" | "marco" | "centro";
 
 function zona(c: Composicion): { caja: Caja; g: number } {
-  if (c === "sangre") return { caja: { x: 0, y: 0, w: STORY_W, h: 1262 }, g: 8 };
-  if (c === "marco") return { caja: { x: 56, y: 120, w: STORY_W - 112, h: 1130 }, g: 14 };
-  return { caja: { x: 0, y: 446, w: STORY_W, h: 996 }, g: 8 };
+  if (c === "sangre") return { caja: { x: 0, y: 0, w: STORY_W, h: 1128 }, g: 8 };
+  if (c === "marco") return { caja: { x: 56, y: 110, w: STORY_W - 112, h: 1012 }, g: 14 };
+  return { caja: { x: 0, y: 490, w: STORY_W, h: 812 }, g: 8 };
 }
 
 function armar(layoutId: string, temaId: Tema["id"], comp: Composicion, align: "left" | "center" = "center"): StoryCollage {
@@ -412,4 +417,52 @@ export function pickStoryCollage(ordinal: number): StoryCollage {
   const n = STORY_COLLAGES.length;
   const i = ((Math.trunc(ordinal) % n) + n) % n;
   return STORY_COLLAGES[i]!;
+}
+
+/**
+ * Qué tan bien le queda un modelo a fotos de una forma dada: el promedio de la parte de
+ * cada foto que entra en su hueco sin ampliarla (1 = entra entera). `aspecto` = ancho ÷
+ * alto de las fotos del álbum.
+ */
+export function ajusteDelCollage(c: StoryCollage, aspecto: number): number {
+  const huecos = c.document.sides[0]!.blocks.filter((b) => b.type === "image" && b.variableKey);
+  if (huecos.length === 0) return 0;
+  return huecos.reduce((acc, h) => acc + fraccionVisible(aspecto, h.width / h.height), 0) / huecos.length;
+}
+
+/**
+ * Elige `cantidad` modelos distintos para un álbum según la forma de sus fotos (pedido
+ * 2026-11-22: «que la foto esté lo más completa posible»). Si el álbum es de fotos
+ * horizontales usa los modelos de huecos anchos; si es de verticales, los de columnas.
+ * Entre los que le quedan bien (al menos el 85 % del mejor, y como mínimo 6), rota por
+ * `ordinal` para que dos álbumes seguidos no salgan iguales.
+ */
+export function elegirCollages(aspecto: number, ordinal: number, cantidad: number): StoryCollage[] {
+  const puntajes = STORY_COLLAGES.map((c) => ({ c, a: ajusteDelCollage(c, aspecto) }));
+  const mejor = Math.max(...puntajes.map((p) => p.a));
+  let aptos = puntajes.filter((p) => p.a >= mejor * 0.85).map((p) => p.c);
+  const minimo = Math.max(6, cantidad);
+  if (aptos.length < minimo) {
+    aptos = [...puntajes].sort((x, y) => y.a - x.a).slice(0, minimo).map((p) => p.c);
+    // Se vuelve al orden de la lista, que alterna los fondos.
+    aptos.sort((x, y) => STORY_COLLAGES.indexOf(x) - STORY_COLLAGES.indexOf(y));
+  }
+  const n = aptos.length;
+  const inicio = ((Math.trunc(ordinal) % n) + n) % n;
+  return Array.from({ length: Math.min(cantidad, n) }, (_, k) => aptos[(inicio + k) % n]!);
+}
+
+/**
+ * Como `elegirCollages`, pero solo entre modelos de `cantidadFotos` huecos: para rehacer
+ * una historia ya agendada con sus mismas fotos.
+ */
+export function elegirCollageConFotos(aspecto: number, ordinal: number, cantidadFotos: number): StoryCollage | null {
+  const candidatos = STORY_COLLAGES.filter((c) => c.fotos === cantidadFotos)
+    .map((c) => ({ c, a: ajusteDelCollage(c, aspecto) }))
+    .sort((x, y) => y.a - x.a)
+    .slice(0, 4)
+    .map((p) => p.c);
+  if (candidatos.length === 0) return null;
+  const n = candidatos.length;
+  return candidatos[((Math.trunc(ordinal) % n) + n) % n]!;
 }

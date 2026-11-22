@@ -109,3 +109,41 @@ export function fotosConCarasBuenas(
     return Math.max(...caras.map((c) => c.height)) >= alturaMinima;
   });
 }
+
+/**
+ * Qué parte de una foto entra en un hueco sin ampliarla: 1 si tienen la misma forma; una
+ * foto horizontal (1,5) en un hueco vertical (0,5) conserva solo un tercio del ancho.
+ * `aspecto` = ancho ÷ alto.
+ */
+export function fraccionVisible(aspectoFoto: number, aspectoHueco: number): number {
+  return Math.min(aspectoFoto, aspectoHueco) / Math.max(aspectoFoto, aspectoHueco);
+}
+
+/**
+ * Reparte las fotos entre los huecos del collage para que cada una entre lo más completa
+ * posible: las verticales a los huecos verticales y las horizontales a los anchos (pedido
+ * 2026-11-22: «que la foto esté lo más completa posible»). Prueba todas las combinaciones
+ * (como mucho 4 fotos: 24) y se queda con la que más imagen conserva en total; ante empate,
+ * respeta el orden original.
+ *
+ * Devuelve, para cada hueco, el índice de la foto que va en él.
+ */
+export function asignarFotosAHuecos(aspectosFotos: number[], aspectosHuecos: number[]): number[] {
+  const n = Math.min(aspectosFotos.length, aspectosHuecos.length);
+  const indices = Array.from({ length: aspectosFotos.length }, (_, i) => i);
+  let mejor: number[] = indices.slice(0, n);
+  let mejorPuntaje = -1;
+  const probar = (elegidas: number[], restantes: number[]) => {
+    if (elegidas.length === n) {
+      const puntaje = elegidas.reduce((acc, f, h) => acc + fraccionVisible(aspectosFotos[f]!, aspectosHuecos[h]!), 0);
+      if (puntaje > mejorPuntaje + 1e-9) {
+        mejorPuntaje = puntaje;
+        mejor = [...elegidas];
+      }
+      return;
+    }
+    for (const r of restantes) probar([...elegidas, r], restantes.filter((x) => x !== r));
+  };
+  probar([], indices);
+  return mejor;
+}

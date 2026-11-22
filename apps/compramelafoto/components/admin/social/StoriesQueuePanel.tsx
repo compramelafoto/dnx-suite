@@ -76,6 +76,20 @@ export default function StoriesQueuePanel({
     router.refresh();
   }
 
+  async function rehacer() {
+    setOcupado("rehacer");
+    setAviso(null);
+    const r = await fetch("/api/admin/social/stories/rerender", { method: "POST" });
+    const d = await r.json().catch(() => null);
+    setAviso(
+      r.ok && d
+        ? `Se rehicieron ${d.rehechas} historias con el diseño actual${d.fallidas ? `; ${d.fallidas} no se pudieron rehacer` : ""}.`
+        : "No se pudieron rehacer las historias.",
+    );
+    setOcupado(null);
+    router.refresh();
+  }
+
   async function armarAhora() {
     setOcupado("generar");
     setAviso(null);
@@ -138,6 +152,15 @@ export default function StoriesQueuePanel({
           className="rounded-md bg-[#c27b3d] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
         >
           {ocupado === "generar" ? "Armando…" : "Armar ahora"}
+        </button>
+        <button
+          type="button"
+          onClick={rehacer}
+          disabled={!status.connected || ocupado !== null || enCola === 0}
+          title="Vuelve a armar las historias que todavía no salieron, con las mismas fotos y horarios"
+          className="rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+        >
+          {ocupado === "rehacer" ? "Rehaciendo…" : "Rehacer pendientes con el diseño actual"}
         </button>
         <span className="text-sm text-gray-500">{enCola} en cola</span>
       </div>

@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { buildPublishRequestInput, renderSocialPiece } from "@repo/social-pieces";
 import type { MentionCandidate } from "@repo/social-publisher";
 import { Prisma, prisma } from "@repo/db";
@@ -25,7 +26,8 @@ import {
   type AlbumStorySkipReason,
 } from "./album-stories-plan";
 import {
-  pickStoryCollage,
+  elegirCollageConFotos,
+  elegirCollages,
   readStoryBrandResource,
   STORY_COLLAGE_MAX_PHOTOS,
   type StoryCollage,
@@ -264,8 +266,7 @@ export async function generateDailyAlbumStories(now: Date = new Date()): Promise
       continue;
     }
     try {
-      const collages = horarios.map((_, k) => pickStoryCollage(ordinal + k));
-      const armadas = await renderAlbumStories(album, collages);
+      const armadas = await renderAlbumStories(album, { cantidad: horarios.length, ordinal });
       if (!armadas) {
         skip("NO_PHOTOS");
         continue;
@@ -284,7 +285,7 @@ export async function generateDailyAlbumStories(now: Date = new Date()): Promise
 
       for (const [k, historia] of historias.entries()) {
         const scheduleAt = horarios[k]!;
-        const collage = collages[k]!;
+        const collage = historia.collage;
         const numero = k + 1;
         const key = `social/clf/historias/${album.id}-${numero}-${Date.now()}.jpg`;
         await uploadToR2(Buffer.from(historia.bytes), key, "image/jpeg");
@@ -371,7 +372,10 @@ type AlbumParaHistoria = {
  * antes de encuadrar (`prepararFotosDelCollage`). En la historia cada foto ocupa un hueco
  * de como mucho 1080 px, así que una captura no sirve para imprimir.
  */
-export async function renderAlbumStories(album: AlbumParaHistoria, collages: StoryCollage[], soloLa?: number) {
+export async function renderAlbumStories(
+  album: AlbumParaHistoria,
+  opciones: { cantidad: number; ordinal: number; soloLa?: number },
+) {
   const fotos = await prisma.photo.findMany({
     where: { albumId: album.id, isRemoved: false },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -380,8 +384,9 @@ export async function renderAlbumStories(album: AlbumParaHistoria, collages: Sto
   if (fotos.length < MIN_ALBUM_PHOTOS_FOR_STORY) return null;
   const permiso = await getAlbumSocialConsent(album.id);
   const preferidas = permiso?.selectedPhotoIds ?? [];
-  const cantidades = collages.map((c) => Math.min(c.fotos, STORY_COLLAGE_MAX_PHOTOS));
-  const total = cantidades.reduce((x, y) => x + y, 0);
+  // Se eligen fotos para el peor caso (4 por historia); los modelos se deciden después de
+  // ver la forma de las fotos, y las que sobran no se usan.
+  const total = opciones.cantidad * STORY_COLLAGE_MAX_PHOTOS;
 
   // Caras detectadas (Rekognition) de todo el álbum: sirven para elegir fotos donde la
   // gente se ve y para encuadrar sin cortar cabezas.
@@ -397,42 +402,132 @@ export async function renderAlbumStories(album: AlbumParaHistoria, collages: Sto
   const todas = fotos.map((f) => f.id);
   const conCaras = fotosConCarasBuenas(todas, carasPorFoto);
   const elegidas = pickStoryPhotos(conCaras.length >= total ? conCaras : todas, total, preferidas);
-  const reparto = repartirFotos(elegidas, cantidades);
   const urlPorId = new Map(fotos.map((f) => [f.id, getPublicUrl(f.originalKey)]));
   const handle = normalizeConsentHandle(album.user.instagram);
 
-  const historias: Array<{ bytes: Uint8Array; photoIds: number[] }> = [];
+  const bajadas = new Map<number, { bytes: Uint8Array; caras: CajaDeCara[]; aspecto: number }>();
+  for (const id of elegidas) {
+    const bytes = await leerFoto(urlPorId.get(id)!);
+    if (!bytes) throw new Error(`No se pudo bajar la foto ${id}`);
+    bajadas.set(id, { bytes, caras: carasPorFoto.get(id) ?? [], aspecto: await aspectoDerecho(bytes) });
+  }
+
+  // Los modelos se eligen según la forma de las fotos del álbum (la mediana): huecos
+  // anchos para fotos horizontales, columnas para verticales.
+  const aspectos = [...bajadas.values()].map((b) => b.aspecto).sort((a, b) => a - b);
+  const aspectoDelAlbum = aspectos.length ? aspectos[Math.floor(aspectos.length / 2)]! : 1.5;
+  const collages = elegirCollages(aspectoDelAlbum, opciones.ordinal, opciones.cantidad);
+  const reparto = repartirFotos(elegidas, collages.map((c) => Math.min(c.fotos, STORY_COLLAGE_MAX_PHOTOS)));
+
+  const historias: Array<{ bytes: Uint8Array; photoIds: number[]; collage: StoryCollage }> = [];
   for (const [k, collage] of collages.entries()) {
-    if (soloLa !== undefined && k !== soloLa) continue;
+    if (opciones.soloLa !== undefined && k !== opciones.soloLa) continue;
     const ids = reparto[k]!;
     if (ids.length < collage.fotos) break; // no hay fotos para esta historia: se arma una de menos
-    const bajadas: Array<{ bytes: Uint8Array; caras: CajaDeCara[] }> = [];
-    for (const id of ids) {
-      const bytes = await leerFoto(urlPorId.get(id)!);
-      if (!bytes) throw new Error(`No se pudo bajar la foto ${id}`);
-      bajadas.push({ bytes, caras: carasPorFoto.get(id) ?? [] });
-    }
-    const encuadradas = await prepararFotosDelCollage(collage, bajadas);
-    const pieza = await renderSocialPiece({
-      pieceId: collage.id,
-      format: "STORY",
-      document: collage.document,
-      contract: collage.contract,
-      values: {
-        frase: fraseDeHistoria(k + 1, album.id),
-        nombreAlbum: storyAlbumTitle(album.title),
-        creditoFotografo: storyCredit(handle, album.user.name),
-        urlAlbum: storyShortUrl(album.id),
-        ...encuadradas.values,
-      },
-      resources: { read: async (ref: string) => encuadradas.slots.get(ref) ?? leerFoto(ref) },
-      dpi: 96,
-    });
-    const imagen = pieza.images[0];
-    if (!imagen) throw new Error("El render no devolvió imagen");
-    historias.push({ bytes: imagen.bytes, photoIds: ids });
+    const bytes = await renderUnaHistoria(album, handle, collage, ids.map((id) => bajadas.get(id)!), k + 1);
+    historias.push({ bytes, photoIds: ids, collage });
   }
   return { historias, handle, permiso };
+}
+
+/** Arma la imagen de UNA historia con sus fotos ya bajadas. No sube ni guarda nada. */
+async function renderUnaHistoria(
+  album: AlbumParaHistoria,
+  handle: string | null,
+  collage: StoryCollage,
+  fotos: Array<{ bytes: Uint8Array; caras: CajaDeCara[] }>,
+  numero: number,
+): Promise<Uint8Array> {
+  const encuadradas = await prepararFotosDelCollage(collage, fotos);
+  const pieza = await renderSocialPiece({
+    pieceId: collage.id,
+    format: "STORY",
+    document: collage.document,
+    contract: collage.contract,
+    values: {
+      frase: fraseDeHistoria(numero, album.id),
+      nombreAlbum: storyAlbumTitle(album.title),
+      creditoFotografo: storyCredit(handle, album.user.name),
+      urlAlbum: storyShortUrl(album.id),
+      ...encuadradas.values,
+    },
+    resources: { read: async (ref: string) => encuadradas.slots.get(ref) ?? leerFoto(ref) },
+    dpi: 96,
+  });
+  const imagen = pieza.images[0];
+  if (!imagen) throw new Error("El render no devolvió imagen");
+  return imagen.bytes;
+}
+
+/**
+ * Rehace la imagen de las historias que todavía no salieron (en cola o fallidas) con el
+ * diseño actual: mismas fotos, mismo horario, mismas etiquetas. Sirve cuando cambia la
+ * plantilla (2026-11-22: se agrandaron las letras) sin perder la agenda.
+ */
+export async function rehacerHistoriasPendientes(): Promise<{ rehechas: number; fallidas: number }> {
+  const pendientes = await prisma.dnxSocialPublishRequest.findMany({
+    where: { application: APPLICATION, entityType: ALBUM_STORY_ENTITY_TYPE, status: { in: ["SCHEDULED", "FAILED"] } },
+    orderBy: { scheduleAt: "asc" },
+    take: 30,
+  });
+  let rehechas = 0;
+  let fallidas = 0;
+  for (const [i, r] of pendientes.entries()) {
+    try {
+      const m = (r.metadata ?? {}) as Record<string, unknown>;
+      const ids = Array.isArray(m.photoIds) ? (m.photoIds as number[]) : [];
+      const numero = typeof m.storyNumber === "number" ? m.storyNumber : 1;
+      const album = await prisma.album.findUnique({
+        where: { id: Number(r.entityId) },
+        select: { id: true, title: true, publicSlug: true, user: { select: { name: true, instagram: true } } },
+      });
+      if (!album || ids.length === 0) throw new Error("sin álbum o sin fotos");
+      const fotos = await prisma.photo.findMany({ where: { id: { in: ids } }, select: { id: true, originalKey: true } });
+      const caras = await prisma.faceDetection.findMany({ where: { photoId: { in: ids } }, select: { photoId: true, bbox: true } });
+      const bajadas: Array<{ bytes: Uint8Array; caras: CajaDeCara[]; aspecto: number }> = [];
+      for (const id of ids) {
+        const f = fotos.find((x) => x.id === id);
+        if (!f) throw new Error(`falta la foto ${id}`);
+        const bytes = await leerFoto(getPublicUrl(f.originalKey));
+        if (!bytes) throw new Error(`no se pudo bajar la foto ${id}`);
+        bajadas.push({
+          bytes,
+          caras: carasValidas(caras.filter((c) => c.photoId === id).map((c) => c.bbox)),
+          aspecto: await aspectoDerecho(bytes),
+        });
+      }
+      const aspectos = bajadas.map((b) => b.aspecto).sort((a, b) => a - b);
+      const collage = elegirCollageConFotos(aspectos[Math.floor(aspectos.length / 2)]!, i, ids.length);
+      if (!collage) throw new Error(`no hay modelo de ${ids.length} fotos`);
+      const handle = normalizeConsentHandle(album.user.instagram);
+      const bytes = await renderUnaHistoria(album, handle, collage, bajadas, numero);
+      const key = `social/clf/historias/${album.id}-${numero}-${Date.now()}.jpg`;
+      await uploadToR2(Buffer.from(bytes), key, "image/jpeg");
+      const assets = (Array.isArray(r.assets) ? r.assets : []) as Array<Record<string, unknown>>;
+      await prisma.dnxSocialPublishRequest.update({
+        where: { id: r.id },
+        data: {
+          templateRef: collage.id,
+          assets: assets.map((a, j) => (j === 0 ? { ...a, publicUrl: getPublicUrl(key) } : a)) as Prisma.InputJsonValue,
+          metadata: { ...m, collage: collage.id } as Prisma.InputJsonValue,
+        },
+      });
+      await logSocialRequest(r.id, "RERENDERED", null, { collage: collage.id });
+      rehechas++;
+    } catch (e) {
+      fallidas++;
+      console.error(`[social] no se pudo rehacer la historia ${r.id}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return { rehechas, fallidas };
+}
+
+/** Ancho ÷ alto de la foto ya enderezada según EXIF (las cámaras guardan algunas acostadas). */
+async function aspectoDerecho(bytes: Uint8Array): Promise<number> {
+  const m = await sharp(Buffer.from(bytes), { failOn: "none" }).metadata();
+  const w = m.width ?? 3;
+  const h = m.height ?? 2;
+  return (m.orientation ?? 1) >= 5 ? h / w : w / h;
 }
 
 // ---------------------------------------------------------------------------
@@ -521,9 +616,8 @@ export async function previewAlbumStory(albumId: number, modelo: number, histori
     select: { id: true, title: true, publicSlug: true, user: { select: { name: true, instagram: true } } },
   });
   if (!album) return null;
-  const collages = Array.from({ length: STORIES_PER_ALBUM }, (_, k) => pickStoryCollage(modelo + k));
   const indice = Math.min(Math.max(historia, 1), STORIES_PER_ALBUM) - 1;
-  const r = await renderAlbumStories(album, collages, indice);
+  const r = await renderAlbumStories(album, { cantidad: STORIES_PER_ALBUM, ordinal: modelo, soloLa: indice });
   return r?.historias[0]?.bytes ?? null;
 }
 
