@@ -3,40 +3,14 @@ import { prisma } from "@repo/db";
 import { fichaDetail } from "@repo/muestras";
 import { distinctionsForWorks, obrasSoloOnline } from "@/lib/concursos/publico";
 import { conPermiso } from "@/lib/equipo/permisos";
+import { marcaDeDisciplina } from "@/lib/marca";
 import { asegurarCodigosDeSala } from "@/lib/sala/codigos";
 import type { Usuario } from "@/lib/usuario";
+import { baseUrlPublica } from "./base-publica";
 import { datosDeFicha, type FichaDeObra } from "./texto";
 
-const DOMINIO_PUBLICO = "https://muestrasfotograficas.com";
-let avisado = false;
-
-/**
- * La dirección pública del sitio, la que va en el QR. En local puede apuntar a `localhost`.
- *
- * En producción un QR impreso dura lo que dure la muestra: no puede llevar `localhost`, una
- * dirección `*.vercel.app` (cambia con cada proyecto) ni `http`. Si `APP_URL` no sirve, se usa el
- * dominio público y se avisa una vez en el log para corregir la variable en Vercel.
- */
-export function baseUrlPublica(env: Record<string, string | undefined> = process.env): string {
-  const pedida = (env.APP_URL?.trim() || env.NEXT_PUBLIC_APP_URL?.trim() || DOMINIO_PUBLICO).replace(/\/+$/, "");
-  const produccion = env.NODE_ENV === "production" || env.VERCEL_ENV === "production";
-  if (!produccion || pedida === DOMINIO_PUBLICO) return pedida;
-  let sirve = false;
-  try {
-    const u = new URL(pedida);
-    const host = u.hostname.toLowerCase();
-    sirve = u.protocol === "https:" && host !== "localhost" && !host.endsWith(".localhost") && host !== "127.0.0.1"
-      && host !== "[::1]" && host !== "vercel.app" && !host.endsWith(".vercel.app");
-  } catch {
-    sirve = false;
-  }
-  if (sirve) return pedida;
-  if (!avisado) {
-    avisado = true;
-    console.warn(`[fichas] APP_URL no sirve para un QR impreso en producción; se usa ${DOMINIO_PUBLICO}.`);
-  }
-  return DOMINIO_PUBLICO;
-}
+// La dirección pública vive aparte (sin base ni React) para que la usen también los correos.
+export { baseUrlPublica } from "./base-publica";
 
 /**
  * Las fichas de una muestra **publicada** de la persona (cualquiera, si es super admin): una
@@ -57,7 +31,7 @@ export async function cargarFichas(
   const a = await prisma.culturalActivity.findFirst({
     where: conPermiso({ id, reviewStatus: "APPROVED", type: "MUESTRA" }, usuario, "pieces"),
     select: {
-      id: true, slug: true, title: true,
+      id: true, slug: true, title: true, primaryDiscipline: true,
       works: { orderBy: { sortOrder: "asc" }, select: { id: true, title: true, authorName: true, year: true, technique: true, sortOrder: true } },
     },
   });
@@ -70,11 +44,15 @@ export async function cargarFichas(
   const [codigos, deExpositor, premios] = await Promise.all([
     asegurarCodigosDeSala(a.id, ids), detallesDeExpositor(a.id, ids), distinctionsForWorks(a.id, ids),
   ]);
-  const base = baseUrlPublica();
+  const base = baseUrlPublica(undefined, a.primaryDiscipline);
+  const { dominio } = marcaDeDisciplina(a.primaryDiscipline);
   return {
     nombre: obraId ? `ficha-${a.slug}-${obras[0]!.sortOrder + 1}` : `fichas-${a.slug}`,
     activityId: a.id,
-    fichas: obras.map((o) => datosDeFicha(a, o, base, { codigo: codigos.get(o.id), detalle: deExpositor.get(o.id), distincion: premios.get(o.id) })),
+    fichas: obras.map((o) => ({
+      ...datosDeFicha(a, o, base, { codigo: codigos.get(o.id), detalle: deExpositor.get(o.id), distincion: premios.get(o.id) }),
+      dominio,
+    })),
   };
 }
 

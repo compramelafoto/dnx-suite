@@ -20,17 +20,17 @@ const NO_EXISTE: ResultadoAccion = { ok: false, errores: ["La muestra no existe.
 const INVALIDA: ResultadoAccion = { ok: false, errores: ["La invitación no es válida."] };
 const CAMBIO: ResultadoAccion = { ok: false, errores: ["La invitación cambió mientras tanto. Recargá la página."] };
 
-type Muestra = { id: string; title: string; ownerEmail: string | null };
+type Muestra = { id: string; title: string; ownerEmail: string | null; primaryDiscipline: string | null };
 
 /** La muestra, si esta persona puede manejar su equipo (dueño o super admin). */
 async function muestraParaEquipo(activityId: string, usuario: Usuario): Promise<Muestra | null> {
   const r = await rolEnMuestra(activityId, usuario);
   if (!r || !puede(usuario, "manageTeam", r.role)) return null;
-  const a = await prisma.culturalActivity.findUnique({ where: { id: activityId }, select: { id: true, title: true, type: true } });
+  const a = await prisma.culturalActivity.findUnique({ where: { id: activityId }, select: { id: true, title: true, type: true, primaryDiscipline: true } });
   if (!a || a.type !== "MUESTRA") return null;
   // A quién no se puede invitar (al dueño): no es un permiso, es el email del responsable.
   const dueno = await prisma.user.findUnique({ where: { id: r.ownerUserId }, select: { email: true } });
-  return { id: a.id, title: a.title, ownerEmail: dueno?.email ?? null };
+  return { id: a.id, title: a.title, ownerEmail: dueno?.email ?? null, primaryDiscipline: a.primaryDiscipline ?? null };
 }
 
 /** Invitación nueva o renovada (token nuevo). Si el correo no sale, devuelve el enlace a quien invita. */
@@ -69,7 +69,7 @@ async function invitar(a: Muestra, usuario: Usuario, emailCrudo: string, rol: un
   }
   if (!r.ok) return { ok: false, errores: r.errores };
   const { fila } = r;
-  const aviso = await avisarInvitacionEquipo({ email: r.email, token, muestra: a.title, rol: r.rol, invita: usuario.name?.trim() || usuario.email, invitedAt: ahora });
+  const aviso = await avisarInvitacionEquipo({ email: r.email, token, muestra: a.title, rol: r.rol, invita: usuario.name?.trim() || usuario.email, invitedAt: ahora, primaryDiscipline: a.primaryDiscipline });
   revalidatePath(`/panel/muestras/${a.id}/equipo`);
   // Sin correo, el enlace vuelve sólo a quien invita (D6). El token crudo no se guarda.
   return aviso.enviado ? { ok: true, id: fila.id } : { ok: true, id: fila.id, enlace: aviso.url };

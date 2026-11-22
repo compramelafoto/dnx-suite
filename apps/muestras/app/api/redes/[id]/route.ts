@@ -4,6 +4,7 @@ import {
 } from "@repo/muestras";
 import { baseUrlPublica } from "@/lib/fichas/cargar";
 import { frenarPorUsuario } from "@/lib/limite";
+import { marcaDeDisciplina } from "@/lib/marca";
 import { errorEnTexto } from "@/lib/piezas/entregar";
 import { cargarMuestraParaRedes, motivoNoDisponible, motivoSinObrasOnline, obrasParaDifundir } from "@/lib/redes/cargar";
 import { armarPiezaRedes } from "@/lib/redes/componer";
@@ -50,7 +51,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (variante === "WORK" && !obra) return errorEnTexto("Esa obra no es de esta muestra.", 404);
 
   try {
-    const jpg = await armarPiezaRedes({ muestra, obra, formato, variante, urlInvitacion: `${baseUrlPublica()}/m/${a.slug}/inauguracion` });
+    const jpg = await armarPiezaRedes({
+      muestra, obra, formato, variante,
+      urlInvitacion: `${baseUrlPublica(undefined, a.primaryDiscipline)}/m/${a.slug}/inauguracion`,
+      dominio: marcaDeDisciplina(a.primaryDiscipline).dominio,
+    });
     const pdf = isPrintFormat(formato);
     const cuerpo = pdf ? await invitacionImprimible(jpg, formato) : jpg;
     // El slug sólo tiene a-z, 0-9 y guiones; variante y formato salen de listas cerradas.

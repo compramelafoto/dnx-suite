@@ -41,7 +41,7 @@ export default async function MiLugar({ params, searchParams }: Props) {
         {ESTADO[r.status] ?? ""}
         {r.status !== "CANCELLED" ? ` ${personas === 1 ? "Anotaste 1 persona." : `Anotaste ${personas} personas (vos y ${r.companions} más).`}` : ""}
       </p>
-      <DatosInauguracion a={a} evento={eventoDeInauguracion(a, baseUrlPublica())} />
+      <DatosInauguracion a={a} evento={eventoDeInauguracion(a, baseUrlPublica(undefined, a.primaryDiscipline))} />
       {r.status !== "CANCELLED" && !empezo ? <MiAsistencia token={token} /> : null}
       {r.status === "CANCELLED" && !empezo ? <p><Link href={`/m/${a.slug}/inauguracion`} className="underline underline-offset-4">Ir a la invitación</Link></p> : null}
       <p><Link href={`/m/${a.slug}`} className="underline underline-offset-4">Ver la muestra</Link></p>

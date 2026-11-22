@@ -58,6 +58,11 @@ describe("invitarAlEquipo", () => {
     usuarioActual.valor = admin;
     expect((await invitarAlEquipo("a1", "x@y.com", "TEXT_EDITOR")).ok).toBe(true);
   });
+  it("el correo de una muestra de arte sabe su disciplina (dominio y marca de arte, etapa 2)", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ ...muestra(), primaryDiscipline: "PINTURA" });
+    await invitarAlEquipo("a1", "x@y.com", "TEXT_EDITOR");
+    expect(correo.avisarInvitacionEquipo).toHaveBeenCalledWith(expect.objectContaining({ primaryDiscipline: "PINTURA" }));
+  });
   it("sin sesión", async () => {
     usuarioActual.valor = null;
     expect(await invitarAlEquipo("a1", "x@y.com", "TEXT_EDITOR")).toEqual({ ok: false, errores: ["Tenés que ingresar."] });

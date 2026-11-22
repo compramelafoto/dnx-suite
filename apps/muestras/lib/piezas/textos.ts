@@ -7,6 +7,8 @@ export type MuestraParaPiezas = {
   startsAt: Date; endsAt: Date; scheduleText: string | null;
   venueName: string | null; address: string | null; city: string | null; province: string | null;
   coverImageUrl: string | null; hangingPlan: unknown; updatedAt: Date;
+  /** La disciplina decide el dominio de los QR (etapa 2 de arte). Sin ella, fotografía. */
+  primaryDiscipline?: string | null;
   works: { id: string; title: string; authorName: string; year: number | null; technique: string | null; imageUrl: string; sortOrder: number }[];
   /** Lo que cargó quien expone, por id de la obra de la muestra (etapa 6). Nunca el precio. */
   expositores?: ReadonlyMap<string, DatosDeExpositor>;
@@ -56,7 +58,7 @@ export function lugarDeMuestra(a: { venueName: string | null; address: string | 
   return [a.venueName, a.address, a.city, a.province].map(lleno).filter(Boolean).join(", ") || null;
 }
 
-/** "muestrasfotograficas.com/m/x/libro": para escribir a mano si el QR no anda. */
+/** "muestrasfotograficas.com/m/x/libro" (o el dominio de arte): para escribir a mano si el QR no anda. */
 export function urlVisible(base: string, path: string): string {
   return `${base.replace(/\/+$/, "").replace(/^https?:\/\//, "")}${path}`;
 }

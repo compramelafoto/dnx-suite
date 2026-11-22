@@ -35,7 +35,7 @@ export default async function Invitacion({ params, searchParams }: Props) {
   asegurarCasa(marca, a.primaryDiscipline, `/m/${a.slug}/inauguracion`, textoDeBusqueda((await searchParams) ?? {}));
   const estado = rsvpState(a, new Date());
   if (estado === "UNAVAILABLE") notFound();
-  const evento = eventoDeInauguracion(a, baseUrlPublica());
+  const evento = eventoDeInauguracion(a, baseUrlPublica(undefined, a.primaryDiscipline));
   return (
     <main className="mx-auto max-w-3xl space-y-6 p-4 sm:p-8">
       <Link href={`/m/${a.slug}`} className="text-sm underline underline-offset-4">Ver la muestra</Link>

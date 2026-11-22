@@ -102,6 +102,19 @@ describe("GET /api/redes/[id]", () => {
     expect(componer.armarPiezaRedes).toHaveBeenCalledTimes(2);
   });
 
+  it("una muestra de arte: el QR y el pie con el dominio de arte; fotografía, el de siempre (etapa 2)", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("APP_URL", "https://muestrasfotograficas.com");
+    db.culturalActivity.findFirst.mockResolvedValue(muestra({ primaryDiscipline: "PINTURA" }));
+    await GET(pedido("a1", "?formato=post&variante=inaugura"), ctx("a1"));
+    db.culturalActivity.findFirst.mockResolvedValue(muestra({ primaryDiscipline: "FOTOGRAFIA" }));
+    await GET(pedido("a1", "?formato=post&variante=inaugura"), ctx("a1"));
+    vi.unstubAllEnvs();
+    expect(db.culturalActivity.findFirst.mock.calls[0]![0].select.primaryDiscipline).toBe(true);
+    const [arte, foto] = componer.armarPiezaRedes.mock.calls.map((c) => c[0]);
+    expect(arte).toMatchObject({ urlInvitacion: "https://muestrasdearte.com/m/rosario/inauguracion", dominio: "muestrasdearte.com" });
+    expect(foto).toMatchObject({ urlInvitacion: "https://muestrasfotograficas.com/m/rosario/inauguracion", dominio: "muestrasfotograficas.com" });
+  });
   it("JPEG con nombre de archivo y caché privada; ?descargar=1 → attachment", async () => {
     const r = await GET(pedido("a1", "?formato=historia&variante=ultimos-dias&descargar=1"), ctx("a1"));
     expect(r.status).toBe(200);

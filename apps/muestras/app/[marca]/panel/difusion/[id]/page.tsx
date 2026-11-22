@@ -109,7 +109,7 @@ export default async function DifusionDeMuestra({ params }: Props) {
           {a.openingAt ? <p className="text-[15px]">{openingWhenText(a.openingAt, a.openingEndsAt)}</p> : null}
           <p className="text-[15px]">Confirmación de asistencia: {RSVP_MODE_LABELS[modo]}.</p>
           {publicada && conHora ? (
-            <CopiarEnlace url={`${baseUrlPublica()}/m/${a.slug}/inauguracion`} etiqueta="Enlace público de la invitación" />
+            <CopiarEnlace url={`${baseUrlPublica(undefined, a.primaryDiscipline)}/m/${a.slug}/inauguracion`} etiqueta="Enlace público de la invitación" />
           ) : null}
           <p><Link href={`/panel/difusion/${a.id}/inauguracion`} className={enlace}>Ver la lista y configurar</Link></p>
         </section>

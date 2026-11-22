@@ -23,7 +23,7 @@ export default async function InauguracionPanel({ params }: Props) {
   const t = r.totales;
   const conHora = openingHasTime(a.openingAt);
   const estado = rsvpState(a, new Date());
-  const publica = `${baseUrlPublica()}/m/${a.slug}/inauguracion`;
+  const publica = `${baseUrlPublica(undefined, a.primaryDiscipline)}/m/${a.slug}/inauguracion`;
   return (
     <main className="max-w-3xl space-y-8">
       <Link href={`/panel/muestras/${a.id}`} className="text-sm underline underline-offset-4">Volver a la muestra</Link>

@@ -9,7 +9,8 @@ export const TIEMPO_MAXIMO_MS = 5000;
 /** Lo mismo buscado de nuevo (Rosario, Córdoba…) no vuelve a Nominatim durante un día. */
 export const CACHE_SEGUNDOS = 24 * 60 * 60;
 
-const USER_AGENT = "MuestrasFotograficas/1.0 (+https://muestrasfotograficas.com)";
+// Genérico: sirve a los dos dominios (fotografía y arte).
+const USER_AGENT = "MuestrasDNX/1.0";
 
 export type PuntoBuscado = { latitude: number; longitude: number; city: string | null };
 

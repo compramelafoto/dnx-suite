@@ -65,6 +65,15 @@ describe("confirmarAsistencia", () => {
     expect(JSON.stringify(data)).not.toMatch(/ip|agent/i);
     expect(correo.avisarAsistencia).toHaveBeenCalledWith(expect.objectContaining({ email: "ana@x.com", estado: "CONFIRMED", enlace: r.ok && r.enlace }));
   });
+  it("en una muestra de arte, el enlace personal es de muestrasdearte.com (etapa 2)", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    db.culturalActivity.findUnique.mockResolvedValue(muestra({ primaryDiscipline: "PINTURA" }));
+    const r = await confirmarAsistencia(fd({ muestra: "a1", t: hace(10), nombre: "Ana", email: "ana@x.com" }));
+    vi.unstubAllEnvs();
+    expect(db.culturalActivity.findUnique.mock.calls[0]![0].select.primaryDiscipline).toBe(true);
+    expect(r.ok && r.enlace).toMatch(/^https:\/\/muestrasdearte\.com\/m\/rosario\/inauguracion\/r\//);
+    expect(correo.avisarAsistencia.mock.calls[0]![0].muestra.primaryDiscipline).toBe("PINTURA");
+  });
   it("sin email no manda correo y anda igual", async () => {
     const r = await confirmarAsistencia(fd({ muestra: "a1", t: hace(10), nombre: "Ana" }));
     expect(r.ok && r.enlace).toBeTruthy();

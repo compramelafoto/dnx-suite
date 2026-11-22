@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const a = await invitacionPublica(slug);
-  const evento = a && rsvpState(a, new Date()) !== "UNAVAILABLE" ? eventoDeInauguracion(a, baseUrlPublica()) : null;
+  const evento = a && rsvpState(a, new Date()) !== "UNAVAILABLE" ? eventoDeInauguracion(a, baseUrlPublica(undefined, a.primaryDiscipline)) : null;
   if (!a || !evento) return new Response("No encontramos esta inauguración.", { status: 404, headers: { "Content-Type": "text/plain; charset=utf-8" } });
   return new Response(openingIcs(evento), {
     headers: {

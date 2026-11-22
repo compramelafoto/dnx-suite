@@ -92,10 +92,10 @@ describe("geocodificar", () => {
     await expect(ubicarTexto("Rosario", corto)).rejects.toThrow();
   });
   it("normaliza la clave de la caché", () => expect(normalizarBusqueda("  San   Luis ")).toBe("san luis"));
-  it("manda un User-Agent con contacto", async () => {
+  it("manda un User-Agent genérico de las dos marcas", async () => {
     fetchSimulado.mockResolvedValue(respuesta([]));
     await ubicarTexto("Rosario");
     const h = new Headers(fetchSimulado.mock.calls[0]![1]?.headers);
-    expect(h.get("user-agent")).toContain("+https://muestrasfotograficas.com");
+    expect(h.get("user-agent")).toBe("MuestrasDNX/1.0");
   });
 });

@@ -83,6 +83,7 @@ describe("textos", () => {
     });
     expect(socialTexts("INVITATION", a, null).kicker).toBe("Te invitamos a la inauguración");
     expect(socialTexts("INVITATION", a, null).details.at(-1)).toBe("Confirmá tu asistencia con el QR");
+    expect(socialTexts("OPENING", a, null, "muestrasdearte.com").footer).toBe("muestrasdearte.com");
   });
   it("limpia lo que la fuente no tiene", () => {
     expect(cleanSocialText("Rosario 📷  en\u0007 B&N — ñandú", 80)).toBe("Rosario en B&N — ñandú");

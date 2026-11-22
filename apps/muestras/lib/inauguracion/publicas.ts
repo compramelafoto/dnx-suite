@@ -28,6 +28,7 @@ class Corte extends Error {}
 const SELECT_CONFIRMAR = {
   id: true, slug: true, title: true, type: true, reviewStatus: true, isVirtualOnly: true, isCancelled: true,
   openingAt: true, openingEndsAt: true, rsvpStatus: true, rsvpMaxCompanions: true, venueName: true, address: true, city: true,
+  primaryDiscipline: true,
 } as const;
 
 export async function confirmarAsistencia(fd: FormData): Promise<ResultadoAsistencia> {
@@ -87,7 +88,7 @@ export async function confirmarAsistencia(fd: FormData): Promise<ResultadoAsiste
     if (err instanceof Corte) return { ok: false, error: err.message };
     throw err;
   }
-  const enlace = `${baseUrlPublica()}/m/${a.slug}/inauguracion/r/${token}`;
+  const enlace = `${baseUrlPublica(undefined, a.primaryDiscipline)}/m/${a.slug}/inauguracion/r/${token}`;
   if (entrada.email) await avisarAsistencia({ email: entrada.email, nombre: entrada.name, estado, enlace, muestra: a });
   return { ok: true, estado, enlace };
 }

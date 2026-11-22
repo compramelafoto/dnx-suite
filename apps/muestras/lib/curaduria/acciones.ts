@@ -19,7 +19,7 @@ const INVITACION_INVALIDA: ResultadoAccion = { ok: false, errores: ["La invitaci
  * curatorial. Sólo el dueño (`manageCall`, etapa 5 D4): la coorganización de la muestra no.
  */
 async function convocatoriaParaEquipo(callId: string, usuario: Usuario) {
-  const c = await prisma.culturalCall.findUnique({ where: { id: callId }, select: { id: true, title: true, status: true, activity: { select: { proposedByUserId: true } } } });
+  const c = await prisma.culturalCall.findUnique({ where: { id: callId }, select: { id: true, title: true, status: true, activity: { select: { proposedByUserId: true, primaryDiscipline: true } } } });
   if (!c || !puedeConDueno(usuario, "manageCall", c.activity.proposedByUserId)) return null;
   return c;
 }
@@ -64,7 +64,7 @@ export async function invitarCurador(callId: string, emailCrudo: string): Promis
   } catch {
     return { ok: false, errores: ["No se pudo invitar: la invitación cambió mientras tanto. Recargá la página."] };
   }
-  const aviso = await avisarInvitacionCurador({ email, token, convocatoria: c.title, organizador: usuario.name ?? usuario.email, invitedAt: ahora });
+  const aviso = await avisarInvitacionCurador({ email, token, convocatoria: c.title, organizador: usuario.name ?? usuario.email, invitedAt: ahora, primaryDiscipline: c.activity.primaryDiscipline });
   revalidatePath(`/panel/convocatorias/${callId}`);
   // Si el correo no salió, el enlace vuelve sólo a quien invitó (es el actor de esta acción) para
   // que lo mande a mano. El token crudo no se guarda en ningún lado.

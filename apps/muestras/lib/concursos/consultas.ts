@@ -3,7 +3,7 @@ import { prisma } from "@repo/db";
 import {
   activityRole, authorCredit, authorPendingCount, canEdit, contestShareMessage, parseContestTiers, temporalStatus, type ReviewStatus,
 } from "@repo/muestras";
-import { APP_URL } from "@/lib/correos/enviar";
+import { origenDeCorreo } from "@/lib/correos/enviar";
 import { conPermiso, dondePuede, puede } from "@/lib/equipo/permisos";
 import { esUrlWeb } from "@/lib/url";
 import type { Usuario } from "@/lib/usuario";
@@ -129,9 +129,10 @@ export async function panelDelConcurso(activityId: string, usuario: Usuario) {
   const cerrada = temporalStatus(a, new Date()) === "CLOSED";
   const contest = imp.contestTitle;
   // Los enlaces para mandar (con el nombre de cada autor) son de quien maneja la muestra.
+  const origen = origenDeCorreo(a.primaryDiscipline);
   const conCuenta = autores.filter((x) => puedeCambiar && x.userId != null).map((x) => {
     const suyas = obras.filter((o) => o.authorUserId === x.userId);
-    const url = `${APP_URL}/panel/expositor/concurso/${x.id}`;
+    const url = `${origen}/panel/expositor/concurso/${x.id}`;
     const nombre = x.displayName?.trim() || x.authorName;
     return {
       id: x.id, nombre, obras: suyas.length, pendientes: authorPendingCount(suyas), notifiedAt: x.notifiedAt, respondedAt: x.respondedAt,

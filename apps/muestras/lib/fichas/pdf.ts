@@ -1,4 +1,5 @@
 import { PDFDocument, type PDFPage } from "pdf-lib";
+import { MARCAS } from "@/lib/marca";
 import { GRIS, LINEA, MM, TINTA, bloque, cargarFuentes, dibujarQr, type Fuentes } from "@/lib/piezas/dibujo";
 import { paraWinAnsi, type FichaDeObra } from "./texto";
 
@@ -61,7 +62,7 @@ function dibujarFicha(p: PDFPage, f: FichaDeObra, t: Medidas, { normal, negrita 
   const yInvitacion = bloque(p, "Escaneá para ver la obra y a su autor", {
     x: xTexto, y: m + lado, ancho: anchoTexto, size: t.detalle, font: normal, color: TINTA, maxLineas: 3,
   });
-  bloque(p, "muestrasfotograficas.com", {
+  bloque(p, f.dominio ?? MARCAS.FOTOGRAFIA.dominio, {
     x: xTexto, y: yInvitacion - t.detalle * 0.4, ancho: anchoTexto, size: t.detalle * 0.85, font: normal, color: GRIS, maxLineas: 2,
   });
 }

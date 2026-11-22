@@ -37,7 +37,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return errorEnTexto(`Con más de ${FRAME_BATCH_SIZE} obras, bajá los marcos por tandas.`, 404);
   }
   try {
-    const r = await armarPieza(a, opciones, baseUrlPublica());
+    const r = await armarPieza(a, opciones, baseUrlPublica(undefined, a.primaryDiscipline));
     if (!r) return errorEnTexto("Esa obra no es de esta muestra.", 404);
     return await entregarPdf(r.bytes, { nombre: r.nombre, activityId: a.id });
   } catch (err) {

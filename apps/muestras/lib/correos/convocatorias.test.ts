@@ -8,7 +8,12 @@ const enviar = vi.fn();
 vi.mock("@repo/db", () => ({
   prisma: { culturalCall: { updateMany: (a: unknown) => updateMany(a), findUnique: (a: unknown) => findUnique(a) }, user: { findMany: (a: unknown) => userFindMany(a) } },
 }));
-vi.mock("./enviar", () => ({ APP_URL: "https://x.test", enviar: (...a: unknown[]) => enviar(...a), enviarEnLote: (m: unknown) => enviarEnLote(m) }));
+vi.mock("./enviar", () => ({
+  APP_URL: "https://x.test",
+  origenDeCorreo: (pd: string | null | undefined) => (pd && pd !== "FOTOGRAFIA" ? "https://arte.test" : "https://x.test"),
+  enviar: (...a: unknown[]) => enviar(...a),
+  enviarEnLote: (m: unknown) => enviarEnLote(m),
+}));
 
 import { avisarConvocatoriaCerrada, avisarInvitacionCurador, avisarResultados } from "./convocatorias";
 
@@ -52,6 +57,16 @@ describe("avisos masivos", () => {
     expect(textoA).toContain("T0");
     expect(textoA).not.toContain("T1");
   });
+  it("los masivos de una convocatoria de arte salen con su dominio y su marca (etapa 2)", async () => {
+    findUnique.mockResolvedValue({ title: "C", activity: { primaryDiscipline: "PINTURA" }, submissions: [sub(1, [])] });
+    enviarEnLote.mockResolvedValue({ compuerta: true, total: 1, aceptados: 1 });
+    await avisarConvocatoriaCerrada("c1");
+    expect(findUnique.mock.calls[0]![0].select.activity).toEqual({ select: { primaryDiscipline: true } });
+    expect(enviarEnLote.mock.calls[0]![0][0]).toMatchObject({ marca: "ARTE", enlace: { url: "https://arte.test/panel/envios" } });
+    findUnique.mockResolvedValue({ title: "C", submissions: [sub(1, [])] });
+    await avisarConvocatoriaCerrada("c1");
+    expect(enviarEnLote.mock.calls[1]![0][0]).toMatchObject({ marca: "FOTOGRAFIA", enlace: { url: "https://x.test/panel/envios" } });
+  });
   it("resultados con lote caído: devuelve la marca", async () => {
     findUnique
       .mockResolvedValueOnce({ status: "DONE", curationClosedAt: null })
@@ -63,7 +78,7 @@ describe("avisos masivos", () => {
 });
 
 describe("avisarInvitacionCurador", () => {
-  const p = { email: "c@x.com", token: "tok", convocatoria: "C", organizador: "Ana", invitedAt: new Date("2026-10-01T12:00:00Z") };
+  const p = { email: "c@x.com", token: "tok", convocatoria: "C", organizador: "Ana", invitedAt: new Date("2026-10-01T12:00:00Z"), primaryDiscipline: null };
   it("dice si salió y devuelve el mismo enlace que va en el correo", async () => {
     enviar.mockResolvedValue(true);
     expect(await avisarInvitacionCurador(p)).toEqual({ enviado: true, url: "https://x.test/panel/curaduria/invitacion/tok" });
@@ -72,5 +87,12 @@ describe("avisarInvitacionCurador", () => {
   it("si no salió, lo dice", async () => {
     enviar.mockResolvedValue(false);
     expect((await avisarInvitacionCurador(p)).enviado).toBe(false);
+  });
+  it("una convocatoria de arte: enlace de la casa de arte, texto y marca de arte (etapa 2)", async () => {
+    enviar.mockResolvedValue(true);
+    expect((await avisarInvitacionCurador({ ...p, primaryDiscipline: "PINTURA" })).url).toBe("https://arte.test/panel/curaduria/invitacion/tok");
+    const [, , parrafos, , marca] = enviar.mock.calls[0]!;
+    expect(parrafos.join(" ")).toContain("en Muestras de Arte.");
+    expect(marca).toBe("ARTE");
   });
 });

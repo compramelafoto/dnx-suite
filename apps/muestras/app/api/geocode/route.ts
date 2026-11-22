@@ -27,7 +27,8 @@ export async function GET(req: NextRequest) {
   const countryCode = COUNTRIES.some((c) => c.code === pedido) ? pedido : "AR";
   try {
     const lugares = await createNominatimProvider({
-      userAgent: process.env.GEOCODING_USER_AGENT || "MuestrasFotograficas/1.0 (+https://muestrasfotograficas.com)",
+      // Genérico: sirve a los dos dominios (fotografía y arte).
+      userAgent: process.env.GEOCODING_USER_AGENT || "MuestrasDNX/1.0",
     }).search(q, { limit: 5, countryCode });
     return NextResponse.json(
       lugares.map((p) => ({

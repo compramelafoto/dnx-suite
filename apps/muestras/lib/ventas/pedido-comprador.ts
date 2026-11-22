@@ -91,7 +91,7 @@ export async function vistaDelPedido(p: Pedido, token: string, ahora: Date = new
       select: { activityWorkId: true, format: true, editionKind: true, editionSize: true, proofCount: true, paper: true, widthCm: true, heightCm: true },
     }),
     p.copyId ? prisma.culturalEditionCopy.findUnique({ where: { id: p.copyId }, select: { kind: true, number: true, status: true, certificateCode: true } }) : null,
-    prisma.culturalActivity.findUnique({ where: { id: p.activityId }, select: { title: true, slug: true, organizersText: true, venueName: true, address: true, city: true, isVirtualOnly: true } }),
+    prisma.culturalActivity.findUnique({ where: { id: p.activityId }, select: { title: true, slug: true, organizersText: true, venueName: true, address: true, city: true, isVirtualOnly: true, primaryDiscipline: true } }),
     prisma.culturalSaleSetup.findUnique({ where: { activityId: p.activityId }, select: { pickupText: true, shippingText: true } }),
   ]);
   const obra = oferta ? await prisma.culturalActivityWork.findUnique({ where: { id: oferta.activityWorkId }, select: { title: true, authorName: true } }) : null;
@@ -138,7 +138,7 @@ export async function vistaDelPedido(p: Pedido, token: string, ahora: Date = new
           sede: actividad.isVirtualOnly ? null : [actividad.venueName, actividad.address, actividad.city].filter(Boolean).join(", ") || null,
         }
       : null,
-    enlace: `${baseUrlPublica()}/compras/${p.publicId}?t=${encodeURIComponent(token)}`,
+    enlace: `${baseUrlPublica(undefined, actividad?.primaryDiscipline)}/compras/${p.publicId}?t=${encodeURIComponent(token)}`,
     arrepentimiento: { puede: puedeArrepentirse(p, ahora), pedido: p.regretRequestedAt },
   };
 }

@@ -17,7 +17,7 @@ export async function enlaceDeExpositores(activityId: string, usuario: Quien) {
     where: conPermiso({ id: activityId, type: "MUESTRA" }, usuario, "exhibitors"),
     select: {
       id: true, slug: true, title: true, type: true, reviewStatus: true, isCancelled: true, startsAt: true, endsAt: true,
-      galleryMode: true, visibility: true,
+      galleryMode: true, visibility: true, primaryDiscipline: true,
       exhibitorLink: {
         select: { token: true, status: true, closesAt: true, maxWorksPerExhibitor: true, maxExhibitors: true, instructions: true, rotatedAt: true },
       },
@@ -35,7 +35,7 @@ export async function enlaceDeExpositores(activityId: string, usuario: Quien) {
     todoALaVista: visibility == null && a.galleryMode === "FULL",
     enlace,
     estado: exhibitorLinkState(enlace, a, ahora),
-    url: enlace ? `${baseUrlPublica()}/expositores/${enlace.token}` : null,
+    url: enlace ? `${baseUrlPublica(undefined, a.primaryDiscipline)}/expositores/${enlace.token}` : null,
     expositores: _count.exhibitors,
   };
 }
