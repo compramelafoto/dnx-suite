@@ -2,7 +2,7 @@ import { buildPublishRequestInput, renderSocialPiece } from "@repo/social-pieces
 import type { MentionCandidate } from "@repo/social-publisher";
 import { Prisma, prisma } from "@repo/db";
 import { getPublicUrl, uploadToR2 } from "@/lib/r2-client";
-import { albumPublicUrl, PLATFORM_HANDLE } from "./build-album-pieces";
+import { PLATFORM_HANDLE } from "./build-album-pieces";
 import {
   albumConsentKey,
   getAlbumSocialConsent,
@@ -20,6 +20,7 @@ import {
   STORIES_PER_ALBUM,
   storyAlbumTitle,
   storyCredit,
+  storyShortUrl,
   type AlbumStorySkipReason,
 } from "./album-stories-plan";
 import {
@@ -415,7 +416,7 @@ export async function renderAlbumStories(album: AlbumParaHistoria, collages: Sto
       values: {
         nombreAlbum: storyAlbumTitle(album.title),
         creditoFotografo: storyCredit(handle, album.user.name),
-        urlAlbum: albumPublicUrl(album.publicSlug),
+        urlAlbum: storyShortUrl(album.id),
         ...encuadradas.values,
       },
       resources: { read: async (ref: string) => encuadradas.slots.get(ref) ?? leerFoto(ref) },

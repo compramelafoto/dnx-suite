@@ -187,10 +187,20 @@ export function storyCredit(handle: string | null, name: string | null): string 
   return n ? `Fotos de ${n.slice(0, 36)}` : "";
 }
 
-/** El nombre del álbum, recortado para que entre en dos líneas de la plantilla. */
+/** El nombre del álbum, recortado para que entre en las dos líneas de la plantilla (~45 por línea). */
 export function storyAlbumTitle(name: string): string {
   const limpio = name.replace(/\s+/g, " ").trim();
-  return limpio.length > 60 ? `${limpio.slice(0, 57).trimEnd()}…` : limpio;
+  return limpio.length > 80 ? `${limpio.slice(0, 77).trimEnd()}…` : limpio;
+}
+
+/**
+ * Dirección corta del álbum para imprimir en la historia: `compramelafoto.com/a/1557`.
+ * El link no se puede tocar (Meta no deja poner el sticker por API), así que tiene que
+ * poder leerse y copiarse a mano; la del título completo es ilegible. `/a/{id}` redirige
+ * a la página pública del álbum.
+ */
+export function storyShortUrl(albumId: number): string {
+  return `compramelafoto.com/a/${albumId}`;
 }
 
 /**

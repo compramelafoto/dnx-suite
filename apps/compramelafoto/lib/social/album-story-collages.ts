@@ -284,7 +284,7 @@ function textoAbajo(t: Tema, align: "left" | "center", margen: number): DesignBl
     texto("titulo", "{{nombreAlbum}}", x, 1372, w, 84, { size: 27, color: t.texto, bold: true, align, lines: 2 }),
     texto("credito", "{{creditoFotografo}}", x, 1460, w, 38, { size: 19, color: t.suave, align }),
     ...boton(t, xc(BOTON_W), 1508),
-    texto("url", "{{urlAlbum}}", x, 1622, w, 36, { size: 16, color: t.suave, align }),
+    texto("url", "{{urlAlbum}}", x, 1620, w, 40, { size: 20, color: t.texto, bold: true, align }),
   ];
 }
 
@@ -296,7 +296,7 @@ function textoArribaYAbajo(t: Tema, margen: number): DesignBlock[] {
     texto("titulo", "{{nombreAlbum}}", margen, 342, w, 84, { size: 27, color: t.texto, bold: true, align: "center", lines: 2 }),
     texto("credito", "{{creditoFotografo}}", margen, 1464, w, 38, { size: 19, color: t.suave, align: "center" }),
     ...boton(t, Math.round((STORY_W - BOTON_W) / 2), 1514),
-    texto("url", "{{urlAlbum}}", margen, 1626, w, 36, { size: 16, color: t.suave, align: "center" }),
+    texto("url", "{{urlAlbum}}", margen, 1624, w, 40, { size: 20, color: t.texto, bold: true, align: "center" }),
   ];
 }
 
@@ -355,9 +355,9 @@ function armar(layoutId: string, temaId: Tema["id"], comp: Composicion, align: "
 function contrato(fotos: number): VariableContract {
   return {
     variables: [
-      { key: "nombreAlbum", type: "text", label: "Nombre del álbum", required: true, sampleValue: "Maratón de Santa Fe 2026", maxLength: 60 },
+      { key: "nombreAlbum", type: "text", label: "Nombre del álbum", required: true, sampleValue: "Maratón de Santa Fe 2026", maxLength: 80 },
       { key: "creditoFotografo", type: "text", label: "Crédito del fotógrafo", required: false, sampleValue: "Fotos de @fotografo", maxLength: 45 },
-      { key: "urlAlbum", type: "text", label: "Dirección del álbum", required: true, sampleValue: "compramelafoto.com/a/maraton", maxLength: 70 },
+      { key: "urlAlbum", type: "text", label: "Dirección del álbum", required: true, sampleValue: "compramelafoto.com/a/1557", maxLength: 70 },
       ...Array.from({ length: fotos }, (_, i) => ({
         key: `foto${i + 1}`,
         type: "image" as const,

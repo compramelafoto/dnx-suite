@@ -9,6 +9,7 @@ import {
   pickStoryPhotos,
   storyAlbumTitle,
   storyCredit,
+  storyShortUrl,
   planAlbumStories,
   repartirFotos,
   STORY_SLOTS_ART,
@@ -284,6 +285,10 @@ describe("cuentas extra para etiquetar", () => {
 });
 
 describe("textos", () => {
+  it("la dirección impresa es la corta", () => {
+    expect(storyShortUrl(1557)).toBe("compramelafoto.com/a/1557");
+  });
+
   it("crédito con @ o con nombre", () => {
     expect(storyCredit("juanfoto", "Juan")).toBe("Fotos de @juanfoto");
     expect(storyCredit(null, "Juan Pérez")).toBe("Fotos de Juan Pérez");
@@ -291,7 +296,8 @@ describe("textos", () => {
   });
 
   it("recorta títulos largos", () => {
-    expect(storyAlbumTitle("a".repeat(80))).toHaveLength(58);
+    expect(storyAlbumTitle("a".repeat(80))).toHaveLength(80);
+    expect(storyAlbumTitle("a".repeat(100))).toHaveLength(78);
     expect(storyAlbumTitle("  Maratón   2026 ")).toBe("Maratón 2026");
   });
 });
