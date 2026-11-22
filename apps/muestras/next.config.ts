@@ -39,7 +39,11 @@ const nextConfig: NextConfig = {
     const resto = "/:path((?!api/|_next/).*)";
     const arte = [{ type: "host" as const, value: "(www\\.)?muestrasdearte\\.(com|localhost)" }];
     return {
-      beforeFiles: [],
+      // robots y sitemap dependen del dominio: los resuelve un handler que lee el host.
+      beforeFiles: [
+        { source: "/robots.txt", destination: "/api/sitio/robots" },
+        { source: "/sitemap.xml", destination: "/api/sitio/sitemap" },
+      ],
       afterFiles: [
         { source: "/", has: arte, destination: "/arte" },
         { source: resto, has: arte, destination: "/arte/:path" },
