@@ -13,6 +13,7 @@ import {
 import {
   artDateKey,
   decideAlbumStory,
+  fraseDeHistoria,
   MIN_ALBUM_PHOTOS_FOR_STORY,
   pickStoryPhotos,
   planAlbumStories,
@@ -56,7 +57,7 @@ const SETTLE_MS = 6 * 60 * 60 * 1000;
  * Tope de álbumes por corrida (cada uno son 3 collages): cada collage baja fotos y
  * renderiza, y la función tiene tiempo limitado. Lo que no entra queda para mañana.
  */
-const MAX_ALBUMS_PER_RUN = 8;
+const MAX_ALBUMS_PER_RUN = 5;
 
 /** Clave idempotente de la historia `n` (1…3) de un álbum. */
 export function albumStoryKey(albumId: number, n: number): string {
@@ -193,7 +194,7 @@ export async function generateDailyAlbumStories(now: Date = new Date()): Promise
       deletedAt: true,
       createdAt: true,
       user: { select: { name: true, instagram: true } },
-      _count: { select: { photos: { where: { isRemoved: false, previewWatermarkedKey: { not: null } } } } },
+      _count: { select: { photos: { where: { isRemoved: false } } } },
     },
     orderBy: { createdAt: "asc" },
   });
@@ -364,13 +365,17 @@ type AlbumParaHistoria = {
  * en la vista previa es exactamente lo que sale.
  *
  * `soloLa` (índice desde 0) renderiza una sola, para la vista previa. Devuelve `null` si
- * el álbum no tiene fotos suficientes con marca de agua.
+ * el álbum no tiene fotos suficientes.
+ *
+ * Las fotos van SIN marca de agua (pedido 2026-11-22): se usan los originales, achicados
+ * antes de encuadrar (`prepararFotosDelCollage`). En la historia cada foto ocupa un hueco
+ * de como mucho 1080 px, así que una captura no sirve para imprimir.
  */
 export async function renderAlbumStories(album: AlbumParaHistoria, collages: StoryCollage[], soloLa?: number) {
   const fotos = await prisma.photo.findMany({
-    where: { albumId: album.id, isRemoved: false, previewWatermarkedKey: { not: null } },
+    where: { albumId: album.id, isRemoved: false },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    select: { id: true, previewWatermarkedKey: true },
+    select: { id: true, originalKey: true },
   });
   if (fotos.length < MIN_ALBUM_PHOTOS_FOR_STORY) return null;
   const permiso = await getAlbumSocialConsent(album.id);
@@ -393,7 +398,7 @@ export async function renderAlbumStories(album: AlbumParaHistoria, collages: Sto
   const conCaras = fotosConCarasBuenas(todas, carasPorFoto);
   const elegidas = pickStoryPhotos(conCaras.length >= total ? conCaras : todas, total, preferidas);
   const reparto = repartirFotos(elegidas, cantidades);
-  const urlPorId = new Map(fotos.map((f) => [f.id, getPublicUrl(f.previewWatermarkedKey!)]));
+  const urlPorId = new Map(fotos.map((f) => [f.id, getPublicUrl(f.originalKey)]));
   const handle = normalizeConsentHandle(album.user.instagram);
 
   const historias: Array<{ bytes: Uint8Array; photoIds: number[] }> = [];
@@ -414,6 +419,7 @@ export async function renderAlbumStories(album: AlbumParaHistoria, collages: Sto
       document: collage.document,
       contract: collage.contract,
       values: {
+        frase: fraseDeHistoria(k + 1, album.id),
         nombreAlbum: storyAlbumTitle(album.title),
         creditoFotografo: storyCredit(handle, album.user.name),
         urlAlbum: storyShortUrl(album.id),
@@ -466,7 +472,7 @@ export async function listPreviewCandidates(now: Date = new Date(), dias = 7): P
       schoolId: true,
       deletedAt: true,
       user: { select: { name: true, instagram: true } },
-      _count: { select: { photos: { where: { isRemoved: false, previewWatermarkedKey: { not: null } } } } },
+      _count: { select: { photos: { where: { isRemoved: false } } } },
     },
     orderBy: { createdAt: "desc" },
     take: 80,
@@ -521,7 +527,7 @@ export async function previewAlbumStory(albumId: number, modelo: number, histori
   return r?.historias[0]?.bytes ?? null;
 }
 
-/** El Designer no sabe de red: acá se bajan los bytes de cada foto con marca de agua. */
+/** El Designer no sabe de red: acá se bajan los bytes de cada foto (original, sin marca). */
 async function leerFoto(ref: string): Promise<Uint8Array | null> {
   const marca = readStoryBrandResource(ref);
   if (marca) return marca;

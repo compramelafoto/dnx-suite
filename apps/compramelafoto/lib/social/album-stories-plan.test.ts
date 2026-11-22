@@ -10,6 +10,8 @@ import {
   storyAlbumTitle,
   storyCredit,
   storyShortUrl,
+  fraseDeHistoria,
+  FRASES_POR_DIA,
   planAlbumStories,
   repartirFotos,
   STORY_SLOTS_ART,
@@ -281,6 +283,24 @@ describe("cuentas extra para etiquetar", () => {
   it("corta en 20", () => {
     const muchas = Array.from({ length: 25 }, (_, i) => `cuenta${i + 1}`);
     expect(normalizeExtraHandles(muchas).handles).toHaveLength(20);
+  });
+});
+
+describe("frase que va cambiando", () => {
+  it("cambia según el día: el mismo álbum no repite frase en sus 3 historias", () => {
+    for (const albumId of [1, 2, 1557, 99999]) {
+      const frases = [1, 2, 3].map((d) => fraseDeHistoria(d, albumId));
+      expect(new Set(frases).size).toBe(3);
+    }
+  });
+
+  it("álbumes distintos usan variantes distintas del mismo día", () => {
+    const delDia1 = new Set([1, 2, 3, 4, 5].map((id) => fraseDeHistoria(1, id)));
+    expect(delDia1.size).toBe(5);
+  });
+
+  it("todas entran en una línea (≤ 32 caracteres)", () => {
+    for (const f of FRASES_POR_DIA.flat()) expect(f.length).toBeLessThanOrEqual(32);
   });
 });
 

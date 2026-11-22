@@ -27,7 +27,12 @@ export async function prepararFotosDelCollage(
 
     // `rotate()` sin argumentos endereza según EXIF: las cajas de Rekognition son sobre la
     // foto derecha.
-    const derecha = sharp(Buffer.from(foto.bytes), { failOn: "none" }).rotate();
+    // Los originales pesan ~8 MB (24 MP): se achican primero a 2000 px como máximo, que
+    // sobra para cualquier hueco de la historia (1080 de ancho). Las cajas de caras son
+    // proporciones, así que achicar no las mueve.
+    const derecha = sharp(Buffer.from(foto.bytes), { failOn: "none" })
+      .rotate()
+      .resize({ width: 2000, height: 2000, fit: "inside", withoutEnlargement: true });
     const { data, info } = await derecha.toBuffer({ resolveWithObject: true });
     const recorte = encuadrarCaras({ imgW: info.width, imgH: info.height, huecoW, huecoH, caras: foto.caras });
 
