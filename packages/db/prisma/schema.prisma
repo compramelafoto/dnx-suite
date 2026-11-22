@@ -25857,10 +25857,15 @@ model CulturalActivity {
   editionCopies   CulturalEditionCopy[]
   saleOrders      CulturalSaleOrder[]
 
+  /// Disciplina principal de la actividad (Muestras de Arte).
+  primaryDiscipline String   @default("FOTOGRAFIA")
+  otherDisciplines  String[] @default([])
+
   @@index([reviewStatus, endsAt])
   @@index([proposedByUserId])
   @@index([workspaceId])
   @@index([geohash])
+  @@index([primaryDiscipline])
 }
 
 /// Una obra de la galería virtual de una muestra. Tope técnico: 300 por muestra (`MAX_WORKS`), 12 destacadas.
@@ -25882,6 +25887,9 @@ model CulturalActivityWork {
   sortOrder       Int                  @default(0)
 
   createdAt DateTime @default(now())
+
+  /// Disciplina de la obra (Muestras de Arte); null = hereda la de la actividad.
+  discipline String?
 
   @@index([activityId, sortOrder])
   @@index([authorProfileId])
@@ -25915,6 +25923,9 @@ model PhotographerProfile {
   portfolio  PhotographerPortfolioPhoto[]
   /// Autor de obras traídas de un concurso (Muestras, etapa 7).
   contestAuthors CulturalContestAuthor[]
+
+  /// Disciplinas del artista (Muestras de Arte). Por defecto fotografía.
+  disciplines String[] @default(["FOTOGRAFIA"])
 
   @@index([displayName])
 }
@@ -26013,6 +26024,9 @@ model CulturalCallWork {
   createdAt DateTime @default(now())
 
   scores CulturalCallScore[]
+
+  /// Disciplina de la obra (Muestras de Arte); null = hereda la de la convocatoria.
+  discipline String?
 
   @@unique([callId, anonymousCode])
   @@index([submissionId])
@@ -26241,6 +26255,9 @@ model CulturalExhibitorWork {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
+  /// Disciplina de la obra (Muestras de Arte); null = hereda la de la actividad.
+  discipline String?
+
   @@index([exhibitorId, sortOrder])
   @@index([activityId, status])
   @@index([activityWorkId])
@@ -26260,6 +26277,9 @@ model PhotographerPortfolioPhoto {
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  /// Disciplina de la obra (Muestras de Arte); null = hereda la del perfil.
+  discipline String?
 
   @@index([profileId, sortOrder])
 }
