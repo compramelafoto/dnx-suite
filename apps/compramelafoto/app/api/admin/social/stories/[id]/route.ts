@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { Role } from "@prisma/client";
 import { requireAuth } from "@/lib/auth";
 import { cancelStory, publishStoryNow } from "@/lib/social/album-stories";
+import { processSocialPublishRequest } from "@/lib/social/worker";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 /** Veto del admin: `{ action: "cancel" }` la saca de la cola; `{ action: "now" }` la adelanta. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -20,5 +22,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         : null;
   if (ok === null) return NextResponse.json({ error: "Acción inválida" }, { status: 400 });
   if (!ok) return NextResponse.json({ error: "La historia ya no está en la cola" }, { status: 409 });
+  if (body.action === "now") {
+    // El cron que publica corre solo diez veces por día: «Publicar ya» no lo espera.
+    const resultado = await processSocialPublishRequest(id);
+    return NextResponse.json({ ok: true, resultado: resultado.status });
+  }
   return NextResponse.json({ ok: true });
 }

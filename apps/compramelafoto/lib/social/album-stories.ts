@@ -571,7 +571,10 @@ export async function cancelStory(id: string, actorUserId: number): Promise<bool
   return r.count > 0;
 }
 
-/** Adelanta una historia: el próximo ciclo del worker (cada 5 min) la publica. */
+/**
+ * Adelanta una historia: la deja vencida para que el worker la tome ya. La ruta del panel
+ * llama al worker en el momento; no espera al próximo horario del cron.
+ */
 export async function publishStoryNow(id: string, actorUserId: number): Promise<boolean> {
   const r = await prisma.dnxSocialPublishRequest.updateMany({
     where: { id, entityType: ALBUM_STORY_ENTITY_TYPE, status: "SCHEDULED" },

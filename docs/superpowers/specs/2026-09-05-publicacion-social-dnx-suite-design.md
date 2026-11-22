@@ -331,7 +331,7 @@ Reemplaza, **solo para los álbumes de CLF**, lo dicho en §5 (carrusel + histor
 | Etiqueta | No se podía | **`user_tags` en historias** (Meta lo habilitó en julio de 2025): el fotógrafo y hasta **20 cuentas extra** que él carga en «Privacidad y acceso» (organizador, empresas). Meta no documenta un máximo para historias. Si rechaza alguna (privada o inexistente), se busca por mitades cuál es y se saca **solo esa**; las caídas se ven en el panel. La historia sale siempre |
 | Link | Impreso | Botón dibujado **«Comprar aquí»** con la dirección debajo. No se puede tocar: el sticker de enlace **sigue sin existir por API** |
 | Aprobación | Un clic por pieza | **Sale sola a su hora**; el admin puede sacarla o adelantarla en `/admin/social` |
-| Ritmo | — | **Hasta 10 por día**, horarios fijos de 10:00 a 21:15 (hora argentina). Lo que no entra espera, con horizonte de 7 días |
+| Ritmo | — | **Hasta 10 por día**, en hora justa: 10, 11, 12, 13, 14, 16, 18, 19, 20 y 21 h (hora argentina). Lo que no entra espera, con horizonte de 7 días |
 
 **Zona segura.** Instagram tapa ~250 px arriba y ~250 px abajo de la historia. Todo texto
 de las plantillas queda entre esas franjas.
@@ -339,6 +339,12 @@ de las plantillas queda entre esas franjas.
 **Última verificación.** Antes de publicar, el worker vuelve a mirar el álbum: si dejó de
 ser público, se protegió con selfie, se borró o el fotógrafo apagó la difusión, la
 historia se cancela.
+
+**Crons (cuidando el gasto):** solo dos. `social-album-stories` una vez por día (08:00
+ART): renueva el permiso de Instagram y arma la cola. `social-publish` corre **solo en
+los diez horarios** (10 invocaciones por día, no cada 5 minutos). Un test controla que
+los horarios de `STORY_SLOTS_ART` y el del cron coincidan. «Publicar ya» en el panel
+publica en el momento sin esperar al cron.
 
 **Piezas:** `lib/social/album-stories-plan.ts` (reglas puras, testeadas),
 `lib/social/album-stories.ts` (generación, panel, permiso), cron diario

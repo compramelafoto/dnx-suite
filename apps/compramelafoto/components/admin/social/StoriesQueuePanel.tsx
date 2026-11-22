@@ -50,8 +50,16 @@ export default function StoriesQueuePanel({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action }),
     });
-    if (!r.ok) setAviso((await r.json().catch(() => null))?.error ?? "No se pudo hacer el cambio");
-    else if (action === "now") setAviso("Sale en los próximos 5 minutos.");
+    const d = await r.json().catch(() => null);
+    if (!r.ok) setAviso(d?.error ?? "No se pudo hacer el cambio");
+    else if (action === "now")
+      setAviso(
+        d?.resultado === "PUBLISHED"
+          ? "Publicada."
+          : d?.resultado === "FAILED"
+            ? "No se pudo publicar; se reintenta en el próximo horario."
+            : "No se publicó: el álbum dejó de ser público o se desactivó la difusión.",
+      );
     setOcupado(null);
     router.refresh();
   }
@@ -87,8 +95,8 @@ export default function StoriesQueuePanel({
         <h1 className="text-2xl font-bold text-gray-900 m-0">Historias de Instagram</h1>
         <p className="text-gray-600 mt-1 m-0">
           Cada mañana a las 08:00 se arma una historia por cada álbum público de más de 50 fotos y se
-          agenda: hasta 10 por día, lo que no entra espera a los días siguientes. Salen solas a su
-          hora; podés sacar cualquiera antes.
+          agenda: hasta 10 por día (10, 11, 12, 13, 14, 16, 18, 19, 20 y 21 h); lo que no entra espera
+          a los días siguientes. Salen solas a su hora; podés sacar cualquiera antes.
         </p>
       </div>
 

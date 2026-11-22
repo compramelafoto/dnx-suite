@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   artDateKey,
@@ -7,6 +9,7 @@ import {
   pickStoryPhotos,
   storyAlbumTitle,
   storyCredit,
+  STORY_SLOTS_ART,
   type AlbumStoryCandidate,
 } from "./album-stories-plan";
 import {
@@ -104,7 +107,20 @@ describe("nextFreeStorySlots", () => {
   it("no agenda horarios que ya pasaron", () => {
     const tarde = new Date("2026-11-21T23:30:00Z"); // 20:30 ART
     const [s] = nextFreeStorySlots([], tarde, 1);
-    expect(s!.toISOString()).toBe("2026-11-22T00:15:00.000Z"); // 21:15 ART
+    expect(s!.toISOString()).toBe("2026-11-22T00:00:00.000Z"); // 21:00 ART
+  });
+
+  it("el cron que publica corre exactamente en los diez horarios (y no cada 5 minutos)", () => {
+    const vercel = JSON.parse(readFileSync(path.join(__dirname, "../../vercel.json"), "utf8")) as {
+      crons: Array<{ path: string; schedule: string }>;
+    };
+    const publicar = vercel.crons.find((c) => c.path === "/api/cron/social-publish")!;
+    const [minuto, horas] = publicar.schedule.split(" ");
+    expect(minuto).toBe("0");
+    const horasUtc = horas!.split(",").map(Number).sort((a, b) => a - b);
+    const esperadas = STORY_SLOTS_ART.map((hhmm) => (Number(hhmm.slice(0, 2)) + 3) % 24).sort((a, b) => a - b);
+    expect(horasUtc).toEqual(esperadas);
+    for (const hhmm of STORY_SLOTS_ART) expect(hhmm.endsWith(":00")).toBe(true);
   });
 
   it("con la semana llena no devuelve nada", () => {

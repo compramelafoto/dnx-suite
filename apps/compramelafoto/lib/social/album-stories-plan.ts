@@ -26,26 +26,33 @@ export const MAX_STORIES_PER_DAY = 10;
 export const STORY_QUEUE_HORIZON_DAYS = 7;
 
 /**
- * Horarios de salida, hora argentina. Diez, repartidos entre la mañana y la noche para
- * que la cuenta tenga siempre algo vivo (una historia dura 24 h) sin amontonarlas.
+ * Horarios de salida, hora argentina. Diez, en hora justa, repartidos entre la mañana y
+ * la noche para que la cuenta tenga siempre algo vivo (una historia dura 24 h).
+ *
+ * Van en hora justa a propósito: el cron que publica (`social-publish` en `vercel.json`)
+ * corre SOLO a estas diez horas y no cada 5 minutos, para no gastar invocaciones. Si se
+ * cambia un horario acá, hay que cambiarlo también allá (lo controla un test).
  */
 export const STORY_SLOTS_ART = [
   "10:00",
-  "11:15",
-  "12:30",
-  "13:45",
-  "15:00",
-  "16:15",
-  "17:30",
-  "18:45",
+  "11:00",
+  "12:00",
+  "13:00",
+  "14:00",
+  "16:00",
+  "18:00",
+  "19:00",
   "20:00",
-  "21:15",
+  "21:00",
 ] as const;
 
 /** Argentina no tiene horario de verano: UTC−3 fijo. */
 const ART_OFFSET_MS = -3 * 60 * 60 * 1000;
 
-/** Margen mínimo entre que se arma una historia y que sale. */
+/**
+ * Margen mínimo entre que se arma una historia y que sale. Chico: el cron diario corre a
+ * las 08:00, así que el primer horario del día (10:00) siempre queda disponible.
+ */
 const MIN_LEAD_MS = 10 * 60 * 1000;
 
 export type AlbumStoryCandidate = {
