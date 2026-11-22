@@ -22,6 +22,8 @@ import {
 } from "./album-stories-plan";
 import { pickStoryCollage, readStoryBrandResource, STORY_COLLAGE_MAX_PHOTOS } from "./album-story-collages";
 import { logSocialRequest, resolveClfInstagramAccount } from "./prisma-store";
+import { carasValidas, fotosConCarasBuenas, type CajaDeCara } from "./story-photo-crop";
+import { prepararFotosDelCollage } from "./story-photo-prepare";
 
 /**
  * Historias diarias de álbumes en la cuenta de Instagram de CompraMeLaFoto.
@@ -257,20 +259,39 @@ export async function generateDailyAlbumStories(now: Date = new Date()): Promise
       }
       const permiso = await getAlbumSocialConsent(album.id);
       const preferidas = permiso?.selectedPhotoIds ?? [];
-      const elegidas = pickStoryPhotos(
-        fotos.map((f) => f.id),
-        Math.min(collage.fotos, STORY_COLLAGE_MAX_PHOTOS),
-        preferidas,
-      );
+      const cantidad = Math.min(collage.fotos, STORY_COLLAGE_MAX_PHOTOS);
+
+      // Caras detectadas (Rekognition) de todo el álbum: sirven para elegir fotos donde
+      // la gente se ve y para encuadrar sin cortar cabezas.
+      const detecciones = await prisma.faceDetection.findMany({
+        where: { photo: { albumId: album.id, isRemoved: false } },
+        select: { photoId: true, bbox: true },
+      });
+      const carasPorFoto = new Map<number, CajaDeCara[]>();
+      for (const d of detecciones) {
+        const [caja] = carasValidas([d.bbox]);
+        if (caja) carasPorFoto.set(d.photoId, [...(carasPorFoto.get(d.photoId) ?? []), caja]);
+      }
+      const todas = fotos.map((f) => f.id);
+      const conCaras = fotosConCarasBuenas(todas, carasPorFoto);
+      const elegidas = pickStoryPhotos(conCaras.length >= cantidad ? conCaras : todas, cantidad, preferidas);
       const urlPorId = new Map(fotos.map((f) => [f.id, getPublicUrl(f.previewWatermarkedKey!)]));
       const handle = normalizeConsentHandle(album.user.instagram);
+
+      const bajadas: Array<{ bytes: Uint8Array; caras: CajaDeCara[] }> = [];
+      for (const id of elegidas) {
+        const bytes = await leerFoto(urlPorId.get(id)!);
+        if (!bytes) throw new Error(`No se pudo bajar la foto ${id}`);
+        bajadas.push({ bytes, caras: carasPorFoto.get(id) ?? [] });
+      }
+      const encuadradas = await prepararFotosDelCollage(collage, bajadas);
 
       const values: Record<string, string> = {
         nombreAlbum: storyAlbumTitle(album.title),
         creditoFotografo: storyCredit(handle, album.user.name),
         urlAlbum: albumPublicUrl(album.publicSlug),
+        ...encuadradas.values,
       };
-      elegidas.forEach((id, n) => (values[`foto${n + 1}`] = urlPorId.get(id)!));
 
       const pieza = await renderSocialPiece({
         pieceId: collage.id,
@@ -278,7 +299,7 @@ export async function generateDailyAlbumStories(now: Date = new Date()): Promise
         document: collage.document,
         contract: collage.contract,
         values,
-        resources: { read: leerFoto },
+        resources: { read: async (ref: string) => encuadradas.slots.get(ref) ?? leerFoto(ref) },
         dpi: 96,
       });
       const imagen = pieza.images[0];

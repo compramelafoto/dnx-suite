@@ -326,7 +326,7 @@ Reemplaza, **solo para los álbumes de CLF**, lo dicho en §5 (carrusel + histor
 | Formato | Carrusel + historia | **Solo historia.** Nada en el feed |
 | Qué álbumes | Los que el fotógrafo marcó | Públicos de **más de 50 fotos**. Nunca privados, ocultos, protegidos por selfie, de prueba ni escolares |
 | Permiso | Tilde por álbum, apagado | Por álbum, **encendido por defecto**, en «Privacidad y acceso». Solo se guarda el «no» |
-| Fotos | Elige el fotógrafo (3-4) | **Automático**, repartidas a lo largo del álbum, con marca de agua; si el fotógrafo marcó fotos, van primero |
+| Fotos | Elige el fotógrafo (3-4) | **Automático**, repartidas a lo largo del álbum, con marca de agua; si el fotógrafo marcó fotos, van primero. Se prefieren fotos con una cara de buen tamaño (`FaceDetection`) y cada foto se **recorta a su hueco con las caras adentro**, sin zoom (`story-photo-crop.ts`); sin caras, recorte por zona de interés de `sharp` |
 | Diseño | Una foto a sangre | **Veinte modelos sobrios** (blanco, negro, hueso), fotos grandes y logo de CLF, que rotan sin repetir fondo dos veces seguidas (`album-story-collages.ts`) |
 | Etiqueta | No se podía | **`user_tags` en historias** (Meta lo habilitó en julio de 2025): el fotógrafo y hasta **5 cuentas extra** que él carga en «Privacidad y acceso» (organizador, empresas). Si Meta rechaza alguna, se reintenta solo con el fotógrafo y, si no, sin etiquetas: la historia sale igual |
 | Link | Impreso | Botón dibujado **«Comprar aquí»** con la dirección debajo. No se puede tocar: el sticker de enlace **sigue sin existir por API** |
