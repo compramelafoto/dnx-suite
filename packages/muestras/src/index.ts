@@ -25,3 +25,4 @@ export * from "./contest";
 export * from "./sales";
 export * from "./editions";
 export * from "./certificates";
+export * from "./disciplines";
