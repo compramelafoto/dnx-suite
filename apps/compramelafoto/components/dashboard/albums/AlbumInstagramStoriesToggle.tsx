@@ -97,7 +97,7 @@ export default function AlbumInstagramStoriesToggle({
             {!aplica
               ? "Solo los álbumes públicos y sin selfie pueden aparecer en las historias."
               : estado.enabled
-                ? `Si el álbum tiene más de 50 fotos, publicamos 3 historias en días distintos, cada una con 3 o 4 fotos chicas del álbum y el botón «Comprar aquí». ${
+                ? `Si el álbum tiene más de 50 fotos, publicamos 3 historias en días distintos, cada una con 3 o 4 fotos chicas del álbum y la dirección del álbum en compramelafoto.com. ${
                     estado.photographerHandle
                       ? `Te etiquetamos como @${estado.photographerHandle}.`
                       : "Cargá tu Instagram en tu perfil para que te etiquetemos."

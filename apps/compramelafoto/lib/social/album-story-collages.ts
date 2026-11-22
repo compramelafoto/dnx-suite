@@ -11,12 +11,13 @@ import { fraccionVisible } from "./story-photo-crop";
  * el texto (`pie` o `cabecera`). Se rotan por orden de salida, así dos historias seguidas
  * nunca repiten diseño.
  *
- * El «Comprar aquí» es un botón DIBUJADO: Meta no deja poner el sticker de enlace por
- * API, así que no se puede tocar. Debajo va la dirección del álbum en letra legible. Al
+ * En lugar de un botón va «Compramelafoto.com» en letra grande (2026-11-22): Meta no deja
+ * poner el sticker de enlace por API, así que nada se puede tocar. Debajo va la dirección
+ * corta del álbum. Al
  * fotógrafo (y a quien él sume) se lo etiqueta con `user_tags`.
  *
  * Zona segura: Instagram tapa ~250 px arriba y ~250 px abajo. Las fotos pueden pasar por
- * debajo de esas franjas; el texto, el logo y el botón no.
+ * debajo de esas franjas; el texto, el logo y el dominio no.
  *
  * Ningún contrato lee campos de documento de identidad: son piezas públicas.
  */
@@ -221,7 +222,7 @@ const LAYOUTS: Layout[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Texto: logo, título, crédito, botón «Comprar aquí» y la dirección
+// Texto: logo, frase, título, crédito, «Compramelafoto.com» y la dirección
 // ---------------------------------------------------------------------------
 
 function texto(
@@ -257,56 +258,52 @@ function texto(
  * Medidas pensadas para leerse en el celular (2026-11-22: con 19-29 pt no se leía nada).
  * En una historia de 1080 px de ancho, menos de ~50 px de alto de letra se pierde.
  */
-const LOGO_H = 72;
+const LOGO_H = 100;
 const LOGO_W = Math.round(LOGO_H * CLF_LOGO_ASPECT);
-const BOTON_W = 620;
-const BOTON_H = 120;
+/** Alto del renglón «Compramelafoto.com», que reemplaza al botón (2026-11-22). */
+const DOMINIO_H = 80;
 
 function logo(t: Tema, x: number, y: number): DesignBlock {
   return { id: "logo", type: "image", x, y, width: LOGO_W, height: LOGO_H, resourceRef: t.logo, fit: "contain" } as DesignBlock;
 }
 
-function boton(t: Tema, x: number, y: number): DesignBlock[] {
-  return [
-    { id: "boton", type: "rect", x, y, width: BOTON_W, height: BOTON_H, fillColor: t.boton, cornerRadius: BOTON_H / 2 } as DesignBlock,
-    texto("botonTexto", "Comprar aquí", x, y, BOTON_W, BOTON_H, {
-      size: 34,
-      color: t.textoBoton,
-      bold: true,
-      align: "center",
-      valign: "middle",
-    }),
-  ];
+/**
+ * «Compramelafoto.com» bien grande, en el color de acento del tema. Reemplaza al botón
+ * «Comprar aquí» (pedido 2026-11-22): como Instagram no deja que sea tocable, un botón
+ * confundía; el nombre del sitio se lee y se recuerda.
+ */
+function dominio(t: Tema, x: number, y: number, w: number, align: "left" | "center"): DesignBlock {
+  return texto("dominio", "Compramelafoto.com", x, y, w, DOMINIO_H, { size: 64, color: t.boton, bold: true, align, valign: "middle" });
 }
 
 /**
- * Bloque de texto abajo (y = 1144…1618): logo, la frase grande que va cambiando, el
- * nombre del álbum, el crédito, el botón y la dirección.
+ * Bloque de texto abajo (y = 1136…1620): logo, la frase grande que va cambiando, el
+ * nombre del álbum, el crédito, «Compramelafoto.com» y la dirección del álbum.
  */
 function textoAbajo(t: Tema, align: "left" | "center", margen: number): DesignBlock[] {
   const x = margen;
   const w = STORY_W - margen * 2;
   const xc = (ancho: number) => (align === "center" ? Math.round((STORY_W - ancho) / 2) : x);
   return [
-    logo(t, xc(LOGO_W), 1144),
-    texto("frase", "{{frase}}", x, 1226, w, 62, { size: 38, color: t.texto, bold: true, align }),
-    texto("titulo", "{{nombreAlbum}}", x, 1292, w, 82, { size: 27, color: t.texto, align, lines: 2 }),
-    texto("credito", "{{creditoFotografo}}", x, 1378, w, 40, { size: 24, color: t.suave, bold: true, align }),
-    ...boton(t, xc(BOTON_W), 1428),
-    texto("url", "{{urlAlbum}}", x, 1562, w, 50, { size: 28, color: t.texto, bold: true, align }),
+    logo(t, xc(LOGO_W), 1136),
+    texto("frase", "{{frase}}", x, 1248, w, 70, { size: 54, color: t.texto, bold: true, align }),
+    texto("titulo", "{{nombreAlbum}}", x, 1326, w, 92, { size: 38, color: t.texto, align, lines: 2 }),
+    texto("credito", "{{creditoFotografo}}", x, 1420, w, 46, { size: 34, color: t.suave, bold: true, align }),
+    dominio(t, x, 1478, w, align),
+    texto("url", "{{urlAlbum}}", x, 1570, w, 50, { size: 38, color: t.texto, bold: true, align }),
   ];
 }
 
-/** Logo, frase y nombre arriba (250…476); crédito, botón y dirección abajo (1316…1556). */
+/** Logo, frase y nombre arriba (250…514); crédito, dominio y dirección abajo (1316…1532). */
 function textoArribaYAbajo(t: Tema, margen: number): DesignBlock[] {
   const w = STORY_W - margen * 2;
   return [
     logo(t, Math.round((STORY_W - LOGO_W) / 2), SEGURA_ARRIBA),
-    texto("frase", "{{frase}}", margen, 328, w, 62, { size: 38, color: t.texto, bold: true, align: "center" }),
-    texto("titulo", "{{nombreAlbum}}", margen, 392, w, 82, { size: 27, color: t.texto, align: "center", lines: 2 }),
-    texto("credito", "{{creditoFotografo}}", margen, 1316, w, 40, { size: 24, color: t.suave, bold: true, align: "center" }),
-    ...boton(t, Math.round((STORY_W - BOTON_W) / 2), 1364),
-    texto("url", "{{urlAlbum}}", margen, 1500, w, 50, { size: 28, color: t.texto, bold: true, align: "center" }),
+    texto("frase", "{{frase}}", margen, 356, w, 70, { size: 54, color: t.texto, bold: true, align: "center" }),
+    texto("titulo", "{{nombreAlbum}}", margen, 430, w, 84, { size: 36, color: t.texto, align: "center", lines: 2 }),
+    texto("credito", "{{creditoFotografo}}", margen, 1316, w, 46, { size: 34, color: t.suave, bold: true, align: "center" }),
+    dominio(t, margen, 1378, w, "center"),
+    texto("url", "{{urlAlbum}}", margen, 1470, w, 50, { size: 38, color: t.texto, bold: true, align: "center" }),
   ];
 }
 
@@ -325,7 +322,7 @@ type Composicion = "sangre" | "marco" | "centro";
 function zona(c: Composicion): { caja: Caja; g: number } {
   if (c === "sangre") return { caja: { x: 0, y: 0, w: STORY_W, h: 1128 }, g: 8 };
   if (c === "marco") return { caja: { x: 56, y: 110, w: STORY_W - 112, h: 1012 }, g: 14 };
-  return { caja: { x: 0, y: 490, w: STORY_W, h: 812 }, g: 8 };
+  return { caja: { x: 0, y: 524, w: STORY_W, h: 776 }, g: 8 };
 }
 
 function armar(layoutId: string, temaId: Tema["id"], comp: Composicion, align: "left" | "center" = "center"): StoryCollage {
