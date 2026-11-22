@@ -40,7 +40,7 @@ async function datosDeFirma(fd: FormData, usuarioId: number): Promise<{ ok: true
   const tienePerfil = await prisma.photographerProfile.findUnique({ where: { userId: usuarioId }, select: { id: true } });
   if (tienePerfil) {
     const bio = String(fd.get("bio") ?? "").trim().slice(0, LARGOS_PERFIL.bio).trim();
-    return { ok: true, firma, datos: { displayName: firma, slug: "", bio: bio || null, city: null, province: null, website: null, instagram: null, avatarUrl: null } };
+    return { ok: true, firma, datos: { displayName: firma, slug: "", bio: bio || null, city: null, province: null, website: null, instagram: null, avatarUrl: null, disciplines: ["FOTOGRAFIA"] } };
   }
   const paraPerfil = new FormData();
   for (const k of ["displayName", "bio", "city", "province", "instagram", "avatarUrl"]) {

@@ -2,17 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+import { DISCIPLINE_LABELS, DISCIPLINES } from "@repo/muestras";
 import { subirImagen } from "@/components/formulario/subir-imagen";
 import { guardarPerfil } from "@/lib/perfiles/acciones";
 
 export type PerfilInicial = {
   displayName: string; slug: string; bio: string; city: string; province: string;
   website: string; instagram: string; avatarUrl: string | null;
+  /** Las disciplinas marcadas al abrir: en un perfil nuevo o de antes, fotografía. */
+  disciplines: string[];
 };
 
 const campo = "w-full rounded-[2px] border border-[var(--mf-line)] bg-white px-3 py-2";
 
-export function FormularioPerfil({ inicial, esNuevo }: { inicial: PerfilInicial; esNuevo: boolean }) {
+/** `prefijoUrl`: el dominio y la ruta de autores de la marca en la que se edita (p. ej. `muestrasfotograficas.com/fotografos/`). */
+export function FormularioPerfil({ inicial, esNuevo, prefijoUrl }: { inicial: PerfilInicial; esNuevo: boolean; prefijoUrl: string }) {
   const router = useRouter();
   const [pendiente, start] = useTransition();
   const [errores, setErrores] = useState<string[]>([]);
@@ -68,10 +72,22 @@ export function FormularioPerfil({ inicial, esNuevo }: { inicial: PerfilInicial;
       <label className="block space-y-1">
         <span>Dirección de tu perfil</span>
         <span className="flex items-center gap-2">
-          <span className="shrink-0 text-sm text-[var(--mf-muted)]">muestrasfotograficas.com/fotografos/</span>
+          <span className="shrink-0 text-sm text-[var(--mf-muted)]">{prefijoUrl}</span>
           <input name="slug" defaultValue={inicial.slug} placeholder={esNuevo ? "se arma con tu nombre" : undefined} className={campo} />
         </span>
       </label>
+      <fieldset className="space-y-2">
+        <legend>Disciplinas</legend>
+        <p className="text-sm text-[var(--mf-muted)]">Marcá todas las que trabajás. Si no marcás ninguna, queda Fotografía.</p>
+        <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
+          {DISCIPLINES.map((d) => (
+            <label key={d} className="flex items-center gap-2">
+              <input type="checkbox" name="disciplines" value={d} defaultChecked={inicial.disciplines.includes(d)} />
+              <span>{DISCIPLINE_LABELS[d]}</span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <label className="block space-y-1">
         <span>Sobre vos</span>
         <textarea name="bio" rows={6} defaultValue={inicial.bio} className={campo} />

@@ -1,4 +1,4 @@
-import { normalizeInstagram, normalizeProfileSlug, normalizeWebsite, profileSlugProblem } from "@repo/muestras";
+import { isDiscipline, normalizeInstagram, normalizeProfileSlug, normalizeWebsite, PHOTOGRAPHY, profileSlugProblem, type Discipline } from "@repo/muestras";
 import { baseImagenesPublicas, esImagenPropia } from "@/lib/actividades/mapear";
 
 export const LARGOS_PERFIL = { displayName: 120, bio: 3000, city: 120, province: 120, website: 300, instagram: 80 } as const;
@@ -13,7 +13,16 @@ export type PerfilForm = {
   website: string | null;
   instagram: string | null;
   avatarUrl: string | null;
+  /** Al menos una: sin ninguna marcada, fotografía. */
+  disciplines: Discipline[];
 };
+
+/** Disciplinas del perfil: sólo las válidas, sin repetir; sin ninguna, fotografía. */
+export function disciplinasDePerfil(values: unknown[]): Discipline[] {
+  const out: Discipline[] = [];
+  for (const v of values) if (isDiscipline(v) && !out.includes(v)) out.push(v);
+  return out.length ? out : [PHOTOGRAPHY];
+}
 
 export function perfilDesdeFormData(
   fd: FormData,
@@ -54,6 +63,7 @@ export function perfilDesdeFormData(
       website,
       instagram,
       avatarUrl: avatar && esImagenPropia(avatar, base) ? avatar : null,
+      disciplines: disciplinasDePerfil(fd.getAll("disciplines")),
     },
   };
 }

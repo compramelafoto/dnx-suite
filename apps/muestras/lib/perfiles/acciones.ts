@@ -18,8 +18,10 @@ function esChoqueUnico(err: unknown): boolean {
 }
 
 function refrescarPerfiles(...slugs: string[]) {
-  revalidatePath("/fotografos");
-  for (const s of slugs) revalidatePath(`/fotografos/${s}`);
+  for (const ruta of ["/fotografos", "/artistas"]) {
+    revalidatePath(ruta);
+    for (const s of slugs) revalidatePath(`${ruta}/${s}`);
+  }
   revalidatePath("/m/[slug]/o/[workId]", "page");
   revalidatePath("/panel", "layout");
 }
@@ -54,7 +56,7 @@ export async function guardarPerfil(fd: FormData): Promise<ResultadoPerfil> {
 
   const datos = {
     slug, displayName: p.displayName, bio: p.bio, city: p.city, province: p.province,
-    website: p.website, instagram: p.instagram, avatarUrl: p.avatarUrl,
+    website: p.website, instagram: p.instagram, avatarUrl: p.avatarUrl, disciplines: p.disciplines,
   };
   try {
     if (actual) await prisma.photographerProfile.update({ where: { id: actual.id }, data: datos });
