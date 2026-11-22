@@ -564,7 +564,7 @@ CURSO = [
                      "son los que te imprimen las copias. Entrás a «Impresiones» y después a «Mis laboratorios»."),
                     ("Tocar «Agregar laboratorio». Mostrar el enlace «Elegir del directorio».",
                      "Tocás «Agregar laboratorio». Si tu laboratorio ya está en ComprameLaFoto, lo elegís del "
-                     "directorio. Si no, lo cargás vos."),
+                     "directorio, donde aparece con su logo. Si no, lo cargás vos."),
                     ("Completar «Nombre», «Correo» y «WhatsApp (opcional)».",
                      "Ponés el nombre, el correo y, si querés, el WhatsApp. El correo es importante: ahí le llegan "
                      "los pedidos que le mandes."),
@@ -668,11 +668,11 @@ CURSO = [
                 "cod": "C26", "titulo": "Que ComprameLaFoto publique historias de tu álbum", "dur": "3 min",
                 "arranca": "/fotografo/configuracion (pestaña «Perfil») y la sección «Configuración» de un álbum",
                 "tomas": [
-                    ("Instagram de ComprameLaFoto en el celular: una historia con el collage de fotos con marca de "
-                     "agua, la etiqueta del fotógrafo y el botón «Comprar aquí».",
+                    ("Instagram de ComprameLaFoto en el celular: una historia con el collage de fotos, el nombre del "
+                     "álbum, la frase grande, la etiqueta del fotógrafo y «COMPRAMELAFOTO.COM».",
                      "ComprameLaFoto puede publicar historias de tu álbum en su Instagram, gratis. Es un collage con "
-                     "algunas de tus fotos, con marca de agua, tu etiqueta y un botón para comprar. Así tu evento "
-                     "llega a mucha más gente."),
+                     "algunas de tus fotos, el nombre del álbum y tu etiqueta, y la gente ve que las fotos están en "
+                     "ComprameLaFoto. Así tu evento llega a mucha más gente."),
                     ("Configuración → «Perfil». Señalar el campo «Instagram» y escribir el usuario.",
                      "Primero, cargá tu Instagram en tu perfil. Es la cuenta que vamos a etiquetar en cada historia: "
                      "así la gente que ve las fotos llega a vos."),
@@ -681,10 +681,12 @@ CURSO = [
                      "Después, en cada álbum, entrás a «Configuración», en «Privacidad y acceso». Esta casilla viene "
                      "marcada: todos tus álbumes ya entran. Y se guarda al instante, no hace falta tocar «Guardar»."),
                     ("Señalar el texto de ayuda: «Si el álbum tiene más de 50 fotos, publicamos 3 historias en días "
-                     "distintos…».",
+                     "distintos, cada una con 3 o 4 fotos del álbum y el nombre del álbum…».",
                      "Para entrar, el álbum tiene que tener más de cincuenta fotos. Si las tiene, publicamos tres "
-                     "historias en días distintos, cada una con tres o cuatro fotos. Las armamos solas en los días "
-                     "siguientes a que creás el álbum: vos no tenés que hacer nada más."),
+                     "historias en días distintos, cada una con tres o cuatro fotos y una frase distinta: el primer "
+                     "día avisa que las fotos ya están, el segundo invita a buscarse y el tercero, a no quedarse sin "
+                     "ellas. Las armamos solas en los días siguientes a que creás el álbum: vos no tenés que hacer "
+                     "nada más."),
                     ("En «Etiquetar también», escribir un usuario (por ejemplo el del organizador) y tocar "
                      "«Agregar». Mostrar la etiqueta con la «×».",
                      "Acá podés sumar otras cuentas para etiquetar: el organizador, el club, la empresa o los "
@@ -876,7 +878,7 @@ SHORTS = [
       "Le llega un correo, baja las fotos ordenadas por medida y, cuando están listas, el cliente recibe el aviso."),
      ("«Pagado al laboratorio».", "Le pagás vos y lo marcás: cada lote, bajo control.")),
     ("S32", "Tu álbum en las historias de ComprameLaFoto", "C26",
-     ("Historia de ComprameLaFoto con el botón «Comprar aquí».", "¿Querés que tu evento llegue a más gente, gratis?"),
+     ("Historia de ComprameLaFoto con el collage y «COMPRAMELAFOTO.COM».", "¿Querés que tu evento llegue a más gente, gratis?"),
      ("Casilla «Difundir en las historias de Instagram de CompraMeLaFoto» y «Etiquetar también».",
       "Cargá tu Instagram en el perfil y dejá marcada esta casilla en el álbum. Publicamos tres historias con tus "
       "fotos y te etiquetamos. Sumá al organizador o a los sponsors para que la compartan."),
@@ -902,6 +904,10 @@ HALLAZGOS = [
     "manda lo que se elige en la pestaña «Venta» de cada álbum.",
     "Al laboratorio se le paga por fuera de la plataforma: «Pagado al laboratorio» es solo un registro.",
     "Historias de Instagram: con 50 fotos o menos el álbum no entra. Se buscan álbumes creados hace entre 6 horas y "
-    "3 días, se arman hasta 8 por corrida y salen como máximo 10 historias por día, así que en semanas cargadas "
-    "pueden demorarse. El admin puede sacar una historia antes de que salga, desde /admin/social.",
+    "3 días, se arman hasta 5 por corrida y salen como máximo 10 historias por día, así que en semanas cargadas "
+    "pueden demorarse. El admin puede sacar una historia antes de que salga, desde /admin/social. Las fotos de "
+    "la historia salen de los originales, sin marca de agua.",
+    "En el directorio de «Mis laboratorios» aparecen también laboratorios invitados que todavía no tienen cuenta: "
+    "el fotógrafo los puede cargar, pero no aparecen en la elección de laboratorio del álbum ni en la compra del "
+    "cliente hasta que se registren.",
 ]
