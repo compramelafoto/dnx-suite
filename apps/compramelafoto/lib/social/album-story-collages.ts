@@ -11,9 +11,9 @@ import { fraccionVisible } from "./story-photo-crop";
  * el texto (`pie` o `cabecera`). Se rotan por orden de salida, así dos historias seguidas
  * nunca repiten diseño.
  *
- * En lugar de un botón va «Compramelafoto.com» en letra grande (2026-11-22): Meta no deja
- * poner el sticker de enlace por API, así que nada se puede tocar. Debajo va la dirección
- * corta del álbum. Al
+ * En lugar de un botón va «COMPRAMELAFOTO.COM» en letra grande (2026-11-22): Meta no deja
+ * poner el sticker de enlace por API, así que nada se puede tocar. No lleva la dirección
+ * del álbum: solo el nombre del sitio. Al
  * fotógrafo (y a quien él sume) se lo etiqueta con `user_tags`.
  *
  * Zona segura: Instagram tapa ~250 px arriba y ~250 px abajo. Las fotos pueden pasar por
@@ -222,7 +222,7 @@ const LAYOUTS: Layout[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// Texto: logo, frase, título, crédito, «Compramelafoto.com» y la dirección
+// Texto: logo, frase, título, crédito, «COMPRAMELAFOTO.COM»
 // ---------------------------------------------------------------------------
 
 function texto(
@@ -260,7 +260,7 @@ function texto(
  */
 const LOGO_H = 100;
 const LOGO_W = Math.round(LOGO_H * CLF_LOGO_ASPECT);
-/** Alto del renglón «Compramelafoto.com», que reemplaza al botón (2026-11-22). */
+/** Alto del renglón «COMPRAMELAFOTO.COM», que reemplaza al botón (2026-11-22). */
 const DOMINIO_H = 80;
 
 function logo(t: Tema, x: number, y: number): DesignBlock {
@@ -268,33 +268,32 @@ function logo(t: Tema, x: number, y: number): DesignBlock {
 }
 
 /**
- * «Compramelafoto.com» bien grande, en el color de acento del tema. Reemplaza al botón
+ * «COMPRAMELAFOTO.COM» bien grande, en el color de acento del tema. Reemplaza al botón
  * «Comprar aquí» (pedido 2026-11-22): como Instagram no deja que sea tocable, un botón
  * confundía; el nombre del sitio se lee y se recuerda.
  */
 function dominio(t: Tema, x: number, y: number, w: number, align: "left" | "center"): DesignBlock {
-  return texto("dominio", "Compramelafoto.com", x, y, w, DOMINIO_H, { size: 64, color: t.boton, bold: true, align, valign: "middle" });
+  return texto("dominio", "COMPRAMELAFOTO.COM", x, y, w, DOMINIO_H, { size: 64, color: t.boton, bold: true, align, valign: "middle" });
 }
 
 /**
- * Bloque de texto abajo (y = 1136…1620): logo, la frase grande que va cambiando, el
- * nombre del álbum, el crédito, «Compramelafoto.com» y la dirección del álbum.
+ * Bloque de texto abajo (y = 1150…1596): logo, la frase grande que va cambiando, el
+ * nombre del álbum, el crédito y «COMPRAMELAFOTO.COM» (sin la dirección del álbum, pedido 2026-11-22).
  */
 function textoAbajo(t: Tema, align: "left" | "center", margen: number): DesignBlock[] {
   const x = margen;
   const w = STORY_W - margen * 2;
   const xc = (ancho: number) => (align === "center" ? Math.round((STORY_W - ancho) / 2) : x);
   return [
-    logo(t, xc(LOGO_W), 1136),
-    texto("frase", "{{frase}}", x, 1248, w, 70, { size: 54, color: t.texto, bold: true, align }),
-    texto("titulo", "{{nombreAlbum}}", x, 1326, w, 92, { size: 38, color: t.texto, align, lines: 2 }),
-    texto("credito", "{{creditoFotografo}}", x, 1420, w, 46, { size: 34, color: t.suave, bold: true, align }),
-    dominio(t, x, 1478, w, align),
-    texto("url", "{{urlAlbum}}", x, 1570, w, 50, { size: 38, color: t.texto, bold: true, align }),
+    logo(t, xc(LOGO_W), 1150),
+    texto("frase", "{{frase}}", x, 1272, w, 70, { size: 54, color: t.texto, bold: true, align }),
+    texto("titulo", "{{nombreAlbum}}", x, 1352, w, 92, { size: 38, color: t.texto, align, lines: 2 }),
+    texto("credito", "{{creditoFotografo}}", x, 1452, w, 46, { size: 34, color: t.suave, bold: true, align }),
+    dominio(t, x, 1516, w, align),
   ];
 }
 
-/** Logo, frase y nombre arriba (250…514); crédito, dominio y dirección abajo (1316…1532). */
+/** Logo, frase y nombre arriba (250…514); crédito y dominio abajo (1316…1470). */
 function textoArribaYAbajo(t: Tema, margen: number): DesignBlock[] {
   const w = STORY_W - margen * 2;
   return [
@@ -302,8 +301,7 @@ function textoArribaYAbajo(t: Tema, margen: number): DesignBlock[] {
     texto("frase", "{{frase}}", margen, 356, w, 70, { size: 54, color: t.texto, bold: true, align: "center" }),
     texto("titulo", "{{nombreAlbum}}", margen, 430, w, 84, { size: 36, color: t.texto, align: "center", lines: 2 }),
     texto("credito", "{{creditoFotografo}}", margen, 1316, w, 46, { size: 34, color: t.suave, bold: true, align: "center" }),
-    dominio(t, margen, 1378, w, "center"),
-    texto("url", "{{urlAlbum}}", margen, 1470, w, 50, { size: 38, color: t.texto, bold: true, align: "center" }),
+    dominio(t, margen, 1390, w, "center"),
   ];
 }
 
@@ -365,7 +363,7 @@ function contrato(fotos: number): VariableContract {
       { key: "frase", type: "text", label: "Frase grande", required: true, sampleValue: "¡Ya están disponibles!", maxLength: 40 },
       { key: "nombreAlbum", type: "text", label: "Nombre del álbum", required: true, sampleValue: "Maratón de Santa Fe 2026", maxLength: 80 },
       { key: "creditoFotografo", type: "text", label: "Crédito del fotógrafo", required: false, sampleValue: "Fotos de @fotografo", maxLength: 45 },
-      { key: "urlAlbum", type: "text", label: "Dirección del álbum", required: true, sampleValue: "compramelafoto.com/a/1557", maxLength: 70 },
+      { key: "urlAlbum", type: "text", label: "Dirección del álbum (no se muestra)", required: false, sampleValue: "compramelafoto.com/a/1557", maxLength: 70 },
       ...Array.from({ length: fotos }, (_, i) => ({
         key: `foto${i + 1}`,
         type: "image" as const,
