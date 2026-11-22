@@ -65,7 +65,8 @@ export type FichaForm = {
   editVersion: number | null;
   /**
    * Disciplina principal (Muestras de Arte). En fotografía, si no llega, es FOTOGRAFIA. En arte es
-   * obligatoria: si no llega (o no existe) queda `null` y `validarFicha` frena el guardado.
+   * obligatoria: si no llega (o no existe) queda `null` y `validarFicha` frena el guardado. Al
+   * editar, un valor que no existe cuenta como "no llegó": `guardarBorrador` conserva la guardada.
    */
   primaryDiscipline: Discipline | null;
   /** Secundarias: únicas, válidas, sin la principal, máximo 5. */

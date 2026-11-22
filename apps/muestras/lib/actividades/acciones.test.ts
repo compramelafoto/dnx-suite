@@ -213,6 +213,17 @@ describe("guardarBorrador: disciplina y casa de la muestra (Muestras de Arte, et
     expect((await guardarBorrador(fd(completa))).ok).toBe(true);
     expect(db.culturalActivity.update.mock.calls[0]![0].data).toMatchObject({ primaryDiscipline: "ESCULTURA", otherDisciplines: ["CERAMICA"] });
   });
+  it("al editar, una disciplina que no existe conserva la guardada (no vuelve a fotografía)", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, primaryDiscipline: "ESCULTURA", otherDisciplines: ["CERAMICA"] });
+    expect((await guardarBorrador(fd({ ...completa, primaryDiscipline: "MAGIA", otherDisciplines: ["DIBUJO"] }))).ok).toBe(true);
+    expect(db.culturalActivity.update.mock.calls[0]![0].data).toMatchObject({ primaryDiscipline: "ESCULTURA", otherDisciplines: ["CERAMICA"] });
+  });
+  it("al editar en arte, una disciplina que no existe frena igual que si faltara", async () => {
+    db.culturalActivity.findUnique.mockResolvedValue({ ...fila, primaryDiscipline: "PINTURA", otherDisciplines: [] });
+    const r = await guardarBorrador(fd({ ...completa, marca: "ARTE", primaryDiscipline: "MAGIA" }));
+    expect(r).toEqual({ ok: false, errores: ["Elegí la disciplina principal."] });
+    expect(db.culturalActivity.update).not.toHaveBeenCalled();
+  });
   it("una muestra nueva en fotografía sin el campo nace FOTOGRAFIA", async () => {
     db.culturalActivity.create.mockResolvedValue({ id: "n1" });
     const nueva = fd(completa);

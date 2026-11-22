@@ -148,10 +148,10 @@ export async function guardarBorrador(fd: FormData): Promise<ResultadoAccion> {
     return { ok: false, errores: ["No podés editar esta actividad ahora."] };
   }
   if (f.editVersion == null) return { ok: false, errores: [PAGINA_VIEJA] };
-  // Disciplina (Muestras de Arte): un formulario que no la manda (pestaña de antes del cambio)
-  // conserva la guardada; nunca vuelve sola a fotografía.
+  // Disciplina (Muestras de Arte): un formulario que no la manda (pestaña de antes del cambio), o
+  // que manda un valor que no existe, conserva la guardada; nunca vuelve sola a fotografía.
   const principalGuardada = isDiscipline(actual.primaryDiscipline) ? actual.primaryDiscipline : PHOTOGRAPHY;
-  if (!fd.has("primaryDiscipline")) {
+  if (!isDiscipline(fd.get("primaryDiscipline"))) {
     datos.primaryDiscipline = principalGuardada;
     datos.otherDisciplines = parseOtherDisciplines(actual.otherDisciplines ?? [], principalGuardada);
   }
