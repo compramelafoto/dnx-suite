@@ -1,5 +1,6 @@
-import { getClfInstagramStatus, listStoryQueue } from "@/lib/social/album-stories";
+import { getClfInstagramStatus, listPreviewCandidates, listStoryQueue } from "@/lib/social/album-stories";
 import StoriesQueuePanel from "@/components/admin/social/StoriesQueuePanel";
+import StoryPreviewSection from "@/components/admin/social/StoryPreviewSection";
 
 export const dynamic = "force-dynamic";
 
@@ -8,6 +9,18 @@ export default async function AdminSocialPage({
 }: {
   searchParams: Promise<{ instagram?: string }>;
 }) {
-  const [status, queue, params] = await Promise.all([getClfInstagramStatus(), listStoryQueue(), searchParams]);
-  return <StoriesQueuePanel status={status} queue={queue} connectResult={params.instagram ?? null} />;
+  const [status, queue, candidates, params] = await Promise.all([
+    getClfInstagramStatus(),
+    listStoryQueue(),
+    listPreviewCandidates(),
+    searchParams,
+  ]);
+  return (
+    <StoriesQueuePanel
+      status={status}
+      queue={queue}
+      connectResult={params.instagram ?? null}
+      preview={<StoryPreviewSection candidates={candidates} />}
+    />
+  );
 }

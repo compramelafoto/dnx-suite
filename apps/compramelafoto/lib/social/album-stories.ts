@@ -20,7 +20,12 @@ import {
   storyCredit,
   type AlbumStorySkipReason,
 } from "./album-stories-plan";
-import { pickStoryCollage, readStoryBrandResource, STORY_COLLAGE_MAX_PHOTOS } from "./album-story-collages";
+import {
+  pickStoryCollage,
+  readStoryBrandResource,
+  STORY_COLLAGE_MAX_PHOTOS,
+  type StoryCollage,
+} from "./album-story-collages";
 import { logSocialRequest, resolveClfInstagramAccount } from "./prisma-store";
 import { carasValidas, fotosConCarasBuenas, type CajaDeCara } from "./story-photo-crop";
 import { prepararFotosDelCollage } from "./story-photo-prepare";
@@ -248,64 +253,14 @@ export async function generateDailyAlbumStories(now: Date = new Date()): Promise
     const scheduleAt = slots[i]!;
     try {
       const collage = pickStoryCollage(ordinal);
-      const fotos = await prisma.photo.findMany({
-        where: { albumId: album.id, isRemoved: false, previewWatermarkedKey: { not: null } },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        select: { id: true, previewWatermarkedKey: true },
-      });
-      if (fotos.length < MIN_ALBUM_PHOTOS_FOR_STORY) {
+      const armada = await renderAlbumStory(album, collage);
+      if (!armada) {
         skip("NO_PHOTOS");
         continue;
       }
-      const permiso = await getAlbumSocialConsent(album.id);
-      const preferidas = permiso?.selectedPhotoIds ?? [];
-      const cantidad = Math.min(collage.fotos, STORY_COLLAGE_MAX_PHOTOS);
-
-      // Caras detectadas (Rekognition) de todo el álbum: sirven para elegir fotos donde
-      // la gente se ve y para encuadrar sin cortar cabezas.
-      const detecciones = await prisma.faceDetection.findMany({
-        where: { photo: { albumId: album.id, isRemoved: false } },
-        select: { photoId: true, bbox: true },
-      });
-      const carasPorFoto = new Map<number, CajaDeCara[]>();
-      for (const d of detecciones) {
-        const [caja] = carasValidas([d.bbox]);
-        if (caja) carasPorFoto.set(d.photoId, [...(carasPorFoto.get(d.photoId) ?? []), caja]);
-      }
-      const todas = fotos.map((f) => f.id);
-      const conCaras = fotosConCarasBuenas(todas, carasPorFoto);
-      const elegidas = pickStoryPhotos(conCaras.length >= cantidad ? conCaras : todas, cantidad, preferidas);
-      const urlPorId = new Map(fotos.map((f) => [f.id, getPublicUrl(f.previewWatermarkedKey!)]));
-      const handle = normalizeConsentHandle(album.user.instagram);
-
-      const bajadas: Array<{ bytes: Uint8Array; caras: CajaDeCara[] }> = [];
-      for (const id of elegidas) {
-        const bytes = await leerFoto(urlPorId.get(id)!);
-        if (!bytes) throw new Error(`No se pudo bajar la foto ${id}`);
-        bajadas.push({ bytes, caras: carasPorFoto.get(id) ?? [] });
-      }
-      const encuadradas = await prepararFotosDelCollage(collage, bajadas);
-
-      const values: Record<string, string> = {
-        nombreAlbum: storyAlbumTitle(album.title),
-        creditoFotografo: storyCredit(handle, album.user.name),
-        urlAlbum: albumPublicUrl(album.publicSlug),
-        ...encuadradas.values,
-      };
-
-      const pieza = await renderSocialPiece({
-        pieceId: collage.id,
-        format: "STORY",
-        document: collage.document,
-        contract: collage.contract,
-        values,
-        resources: { read: async (ref: string) => encuadradas.slots.get(ref) ?? leerFoto(ref) },
-        dpi: 96,
-      });
-      const imagen = pieza.images[0];
-      if (!imagen) throw new Error("El render no devolvió imagen");
+      const { bytes: imagenBytes, elegidas, handle, permiso } = armada;
       const key = `social/clf/historias/${album.id}-${Date.now()}.jpg`;
-      await uploadToR2(Buffer.from(imagen.bytes), key, "image/jpeg");
+      await uploadToR2(Buffer.from(imagenBytes), key, "image/jpeg");
       const publicUrl = getPublicUrl(key);
 
       const menciones: MentionCandidate[] = [
@@ -374,6 +329,162 @@ export async function generateDailyAlbumStories(now: Date = new Date()): Promise
     }
   }
   return summary;
+}
+
+type AlbumParaHistoria = {
+  id: number;
+  title: string;
+  publicSlug: string;
+  user: { name: string | null; instagram: string | null };
+};
+
+/**
+ * Arma la imagen de la historia de un álbum con un modelo dado: elige las fotos (las que
+ * tienen caras de buen tamaño primero), las encuadra con las caras adentro y renderiza.
+ * No sube ni guarda nada: lo usan el cron (que después sube y agenda) y la vista previa
+ * del panel, así lo que se ve en la vista previa es exactamente lo que sale.
+ *
+ * Devuelve `null` si el álbum no tiene fotos suficientes con marca de agua.
+ */
+export async function renderAlbumStory(album: AlbumParaHistoria, collage: StoryCollage) {
+  const fotos = await prisma.photo.findMany({
+    where: { albumId: album.id, isRemoved: false, previewWatermarkedKey: { not: null } },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: { id: true, previewWatermarkedKey: true },
+  });
+  if (fotos.length < MIN_ALBUM_PHOTOS_FOR_STORY) return null;
+  const permiso = await getAlbumSocialConsent(album.id);
+  const preferidas = permiso?.selectedPhotoIds ?? [];
+  const cantidad = Math.min(collage.fotos, STORY_COLLAGE_MAX_PHOTOS);
+
+  // Caras detectadas (Rekognition) de todo el álbum: sirven para elegir fotos donde la
+  // gente se ve y para encuadrar sin cortar cabezas.
+  const detecciones = await prisma.faceDetection.findMany({
+    where: { photo: { albumId: album.id, isRemoved: false } },
+    select: { photoId: true, bbox: true },
+  });
+  const carasPorFoto = new Map<number, CajaDeCara[]>();
+  for (const d of detecciones) {
+    const [caja] = carasValidas([d.bbox]);
+    if (caja) carasPorFoto.set(d.photoId, [...(carasPorFoto.get(d.photoId) ?? []), caja]);
+  }
+  const todas = fotos.map((f) => f.id);
+  const conCaras = fotosConCarasBuenas(todas, carasPorFoto);
+  const elegidas = pickStoryPhotos(conCaras.length >= cantidad ? conCaras : todas, cantidad, preferidas);
+  const urlPorId = new Map(fotos.map((f) => [f.id, getPublicUrl(f.previewWatermarkedKey!)]));
+  const handle = normalizeConsentHandle(album.user.instagram);
+
+  const bajadas: Array<{ bytes: Uint8Array; caras: CajaDeCara[] }> = [];
+  for (const id of elegidas) {
+    const bytes = await leerFoto(urlPorId.get(id)!);
+    if (!bytes) throw new Error(`No se pudo bajar la foto ${id}`);
+    bajadas.push({ bytes, caras: carasPorFoto.get(id) ?? [] });
+  }
+  const encuadradas = await prepararFotosDelCollage(collage, bajadas);
+
+  const pieza = await renderSocialPiece({
+    pieceId: collage.id,
+    format: "STORY",
+    document: collage.document,
+    contract: collage.contract,
+    values: {
+      nombreAlbum: storyAlbumTitle(album.title),
+      creditoFotografo: storyCredit(handle, album.user.name),
+      urlAlbum: albumPublicUrl(album.publicSlug),
+      ...encuadradas.values,
+    },
+    resources: { read: async (ref: string) => encuadradas.slots.get(ref) ?? leerFoto(ref) },
+    dpi: 96,
+  });
+  const imagen = pieza.images[0];
+  if (!imagen) throw new Error("El render no devolvió imagen");
+  return { bytes: imagen.bytes, elegidas, handle, permiso };
+}
+
+// ---------------------------------------------------------------------------
+// Vista previa (panel): ver cómo saldría, sin guardar ni publicar
+// ---------------------------------------------------------------------------
+
+export type PreviewCandidate = {
+  albumId: number;
+  title: string;
+  createdAt: string;
+  photoCount: number;
+  photographer: string;
+  eligible: boolean;
+  reason: AlbumStorySkipReason | null;
+};
+
+/**
+ * Álbumes públicos recientes de más de 50 fotos, con si entrarían o no y por qué. Para la
+ * vista previa del panel: funciona aunque la cuenta de Instagram no esté conectada.
+ */
+export async function listPreviewCandidates(now: Date = new Date(), dias = 7): Promise<PreviewCandidate[]> {
+  const albums = await prisma.album.findMany({
+    where: {
+      createdAt: { gte: new Date(now.getTime() - dias * 24 * 3600_000) },
+      deletedAt: null,
+      isTest: false,
+      isPublic: true,
+    },
+    select: {
+      id: true,
+      title: true,
+      createdAt: true,
+      isPublic: true,
+      isHidden: true,
+      hiddenPhotosEnabled: true,
+      isTest: true,
+      schoolId: true,
+      deletedAt: true,
+      user: { select: { name: true, instagram: true } },
+      _count: { select: { photos: { where: { isRemoved: false, previewWatermarkedKey: { not: null } } } } },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 80,
+  });
+  const grandes = albums.filter((a) => a._count.photos >= MIN_ALBUM_PHOTOS_FOR_STORY);
+  const permisos = await prisma.dnxSocialPublishRequest.findMany({
+    where: { idempotencyKey: { in: grandes.map((a) => albumConsentKey(a.id)) } },
+    select: { entityId: true, metadata: true },
+  });
+  const consentimiento = new Map(
+    permisos.map((p) => [Number(p.entityId), (p.metadata as { consentGiven?: unknown } | null)?.consentGiven === true]),
+  );
+  return grandes.map((a) => {
+    const d = decideAlbumStory({
+      isPublic: a.isPublic,
+      isHidden: a.isHidden,
+      hiddenPhotosEnabled: a.hiddenPhotosEnabled,
+      isTest: a.isTest,
+      schoolId: a.schoolId,
+      deletedAt: a.deletedAt,
+      photoCount: a._count.photos,
+      consentGiven: consentimiento.has(a.id) ? consentimiento.get(a.id)! : null,
+      alreadyGenerated: false,
+    });
+    const handle = normalizeConsentHandle(a.user.instagram);
+    return {
+      albumId: a.id,
+      title: a.title,
+      createdAt: a.createdAt.toISOString(),
+      photoCount: a._count.photos,
+      photographer: handle ? `@${handle}` : (a.user.name ?? ""),
+      eligible: d.eligible,
+      reason: d.eligible ? null : d.reason,
+    };
+  });
+}
+
+/** Renderiza la vista previa de un álbum con el modelo `modelo` (0…19). No guarda nada. */
+export async function previewAlbumStory(albumId: number, modelo: number): Promise<Uint8Array | null> {
+  const album = await prisma.album.findUnique({
+    where: { id: albumId },
+    select: { id: true, title: true, publicSlug: true, user: { select: { name: true, instagram: true } } },
+  });
+  if (!album) return null;
+  const r = await renderAlbumStory(album, pickStoryCollage(modelo));
+  return r?.bytes ?? null;
 }
 
 /** El Designer no sabe de red: acá se bajan los bytes de cada foto con marca de agua. */

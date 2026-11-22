@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { StoryQueueItem } from "@/lib/social/album-stories";
 
 type Status = { connected: boolean; username: string | null; expiresAt: string | null; live: boolean };
@@ -30,10 +30,13 @@ export default function StoriesQueuePanel({
   status,
   queue,
   connectResult,
+  preview,
 }: {
   status: Status;
   queue: StoryQueueItem[];
   connectResult: string | null;
+  /** Sección de vista previa: va antes de la cola. */
+  preview?: ReactNode;
 }) {
   const router = useRouter();
   const [ocupado, setOcupado] = useState<string | null>(null);
@@ -134,6 +137,8 @@ export default function StoriesQueuePanel({
         <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900">No se pudo conectar Instagram. Probá de nuevo.</div>
       ) : null}
       {aviso ? <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-800">{aviso}</div> : null}
+
+      {preview}
 
       {queue.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-gray-600">
