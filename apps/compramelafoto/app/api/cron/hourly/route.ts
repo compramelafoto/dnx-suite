@@ -5,6 +5,7 @@ import { runReencolarConfirmacionesPedido } from "@/lib/cron/reencolar-confirmac
 import { runControlarPacksConUnidades } from "@/lib/cron/controlar-packs-con-unidades";
 import { avisarCursosPendientes } from "@/lib/preventa-canjeable/cursos-publicados";
 import { assertCronAuth } from "@/lib/cron-auth";
+import { runRafflesCron } from "@/lib/raffles/motor";
 import { logCronMetrics } from "@/lib/cron-metrics";
 
 export const runtime = "nodejs";
@@ -20,6 +21,7 @@ export const maxDuration = 300;
  * - Comprobantes de pedido que no llegaron a la cola (pedidos pagados de los últimos 3 días)
  * - Packs de preventa sin canjear con menos unidades de las que se pagaron (aviso al admin)
  * - Aviso «ya están las fotos» de los cursos escolares que el fotógrafo marcó como subidos
+ * - Sorteos entre fotógrafos: crea el del mes, cierra padrones, sortea y avisa a los ganadores
  *
  * Protegido: Authorization: Bearer <CRON_SECRET>
  */
@@ -45,6 +47,13 @@ export async function GET(req: NextRequest) {
       return null;
     }),
   ]);
+  // Sorteos: después de lo demás y sin frenar nada si falla (p. ej. sin las tablas todavía).
+  const sorteos = dryRun
+    ? null
+    : await runRafflesCron().catch((err) => {
+        console.error("[cron:hourly] sorteos", err);
+        return null;
+      });
   const enviadosPorCurso = avisoPorCurso?.avisados.reduce((n, a) => n + a.enviados, 0) ?? 0;
 
   const jobsOk =
@@ -66,6 +75,7 @@ export async function GET(req: NextRequest) {
     orderConfirmations,
     packsConUnidades,
     avisoPorCurso,
+    sorteos,
   };
 
   logCronMetrics({

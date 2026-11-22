@@ -29353,3 +29353,193 @@ model FotofficeCuestionarioEnvio {
   @@index([workspaceId, clientId, createdAt])
   @@index([workspaceId, cuestionarioId])
 }
+
+/// Un sorteo de CompraMeLaFoto entre los fotógrafos que vendieron.
+///
+/// Es el mismo motor verificable de los sorteos de FOTOFFICE (`Raffle`), pero con otra
+/// condición para entrar: en vez de "socio con la cuota al día", "fotógrafo que vendió al menos
+/// `minSales` veces entre `salesFrom` y `salesTo`". El padrón se congela y su huella se publica
+/// ANTES de que exista el número de drand; ninguna de las dos mitades puede mirar a la otra.
+///
+/// Tablas propias y no las de FOTOFFICE porque aquellas cuelgan de `Workspace` y `Member`, que
+/// en CLF no existen. Los estados van como texto, mismo criterio que `Raffle.status`.
+model ClfRaffle {
+  id          String  @id @default(cuid())
+  title       String
+  description String?
+
+  /// MENSUAL (lo crea solo la tarea programada, uno por mes) | MANUAL (lo arma el admin).
+  kind   String  @default("MANUAL")
+  /// `YYYY-MM` del mes de ventas, sólo en los mensuales. Único: impide dos sorteos por mes.
+  period String? @unique
+
+  /// La condición: ventas pagadas en [salesFrom, salesTo).
+  salesFrom DateTime
+  salesTo   DateTime
+  /// Cuántas ventas hacen falta para entrar. 1 = "vendió algo".
+  minSales  Int      @default(1)
+
+  /// Cierre del padrón. Nunca antes de `salesTo`: si no, quedarían ventas sin contar.
+  entriesCloseAt DateTime
+  /// El acto: se lee drand y se resuelven los premios. Al menos 24 h después del cierre.
+  drawsAt        DateTime
+
+  /// BORRADOR | ANUNCIADO | PADRON_SELLADO | SORTEADO | CERRADO | CANCELADO
+  status String @default("BORRADOR")
+
+  drandChainHash  String?
+  drandRound      Int?
+  drandRandomness String?
+  drandSignature  String?
+
+  entrantsHash  String?
+  entrantsCount Int?
+
+  sealedAt DateTime?
+  drawnAt  DateTime?
+
+  cancelledAt  DateTime?
+  cancelReason String?
+
+  createdByUserId   Int?
+  announcedByUserId Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  entries ClfRaffleEntry[]
+  prizes  ClfRafflePrize[]
+  awards  ClfRaffleAward[]
+  events  ClfRaffleEvent[]
+
+  @@index([status, entriesCloseAt])
+  @@index([status, drawsAt])
+  @@index([drawsAt])
+}
+
+/// Un fotógrafo del padrón, congelado al sellar. Sin clave foránea a `User` a propósito: el
+/// padrón publicado tiene que leerse igual aunque la cuenta se borre.
+model ClfRaffleEntry {
+  id       String @id @default(cuid())
+  raffleId String
+  userId   Int
+
+  /// Posición en la bolsa, desde 0.
+  position Int
+
+  /// El número público con el que figura en el padrón (el id de la cuenta, como texto). Entra
+  /// en la huella; el nombre no, para que corregir una tilde no invalide la prueba.
+  codeSnapshot        String
+  displayNameSnapshot String
+  /// Cuántas ventas tenía en el período al sellar. Informativo.
+  salesCountSnapshot  Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  raffle ClfRaffle @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+
+  @@unique([raffleId, userId])
+  @@unique([raffleId, position])
+  @@index([userId])
+}
+
+/// Un premio del sorteo.
+model ClfRafflePrize {
+  id       String @id @default(cuid())
+  raffleId String
+
+  /// Orden de extracción. Entra en el cálculo del ganador.
+  order Int
+
+  title       String
+  description String?
+  conditions  String?
+  /// Quién lo da (CLF, una marca amiga) y cómo se entrega.
+  sponsorName          String?
+  deliveryInstructions String?
+  /// En pesos, sólo informativo.
+  estimatedValueArs    Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  raffle ClfRaffle       @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+  award  ClfRaffleAward?
+
+  @@unique([raffleId, order])
+}
+
+/// Quién ganó qué. `prizeId` único: un premio, un ganador; hace idempotente la resolución.
+model ClfRaffleAward {
+  id       String @id @default(cuid())
+  prizeId  String @unique
+  raffleId String
+  userId   Int
+  entryId  String
+
+  winnerPosition Int
+
+  /// GANADO | NOTIFICADO | ENTREGADO | NO_RETIRADO | ANULADO
+  status String @default("GANADO")
+
+  notifiedAt  DateTime?
+  noticeError String?
+
+  deliveredAt       DateTime?
+  deliveredByUserId Int?
+  deliveryNote      String?
+  voidReason        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  prize  ClfRafflePrize @relation(fields: [prizeId], references: [id], onDelete: Cascade)
+  raffle ClfRaffle      @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+
+  @@index([raffleId, status])
+  @@index([userId])
+}
+
+/// Las reglas del sorteo mensual automático. Una sola fila (`id = "default"`).
+model ClfRaffleSettings {
+  id String @id @default("default")
+
+  /// Si la tarea programada crea (y anuncia) sola el sorteo de cada mes.
+  monthlyEnabled Boolean @default(false)
+  /// Si lo anuncia sola apenas lo crea. Apagado, queda en borrador para revisarlo.
+  autoAnnounce   Boolean @default(true)
+  /// Día del mes SIGUIENTE en que se hace el acto (2 a 28). El padrón cierra el día 1 a las 0 h.
+  drawDay        Int     @default(5)
+  /// Hora del acto, en hora argentina.
+  drawHour       Int     @default(20)
+  /// Ventas mínimas en el mes para entrar.
+  minSales       Int     @default(1)
+  /// Los premios que se copian a cada sorteo mensual: [{ title, description, conditions,
+  /// sponsorName, deliveryInstructions, estimatedValueArs }].
+  monthlyPrizes  Json    @default("[]")
+  /// Cuentas que nunca entran (las propias de DNX, por ejemplo). Vale para todos los sorteos.
+  excludedUserIds Int[]  @default([])
+
+  updatedAt DateTime @updatedAt
+}
+
+/// La historia del sorteo: quién lo anunció, cuándo se selló, quién entregó cada premio.
+model ClfRaffleEvent {
+  id       String @id @default(cuid())
+  raffleId String
+
+  /// CREADO | ANUNCIADO | PADRON_SELLADO | SORTEADO | PREMIO_NOTIFICADO | PREMIO_ENTREGADO |
+  /// PREMIO_NO_RETIRADO | PREMIO_ANULADO | CANCELADO
+  type String
+
+  actorUserId Int?
+  actorLabel  String?
+  note        String?
+  prizeId     String?
+
+  createdAt DateTime @default(now())
+
+  raffle ClfRaffle @relation(fields: [raffleId], references: [id], onDelete: Cascade)
+
+  @@index([raffleId, createdAt])
+}

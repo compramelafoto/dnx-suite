@@ -234,6 +234,11 @@ jobs:
       - name: Pruebas del motor de análisis
         run: pnpm --filter compramelafoto test:analysis
 
+      # Sorteos entre fotógrafos: la huella del padrón y la extracción tienen que poder
+      # rehacerse afuera; si estos tests fallan, se rompió la verificación.
+      - name: Pruebas de los sorteos de CLF
+        run: pnpm --filter compramelafoto test:sorteos
+
       - name: Pruebas del informe diario
         run: pnpm --filter @repo/ops-daily-report test
 
