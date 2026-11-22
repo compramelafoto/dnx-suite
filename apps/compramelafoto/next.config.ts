@@ -150,7 +150,12 @@ const nextConfig: NextConfig = {
           if (
             request === "pdf-to-png-converter" ||
             request === "@napi-rs/canvas" ||
-            request?.startsWith("@napi-rs/canvas-")
+            request?.startsWith("@napi-rs/canvas-") ||
+            // Las historias de Instagram (`lib/social/`) llaman a `sharp` desde
+            // @repo/social-pieces, que se transpila: sin esto webpack empaqueta sharp y no
+            // puede cargar su binario («Could not load the "sharp" module»). Así se usa el
+            // sharp instalado de la app, el mismo que ya corre en Vercel.
+            request === "sharp"
           ) {
             return callback(undefined, `commonjs ${request}`);
           }

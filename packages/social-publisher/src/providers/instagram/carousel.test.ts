@@ -98,6 +98,163 @@ test("la historia va sin caption y sin colaboradores", async () => {
   assert.equal(contenedor.body.collaborators, undefined);
 });
 
+test("la historia etiqueta al fotógrafo con user_tags, sin coordenadas", async () => {
+  const llamadas: Llamada[] = [];
+  const provider = createInstagramPublishProvider({
+    fetchImpl: fetchEspia(llamadas, ["cont", "post"]),
+  });
+
+  await provider.publish({
+    account: cuenta,
+    accessToken: "t",
+    caption: "",
+    format: "STORY",
+    userTags: ["fotografo"],
+    assets: [{ assetId: "1", kind: "IMAGE", publicUrl: "https://cdn.test/s.jpg" }],
+    dryRun: false,
+  });
+
+  assert.equal(llamadas[0]!.body.media_type, "STORIES");
+  assert.deepEqual(JSON.parse(llamadas[0]!.body.user_tags!), [{ username: "fotografo" }]);
+});
+
+test("si Meta rechaza la etiqueta, la historia sale igual sin etiqueta", async () => {
+  const llamadas: Llamada[] = [];
+  let n = 0;
+  const fetchImpl = (async (input: string | URL, init?: RequestInit) => {
+    const body = Object.fromEntries(
+      new URLSearchParams(typeof init?.body === "string" ? init.body : ""),
+    ) as Record<string, string>;
+    llamadas.push({ url: String(input), body });
+    n++;
+    if (body.user_tags?.includes("no_existe")) {
+      return new Response(
+        JSON.stringify({ error: { message: "Invalid user_tags: user not found", code: 100 } }),
+        { status: 400 },
+      );
+    }
+    return new Response(JSON.stringify({ id: `id${n}`, permalink: "https://ig.test/s/1/" }), {
+      status: 200,
+    });
+  }) as unknown as typeof fetch;
+  const provider = createInstagramPublishProvider({ fetchImpl });
+
+  const r = await provider.publish({
+    account: cuenta,
+    accessToken: "t",
+    caption: "",
+    format: "STORY",
+    userTags: ["no_existe"],
+    assets: [{ assetId: "1", kind: "IMAGE", publicUrl: "https://cdn.test/s.jpg" }],
+    dryRun: false,
+  });
+
+  assert.equal(r.ok, true);
+  const creaciones = llamadas.filter((l) => l.url.endsWith("/media"));
+  assert.equal(creaciones.at(-1)!.body.user_tags, undefined);
+  assert.deepEqual((r.providerRawSanitized as { droppedUserTags?: string[] }).droppedUserTags, [
+    "no_existe",
+  ]);
+});
+
+test("si una etiqueta extra falla, la historia sale con la del fotógrafo", async () => {
+  const llamadas: Llamada[] = [];
+  const fetchImpl = (async (input: string | URL, init?: RequestInit) => {
+    const body = Object.fromEntries(
+      new URLSearchParams(typeof init?.body === "string" ? init.body : ""),
+    ) as Record<string, string>;
+    llamadas.push({ url: String(input), body });
+    if (body.user_tags && JSON.parse(body.user_tags).length > 1) {
+      return new Response(JSON.stringify({ error: { message: "Invalid user_tags", code: 100 } }), {
+        status: 400,
+      });
+    }
+    return new Response(JSON.stringify({ id: `id${llamadas.length}` }), { status: 200 });
+  }) as unknown as typeof fetch;
+  const provider = createInstagramPublishProvider({ fetchImpl });
+
+  const r = await provider.publish({
+    account: cuenta,
+    accessToken: "t",
+    caption: "",
+    format: "STORY",
+    userTags: ["fotografo", "cuenta_privada"],
+    assets: [{ assetId: "1", kind: "IMAGE", publicUrl: "https://cdn.test/s.jpg" }],
+    dryRun: false,
+  });
+
+  assert.equal(r.ok, true);
+  assert.deepEqual(JSON.parse(llamadas[1]!.body.user_tags!), [{ username: "fotografo" }]);
+  assert.deepEqual((r.providerRawSanitized as { droppedUserTags?: string[] }).droppedUserTags, [
+    "cuenta_privada",
+  ]);
+});
+
+test("con 20 etiquetas y dos cuentas malas, saca solo esas dos", async () => {
+  const malas = new Set(["mala_7", "mala_15"]);
+  const etiquetas = ["fotografo", ...Array.from({ length: 19 }, (_, i) => (i + 1 === 7 || i + 1 === 15 ? `mala_${i + 1}` : `cuenta_${i + 1}`))];
+  const llamadas: Llamada[] = [];
+  const fetchImpl = (async (input: string | URL, init?: RequestInit) => {
+    const body = Object.fromEntries(
+      new URLSearchParams(typeof init?.body === "string" ? init.body : ""),
+    ) as Record<string, string>;
+    llamadas.push({ url: String(input), body });
+    const lista: Array<{ username: string }> = body.user_tags ? JSON.parse(body.user_tags) : [];
+    if (lista.some((t) => malas.has(t.username))) {
+      return new Response(JSON.stringify({ error: { message: "Invalid user_tags", code: 100 } }), { status: 400 });
+    }
+    return new Response(JSON.stringify({ id: `id${llamadas.length}` }), { status: 200 });
+  }) as unknown as typeof fetch;
+  const provider = createInstagramPublishProvider({ fetchImpl });
+
+  const r = await provider.publish({
+    account: cuenta,
+    accessToken: "t",
+    caption: "",
+    format: "STORY",
+    userTags: etiquetas,
+    assets: [{ assetId: "1", kind: "IMAGE", publicUrl: "https://cdn.test/s.jpg" }],
+    dryRun: false,
+  });
+
+  assert.equal(r.ok, true);
+  assert.deepEqual(
+    [...((r.providerRawSanitized as { droppedUserTags?: string[] }).droppedUserTags ?? [])].sort(),
+    ["mala_15", "mala_7"],
+  );
+  // El contenedor que se publica lleva a las otras 18, fotógrafo incluido.
+  const publicar = llamadas.find((l) => l.url.includes("media_publish"))!;
+  const creado = llamadas.find((l) => l.body.user_tags && `id${llamadas.indexOf(l) + 1}` === publicar.body.creation_id)!;
+  const usadas = (JSON.parse(creado.body.user_tags!) as Array<{ username: string }>).map((t) => t.username);
+  assert.equal(usadas.length, 18);
+  assert.ok(usadas.includes("fotografo"));
+  assert.ok(llamadas.length <= 32, `demasiados pedidos: ${llamadas.length}`);
+});
+
+test("si la cuenta del fotógrafo es la mala, etiqueta igual al resto", async () => {
+  const fetchImpl = (async (_input: string | URL, init?: RequestInit) => {
+    const body = Object.fromEntries(
+      new URLSearchParams(typeof init?.body === "string" ? init.body : ""),
+    ) as Record<string, string>;
+    const lista: Array<{ username: string }> = body.user_tags ? JSON.parse(body.user_tags) : [];
+    if (lista.some((t) => t.username === "fotografo_privado")) {
+      return new Response(JSON.stringify({ error: { message: "Invalid user_tags", code: 100 } }), { status: 400 });
+    }
+    return new Response(JSON.stringify({ id: "ok" }), { status: 200 });
+  }) as unknown as typeof fetch;
+  const provider = createInstagramPublishProvider({ fetchImpl });
+  const r = await provider.publish({
+    account: cuenta,
+    accessToken: "t",
+    caption: "",
+    format: "STORY",
+    userTags: ["fotografo_privado", "club", "sponsor"],
+    assets: [{ assetId: "1", kind: "IMAGE", publicUrl: "https://cdn.test/s.jpg" }],
+    dryRun: false,
+  });
+  assert.deepEqual((r.providerRawSanitized as { droppedUserTags?: string[] }).droppedUserTags, ["fotografo_privado"]);
+});
+
 test("un carrusel necesita al menos dos fotos", async () => {
   const provider = createInstagramPublishProvider({
     fetchImpl: fetchEspia([], []),

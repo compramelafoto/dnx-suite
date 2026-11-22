@@ -312,3 +312,49 @@ proyecto no auditado por Google **quedan bloqueados como privados**.
 
 Las etapas 1 a 4 son el camino crítico y dejan CLF publicando. De la 5 en adelante cada
 app es cableado, no diseño.
+
+---
+
+## 18. Anexo 2026-11-21 — CLF: historias diarias automáticas de álbumes
+
+Reemplaza, **solo para los álbumes de CLF**, lo dicho en §5 (carrusel + historia), §6
+(«en historias no se puede etiquetar»), §8 (permiso tildado por el fotógrafo) y §15.3
+(aprobación siempre). Lo demás del diseño sigue igual.
+
+| Tema | Antes | Ahora |
+|---|---|---|
+| Formato | Carrusel + historia | **Solo historia.** Nada en el feed |
+| Qué álbumes | Los que el fotógrafo marcó | Públicos de **más de 50 fotos**. Nunca privados, ocultos, protegidos por selfie, de prueba ni escolares |
+| Permiso | Tilde por álbum, apagado | Por álbum, **encendido por defecto**, en «Privacidad y acceso». Solo se guarda el «no» |
+| Fotos | Elige el fotógrafo (3-4) | **Automático**, repartidas a lo largo del álbum, con marca de agua; si el fotógrafo marcó fotos, van primero. Se prefieren fotos con una cara de buen tamaño (`FaceDetection`) y cada foto se **recorta a su hueco con las caras adentro**, sin zoom (`story-photo-crop.ts`); sin caras, recorte por zona de interés de `sharp` |
+| Diseño | Una foto a sangre | **Veinte modelos sobrios** (blanco, negro, hueso), fotos grandes y logo de CLF, que rotan sin repetir fondo dos veces seguidas (`album-story-collages.ts`) |
+| Etiqueta | No se podía | **`user_tags` en historias** (Meta lo habilitó en julio de 2025): el fotógrafo y hasta **20 cuentas extra** que él carga en «Privacidad y acceso» (organizador, empresas). Meta no documenta un máximo para historias. Si rechaza alguna (privada o inexistente), se busca por mitades cuál es y se saca **solo esa**; las caídas se ven en el panel. La historia sale siempre |
+| Link | Impreso | Botón dibujado **«Comprar aquí»** con la dirección debajo. No se puede tocar: el sticker de enlace **sigue sin existir por API** |
+| Aprobación | Un clic por pieza | **Sale sola a su hora**; el admin puede sacarla o adelantarla en `/admin/social` |
+| Por álbum | — | **3 historias, cada una en un día distinto**, con otro modelo y fotos que no se repiten. La agenda va por rondas: primero la historia 1 de cada álbum nuevo, después las 2 y las 3. Si en la semana no hay lugar para la 2 o la 3, se hace una de menos |
+| Ritmo | — | **Hasta 10 por día** entre todos los álbumes, en hora justa: 10, 11, 12, 13, 14, 16, 18, 19, 20 y 21 h (hora argentina). Lo que no entra espera, con horizonte de 7 días |
+
+**Zona segura.** Instagram tapa ~250 px arriba y ~250 px abajo de la historia. Todo texto
+de las plantillas queda entre esas franjas.
+
+**Última verificación.** Antes de publicar, el worker vuelve a mirar el álbum: si dejó de
+ser público, se protegió con selfie, se borró o el fotógrafo apagó la difusión, la
+historia se cancela.
+
+**Crons (cuidando el gasto):** solo dos. `social-album-stories` una vez por día (08:00
+ART): renueva el permiso de Instagram y arma la cola. `social-publish` corre **solo en
+los diez horarios** (10 invocaciones por día, no cada 5 minutos). Un test controla que
+los horarios de `STORY_SLOTS_ART` y el del cron coincidan. «Publicar ya» en el panel
+publica en el momento sin esperar al cron.
+
+**Piezas:** `lib/social/album-stories-plan.ts` (reglas puras, testeadas),
+`lib/social/album-stories.ts` (generación, panel, permiso), cron diario
+`/api/cron/social-album-stories` (08:00 ART), `/admin/social`, casilla
+`AlbumInstagramStoriesToggle`.
+
+**Volumen real** (oct-nov 2026): ~140 álbumes de más de 50 fotos en 30 días, promedio 5
+por día, pico 11. El tope de 10 solo actúa en los picos.
+
+**Para encender:** `META_APP_ID`, `META_APP_SECRET` y `DNX_SOCIAL_VAULT_MASTER_KEY` en
+Vercel → conectar la cuenta desde `/admin/social` → revisar unos días en simulacro →
+`DNX_SOCIAL_PUBLISHER_LIVE=true`.

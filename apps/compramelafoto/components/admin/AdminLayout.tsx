@@ -140,6 +140,7 @@ const menuGroups: MenuGroup[] = [
       { id: "mensajes", label: "Mensajes", path: "/admin/mensajes" },
       { id: "emails", label: "Emails", path: "/admin/emails" },
       { id: "email-marketing", label: "Email marketing", path: "/admin/email-marketing" },
+      { id: "historias-instagram", label: "Historias de Instagram", path: "/admin/social" },
       { id: "charlas", label: "Charlas", path: "/admin/marketing/charlas" },
       {
         id: "marketing-cursos",
@@ -240,6 +241,7 @@ function getActiveMenuId(
   if (pathname?.startsWith("/admin/template-v2/plantillas")) return "template-v2-plantillas";
   if (pathname?.startsWith("/admin/template-v2")) return "template-v2-revision";
   if (pathname?.startsWith("/admin/email-marketing")) return "email-marketing";
+  if (pathname?.startsWith("/admin/social")) return "historias-instagram";
   if (pathname?.startsWith("/admin/marketing/charlas")) return "charlas";
   if (pathname?.startsWith("/admin/catalog-templates")) return "catalog-templates";
   if (pathname?.startsWith("/admin/testimonios")) return "testimonios";

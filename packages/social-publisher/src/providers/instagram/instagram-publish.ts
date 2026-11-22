@@ -22,6 +22,90 @@ function esErrorDeColaboradores(e: unknown): boolean {
   return msg.includes("collaborator");
 }
 
+/** Meta tampoco tiene código propio para una etiqueta rechazada: se mira el mensaje. */
+function esErrorDeEtiquetas(e: unknown): boolean {
+  const msg = e instanceof Error ? e.message.toLowerCase() : "";
+  return msg.includes("user_tags") || msg.includes("tag") || msg.includes("username");
+}
+
+/** Tope de pedidos a Meta para encontrar las etiquetas rechazadas en una historia. */
+const MAX_INTENTOS_ETIQUETAS = 30;
+
+/**
+ * Crea el contenedor de una historia etiquetando a todos los que se pueda.
+ *
+ * Si Meta rechaza la lista (una cuenta que no existe o es privada), no se tira la lista
+ * entera: se busca por mitades cuál falla y se saca solo esa. La primera de la lista (el
+ * fotógrafo) se prueba sola primero para no perderla por culpa de otra. Con 20 cuentas
+ * y una mala son unos 10 pedidos; los contenedores de prueba que no se publican no
+ * cuentan para el cupo diario y Meta los descarta solo. La historia sale siempre: en el
+ * peor caso, sin etiquetas.
+ */
+export async function crearHistoriaConEtiquetas(
+  crear: (body: Record<string, string>) => Promise<string>,
+  base: Record<string, string>,
+  etiquetas: string[],
+): Promise<{ id: string; dropped: string[] }> {
+  let intentos = 0;
+  let ultimoOk: { lista: string[]; id: string } | null = null;
+
+  async function intentar(lista: string[]): Promise<string | null> {
+    intentos++;
+    try {
+      const id = await crear(
+        lista.length > 0
+          ? { ...base, user_tags: JSON.stringify(lista.map((username) => ({ username }))) }
+          : base,
+      );
+      ultimoOk = { lista, id };
+      return id;
+    } catch (e) {
+      if (lista.length === 0 || !esErrorDeEtiquetas(e)) throw e;
+      return null;
+    }
+  }
+
+  if (etiquetas.length === 0) return { id: (await intentar([]))!, dropped: [] };
+  const todas = await intentar(etiquetas);
+  if (todas) return { id: todas, dropped: [] };
+
+  const buenas: string[] = [];
+  const caidas: string[] = [];
+  const [primera, ...resto] = etiquetas;
+  if (await intentar([primera!])) buenas.push(primera!);
+  else caidas.push(primera!);
+
+  async function probar(grupo: string[]): Promise<void> {
+    if (grupo.length === 0) return;
+    if (intentos >= MAX_INTENTOS_ETIQUETAS) {
+      caidas.push(...grupo);
+      return;
+    }
+    if (await intentar([...buenas, ...grupo])) {
+      buenas.push(...grupo);
+      return;
+    }
+    if (grupo.length === 1) {
+      caidas.push(grupo[0]!);
+      return;
+    }
+    const mitad = Math.ceil(grupo.length / 2);
+    await probar(grupo.slice(0, mitad));
+    await probar(grupo.slice(mitad));
+  }
+  await probar(resto);
+
+  const final = etiquetas.filter((e) => buenas.includes(e));
+  const ok = ultimoOk as { lista: string[]; id: string } | null;
+  if (ok && ok.lista.length === final.length && ok.lista.every((e) => final.includes(e))) {
+    return { id: ok.id, dropped: etiquetas.filter((e) => !final.includes(e)) };
+  }
+  const id = (await intentar(final)) ?? (await intentar([]))!;
+  // `ultimoOk` es el contenedor que acaba de crearse: con `final` o, si eso falló, sin etiquetas.
+  const usadas = (ultimoOk as { lista: string[] } | null)?.lista ?? [];
+  return { id, dropped: etiquetas.filter((e) => !usadas.includes(e)) };
+}
+
 /**
  * Crea el contenedor bajando un colaborador por intento.
  *
@@ -130,6 +214,7 @@ export function createInstagramPublishProvider(options?: {
 
       let contenedorId: string;
       let droppedCollaborators: string[] = [];
+      let etiquetasCaidas: string[] = [];
 
       if (format === "CAROUSEL") {
         // Los hijos van pelados: caption y collaborators en un hijo hacen fallar
@@ -152,11 +237,18 @@ export function createInstagramPublishProvider(options?: {
         contenedorId = resultado.id;
         droppedCollaborators = resultado.dropped;
       } else if (format === "STORY") {
-        // Meta no acepta caption ni colaboradores en historias.
-        contenedorId = await crearContenedor({
+        // Meta no acepta caption ni colaboradores en historias, pero sí `user_tags`.
+        const baseHistoria: Record<string, string> = {
           image_url: fotos[0]!.publicUrl as string,
           media_type: "STORIES",
-        });
+        };
+        const resultado = await crearHistoriaConEtiquetas(
+          crearContenedor,
+          baseHistoria,
+          (input.userTags ?? []).filter(Boolean),
+        );
+        contenedorId = resultado.id;
+        etiquetasCaidas = resultado.dropped;
       } else {
         const baseImagen: Record<string, string> = {
           image_url: fotos[0]!.publicUrl as string,
@@ -196,6 +288,7 @@ export function createInstagramPublishProvider(options?: {
           mediaId: published.id,
           format,
           ...(droppedCollaborators.length > 0 ? { droppedCollaborators } : {}),
+          ...(etiquetasCaidas.length > 0 ? { droppedUserTags: etiquetasCaidas } : {}),
         },
       };
     },

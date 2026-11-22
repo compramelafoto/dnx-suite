@@ -6,8 +6,10 @@ import {
   nextRetryAt,
   tryLoadSocialMasterKeyFromEnv,
   type PublishAsset,
+  type PublishFormat,
 } from "@repo/social-publisher";
 import { Prisma, prisma } from "@repo/db";
+import { ALBUM_STORY_ENTITY_TYPE, isAlbumStillPublishable } from "./album-stories";
 import { ALBUM_SOCIAL_CONSENT_ENTITY_TYPE, createClfSocialStore, logSocialRequest, toSocialAccount } from "./prisma-store";
 
 const store = createClfSocialStore();
@@ -108,6 +110,15 @@ export async function processSocialPublishRequest(requestId: string) {
   // Cinturón y tiradores: los borradores de permiso nunca deberían llegar acá (ver dueWhere).
   if (request.entityType === ALBUM_SOCIAL_CONSENT_ENTITY_TYPE) return { status: "SKIPPED" as const };
 
+  if (request.entityType === ALBUM_STORY_ENTITY_TYPE && !(await isAlbumStillPublishable(Number(request.entityId)))) {
+    await prisma.dnxSocialPublishRequest.update({
+      where: { id: request.id },
+      data: { status: "CANCELLED", rejectionReason: "El álbum dejó de ser público o se desactivó la difusión" },
+    });
+    await logSocialRequest(request.id, "CANCELLED", null, { reason: "ALBUM_NOT_PUBLISHABLE" });
+    return { status: "SKIPPED" as const };
+  }
+
   const assets = readAssets(request.assets);
   if (!assets.some((asset) => asset.publicUrl)) {
     return fail(request, "ASSETS_NOT_READY", "Assets sin publicUrl", true);
@@ -140,19 +151,41 @@ export async function processSocialPublishRequest(requestId: string) {
       where: { id: request.id },
       data: { status: "PUBLISHING", attemptCount: { increment: 1 } },
     });
+    // Formato, colaboradores y etiquetas viajan en metadata (sin cambios de schema). Sin
+    // esto, una historia saldría como publicación en el feed.
+    const meta = (request.metadata ?? {}) as {
+      format?: PublishFormat;
+      collaborators?: unknown;
+      userTags?: unknown;
+    };
     const result = await provider.publish({
       account: toSocialAccount(request.socialAccount),
       accessToken,
       caption: request.caption,
       assets,
+      format: meta.format ?? "SINGLE_IMAGE",
+      collaborators: Array.isArray(meta.collaborators) ? (meta.collaborators as string[]) : [],
+      userTags: Array.isArray(meta.userTags) ? (meta.userTags as string[]) : [],
       dryRun: !livePublish,
     });
     if (!result.ok) throw new Error(result.errorMessage ?? result.errorCode ?? "PUBLISH_FAILED");
 
     const publishedAt = new Date();
+    // Las etiquetas que Meta rechazó (cuenta privada o inexistente) quedan en el
+    // metadata para que el panel muestre a quién no se pudo etiquetar.
+    const caidas = (result.providerRawSanitized as { droppedUserTags?: unknown } | null | undefined)
+      ?.droppedUserTags;
     const updated = await prisma.dnxSocialPublishRequest.update({
       where: { id: request.id },
       data: {
+        ...(Array.isArray(caidas) && caidas.length > 0
+          ? {
+              metadata: {
+                ...((request.metadata ?? {}) as Record<string, unknown>),
+                droppedUserTags: caidas,
+              } as Prisma.InputJsonValue,
+            }
+          : {}),
         status: "PUBLISHED",
         publishedAt,
         externalMediaId: result.externalMediaId ?? null,

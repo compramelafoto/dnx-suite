@@ -25,7 +25,44 @@ export type AlbumSocialConsent = {
   /** En orden de selección: es el orden del carrusel. */
   selectedPhotoIds: number[];
   photographerHandle: string | null;
+  /**
+   * Cuentas extra que el fotógrafo quiere etiquetar en la historia (organizador,
+   * empresas, sponsors). Sin @, normalizadas, sin repetir. Ver `normalizeExtraHandles`.
+   */
+  extraHandles: string[];
 };
+
+/** Tope de cuentas extra para etiquetar: además del fotógrafo. */
+export const MAX_EXTRA_HANDLES = 20;
+
+/**
+ * Normaliza la lista de cuentas extra que carga el fotógrafo: acepta «@usuario»,
+ * «usuario» o el link del perfil; descarta lo inválido, lo repetido, al propio
+ * fotógrafo y a la cuenta de la plataforma, y corta en `MAX_EXTRA_HANDLES`.
+ * Devuelve también lo que se descartó por inválido, para avisarle.
+ */
+export function normalizeExtraHandles(
+  raw: unknown,
+  exclude: Array<string | null | undefined> = [],
+): { handles: string[]; invalid: string[] } {
+  const fuera = new Set(exclude.filter(Boolean).map((h) => h!.toLowerCase()));
+  fuera.add("compramelafoto");
+  const handles: string[] = [];
+  const invalid: string[] = [];
+  if (!Array.isArray(raw)) return { handles, invalid };
+  for (const item of raw) {
+    if (typeof item !== "string" || !item.trim()) continue;
+    const h = normalizeConsentHandle(item.trim());
+    if (!h) {
+      invalid.push(item.trim().slice(0, 60));
+      continue;
+    }
+    if (fuera.has(h.toLowerCase()) || handles.some((x) => x.toLowerCase() === h.toLowerCase())) continue;
+    if (handles.length >= MAX_EXTRA_HANDLES) break;
+    handles.push(h);
+  }
+  return { handles, invalid };
+}
 
 export type SocialGenerationReason =
   | "NO_CONSENT"
@@ -132,8 +169,11 @@ export async function saveAlbumSocialConsent(input: {
   consentGiven: boolean;
   selectedPhotoIds: number[];
   photographerHandle: string | null;
+  /** Sin valor, se conserva lo que ya estaba guardado. */
+  extraHandles?: string[];
   userId: number;
 }): Promise<void> {
+  const previo = input.extraHandles === undefined ? await getAlbumSocialConsent(input.albumId) : null;
   const metadata = {
     consentGiven: input.consentGiven,
     consentAt: input.consentGiven ? new Date().toISOString() : null,
@@ -143,6 +183,10 @@ export async function saveAlbumSocialConsent(input: {
       MAX_SOCIAL_PHOTOS,
     ),
     photographerHandle: normalizeConsentHandle(input.photographerHandle),
+    extraHandles:
+      input.extraHandles === undefined
+        ? (previo?.extraHandles ?? [])
+        : normalizeExtraHandles(input.extraHandles).handles,
   };
 
   await prisma.dnxSocialPublishRequest.upsert({
@@ -183,5 +227,6 @@ export async function getAlbumSocialConsent(
     selectedPhotoIds: normalizeSelectedPhotoIds(m.selectedPhotoIds),
     photographerHandle:
       typeof m.photographerHandle === "string" ? m.photographerHandle : null,
+    extraHandles: normalizeExtraHandles(m.extraHandles).handles,
   };
 }
