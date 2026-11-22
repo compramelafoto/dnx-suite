@@ -108,8 +108,7 @@ export function decideAlbumStory(a: AlbumStoryCandidate): AlbumStoryDecision {
  * álbum), después fotos repartidas a lo largo del álbum: tomar las primeras N daría
  * cuatro fotos casi iguales de la largada.
  *
- * `available` tiene que venir en el orden del álbum y solo con fotos que tengan versión
- * con marca de agua.
+ * `available` tiene que venir en el orden del álbum.
  */
 export function pickStoryPhotos(available: number[], count: number, preferred: number[] = []): number[] {
   const disponibles = new Set(available);
@@ -273,4 +272,22 @@ export function repartirFotos(elegidas: number[], cantidades: number[]): number[
     }
   }
   return reparto;
+}
+
+/**
+ * Frase grande de la historia, según el día de la secuencia (pedido 2026-11-22). El día 1
+ * avisa que salieron, el 2 invita a buscarse y el 3 empuja a no quedarse sin ellas. Dentro
+ * de cada día se elige una variante según el álbum, para que no se lea siempre igual.
+ * Todas entran en una línea de la plantilla (≤ 32 caracteres).
+ */
+export const FRASES_POR_DIA: readonly (readonly string[])[] = [
+  ["¡Ya están disponibles!", "¡Buscá tus fotos!", "Las fotos ya están online", "¡Ya salieron las fotos!", "Tus fotos te esperan"],
+  ["¿Ya encontraste tus fotos?", "¿Saliste en la foto?", "Encontrate en el álbum", "¿Estuviste? Buscate acá", "Mirá si estás en las fotos"],
+  ["¡No te quedes sin las tuyas!", "Revivilo con tus fotos", "¿Ya te buscaste?", "Llevate el recuerdo", "¡Todavía estás a tiempo!"],
+];
+
+export function fraseDeHistoria(numeroDeHistoria: number, albumId: number): string {
+  const dia = Math.min(Math.max(Math.trunc(numeroDeHistoria), 1), FRASES_POR_DIA.length) - 1;
+  const opciones = FRASES_POR_DIA[dia]!;
+  return opciones[((Math.trunc(albumId) % opciones.length) + opciones.length) % opciones.length]!;
 }

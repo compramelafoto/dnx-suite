@@ -252,10 +252,10 @@ function texto(
   } as DesignBlock;
 }
 
-const LOGO_H = 80;
+const LOGO_H = 64;
 const LOGO_W = Math.round(LOGO_H * CLF_LOGO_ASPECT);
 const BOTON_W = 440;
-const BOTON_H = 100;
+const BOTON_H = 92;
 
 function logo(t: Tema, x: number, y: number): DesignBlock {
   return { id: "logo", type: "image", x, y, width: LOGO_W, height: LOGO_H, resourceRef: t.logo, fit: "contain" } as DesignBlock;
@@ -274,29 +274,34 @@ function boton(t: Tema, x: number, y: number): DesignBlock[] {
   ];
 }
 
-/** Bloque de texto abajo (y = 1278…1658): logo, título, crédito, botón y dirección. */
+/**
+ * Bloque de texto abajo (y = 1274…1636): logo, la frase grande que va cambiando, el
+ * nombre del álbum, el crédito, el botón y la dirección.
+ */
 function textoAbajo(t: Tema, align: "left" | "center", margen: number): DesignBlock[] {
   const x = margen;
   const w = STORY_W - margen * 2;
   const xc = (ancho: number) => (align === "center" ? Math.round((STORY_W - ancho) / 2) : x);
   return [
-    logo(t, xc(LOGO_W), 1278),
-    texto("titulo", "{{nombreAlbum}}", x, 1372, w, 84, { size: 27, color: t.texto, bold: true, align, lines: 2 }),
-    texto("credito", "{{creditoFotografo}}", x, 1460, w, 38, { size: 19, color: t.suave, align }),
-    ...boton(t, xc(BOTON_W), 1508),
-    texto("url", "{{urlAlbum}}", x, 1620, w, 40, { size: 20, color: t.texto, bold: true, align }),
+    logo(t, xc(LOGO_W), 1274),
+    texto("frase", "{{frase}}", x, 1344, w, 48, { size: 29, color: t.texto, bold: true, align }),
+    texto("titulo", "{{nombreAlbum}}", x, 1396, w, 66, { size: 19, color: t.texto, align, lines: 2 }),
+    texto("credito", "{{creditoFotografo}}", x, 1466, w, 30, { size: 16, color: t.suave, align }),
+    ...boton(t, xc(BOTON_W), 1502),
+    texto("url", "{{urlAlbum}}", x, 1602, w, 34, { size: 19, color: t.texto, bold: true, align }),
   ];
 }
 
-/** Logo y título arriba (250…430); crédito, botón y dirección abajo (1470…1666). */
+/** Logo, frase y nombre arriba (250…436); crédito, botón y dirección abajo (1464…1640). */
 function textoArribaYAbajo(t: Tema, margen: number): DesignBlock[] {
   const w = STORY_W - margen * 2;
   return [
     logo(t, Math.round((STORY_W - LOGO_W) / 2), SEGURA_ARRIBA),
-    texto("titulo", "{{nombreAlbum}}", margen, 342, w, 84, { size: 27, color: t.texto, bold: true, align: "center", lines: 2 }),
-    texto("credito", "{{creditoFotografo}}", margen, 1464, w, 38, { size: 19, color: t.suave, align: "center" }),
-    ...boton(t, Math.round((STORY_W - BOTON_W) / 2), 1514),
-    texto("url", "{{urlAlbum}}", margen, 1624, w, 40, { size: 20, color: t.texto, bold: true, align: "center" }),
+    texto("frase", "{{frase}}", margen, 320, w, 48, { size: 29, color: t.texto, bold: true, align: "center" }),
+    texto("titulo", "{{nombreAlbum}}", margen, 370, w, 66, { size: 19, color: t.texto, align: "center", lines: 2 }),
+    texto("credito", "{{creditoFotografo}}", margen, 1464, w, 30, { size: 16, color: t.suave, align: "center" }),
+    ...boton(t, Math.round((STORY_W - BOTON_W) / 2), 1500),
+    texto("url", "{{urlAlbum}}", margen, 1604, w, 34, { size: 19, color: t.texto, bold: true, align: "center" }),
   ];
 }
 
@@ -355,6 +360,7 @@ function armar(layoutId: string, temaId: Tema["id"], comp: Composicion, align: "
 function contrato(fotos: number): VariableContract {
   return {
     variables: [
+      { key: "frase", type: "text", label: "Frase grande", required: true, sampleValue: "¡Ya están disponibles!", maxLength: 40 },
       { key: "nombreAlbum", type: "text", label: "Nombre del álbum", required: true, sampleValue: "Maratón de Santa Fe 2026", maxLength: 80 },
       { key: "creditoFotografo", type: "text", label: "Crédito del fotógrafo", required: false, sampleValue: "Fotos de @fotografo", maxLength: 45 },
       { key: "urlAlbum", type: "text", label: "Dirección del álbum", required: true, sampleValue: "compramelafoto.com/a/1557", maxLength: 70 },
