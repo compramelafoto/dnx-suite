@@ -435,237 +435,10 @@ CURSO = [
         ],
     },
     {
-        "titulo": "Capítulo 6 · Pedidos y entrega",
+        "titulo": "Capítulo 6 · Tu álbum en Instagram",
         "clases": [
             {
-                "cod": "C17", "titulo": "Te llegó una venta: la pantalla de pedidos", "dur": "3 min",
-                "arranca": "/fotografo/pedidos",
-                "tomas": [
-                    ("Correo «Nuevo pedido #N en tu álbum…» con los datos del cliente y el enlace al panel.",
-                     "Cuando alguien te compra, te llega un correo con el número de pedido, los datos del "
-                     "cliente y el total. Tocás el enlace y vas directo al pedido."),
-                    ("Menú «Pedidos». Recorrer las tarjetas «Total», «Pendientes», «Pagados», «Descargas», "
-                     "«Impresión».",
-                     "Todos tus pedidos están en «Pedidos». Arriba ves cuántos tenés, cuántos están pagados, "
-                     "cuántos ya se descargaron y cuántos tenés que imprimir."),
-                    ("Tocar los filtros «Pagados», «Digitales» e «Impresión».",
-                     "Con los filtros ves solo lo que te interesa. Por ejemplo, «Impresión» te muestra lo que "
-                     "tenés que imprimir o entregar."),
-                    ("Escribir en el buscador «Buscar por cliente, email, WhatsApp o # pedido…».",
-                     "Y si un cliente te escribe, lo buscás por nombre, correo, WhatsApp o número de pedido."),
-                    ("Señalar las columnas «Estado» y «Monto». Tocar «Desglose».",
-                     "En cada fila ves el estado y el monto. Con «Desglose» ves cuánto es tuyo y cuánto es la "
-                     "comisión."),
-                ],
-                "ojo": "El texto del correo al fotógrafo sale de una plantilla que puede editar el admin. Mostrar "
-                       "un correo real recibido, no uno armado.",
-            },
-            {
-                "cod": "C18", "titulo": "La ficha del pedido", "dur": "2 min",
-                "arranca": "/fotografo/pedidos (tocar un pedido pagado)",
-                "tomas": [
-                    ("Tocar un pedido. Se abre la ficha. Recorrer «Resumen»: «Estado pago», «Descarga», "
-                     "«Impresión», «Retiro», «Monto».",
-                     "Si tocás un pedido, se abre su ficha. En el resumen ves si está pagado, si ya está la "
-                     "descarga, si lleva impresión y quién retira."),
-                    ("Bloque «Cliente»: nombre, email, teléfono y «Abrir WhatsApp →».",
-                     "Los datos del cliente se ven cuando el pago está acreditado. Desde acá le escribís por "
-                     "WhatsApp con un toque."),
-                    ("Bloque «Timeline»: «Pedido creado», «Pago acreditado», «Descarga disponible», «Cliente "
-                     "descargó».",
-                     "Y en la línea de tiempo ves todo lo que pasó: cuándo se creó, cuándo se pagó y si el "
-                     "cliente ya descargó sus fotos."),
-                    ("Señalar el bloque «Acciones».",
-                     "Abajo están las acciones para entregar. Vamos con eso."),
-                ],
-            },
-            {
-                "cod": "C19", "titulo": "La entrega de las fotos digitales", "dur": "2 min",
-                "arranca": "Correo del cliente y /descargas/<token>",
-                "tomas": [
-                    ("Correo del cliente «Tu pedido #N fue confirmado» con el botón «Ver mis fotos».",
-                     "La entrega digital es automática: no tenés que hacer nada. Apenas se acredita el pago, al "
-                     "cliente le llega un correo con el botón «Ver mis fotos»."),
-                    ("Centro de descargas: «Tus fotografías ya están listas», los botones «Descargar» y "
-                     "«Descargar ZIP», y «Disponible hasta».",
-                     "Ahí baja sus fotos una por una, o todas juntas en un ZIP. El acceso dura un tiempo, que "
-                     "ves en «Disponible hasta». Las fotos son suyas para siempre, así que conviene que las "
-                     "guarde."),
-                    ("Volver a la ficha del pedido. Señalar «Cliente descargó».",
-                     "En tu ficha del pedido ves cuando el cliente ya descargó."),
-                    ("Tocar «Copiar link digitales» (cambia a «Link copiado») y pegarlo en WhatsApp.",
-                     "¿Y si te dice que no le llegó? Tocás «Copiar link digitales» y se lo mandás por WhatsApp. "
-                     "También le podés pedir a DNX Bot que le reenvíe el correo."),
-                ],
-                "ojo": "No usar «Recordar descarga» en el video: abre tu correo con un texto que no lleva el "
-                       "enlace.",
-            },
-            {
-                "cod": "C20", "titulo": "La entrega de las fotos impresas", "dur": "4 min",
-                "arranca": "/fotografo/impresiones",
-                "tomas": [
-                    ("Menú «Impresiones» → «Para imprimir y lotes». Recorrer las columnas «Para imprimir», «En "
-                     "el laboratorio», «Listos para entregar», «Entregados».",
-                     "Si vendiste fotos impresas, todo se maneja en «Impresiones». Los pedidos van pasando de "
-                     "columna: para imprimir, en el laboratorio, listos para entregar y entregados."),
-                    ("Elegir pedidos y tocar «Armar lote con N pedidos».",
-                     "Elegís los pedidos que querés mandar juntos y armás un lote."),
-                    ("Tocar «Enviar al laboratorio». Elegir «Lo retiro yo» o «Me lo envía el laboratorio» y "
-                     "tocar «Enviar».",
-                     "Tocás «Enviar al laboratorio» y elegís si lo retirás vos o te lo mandan. Al laboratorio le "
-                     "llega un correo con el enlace para ver los pedidos y bajar las fotos."),
-                    ("Señalar en la tarjeta del lote «abrió ✓ · descargó ✓» y los enlaces «Etiquetas», «Sobres» "
-                     "y «Remito».",
-                     "En la tarjeta del lote ves si el laboratorio ya lo abrió y si descargó las fotos. Y tenés "
-                     "las etiquetas y los sobres listos para imprimir."),
-                    ("Tocar «Recibí el lote». Los pedidos pasan a «Listos para entregar».",
-                     "A medida que avanza, lo vas marcando. Cuando tenés las copias, tocás «Recibí el lote»."),
-                    ("En un pedido, tocar «QR». Mostrar la página del sobre con «Listo para retirar (avisa al "
-                     "cliente)».",
-                     "Cada sobre lleva un QR. Si lo escaneás y tocás «Listo para retirar», al cliente le llega un "
-                     "correo para que venga a buscar sus copias."),
-                    ("Tocar «Entregado» y confirmar «¿Marcar entregado el pedido #N?». El pedido pasa a "
-                     "«Entregados».",
-                     "Y cuando se las das, tocás «Entregado». Ese pedido queda cerrado."),
-                ],
-                "ojo": "El panel de lotes se estrenó el 21/11/2026: hacer un recorrido de prueba antes de grabar.",
-            },
-            {
-                "cod": "C21", "titulo": "Cuánto ganaste y cierre del curso", "dur": "2 min",
-                "arranca": "/fotografo/analytics",
-                "tomas": [
-                    ("«Analytics»: señalar «Neto» («Lo tuyo, sin la comisión»), «Pedidos pagos» y «Ticket "
-                     "promedio».",
-                     "Para ver cuánto ganaste, entrás a «Analytics». «Neto» es lo tuyo, sin la comisión. También "
-                     "ves cuántos pedidos pagos tuviste y cuánto gasta en promedio cada cliente."),
-                    ("Gráfico «Ventas por día». Filtrar por un álbum y por «Últimos 30 días».",
-                     "Podés filtrar por álbum y por período, para ver qué evento te funcionó mejor."),
-                    ("Mostrar la app de Mercado Pago con el dinero acreditado (captura propia).",
-                     "Y el dinero lo ves en tu Mercado Pago. Con el cobro dividido, tu parte llega en el momento "
-                     "de cada venta."),
-                    ("Placa de cierre con el logo y el recorrido: cuenta → Mercado Pago → cobro dividido → "
-                     "álbum → venta → entrega.",
-                     "Y eso es todo el recorrido: creaste tu cuenta, conectaste Mercado Pago, activaste el cobro "
-                     "dividido, armaste tu álbum, lo vendiste y entregaste el pedido. Ahora te toca a vos: subí "
-                     "tu primer evento. Nos vemos en ComprameLaFoto."),
-                ],
-            },
-        ],
-    },
-    {
-        "titulo": "Capítulo extra · La gestión de impresiones",
-        "clases": [
-            {
-                "cod": "C22", "titulo": "Tus laboratorios", "dur": "3 min",
-                "arranca": "/fotografo/impresiones/laboratorios (menú «Impresiones» → «Mis laboratorios»)",
-                "tomas": [
-                    ("Menú lateral «Impresiones» → «Mis laboratorios». Señalar el texto de ayuda.",
-                     "Si vendés fotos impresas, este capítulo es para vos. Empezamos por cargar tus laboratorios: "
-                     "son los que te imprimen las copias. Entrás a «Impresiones» y después a «Mis laboratorios»."),
-                    ("Tocar «Agregar laboratorio». Mostrar el enlace «Elegir del directorio».",
-                     "Tocás «Agregar laboratorio». Si tu laboratorio ya está en ComprameLaFoto, lo elegís del "
-                     "directorio, donde aparece con su logo. Si no, lo cargás vos."),
-                    ("Completar «Nombre», «Correo» y «WhatsApp (opcional)».",
-                     "Ponés el nombre, el correo y, si querés, el WhatsApp. El correo es importante: ahí le llegan "
-                     "los pedidos que le mandes."),
-                    ("Marcar «Tus clientes retiran en este laboratorio». Aparecen «Dirección» y «Horario de retiro».",
-                     "Si tus clientes pueden pasar a buscar sus copias por ese laboratorio, marcá esta casilla y "
-                     "cargá la dirección y el horario. Eso es lo que va a ver tu cliente cuando compre."),
-                    ("Señalar «Usarlo como predeterminado» y tocar «Guardar». En la lista, señalar «Predeterminado» "
-                     "y «Punto de retiro».",
-                     "Y si es el laboratorio con el que más trabajás, lo dejás como predeterminado: va a venir "
-                     "elegido cada vez que mandes un pedido. Guardás, y queda en tu lista."),
-                    ("Señalar «Hacer predeterminado», «Editar» y «Quitar» en otro laboratorio de la lista.",
-                     "Podés tener varios laboratorios, cambiar el predeterminado cuando quieras y editarlos. En el "
-                     "próximo video vemos cómo se ponen los precios de las impresiones."),
-                ],
-            },
-            {
-                "cod": "C23", "titulo": "Precios de impresión y quién entrega", "dur": "3 min",
-                "arranca": "/fotografo/configuracion?tab=productos y la pestaña «Venta» del álbum",
-                "tomas": [
-                    ("Menú «Ventas» → «Mis Productos Impresos». Recorrer la tabla «Nombre», «Tamaño», «Acabado», "
-                     "«Precio al Público (ARS)».",
-                     "Hay dos formas de ponerle precio a una foto impresa. La primera es tu propia lista: en «Mis "
-                     "productos impresos» cargás cada tamaño y acabado con el precio que paga tu cliente."),
-                    ("Señalar «+ Agregar Producto» y «📥 Importar/Actualizar».",
-                     "Los agregás de a uno o los importás todos juntos desde un Excel."),
-                    ("En un álbum, pestaña «Venta» → tarjeta «Impresiones». Señalar «Origen de precios»: «Mi lista "
-                     "de productos» y «Laboratorio».",
-                     "Después, en cada álbum, elegís de dónde salen los precios: de tu lista o de un laboratorio. "
-                     "Esa es la segunda forma: usar los precios del laboratorio y sumarles tu margen de ganancia."),
-                    ("Elegir «Laboratorio», buscarlo y señalar «Margen de ganancia (%)».",
-                     "Si elegís laboratorio, lo buscás por nombre y ponés tu margen. El cliente paga el precio del "
-                     "laboratorio más tu ganancia."),
-                    ("Señalar «Retiro / entrega»: «El cliente retira en el laboratorio» y «Yo entrego las fotos».",
-                     "Y acá viene la decisión importante: quién le da las copias al cliente. Si elegís «El cliente "
-                     "retira en el laboratorio», tu cliente pasa a buscarlas por ahí y vos no tenés que moverte. Si "
-                     "elegís «Yo entrego las fotos», las copias vuelven a vos y las entregás vos."),
-                    ("Volver a «Mi lista de productos» y señalar «Las impresiones se realizan a cargo del fotógrafo».",
-                     "Si usás tu propia lista, las copias siempre las entregás vos. En el próximo video vemos qué "
-                     "elige tu cliente cuando compra una foto impresa."),
-                ],
-                "ojo": "En «Configuración → Impresión», el «Laboratorio preferido» y el margen dicen «Próximamente»: "
-                       "no señalarlos. Lo que manda en cada venta es lo que se elige en la pestaña «Venta» del álbum.",
-            },
-            {
-                "cod": "C24", "titulo": "Cómo pide tu cliente las fotos impresas", "dur": "2 min",
-                "arranca": "/a/<slug>/comprar (vista del cliente, en celular), en un álbum con impresiones",
-                "tomas": [
-                    ("Álbum público: elegir fotos y tocar «Comprar». Se abre «Configurá tu pedido».",
-                     "Así lo ve tu cliente. Elige sus fotos y, al comprar, configura su pedido."),
-                    ("En una foto, tocar «Impresa». Elegir «Producto», «Tamaño», «Acabado» y «Cantidad».",
-                     "En cada foto elige si la quiere digital o impresa. Si la quiere impresa, elige el tamaño, el "
-                     "acabado, brillo o mate, y cuántas copias. El precio se calcula solo."),
-                    ("Señalar «Duplicar para pedir otro formato».",
-                     "Y si quiere la misma foto en dos tamaños, la duplica."),
-                    ("Tarjeta «📍 ¿Dónde querés retirar tus copias?» con los laboratorios, dirección y horario. "
-                     "Elegir uno.",
-                     "Si elegiste que retire en un laboratorio, acá elige dónde, con la dirección y el horario que "
-                     "cargaste. Así ya sabe adónde ir."),
-                    ("Señalar «Total de tu pedido» y seguir al resumen.",
-                     "Después paga, igual que con las digitales. Y el pedido te aparece a vos, en el panel de "
-                     "impresiones, listo para mandar a imprimir."),
-                ],
-                "ojo": "Filmar con un álbum que tenga impresiones activas y un laboratorio marcado como punto de "
-                       "retiro. No tocar «Confirmar pedido».",
-            },
-            {
-                "cod": "C25", "titulo": "Del lote al laboratorio, y el pago al laboratorio", "dur": "3 min",
-                "arranca": "/fotografo/impresiones y la página del lote del laboratorio",
-                "tomas": [
-                    ("Panel «Impresiones», paso «Para imprimir». Señalar los grupos «Retiran en …» y «Sin retiro en "
-                     "laboratorio».",
-                     "Los pedidos de impresión siempre pasan por tu panel, aunque el cliente retire en el "
-                     "laboratorio. Acá los ves agrupados según dónde se retiran."),
-                    ("Marcar los pedidos de un mismo laboratorio y tocar «Armar lote con N pedidos».",
-                     "Armás un lote por laboratorio: marcás los pedidos y tocás «Armar lote»."),
-                    ("«Enviar al laboratorio»: señalar «Laboratorio» (bloqueado si el cliente retira ahí), «Mensaje "
-                     "para el laboratorio», «¿Cómo te lo entregan?» y «Fecha prometida».",
-                     "Al enviarlo, el laboratorio ya viene elegido. Le podés dejar un mensaje, elegir si lo retirás "
-                     "vos o te lo envían, y poner la fecha en que lo necesitás."),
-                    ("Mostrar el correo «Lote N de …» y la página del lote del laboratorio: «Descargar el ZIP», "
-                     "«Copias por medida y acabado», «Lo empezamos», «Está listo».",
-                     "Al laboratorio le llega un correo con un enlace. Ahí descarga las fotos ordenadas por medida y "
-                     "acabado, y va marcando cómo avanza. No necesita tener cuenta."),
-                    ("Señalar en la página del lote el aviso de «Está listo» y en el sobre «PAGADO — no cobrar al "
-                     "cliente».",
-                     "Cuando el laboratorio marca que está listo, a los clientes que retiran ahí les llega un correo "
-                     "para que pasen. Y en cada sobre dice que ya está pago, para que no le cobren nada al cliente."),
-                    ("En la tarjeta del lote, tocar «Pagado al laboratorio» y mostrar la confirmación.",
-                     "Al laboratorio le pagás vos, por fuera de la plataforma, como siempre. Cuando le pagás, lo "
-                     "marcás acá y te queda registrado. Así llevás el control de cada lote, de punta a punta."),
-                ],
-                "ojo": "La página del lote del laboratorio se abre con el enlace del correo: filmarla con un lote de "
-                       "prueba de la cuenta demo.",
-            },
-        ],
-    },
-    {
-        "titulo": "Capítulo extra · Tu álbum en Instagram",
-        "clases": [
-            {
-                "cod": "C26", "titulo": "Que ComprameLaFoto publique historias de tu álbum", "dur": "3 min",
+                "cod": "C17", "titulo": "Que ComprameLaFoto publique historias de tu álbum", "dur": "3 min",
                 "arranca": "/fotografo/configuracion (pestaña «Perfil») y la sección «Configuración» de un álbum",
                 "tomas": [
                     ("Instagram de ComprameLaFoto en el celular: una historia con el collage de fotos, el nombre del "
@@ -700,6 +473,238 @@ CURSO = [
                 "ojo": "La casilla sólo aparece si la cuenta de Instagram de ComprameLaFoto está conectada. Filmar en "
                        "un álbum público, sin selfie. Para la primera toma, usar una historia real ya publicada o "
                        "una vista previa de /admin/social (no la pantalla de admin).",
+            },
+        ],
+    },
+    {
+        "titulo": "Capítulo 7 · Pedidos y entrega digital",
+        "clases": [
+            {
+                "cod": "C18", "titulo": "Te llegó una venta: la pantalla de pedidos", "dur": "3 min",
+                "arranca": "/fotografo/pedidos",
+                "tomas": [
+                    ("Correo «Nuevo pedido #N en tu álbum…» con los datos del cliente y el enlace al panel.",
+                     "Cuando alguien te compra, te llega un correo con el número de pedido, los datos del "
+                     "cliente y el total. Tocás el enlace y vas directo al pedido."),
+                    ("Menú «Pedidos». Recorrer las tarjetas «Total», «Pendientes», «Pagados», «Descargas», "
+                     "«Impresión».",
+                     "Todos tus pedidos están en «Pedidos». Arriba ves cuántos tenés, cuántos están pagados, "
+                     "cuántos ya se descargaron y cuántos tenés que imprimir."),
+                    ("Tocar los filtros «Pagados», «Digitales» e «Impresión».",
+                     "Con los filtros ves solo lo que te interesa. Por ejemplo, «Impresión» te muestra lo que "
+                     "tenés que imprimir o entregar."),
+                    ("Escribir en el buscador «Buscar por cliente, email, WhatsApp o # pedido…».",
+                     "Y si un cliente te escribe, lo buscás por nombre, correo, WhatsApp o número de pedido."),
+                    ("Señalar las columnas «Estado» y «Monto». Tocar «Desglose».",
+                     "En cada fila ves el estado y el monto. Con «Desglose» ves cuánto es tuyo y cuánto es la "
+                     "comisión."),
+                ],
+                "ojo": "El texto del correo al fotógrafo sale de una plantilla que puede editar el admin. Mostrar "
+                       "un correo real recibido, no uno armado.",
+            },
+            {
+                "cod": "C19", "titulo": "La ficha del pedido", "dur": "2 min",
+                "arranca": "/fotografo/pedidos (tocar un pedido pagado)",
+                "tomas": [
+                    ("Tocar un pedido. Se abre la ficha. Recorrer «Resumen»: «Estado pago», «Descarga», "
+                     "«Impresión», «Retiro», «Monto».",
+                     "Si tocás un pedido, se abre su ficha. En el resumen ves si está pagado, si ya está la "
+                     "descarga, si lleva impresión y quién retira."),
+                    ("Bloque «Cliente»: nombre, email, teléfono y «Abrir WhatsApp →».",
+                     "Los datos del cliente se ven cuando el pago está acreditado. Desde acá le escribís por "
+                     "WhatsApp con un toque."),
+                    ("Bloque «Timeline»: «Pedido creado», «Pago acreditado», «Descarga disponible», «Cliente "
+                     "descargó».",
+                     "Y en la línea de tiempo ves todo lo que pasó: cuándo se creó, cuándo se pagó y si el "
+                     "cliente ya descargó sus fotos."),
+                    ("Señalar el bloque «Acciones».",
+                     "Abajo están las acciones para entregar. Vamos con eso."),
+                ],
+            },
+            {
+                "cod": "C20", "titulo": "La entrega de las fotos digitales", "dur": "2 min",
+                "arranca": "Correo del cliente y /descargas/<token>",
+                "tomas": [
+                    ("Correo del cliente «Tu pedido #N fue confirmado» con el botón «Ver mis fotos».",
+                     "La entrega digital es automática: no tenés que hacer nada. Apenas se acredita el pago, al "
+                     "cliente le llega un correo con el botón «Ver mis fotos»."),
+                    ("Centro de descargas: «Tus fotografías ya están listas», los botones «Descargar» y "
+                     "«Descargar ZIP», y «Disponible hasta».",
+                     "Ahí baja sus fotos una por una, o todas juntas en un ZIP. El acceso dura un tiempo, que "
+                     "ves en «Disponible hasta». Las fotos son suyas para siempre, así que conviene que las "
+                     "guarde."),
+                    ("Volver a la ficha del pedido. Señalar «Cliente descargó».",
+                     "En tu ficha del pedido ves cuando el cliente ya descargó."),
+                    ("Tocar «Copiar link digitales» (cambia a «Link copiado») y pegarlo en WhatsApp.",
+                     "¿Y si te dice que no le llegó? Tocás «Copiar link digitales» y se lo mandás por WhatsApp. "
+                     "También le podés pedir a DNX Bot que le reenvíe el correo."),
+                ],
+                "ojo": "No usar «Recordar descarga» en el video: abre tu correo con un texto que no lleva el "
+                       "enlace.",
+            },
+        ],
+    },
+    {
+        "titulo": "Capítulo 8 · Fotos impresas",
+        "clases": [
+            {
+                "cod": "C21", "titulo": "Tus laboratorios", "dur": "3 min",
+                "arranca": "/fotografo/impresiones/laboratorios (menú «Impresiones» → «Mis laboratorios»)",
+                "tomas": [
+                    ("Menú lateral «Impresiones» → «Mis laboratorios». Señalar el texto de ayuda.",
+                     "Si vendés fotos impresas, este capítulo es para vos. Empezamos por cargar tus laboratorios: "
+                     "son los que te imprimen las copias. Entrás a «Impresiones» y después a «Mis laboratorios»."),
+                    ("Tocar «Agregar laboratorio». Mostrar el enlace «Elegir del directorio».",
+                     "Tocás «Agregar laboratorio». Si tu laboratorio ya está en ComprameLaFoto, lo elegís del "
+                     "directorio, donde aparece con su logo. Si no, lo cargás vos."),
+                    ("Completar «Nombre», «Correo» y «WhatsApp (opcional)».",
+                     "Ponés el nombre, el correo y, si querés, el WhatsApp. El correo es importante: ahí le llegan "
+                     "los pedidos que le mandes."),
+                    ("Marcar «Tus clientes retiran en este laboratorio». Aparecen «Dirección» y «Horario de retiro».",
+                     "Si tus clientes pueden pasar a buscar sus copias por ese laboratorio, marcá esta casilla y "
+                     "cargá la dirección y el horario. Eso es lo que va a ver tu cliente cuando compre."),
+                    ("Señalar «Usarlo como predeterminado» y tocar «Guardar». En la lista, señalar «Predeterminado» "
+                     "y «Punto de retiro».",
+                     "Y si es el laboratorio con el que más trabajás, lo dejás como predeterminado: va a venir "
+                     "elegido cada vez que mandes un pedido. Guardás, y queda en tu lista."),
+                    ("Señalar «Hacer predeterminado», «Editar» y «Quitar» en otro laboratorio de la lista.",
+                     "Podés tener varios laboratorios, cambiar el predeterminado cuando quieras y editarlos. En el "
+                     "próximo video vemos cómo se ponen los precios de las impresiones."),
+                ],
+            },
+            {
+                "cod": "C22", "titulo": "Precios de impresión y quién entrega", "dur": "3 min",
+                "arranca": "/fotografo/configuracion?tab=productos y la pestaña «Venta» del álbum",
+                "tomas": [
+                    ("Menú «Ventas» → «Mis Productos Impresos». Recorrer la tabla «Nombre», «Tamaño», «Acabado», "
+                     "«Precio al Público (ARS)».",
+                     "Hay dos formas de ponerle precio a una foto impresa. La primera es tu propia lista: en «Mis "
+                     "productos impresos» cargás cada tamaño y acabado con el precio que paga tu cliente."),
+                    ("Señalar «+ Agregar Producto» y «📥 Importar/Actualizar».",
+                     "Los agregás de a uno o los importás todos juntos desde un Excel."),
+                    ("En un álbum, pestaña «Venta» → tarjeta «Impresiones». Señalar «Origen de precios»: «Mi lista "
+                     "de productos» y «Laboratorio».",
+                     "Después, en cada álbum, elegís de dónde salen los precios: de tu lista o de un laboratorio. "
+                     "Esa es la segunda forma: usar los precios del laboratorio y sumarles tu margen de ganancia."),
+                    ("Elegir «Laboratorio», buscarlo y señalar «Margen de ganancia (%)».",
+                     "Si elegís laboratorio, lo buscás por nombre y ponés tu margen. El cliente paga el precio del "
+                     "laboratorio más tu ganancia."),
+                    ("Señalar «Retiro / entrega»: «El cliente retira en el laboratorio» y «Yo entrego las fotos».",
+                     "Y acá viene la decisión importante: quién le da las copias al cliente. Si elegís «El cliente "
+                     "retira en el laboratorio», tu cliente pasa a buscarlas por ahí y vos no tenés que moverte. Si "
+                     "elegís «Yo entrego las fotos», las copias vuelven a vos y las entregás vos."),
+                    ("Volver a «Mi lista de productos» y señalar «Las impresiones se realizan a cargo del fotógrafo».",
+                     "Si usás tu propia lista, las copias siempre las entregás vos. En el próximo video vemos qué "
+                     "elige tu cliente cuando compra una foto impresa."),
+                ],
+                "ojo": "En «Configuración → Impresión», el «Laboratorio preferido» y el margen dicen «Próximamente»: "
+                       "no señalarlos. Lo que manda en cada venta es lo que se elige en la pestaña «Venta» del álbum.",
+            },
+            {
+                "cod": "C23", "titulo": "Cómo pide tu cliente las fotos impresas", "dur": "2 min",
+                "arranca": "/a/<slug>/comprar (vista del cliente, en celular), en un álbum con impresiones",
+                "tomas": [
+                    ("Álbum público: elegir fotos y tocar «Comprar». Se abre «Configurá tu pedido».",
+                     "Así lo ve tu cliente. Elige sus fotos y, al comprar, configura su pedido."),
+                    ("En una foto, tocar «Impresa». Elegir «Producto», «Tamaño», «Acabado» y «Cantidad».",
+                     "En cada foto elige si la quiere digital o impresa. Si la quiere impresa, elige el tamaño, el "
+                     "acabado, brillo o mate, y cuántas copias. El precio se calcula solo."),
+                    ("Señalar «Duplicar para pedir otro formato».",
+                     "Y si quiere la misma foto en dos tamaños, la duplica."),
+                    ("Tarjeta «📍 ¿Dónde querés retirar tus copias?» con los laboratorios, dirección y horario. "
+                     "Elegir uno.",
+                     "Si elegiste que retire en un laboratorio, acá elige dónde, con la dirección y el horario que "
+                     "cargaste. Así ya sabe adónde ir."),
+                    ("Señalar «Total de tu pedido» y seguir al resumen.",
+                     "Después paga, igual que con las digitales. Y el pedido te aparece a vos, en el panel de "
+                     "impresiones, listo para mandar a imprimir."),
+                ],
+                "ojo": "Filmar con un álbum que tenga impresiones activas y un laboratorio marcado como punto de "
+                       "retiro. No tocar «Confirmar pedido».",
+            },
+            {
+                "cod": "C24", "titulo": "La entrega de las fotos impresas", "dur": "4 min",
+                "arranca": "/fotografo/impresiones",
+                "tomas": [
+                    ("Menú «Impresiones» → «Para imprimir y lotes». Recorrer las columnas «Para imprimir», «En "
+                     "el laboratorio», «Listos para entregar», «Entregados».",
+                     "Si vendiste fotos impresas, todo se maneja en «Impresiones». Los pedidos van pasando de "
+                     "columna: para imprimir, en el laboratorio, listos para entregar y entregados."),
+                    ("Elegir pedidos y tocar «Armar lote con N pedidos».",
+                     "Elegís los pedidos que querés mandar juntos y armás un lote."),
+                    ("Tocar «Enviar al laboratorio». Elegir «Lo retiro yo» o «Me lo envía el laboratorio» y "
+                     "tocar «Enviar».",
+                     "Tocás «Enviar al laboratorio» y elegís si lo retirás vos o te lo mandan. Al laboratorio le "
+                     "llega un correo con el enlace para ver los pedidos y bajar las fotos."),
+                    ("Señalar en la tarjeta del lote «abrió ✓ · descargó ✓» y los enlaces «Etiquetas», «Sobres» "
+                     "y «Remito».",
+                     "En la tarjeta del lote ves si el laboratorio ya lo abrió y si descargó las fotos. Y tenés "
+                     "las etiquetas y los sobres listos para imprimir."),
+                    ("Tocar «Recibí el lote». Los pedidos pasan a «Listos para entregar».",
+                     "A medida que avanza, lo vas marcando. Cuando tenés las copias, tocás «Recibí el lote»."),
+                    ("En un pedido, tocar «QR». Mostrar la página del sobre con «Listo para retirar (avisa al "
+                     "cliente)».",
+                     "Cada sobre lleva un QR. Si lo escaneás y tocás «Listo para retirar», al cliente le llega un "
+                     "correo para que venga a buscar sus copias."),
+                    ("Tocar «Entregado» y confirmar «¿Marcar entregado el pedido #N?». El pedido pasa a "
+                     "«Entregados».",
+                     "Y cuando se las das, tocás «Entregado». Ese pedido queda cerrado."),
+                ],
+                "ojo": "El panel de lotes se estrenó el 21/11/2026: hacer un recorrido de prueba antes de grabar.",
+            },
+            {
+                "cod": "C25", "titulo": "Del lote al laboratorio, y el pago al laboratorio", "dur": "3 min",
+                "arranca": "/fotografo/impresiones y la página del lote del laboratorio",
+                "tomas": [
+                    ("Panel «Impresiones», paso «Para imprimir». Señalar los grupos «Retiran en …» y «Sin retiro en "
+                     "laboratorio».",
+                     "Los pedidos de impresión siempre pasan por tu panel, aunque el cliente retire en el "
+                     "laboratorio. Acá los ves agrupados según dónde se retiran."),
+                    ("Marcar los pedidos de un mismo laboratorio y tocar «Armar lote con N pedidos».",
+                     "Armás un lote por laboratorio: marcás los pedidos y tocás «Armar lote»."),
+                    ("«Enviar al laboratorio»: señalar «Laboratorio» (bloqueado si el cliente retira ahí), «Mensaje "
+                     "para el laboratorio», «¿Cómo te lo entregan?» y «Fecha prometida».",
+                     "Al enviarlo, el laboratorio ya viene elegido. Le podés dejar un mensaje, elegir si lo retirás "
+                     "vos o te lo envían, y poner la fecha en que lo necesitás."),
+                    ("Mostrar el correo «Lote N de …» y la página del lote del laboratorio: «Descargar el ZIP», "
+                     "«Copias por medida y acabado», «Lo empezamos», «Está listo».",
+                     "Al laboratorio le llega un correo con un enlace. Ahí descarga las fotos ordenadas por medida y "
+                     "acabado, y va marcando cómo avanza. No necesita tener cuenta."),
+                    ("Señalar en la página del lote el aviso de «Está listo» y en el sobre «PAGADO — no cobrar al "
+                     "cliente».",
+                     "Cuando el laboratorio marca que está listo, a los clientes que retiran ahí les llega un correo "
+                     "para que pasen. Y en cada sobre dice que ya está pago, para que no le cobren nada al cliente."),
+                    ("En la tarjeta del lote, tocar «Pagado al laboratorio» y mostrar la confirmación.",
+                     "Al laboratorio le pagás vos, por fuera de la plataforma, como siempre. Cuando le pagás, lo "
+                     "marcás acá y te queda registrado. Así llevás el control de cada lote, de punta a punta."),
+                ],
+                "ojo": "La página del lote del laboratorio se abre con el enlace del correo: filmarla con un lote de "
+                       "prueba de la cuenta demo.",
+            },
+        ],
+    },
+    {
+        "titulo": "Capítulo 9 · Cierre",
+        "clases": [
+            {
+                "cod": "C26", "titulo": "Cuánto ganaste y cierre del curso", "dur": "2 min",
+                "arranca": "/fotografo/analytics",
+                "tomas": [
+                    ("«Analytics»: señalar «Neto» («Lo tuyo, sin la comisión»), «Pedidos pagos» y «Ticket "
+                     "promedio».",
+                     "Para ver cuánto ganaste, entrás a «Analytics». «Neto» es lo tuyo, sin la comisión. También "
+                     "ves cuántos pedidos pagos tuviste y cuánto gasta en promedio cada cliente."),
+                    ("Gráfico «Ventas por día». Filtrar por un álbum y por «Últimos 30 días».",
+                     "Podés filtrar por álbum y por período, para ver qué evento te funcionó mejor."),
+                    ("Mostrar la app de Mercado Pago con el dinero acreditado (captura propia).",
+                     "Y el dinero lo ves en tu Mercado Pago. Con el cobro dividido, tu parte llega en el momento "
+                     "de cada venta."),
+                    ("Placa de cierre con el logo y el recorrido: cuenta → Mercado Pago → cobro dividido → "
+                     "álbum → venta → entrega.",
+                     "Y eso es todo el recorrido: creaste tu cuenta, conectaste Mercado Pago, activaste el cobro "
+                     "dividido, armaste tu álbum, lo vendiste y entregaste el pedido. Ahora te toca a vos: subí "
+                     "tu primer evento. Nos vemos en ComprameLaFoto."),
+                ],
             },
         ],
     },
@@ -830,44 +835,44 @@ SHORTS = [
      ("Selfie → fotos encontradas → «Comprar» → datos → pago.",
       "Se saca una selfie, aparecen sus fotos, elige, deja su nombre y paga. Sin crear una cuenta."),
      ("«Pago aprobado».", "Y las fotos le llegan solas.")),
-    ("S23", "Te llegó una venta", "C17",
+    ("S23", "Te llegó una venta", "C18",
      ("Correo «Nuevo pedido».", "Ese correo que te alegra el día."),
      ("Tocar el enlace y abrir la ficha en «Pedidos».",
       "Cuando te compran, te llega un correo con el pedido. En «Pedidos» ves todos, con filtros y buscador."),
      ("«Desglose» del monto.", "Con «Desglose» ves cuánto es tuyo.")),
-    ("S24", "¿Al cliente no le llegaron las fotos?", "C19",
+    ("S24", "¿Al cliente no le llegaron las fotos?", "C20",
      ("Ficha del pedido.", "«No me llegó el correo.» Lo resolvés en diez segundos."),
      ("Tocar «Copiar link digitales» y pegarlo en WhatsApp.",
       "Abrís el pedido, tocás «Copiar link digitales» y se lo mandás por WhatsApp."),
      ("Centro de descargas del cliente.", "También se lo podés pedir a DNX Bot.")),
-    ("S25", "Mandá las impresiones al laboratorio", "C20",
+    ("S25", "Mandá las impresiones al laboratorio", "C24",
      ("«Impresiones», columna «Para imprimir».", "Imprimir sin perder ningún pedido."),
      ("Armar el lote, «Enviar al laboratorio», elegir el retiro y «Enviar».",
       "Elegís los pedidos, armás el lote y lo mandás al laboratorio. Le llega un correo con todo para imprimir."),
      ("Tarjeta del lote con «abrió ✓ · descargó ✓».", "Y ves cuándo lo abrió y cuándo bajó las fotos.")),
-    ("S26", "Entregá con el QR del sobre", "C20",
+    ("S26", "Entregá con el QR del sobre", "C24",
      ("Sobre con el QR.", "Cada sobre tiene su QR."),
      ("Escanear, tocar «Listo para retirar» y después «Entregado».",
       "Lo escaneás y tocás «Listo para retirar»: al cliente le llega un aviso. Cuando se lo das, tocás "
       "«Entregado»."),
      ("Columna «Entregados».", "Pedido cerrado.")),
-    ("S27", "Cuánto ganaste este mes", "C21",
+    ("S27", "Cuánto ganaste este mes", "C26",
      ("«Analytics».", "¿Cuánto vendiste este mes?"),
      ("Señalar «Neto» y filtrar por álbum y por «Últimos 30 días».",
       "En «Analytics», «Neto» es lo tuyo, sin la comisión. Filtrás por álbum y por período."),
      ("Gráfico «Ventas por día».", "Y sabés qué evento te funcionó mejor.")),
-    ("S28", "Cargá tu laboratorio", "C22",
+    ("S28", "Cargá tu laboratorio", "C21",
      ("«Mis laboratorios».", "¿Quién te imprime las fotos?"),
      ("«Agregar laboratorio»: nombre, correo y «Tus clientes retiran en este laboratorio».",
       "En «Mis laboratorios» cargás tu laboratorio con su correo. Si tus clientes retiran ahí, marcás la casilla y "
       "ponés dirección y horario."),
      ("«Predeterminado».", "Dejalo como predeterminado y viene elegido en cada pedido.")),
-    ("S29", "¿Quién le da las copias al cliente?", "C23",
+    ("S29", "¿Quién le da las copias al cliente?", "C22",
      ("Tarjeta «Impresiones» del álbum.", "Imprimís, ¿y después quién entrega?"),
      ("Señalar «El cliente retira en el laboratorio» y «Yo entrego las fotos».",
       "En cada álbum elegís: o el cliente retira en el laboratorio, o las copias vuelven a vos y las entregás vos."),
      ("«Margen de ganancia (%)».", "Con los precios del laboratorio, vos le sumás tu ganancia.")),
-    ("S30", "Tu cliente elige dónde retirar", "C24",
+    ("S30", "Tu cliente elige dónde retirar", "C23",
      ("«¿Dónde querés retirar tus copias?».", "El cliente sabe adónde ir antes de pagar."),
      ("Elegir tamaño, acabado y el laboratorio.",
       "Elige tamaño, acabado y cantidad, y el laboratorio donde va a retirar, con la dirección y el horario."),
@@ -877,7 +882,7 @@ SHORTS = [
      ("Correo «Lote N…», «Descargar el ZIP», «Está listo».",
       "Le llega un correo, baja las fotos ordenadas por medida y, cuando están listas, el cliente recibe el aviso."),
      ("«Pagado al laboratorio».", "Le pagás vos y lo marcás: cada lote, bajo control.")),
-    ("S32", "Tu álbum en las historias de ComprameLaFoto", "C26",
+    ("S32", "Tu álbum en las historias de ComprameLaFoto", "C17",
      ("Historia de ComprameLaFoto con el collage y «COMPRAMELAFOTO.COM».", "¿Querés que tu evento llegue a más gente, gratis?"),
      ("Casilla «Difundir en las historias de Instagram de CompraMeLaFoto» y «Etiquetar también».",
       "Cargá tu Instagram en el perfil y dejá marcada esta casilla en el álbum. Publicamos tres historias con tus "
