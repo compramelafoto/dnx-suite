@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ACTIVITY_TYPE_LABELS, DEFAULT_COUNTRY, DISCIPLINE_LABELS, applyFilter, cleanPlaceLabel, formatArDay, formatNearParam, isActivityType, isDiscipline, parseNearParam, temporalStatus, withDistance, type ActivityType } from "@repo/muestras";
+import { ACTIVITY_TYPE_LABELS, DEFAULT_COUNTRY, DISCIPLINE_LABELS, applyFilter, cleanPlaceLabel, formatArDay, formatNearParam, isDiscipline, parseNearParam, temporalStatus, withDistance, type ActivityType } from "@repo/muestras";
 import { ChipsDisciplina, Filtros } from "@/components/listado/filtros";
 import { TarjetaActividad } from "@/components/listado/tarjeta-actividad";
 import { MapaNacionalCliente } from "@/components/mapa/mapa-nacional-cliente";
@@ -9,7 +9,7 @@ import { Banner } from "@/components/portada/banner";
 import { listarPublicas } from "@/lib/actividades/consultas";
 import { FOTOS_PORTADA } from "@/lib/portada/fotos";
 import { TEXTOS_PORTADA, pasosDeMarca } from "@/lib/portada/funciones";
-import { chipsDeDisciplina, muestrasParaGrilla } from "@/lib/portada/disciplinas";
+import { chipsDeDisciplina, muestrasParaGrilla, tipoDeFiltro } from "@/lib/portada/disciplinas";
 import { TextoDePaso } from "@/components/portada/texto-de-paso";
 
 export const revalidate = 300;
@@ -34,10 +34,14 @@ export default async function Inicio({ params, searchParams }: { params: Promise
   // La disciplina sólo existe en Muestras de Arte: en fotografía `?disciplina=` no hace nada.
   const esArte = marca.id === "ARTE";
   const disciplina = esArte && isDiscipline(sp.disciplina) ? sp.disciplina : null;
+  // En arte `?tipo=SALIDA` se ignora: ese tipo no existe en la marca. En fotografía los enlaces
+  // conservan `?tipo=` tal como vino, igual que antes.
+  const tipoElegido = tipoDeFiltro(marca.id, sp.tipo);
+  const tipoEnEnlaces = esArte ? tipoElegido : sp.tipo;
   const filtro = {
     country: sp.pais || undefined,
     province: provincia,
-    type: isActivityType(sp.tipo) ? sp.tipo : undefined,
+    type: tipoElegido,
     openNow: sp.abiertas === "1",
     includeClosed: sp.archivo === "1",
   };
@@ -47,7 +51,7 @@ export default async function Inicio({ params, searchParams }: { params: Promise
   const lugarBuscado = origen ? (cleanPlaceLabel(sp.lugar) ?? "el punto elegido") : null;
   const lista = origen ? withDistance(origen, filtradas) : filtradas.map((a) => ({ ...a, distanceKm: null as number | null }));
   const sinCerca = new URLSearchParams(
-    Object.entries({ pais: sp.pais, provincia, tipo: sp.tipo, abiertas: sp.abiertas, archivo: sp.archivo, disciplina: disciplina ?? undefined })
+    Object.entries({ pais: sp.pais, provincia, tipo: tipoEnEnlaces, abiertas: sp.abiertas, archivo: sp.archivo, disciplina: disciplina ?? undefined })
       .filter((e): e is [string, string] => typeof e[1] === "string" && e[1] !== ""),
   ).toString();
   // Una muestra siempre tiene sede; "Online" sólo puede aparecer en charlas o talleres.
@@ -59,7 +63,7 @@ export default async function Inicio({ params, searchParams }: { params: Promise
 
   // Los chips salen de la lista con los demás filtros, así elegir una disciplina no borra las otras.
   const chips = esArte
-    ? chipsDeDisciplina(applyFilter(todas, filtro, ahora), { pais: sp.pais, provincia, tipo: sp.tipo, abiertas: sp.abiertas, archivo: sp.archivo, cerca: origen ? formatNearParam(origen) : undefined, lugar: origen ? cleanPlaceLabel(sp.lugar) : undefined }, disciplina)
+    ? chipsDeDisciplina(applyFilter(todas, filtro, ahora), { pais: sp.pais, provincia, tipo: tipoEnEnlaces, abiertas: sp.abiertas, archivo: sp.archivo, cerca: origen ? formatNearParam(origen) : undefined, lugar: origen ? cleanPlaceLabel(sp.lugar) : undefined }, disciplina)
     : [];
   const pasos = pasosDeMarca(marca.id);
   const textos = TEXTOS_PORTADA[marca.id];
@@ -105,7 +109,7 @@ export default async function Inicio({ params, searchParams }: { params: Promise
             <Link href={`/${sinCerca ? `?${sinCerca}` : ""}#muestras`} className="text-[15px] text-[var(--mf-muted)] underline underline-offset-[6px] hover:text-[var(--mf-ink)]">Ver todas</Link>
           </p>
         ) : null}
-        {todas.length > 0 ? <div className="mb-6"><Filtros paises={paises} provincias={provincias} actual={{ ...sp, provincia }} cerca={origen ? { cerca: formatNearParam(origen), lugar: cleanPlaceLabel(sp.lugar) } : null} disciplina={disciplina} /></div> : null}
+        {todas.length > 0 ? <div className="mb-6"><Filtros marca={marca.id} paises={paises} provincias={provincias} actual={{ ...sp, provincia, tipo: tipoEnEnlaces }} cerca={origen ? { cerca: formatNearParam(origen), lugar: cleanPlaceLabel(sp.lugar) } : null} disciplina={disciplina} /></div> : null}
         {esArte && todas.length > 0 ? <div className="mb-6"><ChipsDisciplina chips={chips} /></div> : null}
 
         {todas.length === 0 ? (

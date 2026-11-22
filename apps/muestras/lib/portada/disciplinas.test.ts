@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { dayEndAr, dayStartAr } from "@repo/muestras";
-import { chipsDeDisciplina, muestrasParaGrilla } from "./disciplinas";
+import { chipsDeDisciplina, muestrasParaGrilla, tipoDeFiltro, tiposDeFiltro } from "./disciplinas";
 
 describe("chipsDeDisciplina", () => {
   const lista = [
@@ -42,5 +42,21 @@ describe("muestrasParaGrilla", () => {
     ]);
     const muchas = Array.from({ length: 12 }, (_, i) => ({ ...base, slug: `m${i}`, title: `M${i}` }));
     expect(muestrasParaGrilla(muchas, ahora)).toHaveLength(8);
+  });
+});
+
+describe("tiposDeFiltro", () => {
+  it("fotografía ofrece todos los tipos, con la salida fotográfica", () => {
+    expect(tiposDeFiltro("FOTOGRAFIA")).toEqual(["MUESTRA", "CHARLA", "TALLER", "SALIDA", "LIBRO", "PROYECCION", "OTRA"]);
+  });
+  it("arte no ofrece la salida fotográfica", () => {
+    expect(tiposDeFiltro("ARTE")).toEqual(["MUESTRA", "CHARLA", "TALLER", "LIBRO", "PROYECCION", "OTRA"]);
+  });
+  it("en arte `?tipo=SALIDA` no filtra; en fotografía sí", () => {
+    expect(tipoDeFiltro("ARTE", "SALIDA")).toBeUndefined();
+    expect(tipoDeFiltro("FOTOGRAFIA", "SALIDA")).toBe("SALIDA");
+    expect(tipoDeFiltro("ARTE", "TALLER")).toBe("TALLER");
+    expect(tipoDeFiltro("FOTOGRAFIA", "CUALQUIERA")).toBeUndefined();
+    expect(tipoDeFiltro("ARTE", undefined)).toBeUndefined();
   });
 });

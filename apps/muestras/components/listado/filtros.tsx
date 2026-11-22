@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { ACTIVITY_TYPES, ACTIVITY_TYPE_LABELS } from "@repo/muestras";
-import type { ChipDisciplina } from "@/lib/portada/disciplinas";
+import { ACTIVITY_TYPE_LABELS } from "@repo/muestras";
+import type { MarcaId } from "@/lib/marca";
+import { tiposDeFiltro, type ChipDisciplina } from "@/lib/portada/disciplinas";
 
 /** Formulario GET: los filtros viven en la URL, así se pueden compartir. */
-export function Filtros({ paises, provincias, actual, cerca, disciplina }: {
+export function Filtros({ marca, paises, provincias, actual, cerca, disciplina }: {
+  /** En arte el tipo «Salida fotográfica» no se ofrece. */
+  marca: MarcaId;
   /** El filtro de país sólo aparece si hay muestras de más de uno. */
   paises: string[];
   provincias: string[];
@@ -39,7 +42,7 @@ export function Filtros({ paises, provincias, actual, cerca, disciplina }: {
         <span className="sr-only">Tipo de actividad</span>
         <select name="tipo" defaultValue={actual.tipo ?? ""} className="mf-select">
           <option value="">Todos los tipos</option>
-          {ACTIVITY_TYPES.map((t) => <option key={t} value={t}>{ACTIVITY_TYPE_LABELS[t]}</option>)}
+          {tiposDeFiltro(marca).map((t) => <option key={t} value={t}>{ACTIVITY_TYPE_LABELS[t]}</option>)}
         </select>
       </label>
       <label className={casilla}>

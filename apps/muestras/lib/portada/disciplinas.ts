@@ -1,8 +1,19 @@
-import { DISCIPLINE_LABELS, PHOTOGRAPHY, disciplinesPresent, temporalStatus, type Discipline } from "@repo/muestras";
+import { ACTIVITY_TYPES, DISCIPLINE_LABELS, PHOTOGRAPHY, disciplinesPresent, isActivityType, temporalStatus, type ActivityType, type Discipline } from "@repo/muestras";
+import type { MarcaId } from "@/lib/marca";
 import type { MuestraDeGrilla } from "@/components/portada/grilla-arte";
 import { esUrlWeb } from "@/lib/url";
 
 /** Sólo en Muestras de Arte: la portada filtra por disciplina con `?disciplina=PINTURA`. */
+
+/** Tipos que ofrece el filtro de la portada: en arte no hay «Salida fotográfica». */
+export function tiposDeFiltro(marca: MarcaId): ActivityType[] {
+  return ACTIVITY_TYPES.filter((t) => marca !== "ARTE" || t !== "SALIDA");
+}
+
+/** `?tipo=` validado contra los tipos de la marca; cualquier otro valor no filtra. */
+export function tipoDeFiltro(marca: MarcaId, tipo: string | null | undefined): ActivityType | undefined {
+  return isActivityType(tipo) && tiposDeFiltro(marca).includes(tipo) ? tipo : undefined;
+}
 
 export type ChipDisciplina = { etiqueta: string; href: string; activo: boolean };
 
