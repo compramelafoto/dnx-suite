@@ -6,7 +6,7 @@ import {
   getGoogleOAuthCredentials,
   resolveGoogleRedirectUri,
 } from "@repo/auth";
-import { baseDeIngreso } from "@/lib/base-oauth";
+import { baseDeIngreso, origenDelPedido } from "@/lib/base-oauth";
 import { APP_OAUTH } from "@/lib/google-app";
 import { rutaInternaSegura } from "@/lib/ruta-segura";
 import { OPCIONES_COOKIE } from "@/lib/sesion";
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const baseUrl = baseDeIngreso(req);
-    const origin = url.origin;
+    const origin = origenDelPedido(req);
 
     const credenciales = getGoogleOAuthCredentials();
     if (!credenciales) {

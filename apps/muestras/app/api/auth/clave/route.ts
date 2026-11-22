@@ -4,6 +4,7 @@ import { prisma } from "@repo/db";
 import { adjuntarSesion } from "@/lib/sesion";
 import { checkRateLimit } from "@/lib/limite";
 import { rutaInternaSegura } from "@/lib/ruta-segura";
+import { origenDelPedido } from "@/lib/base-oauth";
 
 /**
  * Ingreso con correo y contraseña: la misma clave de la cuenta de DNX Suite (FotoRank, FOTOFFICE).
@@ -24,7 +25,8 @@ function alLogin(origin: string, mensaje: string, next: string | undefined) {
 }
 
 export async function POST(req: Request) {
-  const origin = new URL(req.url).origin;
+  // Del encabezado Host (sólo si es de una marca); si no, el de la URL del pedido.
+  const origin = origenDelPedido(req);
 
   // Sólo desde nuestro propio formulario.
   const origen = req.headers.get("origin");

@@ -13,7 +13,7 @@ import {
 import { reportSuiteReferralSignup, SUITE_REFERRAL_COOKIE } from "@repo/auth/suite-referral";
 import { prisma } from "@repo/db";
 import { adjuntarSesion, OPCIONES_COOKIE } from "@/lib/sesion";
-import { baseDeIngreso } from "@/lib/base-oauth";
+import { baseDeIngreso, origenDelPedido } from "@/lib/base-oauth";
 import { APP_OAUTH } from "@/lib/google-app";
 import { rutaInternaSegura } from "@/lib/ruta-segura";
 import { codigoDeReferidoParaReportar } from "@/lib/referido-suite";
@@ -34,7 +34,7 @@ function volverAlLogin(baseUrl: string, mensaje: string) {
 }
 
 export async function GET(req: Request) {
-  const origin = new URL(req.url).origin;
+  const origin = origenDelPedido(req);
   const baseOAuth = baseDeIngreso(req);
 
   try {
