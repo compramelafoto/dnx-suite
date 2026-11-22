@@ -5,6 +5,10 @@ import { fileURLToPath } from "node:url";
 const appDir = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
+  // El chequeo de tipos no entra en la memoria del build de Vercel (SIGKILL en "Running
+  // TypeScript"). Los tipos los revisa el CI en cada PR: `pnpm --filter muestras check-types`
+  // en .github/workflows/chequeos.yml. Si se saca ese paso, hay que volver a prender esto.
+  typescript: { ignoreBuildErrors: true },
   // @repo/db no se transpila: se externaliza para conservar el Query Engine de Prisma.
   // Mismo criterio que fotoffice y clickaton — con webpack, el motor nativo no llega al
   // bundle si se transpila, y toda consulta falla en runtime.
