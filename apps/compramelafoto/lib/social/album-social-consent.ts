@@ -33,7 +33,7 @@ export type AlbumSocialConsent = {
 };
 
 /** Tope de cuentas extra para etiquetar: además del fotógrafo. */
-export const MAX_EXTRA_HANDLES = 5;
+export const MAX_EXTRA_HANDLES = 20;
 
 /**
  * Normaliza la lista de cuentas extra que carga el fotógrafo: acepta «@usuario»,

@@ -167,9 +167,18 @@ export default function StoriesQueuePanel({
                       <p className="m-0 line-clamp-2 text-sm text-gray-800">{s.albumTitle}</p>
                       <p className="m-0 text-xs text-gray-500">
                         {s.userTags.length
-                          ? `Etiqueta a ${s.userTags.map((t) => `@${t}`).join(", ")}`
+                          ? `Etiqueta a ${s.userTags
+                              .filter((t) => !s.droppedUserTags.includes(t))
+                              .map((t) => `@${t}`)
+                              .join(", ")}`
                           : s.photographer || "Sin Instagram del fotógrafo"}
                       </p>
+                      {s.droppedUserTags.length ? (
+                        <p className="m-0 text-xs text-amber-700">
+                          No se pudo etiquetar a {s.droppedUserTags.map((t) => `@${t}`).join(", ")} (cuenta
+                          privada o inexistente).
+                        </p>
+                      ) : null}
                       {s.lastError && s.status === "FAILED" ? (
                         <p className="m-0 text-xs text-red-600">{s.lastError}</p>
                       ) : null}

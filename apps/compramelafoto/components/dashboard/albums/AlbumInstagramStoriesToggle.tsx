@@ -10,7 +10,7 @@ type Estado = {
   invalid?: string[];
 };
 
-const MAX_EXTRA = 5;
+const MAX_EXTRA = 20;
 
 /**
  * Permiso para que el álbum aparezca en las historias de Instagram de CompraMeLaFoto, y
@@ -161,7 +161,7 @@ export default function AlbumInstagramStoriesToggle({
           ) : null}
           <span className="block text-xs text-[#6b7280] leading-relaxed">
             Hasta {MAX_EXTRA} cuentas. Les llega la notificación de Instagram y pueden compartir la historia.
-            Si alguna es privada o no existe, la historia sale igual etiquetándote solo a vos.
+            Si alguna es privada o no existe, se deja afuera solo esa y la historia sale igual con las demás.
           </span>
         </div>
       ) : null}

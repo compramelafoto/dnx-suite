@@ -171,9 +171,21 @@ export async function processSocialPublishRequest(requestId: string) {
     if (!result.ok) throw new Error(result.errorMessage ?? result.errorCode ?? "PUBLISH_FAILED");
 
     const publishedAt = new Date();
+    // Las etiquetas que Meta rechazó (cuenta privada o inexistente) quedan en el
+    // metadata para que el panel muestre a quién no se pudo etiquetar.
+    const caidas = (result.providerRawSanitized as { droppedUserTags?: unknown } | null | undefined)
+      ?.droppedUserTags;
     const updated = await prisma.dnxSocialPublishRequest.update({
       where: { id: request.id },
       data: {
+        ...(Array.isArray(caidas) && caidas.length > 0
+          ? {
+              metadata: {
+                ...((request.metadata ?? {}) as Record<string, unknown>),
+                droppedUserTags: caidas,
+              } as Prisma.InputJsonValue,
+            }
+          : {}),
         status: "PUBLISHED",
         publishedAt,
         externalMediaId: result.externalMediaId ?? null,

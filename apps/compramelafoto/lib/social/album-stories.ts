@@ -405,6 +405,8 @@ export type StoryQueueItem = {
   albumSlug: string | null;
   photographer: string;
   userTags: string[];
+  /** Cuentas que Meta no dejó etiquetar al publicar (privadas o inexistentes). */
+  droppedUserTags: string[];
   collage: string | null;
   permalink: string | null;
   lastError: string | null;
@@ -440,6 +442,7 @@ export async function listStoryQueue(now: Date = new Date()): Promise<StoryQueue
             ? m.photographerName
             : "",
       userTags: Array.isArray(m.userTags) ? (m.userTags as string[]) : [],
+      droppedUserTags: Array.isArray(m.droppedUserTags) ? (m.droppedUserTags as string[]) : [],
       collage: typeof m.collage === "string" ? m.collage : null,
       permalink: f.permalink,
       lastError: f.lastErrorMessage,

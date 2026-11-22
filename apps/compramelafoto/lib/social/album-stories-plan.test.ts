@@ -195,8 +195,9 @@ describe("cuentas extra para etiquetar", () => {
     expect(r.invalid).toEqual(["no válido!!"]);
   });
 
-  it("corta en 5", () => {
-    expect(normalizeExtraHandles(["a1", "a2", "a3", "a4", "a5", "a6"]).handles).toHaveLength(5);
+  it("corta en 20", () => {
+    const muchas = Array.from({ length: 25 }, (_, i) => `cuenta${i + 1}`);
+    expect(normalizeExtraHandles(muchas).handles).toHaveLength(20);
   });
 });
 
