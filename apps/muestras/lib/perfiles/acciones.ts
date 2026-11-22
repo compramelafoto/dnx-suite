@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
-import { freeProfileSlug, profileSlugBase } from "@repo/muestras";
+import { PHOTOGRAPHY, freeProfileSlug, profileSlugBase } from "@repo/muestras";
 import { frenarPorUsuario } from "@/lib/limite";
 import { getUsuario } from "@/lib/usuario";
 import { perfilDesdeFormData } from "./mapear";
@@ -56,11 +56,13 @@ export async function guardarPerfil(fd: FormData): Promise<ResultadoPerfil> {
 
   const datos = {
     slug, displayName: p.displayName, bio: p.bio, city: p.city, province: p.province,
-    website: p.website, instagram: p.instagram, avatarUrl: p.avatarUrl, disciplines: p.disciplines,
+    website: p.website, instagram: p.instagram, avatarUrl: p.avatarUrl,
+    // Sin el campo en el envío, el perfil que ya existe conserva sus disciplinas.
+    ...(p.disciplines ? { disciplines: p.disciplines } : {}),
   };
   try {
     if (actual) await prisma.photographerProfile.update({ where: { id: actual.id }, data: datos });
-    else await prisma.photographerProfile.create({ data: { ...datos, userId: usuario.id } });
+    else await prisma.photographerProfile.create({ data: { disciplines: [PHOTOGRAPHY], ...datos, userId: usuario.id } });
   } catch (err) {
     // Dos guardados a la vez, o alguien tomó la dirección en el medio: lo frena el índice único.
     if (esChoqueUnico(err)) return SLUG_OCUPADO;

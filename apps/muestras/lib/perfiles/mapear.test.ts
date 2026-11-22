@@ -14,7 +14,7 @@ describe("perfilDesdeFormData", () => {
     const r = leer({ displayName: " Ana Pérez ", slug: "Ana Pérez", website: "ana.com", instagram: "@Ana.Foto", bio: " ", avatarUrl: `${BASE}/muestras/7/a.webp` });
     expect(r).toEqual({ ok: true, perfil: {
       displayName: "Ana Pérez", slug: "ana-perez", bio: null, city: null, province: null,
-      website: "https://ana.com/", instagram: "ana.foto", avatarUrl: `${BASE}/muestras/7/a.webp`, disciplines: ["FOTOGRAFIA"],
+      website: "https://ana.com/", instagram: "ana.foto", avatarUrl: `${BASE}/muestras/7/a.webp`, disciplines: null,
     } });
   });
   it("sin slug escrito queda vacío (lo arma la acción)", () => {
@@ -52,10 +52,14 @@ describe("perfilDesdeFormData", () => {
     const s = perfilDesdeFormData(fd({ displayName: "Ana", disciplines: ["PINTURA", "X"] }), { baseImagenes: BASE });
     expect(s.ok && s.perfil.disciplines).toEqual(["PINTURA"]);
   });
-  it("disciplinas: sin ninguna, fotografía", () => {
-    const r = leer({ displayName: "Ana" });
+  it("disciplinas: con la marca del formulario y ninguna marcada, fotografía", () => {
+    const r = leer({ displayName: "Ana", disciplinasEnviadas: "1" });
     expect(r.ok && r.perfil.disciplines).toEqual(["FOTOGRAFIA"]);
     const s = leer({ displayName: "Ana", disciplines: ["X"] });
     expect(s.ok && s.perfil.disciplines).toEqual(["FOTOGRAFIA"]);
+  });
+  it("disciplinas: sin el campo ni la marca, null (se conserva lo guardado)", () => {
+    const r = leer({ displayName: "Ana" });
+    expect(r.ok && r.perfil.disciplines).toBeNull();
   });
 });

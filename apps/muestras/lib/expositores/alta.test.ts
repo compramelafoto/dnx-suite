@@ -121,6 +121,26 @@ describe("sumarmeComoExpositor", () => {
     expect(db.culturalExhibitor.create.mock.calls[0]![0].data.profileId).toBe("p9");
   });
 
+  it("sin perfil: el perfil nuevo toma la disciplina de la muestra (fotografía)", async () => {
+    await sumarmeComoExpositor(fd({}));
+    expect(db.photographerProfile.create.mock.calls[0]![0].data.disciplines).toEqual(["FOTOGRAFIA"]);
+  });
+
+  it("sin perfil: en una muestra de pintura, el perfil nuevo es de pintura", async () => {
+    enlace = { ...enlace!, activity: { ...muestra(), primaryDiscipline: "PINTURA" } };
+    // Lo que diga el formulario sobre disciplinas no cuenta.
+    await sumarmeComoExpositor(fd({ disciplines: "ESCULTURA", disciplinasEnviadas: "1" }));
+    expect(db.photographerProfile.create.mock.calls[0]![0].data.disciplines).toEqual(["PINTURA"]);
+  });
+
+  it("con perfil: sus disciplinas no se tocan, aunque la muestra sea de otra", async () => {
+    enlace = { ...enlace!, activity: { ...muestra(), primaryDiscipline: "PINTURA" } };
+    db.photographerProfile.findUnique.mockResolvedValue({ id: "p9", slug: "ana", bio: null });
+    await sumarmeComoExpositor(fd({}));
+    expect(db.photographerProfile.create).not.toHaveBeenCalled();
+    expect(db.photographerProfile.update).toHaveBeenCalledWith({ where: { id: "p9" }, data: { bio: "Fotógrafa de Rosario." } });
+  });
+
   it("con perfil sin biografía: la completa", async () => {
     db.photographerProfile.findUnique.mockResolvedValue({ id: "p9", slug: "ana", bio: null });
     await sumarmeComoExpositor(fd({}));

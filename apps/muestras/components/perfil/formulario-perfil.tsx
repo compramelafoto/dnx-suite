@@ -78,6 +78,8 @@ export function FormularioPerfil({ inicial, esNuevo, prefijoUrl }: { inicial: Pe
       </label>
       <fieldset className="space-y-2">
         <legend>Disciplinas</legend>
+        {/* `MARCA_DISCIPLINAS` de lib/perfiles/mapear.ts. Con esta marca, no marcar ninguna guarda Fotografía; sin ella, se conservan las guardadas. */}
+        <input type="hidden" name="disciplinasEnviadas" value="1" />
         <p className="text-sm text-[var(--mf-muted)]">Marcá todas las que trabajás. Si no marcás ninguna, queda Fotografía.</p>
         <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
           {DISCIPLINES.map((d) => (

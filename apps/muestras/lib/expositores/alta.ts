@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@repo/db";
-import { EXHIBITOR_TEXT_LIMITS, RIGHTS_TEXT_VERSION, exhibitorJoinProblems, exhibitorLinkState } from "@repo/muestras";
+import { EXHIBITOR_TEXT_LIMITS, PHOTOGRAPHY, RIGHTS_TEXT_VERSION, exhibitorJoinProblems, exhibitorLinkState, isDiscipline } from "@repo/muestras";
 import { esTokenConForma } from "@/lib/curaduria/token";
 import { frenarPorUsuario } from "@/lib/limite";
 import { crearOActualizarPerfil } from "@/lib/perfiles/crear";
@@ -36,7 +36,7 @@ export async function sumarmeComoExpositor(fd: FormData): Promise<ResultadoAlta>
     where: { token },
     select: {
       id: true, status: true, closesAt: true, maxExhibitors: true,
-      activity: { select: { id: true, slug: true, type: true, reviewStatus: true, isCancelled: true, startsAt: true, endsAt: true } },
+      activity: { select: { id: true, slug: true, type: true, reviewStatus: true, isCancelled: true, startsAt: true, endsAt: true, primaryDiscipline: true } },
     },
   });
   if (!enlace) return NO_EXISTE;
@@ -66,10 +66,11 @@ export async function sumarmeComoExpositor(fd: FormData): Promise<ResultadoAlta>
 
   // Si ya tiene perfil, del formulario sólo cuenta la biografía (y sólo si la suya está vacía).
   const tienePerfil = await prisma.photographerProfile.findUnique({ where: { userId: usuario.id }, select: { id: true } });
-  let datos: PerfilForm;
+  // Las disciplinas del perfil sólo se ponen al crearlo: las de la muestra a la que se suma.
+  let datos: Omit<PerfilForm, "disciplines">;
   if (tienePerfil) {
     const bio = String(fd.get("bio") ?? "").trim().slice(0, LARGOS_PERFIL.bio).trim();
-    datos = { displayName: firma, slug: "", bio: bio || null, city: null, province: null, website: null, instagram: null, avatarUrl: null, disciplines: ["FOTOGRAFIA"] };
+    datos = { displayName: firma, slug: "", bio: bio || null, city: null, province: null, website: null, instagram: null, avatarUrl: null };
   } else {
     const paraPerfil = new FormData();
     for (const k of ["displayName", "bio", "city", "province", "instagram", "avatarUrl"]) {
@@ -97,7 +98,7 @@ export async function sumarmeComoExpositor(fd: FormData): Promise<ResultadoAlta>
         displayName: firma, rightsAccepted: true,
       });
       if (ahora.length) throw new Corte(ahora[0]!);
-      const perfil = await crearOActualizarPerfil(tx, usuario.id, datos);
+      const perfil = await crearOActualizarPerfil(tx, usuario.id, datos, [isDiscipline(a.primaryDiscipline) ? a.primaryDiscipline : PHOTOGRAPHY]);
       const fila = await tx.culturalExhibitor.create({
         data: {
           activityId: a.id, userId: usuario.id, profileId: perfil.id, displayName: firma,

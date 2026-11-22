@@ -13,9 +13,15 @@ export type PerfilForm = {
   website: string | null;
   instagram: string | null;
   avatarUrl: string | null;
-  /** Al menos una: sin ninguna marcada, fotografía. */
-  disciplines: Discipline[];
+  /**
+   * Al menos una: sin ninguna marcada, fotografía. `null` = el formulario no trajo el campo (ni la
+   * marca `disciplinasEnviadas`): se conserva lo guardado.
+   */
+  disciplines: Discipline[] | null;
 };
+
+/** Marca oculta del formulario de perfil: con ella, "ninguna marcada" quiere decir fotografía. */
+export const MARCA_DISCIPLINAS = "disciplinasEnviadas";
 
 /** Disciplinas del perfil: sólo las válidas, sin repetir; sin ninguna, fotografía. */
 export function disciplinasDePerfil(values: unknown[]): Discipline[] {
@@ -63,7 +69,7 @@ export function perfilDesdeFormData(
       website,
       instagram,
       avatarUrl: avatar && esImagenPropia(avatar, base) ? avatar : null,
-      disciplines: disciplinasDePerfil(fd.getAll("disciplines")),
+      disciplines: fd.has(MARCA_DISCIPLINAS) || fd.has("disciplines") ? disciplinasDePerfil(fd.getAll("disciplines")) : null,
     },
   };
 }
