@@ -57,7 +57,9 @@ const LOOKBACK_MS = 3 * 24 * 60 * 60 * 1000;
 const SETTLE_MS = 6 * 60 * 60 * 1000;
 /**
  * Tope de álbumes por corrida (cada uno son 3 collages): cada collage baja fotos y
- * renderiza, y la función tiene tiempo limitado. Lo que no entra queda para mañana.
+ * renderiza, y la función tiene tiempo limitado. El cron corre cuatro veces por día
+ * (08, 09, 12 y 15 h): hasta 20 álbumes y 60 historias por día. Lo que no entra queda
+ * para la corrida siguiente.
  */
 const MAX_ALBUMS_PER_RUN = 5;
 
