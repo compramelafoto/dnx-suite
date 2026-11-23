@@ -21,6 +21,12 @@ export type ProviderPublishInput = {
    * compartir la historia. Sin coordenadas: en historias son opcionales.
    */
   userTags?: string[];
+  /**
+   * Solo historias: dónde va la primera etiqueta, de 0 a 1 desde la izquierda y desde
+   * arriba. Sin coordenadas Meta la deja oculta; con ellas queda sobre la imagen, encima
+   * del «@» que dibuja el diseño. Las siguientes etiquetas van un poco más abajo.
+   */
+  userTagAnchor?: { x: number; y: number };
   /** Si true, no llama a Meta; simula éxito. */
   dryRun: boolean;
 };

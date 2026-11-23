@@ -10,6 +10,8 @@ import {
 } from "@repo/social-publisher";
 import { Prisma, prisma } from "@repo/db";
 import { ALBUM_STORY_ENTITY_TYPE, isAlbumStillPublishable } from "./album-stories";
+import { storyCredit } from "./album-stories-plan";
+import { anclaDelCredito } from "./album-story-collages";
 import { ALBUM_SOCIAL_CONSENT_ENTITY_TYPE, createClfSocialStore, logSocialRequest, toSocialAccount } from "./prisma-store";
 
 const store = createClfSocialStore();
@@ -157,7 +159,10 @@ export async function processSocialPublishRequest(requestId: string) {
       format?: PublishFormat;
       collaborators?: unknown;
       userTags?: unknown;
+      collage?: unknown;
+      photographerHandle?: unknown;
     };
+    const etiquetas = Array.isArray(meta.userTags) ? (meta.userTags as string[]) : [];
     const result = await provider.publish({
       account: toSocialAccount(request.socialAccount),
       accessToken,
@@ -165,7 +170,8 @@ export async function processSocialPublishRequest(requestId: string) {
       assets,
       format: meta.format ?? "SINGLE_IMAGE",
       collaborators: Array.isArray(meta.collaborators) ? (meta.collaborators as string[]) : [],
-      userTags: Array.isArray(meta.userTags) ? (meta.userTags as string[]) : [],
+      userTags: etiquetas,
+      userTagAnchor: request.entityType === ALBUM_STORY_ENTITY_TYPE ? anclaDeLaEtiqueta(meta, etiquetas) : undefined,
       dryRun: !livePublish,
     });
     if (!result.ok) throw new Error(result.errorMessage ?? result.errorCode ?? "PUBLISH_FAILED");
@@ -173,16 +179,20 @@ export async function processSocialPublishRequest(requestId: string) {
     const publishedAt = new Date();
     // Las etiquetas que Meta rechazó (cuenta privada o inexistente) quedan en el
     // metadata para que el panel muestre a quién no se pudo etiquetar.
-    const caidas = (result.providerRawSanitized as { droppedUserTags?: unknown } | null | undefined)
-      ?.droppedUserTags;
+    const crudo = (result.providerRawSanitized ?? {}) as { droppedUserTags?: unknown; userTagsWithPosition?: unknown };
+    const caidas = crudo.droppedUserTags;
+    const conPosicion = typeof crudo.userTagsWithPosition === "boolean" ? crudo.userTagsWithPosition : undefined;
     const updated = await prisma.dnxSocialPublishRequest.update({
       where: { id: request.id },
       data: {
-        ...(Array.isArray(caidas) && caidas.length > 0
+        ...((Array.isArray(caidas) && caidas.length > 0) || conPosicion !== undefined
           ? {
               metadata: {
                 ...((request.metadata ?? {}) as Record<string, unknown>),
-                droppedUserTags: caidas,
+                ...(Array.isArray(caidas) && caidas.length > 0 ? { droppedUserTags: caidas } : {}),
+                // Si la etiqueta salió apoyada sobre el «@» del diseño o, si Meta no aceptó
+                // la posición, oculta como antes.
+                ...(conPosicion !== undefined ? { userTagsWithPosition: conPosicion } : {}),
               } as Prisma.InputJsonValue,
             }
           : {}),
@@ -256,4 +266,18 @@ async function fail(
   });
   await logSocialRequest(request.id, "FAILED", null, { code });
   return { status: "FAILED" as const, code };
+}
+
+/**
+ * Dónde apoyar la etiqueta del fotógrafo en su historia: sobre el «@usuario» que dibuja el
+ * diseño. Se calcula al publicar con el diseño guardado en la cola, así vale también para las
+ * historias que ya estaban programadas. Sólo si la primera etiqueta es la del fotógrafo.
+ */
+function anclaDeLaEtiqueta(
+  meta: { collage?: unknown; photographerHandle?: unknown },
+  etiquetas: string[],
+): { x: number; y: number } | undefined {
+  const handle = typeof meta.photographerHandle === "string" ? meta.photographerHandle : null;
+  if (!handle || typeof meta.collage !== "string" || etiquetas[0] !== handle) return undefined;
+  return anclaDelCredito(meta.collage, storyCredit(handle, null)) ?? undefined;
 }
