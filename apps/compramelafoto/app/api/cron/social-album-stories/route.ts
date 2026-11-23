@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 /**
- * Cron diario (08:00 hora argentina). Hace dos cosas, para no gastar un cron por cada una:
+ * Cron de las 08, 09, 12 y 15 h (hora argentina). Hace dos cosas, para no gastar un cron por cada una:
  *
  * 1. Controla que Meta siga aceptando el token de Instagram (token de usuario del sistema,
  *    no vence). Si lo rechaza, la cuenta queda caída y el panel pide reconectar.

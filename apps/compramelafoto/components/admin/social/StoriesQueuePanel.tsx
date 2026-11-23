@@ -120,7 +120,7 @@ export default function StoriesQueuePanel({
       <div>
         <h1 className="text-2xl font-bold text-gray-900 m-0">Historias de Instagram</h1>
         <p className="text-gray-600 mt-1 m-0">
-          Cada mañana a las 08:00 se arman 3 historias por cada álbum público de más de 50 fotos, una
+          A las 08, 09, 12 y 15 h se arman 3 historias por cada álbum público de más de 50 fotos (hasta 5 álbumes por vez), una
           por día y con fotos distintas. Entre todos los álbumes salen hasta 40 por día, hasta 4 juntas en cada horario (10, 11, 12,
           13, 14, 16, 18, 19, 20 y 21 h); primero va la historia 1 de cada álbum nuevo. Salen solas a
           su hora; podés sacar cualquiera antes.
