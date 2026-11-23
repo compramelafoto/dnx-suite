@@ -167,7 +167,15 @@ export type DailyStoriesSummary = {
   failed: Array<{ albumId: number; error: string }>;
 };
 
-export async function generateDailyAlbumStories(now: Date = new Date()): Promise<DailyStoriesSummary> {
+/**
+ * `albumIds`: armar las historias de esos álbumes aunque no sean recientes (el admin los suma
+ * a mano desde el panel). Valen las mismas reglas: público, más de 50 fotos, sin selfie, no
+ * escolar, con permiso y una sola vez por álbum.
+ */
+export async function generateDailyAlbumStories(
+  now: Date = new Date(),
+  opciones: { albumIds?: number[] } = {},
+): Promise<DailyStoriesSummary> {
   const summary: DailyStoriesSummary = { ok: true, candidates: 0, scheduled: [], skipped: {}, failed: [] };
   const skip = (r: keyof DailyStoriesSummary["skipped"]) => {
     summary.skipped[r] = (summary.skipped[r] ?? 0) + 1;
@@ -178,13 +186,18 @@ export async function generateDailyAlbumStories(now: Date = new Date()): Promise
 
   const albums = await prisma.album.findMany({
     where: {
-      createdAt: { gte: new Date(now.getTime() - LOOKBACK_MS), lte: new Date(now.getTime() - SETTLE_MS) },
-      deletedAt: null,
-      isPublic: true,
-      isHidden: false,
-      hiddenPhotosEnabled: false,
-      isTest: false,
-      schoolId: null,
+      // Elegidos a mano: se traen igual y `decideAlbumStory` dice por qué no entran.
+      ...(opciones.albumIds?.length
+        ? { id: { in: opciones.albumIds } }
+        : {
+            createdAt: { gte: new Date(now.getTime() - LOOKBACK_MS), lte: new Date(now.getTime() - SETTLE_MS) },
+            deletedAt: null,
+            isPublic: true,
+            isHidden: false,
+            hiddenPhotosEnabled: false,
+            isTest: false,
+            schoolId: null,
+          }),
     },
     select: {
       id: true,
