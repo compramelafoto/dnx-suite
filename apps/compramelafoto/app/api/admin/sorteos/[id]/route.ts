@@ -4,16 +4,19 @@ import {
   addPrize,
   announceRaffle,
   cancelRaffle,
+  movePrize,
   notifyWinners,
   removePrize,
   resolveRaffle,
   sealRaffle,
   setAwardStatus,
   updateDraft,
+  updateLook,
+  updatePrize,
 } from "@/lib/raffles/motor";
 import { fromArgentinaInput } from "@/lib/raffles/fechas";
 import { RAFFLE_PRIZE_STATUSES, type RafflePrizeStatus } from "@/lib/raffles/constants";
-import { parsePrizeTemplates } from "@/lib/raffles/mensajes";
+import { parsePrizeTemplates, parseSponsors, safeUrl } from "@/lib/raffles/mensajes";
 import { requireRaffleAdmin } from "../_actor";
 
 export const runtime = "nodejs";
@@ -57,6 +60,20 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       r = premio ? await addPrize(id, premio) : { ok: false, error: "El premio necesita un nombre." };
       break;
     }
+    case "updatePrize": {
+      const [premio] = parsePrizeTemplates([body.prize]);
+      r = premio ? await updatePrize(String(body.prizeId ?? ""), premio) : { ok: false, error: "El premio necesita un nombre." };
+      break;
+    }
+    case "movePrize":
+      r = await movePrize(String(body.prizeId ?? ""), body.dir === "up" ? -1 : 1);
+      break;
+    case "look":
+      r = await updateLook(id, {
+        coverImageUrl: body.coverImageUrl !== undefined ? safeUrl(body.coverImageUrl) : undefined,
+        sponsors: body.sponsors !== undefined ? parseSponsors(body.sponsors) : undefined,
+      });
+      break;
     case "removePrize":
       r = await removePrize(String(body.prizeId ?? ""));
       break;

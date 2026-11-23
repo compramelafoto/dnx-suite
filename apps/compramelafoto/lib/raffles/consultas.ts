@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { buildVerification, recheck } from "./verification";
 import { computeEntrants, loadSalesForUser, loadSettings } from "./repository";
 import { orderEntrants } from "./padron";
-import { parsePrizeTemplates } from "./mensajes";
+import { parsePrizeTemplates, parseSponsors, sponsorLogos } from "./mensajes";
 
 /** Lecturas para las pantallas: admin, página pública y panel del fotógrafo. */
 
@@ -23,6 +23,8 @@ export async function listRafflesForAdmin() {
       entriesCloseAt: true,
       drawsAt: true,
       entrantsCount: true,
+      coverImageUrl: true,
+      prizes: { orderBy: { order: "asc" }, take: 4, select: { imageUrl: true, title: true } },
       _count: { select: { prizes: true, awards: true } },
     },
   });
@@ -91,6 +93,7 @@ export async function getRaffleForAdmin(id: string) {
   return {
     raffle: {
       ...r,
+      sponsors: parseSponsors(r.sponsors),
       prizes: r.prizes.map((p) => ({
         ...p,
         winner: p.award ? porId.get(p.award.userId) ?? null : null,
@@ -105,7 +108,7 @@ export async function getRaffleForAdmin(id: string) {
 
 export async function getSettingsForAdmin() {
   const s = await loadSettings();
-  return { ...s, monthlyPrizes: parsePrizeTemplates(s.monthlyPrizes) };
+  return { ...s, monthlyPrizes: parsePrizeTemplates(s.monthlyPrizes), monthlySponsors: parseSponsors(s.monthlySponsors) };
 }
 
 /** La página pública de verificación: sin correos ni datos de contacto. */
@@ -126,7 +129,12 @@ export async function getPublicRaffle(id: string) {
       award: p.award && p.award.status !== "ANULADO" ? { winnerPosition: p.award.winnerPosition } : null,
     })),
   });
-  return { raffle: r, verification: data, check: data ? recheck(data) : null };
+  return {
+    raffle: r,
+    logos: sponsorLogos(parseSponsors(r.sponsors), r.prizes),
+    verification: data,
+    check: data ? recheck(data) : null,
+  };
 }
 
 /**
@@ -147,7 +155,14 @@ export async function getRafflesForPhotographer(userId: number, now = new Date()
     include: {
       prizes: {
         orderBy: { order: "asc" },
-        select: { title: true, sponsorName: true, award: { select: { userId: true, status: true } } },
+        select: {
+          title: true,
+          sponsorName: true,
+          imageUrl: true,
+          sponsorLogoUrl: true,
+          sponsorUrl: true,
+          award: { select: { userId: true, status: true } },
+        },
       },
     },
   });
@@ -183,7 +198,9 @@ export async function getRafflesForPhotographer(userId: number, now = new Date()
         drawsAt: s.drawsAt.toISOString(),
         minSales: s.minSales,
         entrantsCount: s.entrantsCount,
-        prizes: s.prizes.map((p) => ({ title: p.title, sponsorName: p.sponsorName })),
+        coverImageUrl: s.coverImageUrl,
+        logos: sponsorLogos(parseSponsors(s.sponsors), s.prizes),
+        prizes: s.prizes.map((p) => ({ title: p.title, sponsorName: p.sponsorName, imageUrl: p.imageUrl })),
         misVentas,
         participa,
         gane,

@@ -17,7 +17,7 @@ import {
   nextPrizeStatus,
   validateDates,
 } from "./lifecycle";
-import { parsePrizeTemplates, winnerEmail, type PrizeTemplate } from "./mensajes";
+import { parsePrizeTemplates, parseSponsors, winnerEmail, type PrizeTemplate, type SponsorTemplate } from "./mensajes";
 import { entrantsHash, orderEntrants } from "./padron";
 import { computeEntrants, loadSettings } from "./repository";
 
@@ -62,6 +62,9 @@ function prizeData(p: PrizeTemplate) {
     sponsorName: p.sponsorName ?? null,
     deliveryInstructions: p.deliveryInstructions ?? null,
     estimatedValueArs: p.estimatedValueArs ?? null,
+    imageUrl: p.imageUrl ?? null,
+    sponsorLogoUrl: p.sponsorLogoUrl ?? null,
+    sponsorUrl: p.sponsorUrl ?? null,
   };
 }
 
@@ -78,6 +81,8 @@ export async function createRaffle(input: {
   entriesCloseAt: Date;
   drawsAt: Date;
   prizes?: PrizeTemplate[];
+  coverImageUrl?: string | null;
+  sponsors?: SponsorTemplate[];
   actor: Actor;
 }): Promise<Result<{ id: string }>> {
   const title = input.title.trim();
@@ -98,6 +103,8 @@ export async function createRaffle(input: {
         minSales,
         entriesCloseAt: input.entriesCloseAt,
         drawsAt: input.drawsAt,
+        coverImageUrl: input.coverImageUrl ?? null,
+        sponsors: (input.sponsors ?? []) as Prisma.InputJsonValue,
         createdByUserId: input.actor.userId,
         prizes: {
           create: (input.prizes ?? []).map((p, i) => ({ order: i + 1, ...prizeData(p) })),
@@ -121,6 +128,8 @@ export async function updateDraft(
     minSales?: number;
     entriesCloseAt?: Date;
     drawsAt?: Date;
+    coverImageUrl?: string | null;
+    sponsors?: SponsorTemplate[];
   },
 ): Promise<Result> {
   const r = await prisma.clfRaffle.findUnique({ where: { id: raffleId } });
@@ -144,8 +153,75 @@ export async function updateDraft(
       ...(title ? { title } : {}),
       ...(input.description !== undefined ? { description: input.description?.trim() || null } : {}),
       ...(input.minSales !== undefined ? { minSales: Math.max(1, Math.trunc(input.minSales)) } : {}),
+      ...(input.coverImageUrl !== undefined ? { coverImageUrl: input.coverImageUrl } : {}),
+      ...(input.sponsors !== undefined ? { sponsors: input.sponsors as Prisma.InputJsonValue } : {}),
     },
   });
+  return { ok: true };
+}
+
+/**
+ * La portada y los sponsors son decoración: se pueden cambiar en cualquier momento que el
+ * sorteo siga vivo, porque no entran en la cuenta del ganador.
+ */
+export async function updateLook(
+  raffleId: string,
+  input: { coverImageUrl?: string | null; sponsors?: SponsorTemplate[] },
+): Promise<Result> {
+  const r = await prisma.clfRaffle.findUnique({ where: { id: raffleId }, select: { status: true } });
+  if (!r) return { ok: false, error: "Ese sorteo no existe." };
+  if (r.status === "CANCELADO") return { ok: false, error: "El sorteo está cancelado." };
+  await prisma.clfRaffle.update({
+    where: { id: raffleId },
+    data: {
+      ...(input.coverImageUrl !== undefined ? { coverImageUrl: input.coverImageUrl } : {}),
+      ...(input.sponsors !== undefined ? { sponsors: input.sponsors as Prisma.InputJsonValue } : {}),
+    },
+  });
+  return { ok: true };
+}
+
+/**
+ * Editar un premio. En borrador se cambia todo; después de anunciar sólo lo que no entra en la
+ * cuenta (fotos, logo, textos): el orden y la cantidad de premios quedan fijos.
+ */
+export async function updatePrize(prizeId: string, prize: PrizeTemplate): Promise<Result> {
+  const p = await prisma.clfRafflePrize.findUnique({
+    where: { id: prizeId },
+    select: { title: true, raffle: { select: { status: true } } },
+  });
+  if (!p) return { ok: false, error: "Ese premio no existe." };
+  if (p.raffle.status === "CANCELADO") return { ok: false, error: "El sorteo está cancelado." };
+  if (!prize.title?.trim()) return { ok: false, error: "El premio necesita un nombre." };
+  // Anunciado, el nombre queda como se publicó: es lo que figura en la verificación.
+  const data = prizeData(prize);
+  if (!canEditDraft(p.raffle.status as RaffleStatus)) data.title = p.title;
+  await prisma.clfRafflePrize.update({ where: { id: prizeId }, data });
+  return { ok: true };
+}
+
+/** Subir o bajar un premio en la lista (sólo en borrador: el orden entra en la cuenta). */
+export async function movePrize(prizeId: string, dir: -1 | 1): Promise<Result> {
+  const p = await prisma.clfRafflePrize.findUnique({
+    where: { id: prizeId },
+    select: { id: true, raffleId: true, order: true, raffle: { select: { status: true } } },
+  });
+  if (!p) return { ok: false, error: "Ese premio no existe." };
+  if (!canEditDraft(p.raffle.status as RaffleStatus)) {
+    return { ok: false, error: "El orden de los premios queda fijo al anunciar." };
+  }
+  const vecino = await prisma.clfRafflePrize.findFirst({
+    where: { raffleId: p.raffleId, order: dir < 0 ? { lt: p.order } : { gt: p.order } },
+    orderBy: { order: dir < 0 ? "desc" : "asc" },
+    select: { id: true, order: true },
+  });
+  if (!vecino) return { ok: true };
+  // Dos pasos por la restricción única (raffleId, order).
+  await prisma.$transaction([
+    prisma.clfRafflePrize.update({ where: { id: p.id }, data: { order: -1 } }),
+    prisma.clfRafflePrize.update({ where: { id: vecino.id }, data: { order: p.order } }),
+    prisma.clfRafflePrize.update({ where: { id: p.id }, data: { order: vecino.order } }),
+  ]);
   return { ok: true };
 }
 
@@ -421,7 +497,7 @@ export async function notifyWinners(raffleId: string): Promise<{ avisados: numbe
       id: true,
       userId: true,
       prize: {
-        select: { title: true, description: true, sponsorName: true, deliveryInstructions: true },
+        select: { title: true, description: true, sponsorName: true, deliveryInstructions: true, imageUrl: true },
       },
       raffle: { select: { id: true, title: true } },
     },
@@ -445,6 +521,7 @@ export async function notifyWinners(raffleId: string): Promise<{ avisados: numbe
       prizeTitle: a.prize.title,
       prizeDescription: a.prize.description,
       sponsorName: a.prize.sponsorName,
+      prizeImageUrl: a.prize.imageUrl,
       deliveryInstructions: a.prize.deliveryInstructions,
     });
     try {
@@ -559,6 +636,8 @@ export async function ensureMonthlyRaffle(now = new Date()): Promise<{ creado: s
     ...ventana,
     minSales: ajustes.minSales,
     prizes: premios,
+    coverImageUrl: ajustes.monthlyCoverImageUrl ?? null,
+    sponsors: parseSponsors(ajustes.monthlySponsors),
     actor: SISTEMA,
   }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
   if (!creado.ok) return { creado: null, anunciado: false, error: creado.error };
