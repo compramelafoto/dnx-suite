@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSettingsForAdmin } from "@/lib/raffles/consultas";
-import { parsePrizeTemplates } from "@/lib/raffles/mensajes";
+import { parsePrizeTemplates, parseSponsors, safeUrl } from "@/lib/raffles/mensajes";
 import { requireRaffleAdmin } from "../_actor";
 
 export const runtime = "nodejs";
@@ -33,6 +33,8 @@ export async function PUT(req: NextRequest) {
     minSales: entero(b.minSales, 1, 1000, 1),
     monthlyPrizes: parsePrizeTemplates(b.monthlyPrizes),
     excludedUserIds: excluidos,
+    monthlyCoverImageUrl: safeUrl(b.monthlyCoverImageUrl),
+    monthlySponsors: parseSponsors(b.monthlySponsors),
   };
   await prisma.clfRaffleSettings.upsert({
     where: { id: "default" },

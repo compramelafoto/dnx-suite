@@ -29401,6 +29401,11 @@ model ClfRaffle {
   cancelledAt  DateTime?
   cancelReason String?
 
+  /// Imagen de portada de la página pública y de la tarjeta del panel.
+  coverImageUrl String?
+  /// Quienes acompañan el sorteo: [{ name, logoUrl, url }]. Sus logos desfilan en la página.
+  sponsors      Json    @default("[]")
+
   createdByUserId   Int?
   announcedByUserId Int?
 
@@ -29459,6 +29464,10 @@ model ClfRafflePrize {
   deliveryInstructions String?
   /// En pesos, sólo informativo.
   estimatedValueArs    Int?
+  /// Foto del premio y logo y enlace de quien lo da (subidos a R2).
+  imageUrl             String?
+  sponsorLogoUrl       String?
+  sponsorUrl           String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -29519,6 +29528,9 @@ model ClfRaffleSettings {
   monthlyPrizes  Json    @default("[]")
   /// Cuentas que nunca entran (las propias de DNX, por ejemplo). Vale para todos los sorteos.
   excludedUserIds Int[]  @default([])
+  /// Portada y sponsors que se copian a cada sorteo mensual.
+  monthlyCoverImageUrl String?
+  monthlySponsors      Json    @default("[]")
 
   updatedAt DateTime @updatedAt
 }

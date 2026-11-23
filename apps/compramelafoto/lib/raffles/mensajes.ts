@@ -9,6 +9,19 @@ function escapeHtml(v: string): string {
   return v.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+/** Sólo direcciones https: las imágenes van a R2 y los enlaces a sitios o redes del sponsor. */
+export function safeUrl(v: unknown): string | null {
+  if (typeof v !== "string" || !v.trim()) return null;
+  let raw = v.trim();
+  if (!/^[a-z]+:\/\//i.test(raw) && /^[\w-]+(\.[\w-]+)+/.test(raw)) raw = `https://${raw}`;
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function winnerEmail(input: {
   raffleId: string;
   raffleTitle: string;
@@ -17,6 +30,7 @@ export function winnerEmail(input: {
   prizeDescription: string | null;
   sponsorName: string | null;
   deliveryInstructions: string | null;
+  prizeImageUrl?: string | null;
 }): { subject: string; text: string; html: string } {
   const saludo = input.winnerName?.trim() ? `¡Hola, ${input.winnerName.trim().split(/\s+/)[0]}!` : "¡Hola!";
   const verificacion = `${SITE_URL}/sorteos/${input.raffleId}`;
@@ -34,6 +48,9 @@ export function winnerEmail(input: {
 
   const html = [
     `<p>${escapeHtml(saludo)}</p>`,
+    safeUrl(input.prizeImageUrl)
+      ? `<p><img src="${escapeHtml(safeUrl(input.prizeImageUrl)!)}" alt="${escapeHtml(input.prizeTitle)}" width="480" style="max-width:100%;height:auto;border-radius:12px" /></p>`
+      : "",
     `<p>Ganaste en el <strong>${escapeHtml(input.raffleTitle)}</strong> de CompraMeLaFoto: <strong>${escapeHtml(input.prizeTitle)}</strong>${input.sponsorName ? `, gentileza de ${escapeHtml(input.sponsorName)}` : ""}.</p>`,
     input.prizeDescription?.trim() ? `<p>${escapeHtml(input.prizeDescription.trim())}</p>` : "",
     `<p><strong>Cómo lo recibís:</strong> ${escapeHtml(entrega)}</p>`,
@@ -59,7 +76,52 @@ export type PrizeTemplate = {
   sponsorName?: string | null;
   deliveryInstructions?: string | null;
   estimatedValueArs?: number | null;
+  imageUrl?: string | null;
+  sponsorLogoUrl?: string | null;
+  sponsorUrl?: string | null;
 };
+
+/** Quien acompaña un sorteo: su logo desfila en la página pública y en el panel. */
+export type SponsorTemplate = { name: string | null; logoUrl: string; url: string | null };
+
+export function parseSponsors(value: unknown): SponsorTemplate[] {
+  if (!Array.isArray(value)) return [];
+  const vistos = new Set<string>();
+  const out: SponsorTemplate[] = [];
+  for (const s of value) {
+    if (!s || typeof s !== "object") continue;
+    const o = s as Record<string, unknown>;
+    const logoUrl = safeUrl(o.logoUrl);
+    if (!logoUrl || vistos.has(logoUrl)) continue;
+    vistos.add(logoUrl);
+    const name = typeof o.name === "string" && o.name.trim() ? o.name.trim().slice(0, 80) : null;
+    out.push({ name, logoUrl, url: safeUrl(o.url) });
+  }
+  return out.slice(0, 24);
+}
+
+/**
+ * Los logos del sorteo, sin repetir: primero los sponsors cargados, después los de quienes
+ * donan premios. Igual que el banner de FOTOFFICE.
+ */
+export function sponsorLogos(
+  sponsors: SponsorTemplate[],
+  prizes: { sponsorLogoUrl?: string | null; sponsorName?: string | null; sponsorUrl?: string | null }[],
+): SponsorTemplate[] {
+  const vistos = new Set<string>();
+  const out: SponsorTemplate[] = [];
+  for (const s of sponsors) {
+    if (vistos.has(s.logoUrl)) continue;
+    vistos.add(s.logoUrl);
+    out.push(s);
+  }
+  for (const p of prizes) {
+    if (!p.sponsorLogoUrl || vistos.has(p.sponsorLogoUrl)) continue;
+    vistos.add(p.sponsorLogoUrl);
+    out.push({ logoUrl: p.sponsorLogoUrl, name: p.sponsorName ?? null, url: p.sponsorUrl ?? null });
+  }
+  return out;
+}
 
 /** Lee la lista guardada sin confiar en su forma: lo que no sirve se descarta. */
 export function parsePrizeTemplates(value: unknown): PrizeTemplate[] {
@@ -79,6 +141,9 @@ export function parsePrizeTemplates(value: unknown): PrizeTemplate[] {
         sponsorName: txt(o.sponsorName),
         deliveryInstructions: txt(o.deliveryInstructions),
         estimatedValueArs: Number.isFinite(valor) && valor > 0 ? Math.round(valor) : null,
+        imageUrl: safeUrl(o.imageUrl),
+        sponsorLogoUrl: safeUrl(o.sponsorLogoUrl),
+        sponsorUrl: safeUrl(o.sponsorUrl),
       };
     })
     .filter((p): p is PrizeTemplate => p !== null)
