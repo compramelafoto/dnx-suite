@@ -461,3 +461,38 @@ export function elegirCollageConFotos(aspecto: number, ordinal: number, cantidad
   const n = candidatos.length;
   return candidatos[((Math.trunc(ordinal) % n) + n) % n]!;
 }
+
+// ---------------------------------------------------------------------------
+// Dónde cae el «@» del fotógrafo
+// ---------------------------------------------------------------------------
+
+/** Ancho medio de una letra de DM Sans en negrita, en proporción al tamaño de la letra. */
+const ANCHO_LETRA = 0.56;
+
+/**
+ * El centro del «@usuario» que dibuja el crédito («Fotos de @usuario»), de 0 a 1 sobre la
+ * historia. Ahí se apoya la etiqueta de Instagram para que se vea encima del texto: sin
+ * coordenadas Meta la deja oculta. El ancho del texto se estima (no hay medida exacta sin
+ * dibujar), así que la etiqueta puede quedar corrida unos píxeles: es un punto, no un recuadro.
+ */
+export function anclaDelCredito(collageId: string, credito: string): { x: number; y: number } | null {
+  const collage = STORY_COLLAGES.find((c) => c.id === collageId);
+  if (!collage || !credito) return null;
+  const bloque = collage.document.sides
+    .flatMap((s) => s.blocks)
+    .find((b) => b.id === "credito" && b.type === "text") as
+    | (DesignBlock & { fontSize?: number; align?: string })
+    | undefined;
+  if (!bloque) return null;
+
+  const letra = (bloque.fontSize ?? 34) * ANCHO_LETRA;
+  const arroba = credito.indexOf("@");
+  const total = Math.min(credito.length * letra, bloque.width);
+  const inicio = bloque.align === "center" ? bloque.x + (bloque.width - total) / 2 : bloque.x;
+  // Con «@usuario», el centro de esa parte; si no hay @, el centro de todo el crédito.
+  const desde = arroba >= 0 ? arroba * letra : 0;
+  const hasta = credito.length * letra;
+  const x = Math.min(inicio + (desde + hasta) / 2, bloque.x + bloque.width);
+  const y = bloque.y + bloque.height / 2;
+  return { x: Math.round((x / STORY_W) * 1000) / 1000, y: Math.round((y / STORY_H) * 1000) / 1000 };
+}

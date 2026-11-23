@@ -45,10 +45,47 @@ const MAX_INTENTOS_ETIQUETAS = 30;
  * cuentan para el cupo diario y Meta los descarta solo. La historia sale siempre: en el
  * peor caso, sin etiquetas.
  */
+/** Separación vertical entre etiquetas cuando hay varias (≈ 67 px en una historia de 1920). */
+const PASO_ETIQUETAS = 0.035;
+
+const recortar = (v: number) => Math.round(Math.min(0.95, Math.max(0.05, v)) * 1000) / 1000;
+
+/**
+ * El valor de `user_tags` para Meta. Con ancla, cada etiqueta lleva su lugar: la primera
+ * (el fotógrafo) en el ancla y las demás apiladas debajo, sin salirse de la imagen.
+ */
+export function userTagsParam(lista: string[], ancla?: { x: number; y: number } | null): string {
+  return JSON.stringify(
+    lista.map((username, i) =>
+      ancla && Number.isFinite(ancla.x) && Number.isFinite(ancla.y)
+        ? { username, x: recortar(ancla.x), y: recortar(ancla.y + i * PASO_ETIQUETAS) }
+        : { username },
+    ),
+  );
+}
+
 export async function crearHistoriaConEtiquetas(
   crear: (body: Record<string, string>) => Promise<string>,
   base: Record<string, string>,
   etiquetas: string[],
+  ancla?: { x: number; y: number } | null,
+): Promise<{ id: string; dropped: string[]; conPosicion: boolean }> {
+  if (ancla && etiquetas.length > 0) {
+    // Primero con posición. Si Meta rechazara las coordenadas, la lista entera caería:
+    // en ese caso se repite sin posición, que es como funcionaba antes.
+    const con = await crearHistoriaConEtiquetasSinAncla(crear, base, etiquetas, ancla);
+    if (con.dropped.length < etiquetas.length) return { ...con, conPosicion: true };
+    const sin = await crearHistoriaConEtiquetasSinAncla(crear, base, etiquetas, null);
+    return { ...sin, conPosicion: false };
+  }
+  return { ...(await crearHistoriaConEtiquetasSinAncla(crear, base, etiquetas, null)), conPosicion: false };
+}
+
+async function crearHistoriaConEtiquetasSinAncla(
+  crear: (body: Record<string, string>) => Promise<string>,
+  base: Record<string, string>,
+  etiquetas: string[],
+  ancla: { x: number; y: number } | null,
 ): Promise<{ id: string; dropped: string[] }> {
   let intentos = 0;
   let ultimoOk: { lista: string[]; id: string } | null = null;
@@ -58,7 +95,7 @@ export async function crearHistoriaConEtiquetas(
     try {
       const id = await crear(
         lista.length > 0
-          ? { ...base, user_tags: JSON.stringify(lista.map((username) => ({ username }))) }
+          ? { ...base, user_tags: userTagsParam(lista, ancla) }
           : base,
       );
       ultimoOk = { lista, id };
@@ -246,6 +283,7 @@ export function createInstagramPublishProvider(options?: {
       let contenedorId: string;
       let droppedCollaborators: string[] = [];
       let etiquetasCaidas: string[] = [];
+      let etiquetasConPosicion = false;
 
       if (format === "CAROUSEL") {
         // Los hijos van pelados: caption y collaborators en un hijo hacen fallar
@@ -277,9 +315,11 @@ export function createInstagramPublishProvider(options?: {
           crearContenedor,
           baseHistoria,
           (input.userTags ?? []).filter(Boolean),
+          input.userTagAnchor ?? null,
         );
         contenedorId = resultado.id;
         etiquetasCaidas = resultado.dropped;
+        etiquetasConPosicion = resultado.conPosicion;
       } else {
         const baseImagen: Record<string, string> = {
           image_url: fotos[0]!.publicUrl as string,
@@ -325,6 +365,7 @@ export function createInstagramPublishProvider(options?: {
           format,
           ...(droppedCollaborators.length > 0 ? { droppedCollaborators } : {}),
           ...(etiquetasCaidas.length > 0 ? { droppedUserTags: etiquetasCaidas } : {}),
+          ...(format === "STORY" ? { userTagsWithPosition: etiquetasConPosicion } : {}),
         },
       };
     },
