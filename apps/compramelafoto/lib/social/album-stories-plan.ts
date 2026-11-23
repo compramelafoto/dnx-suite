@@ -11,16 +11,26 @@
  *   «Privacidad y acceso». Solo el «no» explícito queda guardado.
  * - Las fotos se eligen solas, repartidas a lo largo del álbum; si el fotógrafo marcó
  *   fotos para redes, se usan esas primero.
- * - Hasta 10 historias por día. Lo que no entra hoy queda en espera para los días
- *   siguientes, con un horizonte de 7 días.
+ * - Hasta 40 historias por día (4 por horario; pedido 2026-11-22: «siempre quiero que se
+ *   puedan subir muchas»). Lo que no entra hoy queda en espera para los días siguientes,
+ *   con un horizonte de 7 días.
  * - Salen solas a su hora; el admin puede sacarlas de la cola antes (veto).
  */
 
 /** Más de 50 fotos: con menos, el álbum no tiene volumen para una historia. */
 export const MIN_ALBUM_PHOTOS_FOR_STORY = 51;
 
-/** Tope diario de historias, sumando todos los álbumes. */
-export const MAX_STORIES_PER_DAY = 10;
+/**
+ * Cuántas historias pueden salir en un mismo horario. Salen seguidas en la misma corrida
+ * del cron (que procesa hasta 50 y tiene 5 minutos): quien mira las ve una tras otra.
+ */
+export const STORIES_PER_SLOT = 4;
+
+/**
+ * Tope diario de historias, sumando todos los álbumes: 10 horarios × 4 = 40. Meta deja 100
+ * publicaciones por API cada 24 h a la cuenta, y el worker frena solo si el cupo se agota.
+ */
+export const MAX_STORIES_PER_DAY = 40;
 
 /** Historias por álbum, cada una en un día distinto (pedido 2026-11-21). */
 export const STORIES_PER_ALBUM = 3;
@@ -48,6 +58,19 @@ export const STORY_SLOTS_ART = [
   "20:00",
   "21:00",
 ] as const;
+
+/**
+ * Los lugares de un día, en orden de llenado: primero una historia en cada horario, después
+ * la segunda de cada horario, y así. Las de un mismo horario se distinguen por milisegundos
+ * (10:00:00.000, 10:00:00.001…): para el cron de las 10 todas ya están vencidas.
+ */
+function lugaresDelDia(dateKey: string): Date[] {
+  const lugares: Date[] = [];
+  for (let k = 0; k < STORIES_PER_SLOT; k++) {
+    for (const hhmm of STORY_SLOTS_ART) lugares.push(new Date(slotInstant(dateKey, hhmm).getTime() + k));
+  }
+  return lugares;
+}
 
 /** Argentina no tiene horario de verano: UTC−3 fijo. */
 const ART_OFFSET_MS = -3 * 60 * 60 * 1000;
@@ -167,9 +190,8 @@ export function nextFreeStorySlots(
   for (let dia = 0; dia < horizonDays && libres.length < count; dia++) {
     const key = addDays(hoy, dia);
     let usados = porDia.get(key) ?? 0;
-    for (const hhmm of STORY_SLOTS_ART) {
+    for (const t of lugaresDelDia(key)) {
       if (libres.length >= count || usados >= MAX_STORIES_PER_DAY) break;
-      const t = slotInstant(key, hhmm);
       if (t.getTime() < now.getTime() + MIN_LEAD_MS) continue;
       if (ocupados.has(t.getTime())) continue;
       libres.push(t);
@@ -244,8 +266,7 @@ function primerHorarioLibre(taken: Date[], now: Date, desdeDia: string, hoy: str
     const key = addDays(hoy, dia);
     if (key < desdeDia) continue;
     if ((porDia.get(key) ?? 0) >= MAX_STORIES_PER_DAY) continue;
-    for (const hhmm of STORY_SLOTS_ART) {
-      const t = slotInstant(key, hhmm);
+    for (const t of lugaresDelDia(key)) {
       if (t.getTime() < now.getTime() + MIN_LEAD_MS) continue;
       if (!ocupados.has(t.getTime())) return t;
     }

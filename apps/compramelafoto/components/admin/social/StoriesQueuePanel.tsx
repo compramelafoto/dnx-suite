@@ -26,6 +26,21 @@ const fmtHora = new Intl.DateTimeFormat("es-AR", {
   minute: "2-digit",
 });
 
+/** Por qué un álbum elegido a mano no entra en la cola, en palabras del panel. */
+const MOTIVOS: Record<string, string> = {
+  ALREADY_GENERATED: "ya tiene sus historias armadas",
+  DELETED: "está borrado",
+  NOT_PUBLIC: "no es público",
+  HIDDEN: "está oculto",
+  SELFIE_PROTECTED: "está protegido con selfie",
+  TEST_ALBUM: "es un álbum de prueba",
+  SCHOOL_ALBUM: "es un álbum escolar",
+  NO_CONSENT: "el fotógrafo apagó la difusión en redes",
+  TOO_FEW_PHOTOS: "tiene 50 fotos o menos",
+  NO_PHOTOS: "no se pudieron leer sus fotos",
+  QUEUE_FULL: "la cola de la semana está llena",
+};
+
 export default function StoriesQueuePanel({
   status,
   queue,
@@ -39,6 +54,7 @@ export default function StoriesQueuePanel({
   const router = useRouter();
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  const [albumPedido, setAlbumPedido] = useState("");
 
   async function accion(id: string, action: "cancel" | "now") {
     setOcupado(id);
@@ -108,6 +124,33 @@ export default function StoriesQueuePanel({
     router.refresh();
   }
 
+  async function sumarAlbum() {
+    if (!albumPedido.trim()) return;
+    setOcupado("album");
+    setAviso(null);
+    const r = await fetch("/api/admin/social/stories/generate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ album: albumPedido.trim() }),
+    });
+    const d = await r.json().catch(() => null);
+    setOcupado(null);
+    if (!r.ok || !d) return setAviso(d?.error ?? "No se pudo armar ese álbum.");
+    if (d.reason === "NO_ACCOUNT") return setAviso("Primero hay que conectar la cuenta de Instagram.");
+    if (d.scheduled.length > 0) {
+      setAviso(`Listo: ${d.scheduled.length} historias del álbum ${d.albumId} en la cola.`);
+      setAlbumPedido("");
+    } else {
+      const motivo = Object.keys(d.skipped ?? {})[0];
+      setAviso(
+        d.failed.length
+          ? `El álbum ${d.albumId} falló al armarse: ${d.failed[0].error}`
+          : `El álbum ${d.albumId} no entra: ${MOTIVOS[motivo ?? ""] ?? "no cumple las condiciones"}.`,
+      );
+    }
+    router.refresh();
+  }
+
   const porDia = new Map<string, StoryQueueItem[]>();
   for (const item of queue) {
     const k = item.scheduleAt ? fmtDia.format(new Date(item.scheduleAt)) : "Sin horario";
@@ -120,8 +163,8 @@ export default function StoriesQueuePanel({
       <div>
         <h1 className="text-2xl font-bold text-gray-900 m-0">Historias de Instagram</h1>
         <p className="text-gray-600 mt-1 m-0">
-          Cada mañana a las 08:00 se arman 3 historias por cada álbum público de más de 50 fotos, una
-          por día y con fotos distintas. Entre todos los álbumes salen hasta 10 por día (10, 11, 12,
+          A las 08, 09, 12 y 15 h se arman 3 historias por cada álbum público de más de 50 fotos (hasta 5 álbumes por vez), una
+          por día y con fotos distintas. Entre todos los álbumes salen hasta 40 por día, hasta 4 juntas en cada horario (10, 11, 12,
           13, 14, 16, 18, 19, 20 y 21 h); primero va la historia 1 de cada álbum nuevo. Salen solas a
           su hora; podés sacar cualquiera antes.
         </p>
@@ -164,6 +207,36 @@ export default function StoriesQueuePanel({
         </button>
         <span className="text-sm text-gray-500">{enCola} en cola</span>
       </div>
+
+      <form
+        className="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white p-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          sumarAlbum();
+        }}
+      >
+        <label htmlFor="album-a-sumar" className="text-sm font-medium text-gray-800">
+          Sumar un álbum a la cola
+        </label>
+        <input
+          id="album-a-sumar"
+          value={albumPedido}
+          onChange={(e) => setAlbumPedido(e.target.value)}
+          placeholder="Número o link del álbum (ej.: 1052)"
+          className="min-w-[16rem] flex-1 rounded-md border border-gray-300 px-3 py-1.5 text-sm"
+        />
+        <button
+          type="submit"
+          disabled={!status.connected || ocupado !== null || !albumPedido.trim()}
+          className="rounded-md bg-[#c27b3d] px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {ocupado === "album" ? "Armando…" : "Armar sus historias"}
+        </button>
+        <p className="w-full text-xs text-gray-500">
+          Para eventos que no son de los últimos días. Se arman sus 3 historias en los próximos horarios libres, con las
+          mismas reglas: público, más de 50 fotos, no escolar ni protegido con selfie.
+        </p>
+      </form>
 
       {!status.live ? (
         <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">

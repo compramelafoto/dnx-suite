@@ -94,8 +94,8 @@ describe("nextFreeStorySlots", () => {
     expect(primero!.toISOString()).toBe("2026-11-21T13:00:00.000Z");
   });
 
-  it("nunca pone más de 10 en un día y pasa el resto a los días siguientes", () => {
-    const slots = nextFreeStorySlots([], ahora, 25);
+  it("nunca pone más de 40 en un día y pasa el resto a los días siguientes", () => {
+    const slots = nextFreeStorySlots([], ahora, 100);
     const porDia = new Map<string, number>();
     for (const s of slots) porDia.set(artDateKey(s), (porDia.get(artDateKey(s)) ?? 0) + 1);
     expect([...porDia.values()].every((n) => n <= MAX_STORIES_PER_DAY)).toBe(true);
@@ -103,7 +103,7 @@ describe("nextFreeStorySlots", () => {
   });
 
   it("respeta lo ya agendado y no repite horario", () => {
-    const yaHoy = nextFreeStorySlots([], ahora, 8);
+    const yaHoy = nextFreeStorySlots([], ahora, 38);
     const siguientes = nextFreeStorySlots(yaHoy, ahora, 3);
     expect(artDateKey(siguientes[0]!)).toBe("2026-11-21");
     expect(artDateKey(siguientes[2]!)).toBe("2026-11-22");
@@ -132,7 +132,7 @@ describe("nextFreeStorySlots", () => {
 
   it("con la semana llena no devuelve nada", () => {
     const semana = nextFreeStorySlots([], ahora, 1000);
-    expect(semana).toHaveLength(70);
+    expect(semana).toHaveLength(280);
     expect(nextFreeStorySlots(semana, ahora, 1)).toHaveLength(0);
   });
 });
@@ -155,19 +155,28 @@ describe("planAlbumStories: 3 historias por álbum en días distintos", () => {
     }
   });
 
-  it("nunca más de 10 por día, sumando todos los álbumes", () => {
-    const plan = planAlbumStories([], ahora, 12).flat();
+  it("nunca más de 40 por día, sumando todos los álbumes", () => {
+    const plan = planAlbumStories([], ahora, 50).flat();
     const porDia = new Map<string, number>();
     for (const s of plan) porDia.set(artDateKey(s), (porDia.get(artDateKey(s)) ?? 0) + 1);
     expect(Math.max(...porDia.values())).toBeLessThanOrEqual(MAX_STORIES_PER_DAY);
   });
 
-  it("primero va la historia 1 de cada álbum: con 12 álbumes, hoy salen 10 historias 1", () => {
-    const plan = planAlbumStories([], ahora, 12);
+  it("primero va la historia 1 de cada álbum: con 45 álbumes, hoy salen 40 historias 1", () => {
+    const plan = planAlbumStories([], ahora, 45);
     const hoy = plan.flat().filter((s) => artDateKey(s) === "2026-11-21");
-    expect(hoy).toHaveLength(10);
-    // Las 10 de hoy son la primera historia de los 10 primeros álbumes.
-    for (let a = 0; a < 10; a++) expect(artDateKey(plan[a]![0]!)).toBe("2026-11-21");
+    expect(hoy).toHaveLength(40);
+    // Las 40 de hoy son la primera historia de los 40 primeros álbumes.
+    for (let a = 0; a < 40; a++) expect(artDateKey(plan[a]![0]!)).toBe("2026-11-21");
+  });
+
+  it("primero llena un lugar por horario y recién después repite horario", () => {
+    const hoy = nextFreeStorySlots([], ahora, 12);
+    const horas = hoy.map((d) => d.toISOString().slice(11, 16));
+    expect(new Set(horas.slice(0, 10)).size).toBe(10);
+    // La 11.ª y la 12.ª vuelven a las 10:00 y 11:00, un milisegundo después.
+    expect(hoy[10]!.getTime() - hoy[0]!.getTime()).toBe(1);
+    expect(hoy[11]!.getTime() - hoy[1]!.getTime()).toBe(1);
   });
 
   it("respeta lo que ya estaba agendado", () => {
@@ -179,7 +188,7 @@ describe("planAlbumStories: 3 historias por álbum en días distintos", () => {
   });
 
   it("si la semana está llena, el álbum se queda con menos historias en vez de esperar", () => {
-    const llena = planAlbumStories([], ahora, 30).flat(); // satura los 7 días
+    const llena = planAlbumStories([], ahora, 120).flat(); // satura los 7 días (40 por día)
     const [nuevo] = planAlbumStories(llena, ahora, 1);
     expect(nuevo!.length).toBeLessThan(3);
   });
