@@ -173,7 +173,16 @@ export default function PreventaCanjeFlow({
   const [email, setEmail] = useState("");
   const [telefono, setTelefono] = useState("");
   const [paso, setPaso] = useState<Paso>("intro");
-  const [filled, setFilled] = useState<Array<number | null>>(() => emptyCanjeFill(plan));
+  /** Modo fotógrafo: la grupal del curso va puesta de entrada en los lugares grupales. */
+  const conGrupalDelCurso = useCallback(
+    (fill: Array<number | null>, p: typeof plan) => {
+      const g = modoFotografo?.grupalDelCurso;
+      if (g == null || !photos.some((x) => x.id === g)) return fill;
+      return fill.map((v, i) => (v == null && p.slots[i]?.role === "group" ? g : v));
+    },
+    [modoFotografo?.grupalDelCurso, photos]
+  );
+  const [filled, setFilled] = useState<Array<number | null>>(() => conGrupalDelCurso(emptyCanjeFill(plan), plan));
   /** Cómo acomodó la familia la foto de cada lugar en la vista del librito. */
   const [crops, setCrops] = useState<Record<number, CanjeCropEntry>>({});
   const hayLibrito = designs.length > 0;
@@ -286,7 +295,8 @@ export default function PreventaCanjeFlow({
   function elegirModo(mismas: boolean) {
     if (mismas !== mismasFotos) {
       setMismasFotos(mismas);
-      setFilled(emptyCanjeFill(buildCanjeSlotPlan(pack.benefits, { mismasFotos: mismas })));
+      const nuevo = buildCanjeSlotPlan(pack.benefits, { mismasFotos: mismas });
+      setFilled(conGrupalDelCurso(emptyCanjeFill(nuevo), nuevo));
       setCrops({});
       setDestino(null);
     }

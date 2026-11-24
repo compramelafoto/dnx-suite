@@ -31,6 +31,7 @@ import { fechaAvisoFotosListas } from "@/lib/preventa-canjeable/aviso-fotos-list
 import { textoCurso } from "@/lib/schools/embudo-pedidos-escolares";
 import { familiaPuedeElegir } from "@/lib/schools/quien-elige-las-fotos";
 import { cargarRegla } from "@/lib/schools/quien-elige-las-fotos-server";
+import { claveDeCurso } from "@/lib/schools/grupal-del-curso";
 
 export const dynamic = "force-dynamic";
 
@@ -492,6 +493,21 @@ export default async function PreventaCanjePage({
     if (!extras.digital && !extras.impresa && !extras.librito) extras = null;
   }
 
+  // Modo fotógrafo: la grupal que ya eligió para este curso viene puesta (si sigue en el álbum).
+  const claveCurso = claveDeCurso(
+    preCompra?.schoolCourse ?? (externo?.courseName ? { name: externo.courseName, division: null } : null)
+  );
+  const grupalGuardada =
+    modoFotografo && claveCurso
+      ? await prisma.schoolCourseGroupPhoto
+          .findUnique({
+            where: { albumId_courseKey: { albumId: album.id, courseKey: claveCurso } },
+            select: { photoId: true },
+          })
+          .catch(() => null)
+      : null;
+  const grupalDelCurso = grupalGuardada && allowed.has(grupalGuardada.photoId) ? grupalGuardada.photoId : null;
+
   return (
     <ProtectedAlbumWrapper albumId={album.id} enableProtection>
       {modoFotografo ? (
@@ -531,7 +547,7 @@ export default async function PreventaCanjePage({
         pedirContacto={!modoFotografo && isPlaceholderEmail(order.buyerEmail)}
         extras={extras}
         modoPrueba={modoPrueba}
-        modoFotografo={modoFotografo ? { packOrderId: order.id, grupalDelCurso: null } : undefined}
+        modoFotografo={modoFotografo ? { packOrderId: order.id, grupalDelCurso } : undefined}
         cursosParaSumar={cursosParaSumarAlListado}
         comprador={{
           nombre: familia ?? "",

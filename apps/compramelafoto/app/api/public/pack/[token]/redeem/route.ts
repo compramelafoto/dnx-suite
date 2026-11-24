@@ -17,6 +17,36 @@ import { getAuthUser } from "@/lib/auth";
 import { puedeUsarPackDePrueba } from "@/lib/canje-externo/reiniciar-pack-de-prueba";
 import { familiaPuedeElegir } from "@/lib/schools/quien-elige-las-fotos";
 import { cargarRegla } from "@/lib/schools/quien-elige-las-fotos-server";
+import { claveDeCurso, grupalParaGuardar } from "@/lib/schools/grupal-del-curso";
+import { parseExternalPreventaRefs } from "@/lib/canje-externo/external-preventa";
+import { parsePreCompraOrderIdFromPaymentRef } from "@/lib/preventa-canjeable/preventa-redeem-url";
+
+/** Guarda la grupal que eligió el fotógrafo para el curso del pack (se propone en el resto). */
+async function recordarGrupalDelCurso(opts: {
+  albumId: number;
+  preCompraPaymentRef: string | null;
+  redemptionPaymentRefsJson: unknown;
+  photoId: number;
+  userId: number;
+}) {
+  const preCompraId = parsePreCompraOrderIdFromPaymentRef(opts.preCompraPaymentRef);
+  const preCompra = preCompraId
+    ? await prisma.preCompraOrder.findUnique({
+        where: { id: preCompraId },
+        select: { schoolCourse: { select: { name: true, division: true } } },
+      })
+    : null;
+  const externo = parseExternalPreventaRefs(opts.redemptionPaymentRefsJson);
+  const courseKey = claveDeCurso(
+    preCompra?.schoolCourse ?? (externo?.courseName ? { name: externo.courseName, division: null } : null)
+  );
+  if (!courseKey) return;
+  await prisma.schoolCourseGroupPhoto.upsert({
+    where: { albumId_courseKey: { albumId: opts.albumId, courseKey } },
+    create: { albumId: opts.albumId, courseKey, photoId: opts.photoId, chosenByUserId: opts.userId },
+    update: { photoId: opts.photoId, chosenByUserId: opts.userId },
+  });
+}
 
 /** El pack ya tiene canje: ¿lo hizo el fotógrafo o la familia? */
 async function yaElegido(preventaOrderId: number) {
@@ -113,6 +143,8 @@ export async function POST(req: Request, { params }: RouteParams) {
       preventaPackSnapshotJson: true,
       albumId: true,
       album: { select: { userId: true } },
+      preCompraPaymentRef: true,
+      redemptionPaymentRefsJson: true,
     },
   });
   if (!pack) return NextResponse.json({ error: "token_invalid" }, { status: 404 });
@@ -195,6 +227,19 @@ export async function POST(req: Request, { params }: RouteParams) {
           },
         })
         .catch((err) => console.error("[preventa_redeem] chosen_by_photographer_failed", { err }));
+      const grupal = grupalParaGuardar(
+        parsed.data.grupalElegida,
+        parsed.data.selections.flatMap((s) => s.units.flat())
+      );
+      if (grupal != null && pack.albumId) {
+        await recordarGrupalDelCurso({
+          albumId: pack.albumId,
+          preCompraPaymentRef: pack.preCompraPaymentRef,
+          redemptionPaymentRefsJson: pack.redemptionPaymentRefsJson,
+          photoId: grupal,
+          userId: fotografo.id,
+        }).catch((err) => console.error("[preventa_redeem] group_photo_failed", { err }));
+      }
     }
     const baseUrl = (process.env.APP_URL || new URL(req.url).origin).replace(/\/+$/, "");
     const { downloadUrl } = await completePreventaRedemption(
