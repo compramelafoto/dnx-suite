@@ -141,9 +141,12 @@ async function cargarCandidatos(photographerId: number, ids?: number[]): Promise
   return salida;
 }
 
-export async function listarParaImprimir(photographerId: number): Promise<PedidoParaImprimir[]> {
+/** «Para imprimir» del fotógrafo, con el correo y el teléfono del cliente (los usa el buscador del panel). */
+export async function listarParaImprimir(photographerId: number): Promise<Array<PedidoParaImprimir & { email: string; telefono: string | null }>> {
   const candidatos = await cargarCandidatos(photographerId);
-  return candidatos.map(({ buyerEmail: _e, buyerPhone: _p, loteVivo: _l, espejoResuelto: _r, itemsImpresos: _i, r2Keys: _k, ...p }) => p);
+  return candidatos.map(({ buyerEmail, buyerPhone, loteVivo: _l, espejoResuelto: _r, itemsImpresos: _i, r2Keys: _k, ...p }) => ({
+    ...p, email: buyerEmail, telefono: buyerPhone,
+  }));
 }
 
 /** El primer pedido al que le falta algún original en R2, o null. */

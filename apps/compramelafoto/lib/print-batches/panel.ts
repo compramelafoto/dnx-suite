@@ -20,6 +20,9 @@ export type PedidoDelPanel = {
   pickupLabContactId: number | null;
   pagadoAt: string;
   motivo: string | null;
+  /** Del cliente: sólo para buscar (el fotógrafo ya los ve en el detalle del pedido). */
+  email?: string | null;
+  telefono?: string | null;
 };
 
 /** Un pedido dentro de un lote. `codigoQr` es el del sobre (para abrir /pedido/entrega/<codigo>). */

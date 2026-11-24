@@ -53,6 +53,7 @@ export async function datosDelPanel(photographerId: number, ahora = new Date()):
     paraImprimir: paraImprimir.map((p) => ({
       albumOrderId: p.albumOrderId, cliente: p.cliente, album: p.album, copias: p.copias, totalCopias: p.totalCopias,
       retiraCliente: p.retiraCliente, pickupLabContactId: p.pickupLabContactId, pagadoAt: p.pagadoAt.toISOString(), motivo: p.motivo,
+      email: p.email, telefono: p.telefono,
     })),
     lotes: lotes.map((b): LoteDelPanel => ({
       id: b.id, nombre: b.nombre, estado: b.estado as EstadoLote, entregaPreferida: b.entregaPreferida,
