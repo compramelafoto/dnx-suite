@@ -3,6 +3,7 @@ import {
   isLikelyMobileUploadDevice,
   resolveAlbumPhotoContentType,
 } from "@/lib/albums/album-photo-content-type";
+import { transplantExif } from "@/lib/albums/jpeg-exif";
 
 /** Objetivo bajo el límite del proxy en Vercel (~4 MB). */
 export const MOBILE_PROXY_TARGET_BYTES = Math.floor(
@@ -133,8 +134,15 @@ async function compressImageForMobileProxy(file: File): Promise<File | null> {
       return null;
     }
 
+    // Conserva fecha de captura y datos de la cámara (el canvas los borra).
+    const withExif = transplantExif(
+      new Uint8Array(await file.arrayBuffer()),
+      new Uint8Array(await bestBlob.arrayBuffer())
+    );
+    if (withExif.byteLength > ALBUM_PHOTO_PROXY_UPLOAD_MAX_BYTES) return null;
+
     const baseName = file.name.replace(/\.[^.]+$/, "") || "foto";
-    return new File([bestBlob], `${baseName}.jpg`, {
+    return new File([withExif as BlobPart], `${baseName}.jpg`, {
       type: "image/jpeg",
       lastModified: file.lastModified,
     });
