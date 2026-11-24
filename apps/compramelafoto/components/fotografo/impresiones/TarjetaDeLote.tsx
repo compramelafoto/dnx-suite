@@ -7,6 +7,7 @@ import {
   faseDelLote,
   fechaDelPanel,
   seguimientoDelLote,
+  sePuedeSacar,
   textoDeCopiasDelPanel,
   textoDeLaFase,
   type EntradaDelPanel,
@@ -109,7 +110,7 @@ export default function TarjetaDeLote({ lote, resaltado, ocupado, onEnviar, onDe
                   QR · entregar
                 </a>
               ) : null}
-              {acciones.quitar && !e.entregadoAt ? (
+              {acciones.quitar && sePuedeSacar(e) ? (
                 <button type="button" disabled={ocupado} onClick={() => onQuitar(lote, e)} className="text-[11px] text-gray-500 hover:text-red-700 hover:underline disabled:opacity-50">
                   Sacar del lote
                 </button>

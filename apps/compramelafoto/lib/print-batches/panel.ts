@@ -181,19 +181,46 @@ export function seguimientoDelLote(l: Pick<LoteDelPanel, "enviadoAt" | "labAbrio
   return pasos.filter((p): p is [string, string] => p[1] != null).map(([texto, cuando]) => ({ texto, cuando: fechaYHoraDelPanel(cuando) }));
 }
 
+/** Estados en los que el laboratorio todavía tiene el lote en sus manos. */
+export const EN_MANOS_DEL_LAB: readonly EstadoLote[] = ["ENVIADO", "EN_PRODUCCION", "LISTO", "DESPACHADO"];
+
+/**
+ * Si al sacar este pedido del lote hay que avisarle al laboratorio: el lote se le envió, tiene a quién
+ * escribirle y las copias siguen allá (lote en sus manos, o recibido con un pedido que retira el
+ * cliente en el laboratorio). Lo usan el servidor (para mandar el correo) y la pantalla (para decirlo).
+ */
+export function avisaAlLabAlSacar(
+  l: { estado: EstadoLote; enviadoAt: Date | string | null; porFuera?: boolean; laboratorio: string | null },
+  e: { retiraCliente: boolean },
+): boolean {
+  if (l.porFuera || l.enviadoAt == null || !l.laboratorio?.trim()) return false;
+  return EN_MANOS_DEL_LAB.includes(l.estado) || (l.estado === "RECIBIDO" && e.retiraCliente);
+}
+
+/** Un pedido se puede sacar del lote si todavía no se entregó (tampoco por la ruta vieja de pedidos). */
+export function sePuedeSacar(e: Pick<EntradaDelPanel, "entregadoAt" | "estadoPedido">): boolean {
+  return e.entregadoAt == null && !(e.estadoPedido != null && ESPEJO_ENTREGADO.includes(e.estadoPedido));
+}
+
 /**
  * Lo que se pregunta antes de sacar un pedido de un lote. Si el lote ya salió, avisa que el
  * laboratorio puede haberlo impreso (y si ya descargó las fotos, cuándo).
  */
-export function confirmacionAlSacar(l: Pick<LoteDelPanel, "nombre" | "estado" | "enviadoAt" | "labDescargoAt" | "porFuera">, albumOrderId: number | null): string {
-  const pedido = albumOrderId != null ? `el pedido #${albumOrderId}` : "este pedido";
+export function confirmacionAlSacar(
+  l: Pick<LoteDelPanel, "nombre" | "estado" | "enviadoAt" | "labDescargoAt" | "porFuera" | "laboratorio">,
+  e: Pick<EntradaDelPanel, "albumOrderId" | "retiraCliente">,
+): string {
+  const pedido = e.albumOrderId != null ? `el pedido #${e.albumOrderId}` : "este pedido";
   if (l.estado === "ARMADO") return `¿Sacar ${pedido} del ${l.nombre}? Vuelve a «Para imprimir».`;
   if (l.porFuera) return `¿Sacar ${pedido} de «${l.nombre}»? Deja de figurar como impreso y vuelve a «Para imprimir».`;
   const descargo = l.labDescargoAt ? ` y descargó las fotos el ${fechaYHoraDelPanel(l.labDescargoAt)}` : "";
+  const despues = avisaAlLabAlSacar(l, e)
+    ? "Vuelve a «Para imprimir» y le avisamos al laboratorio por correo que no lo imprima."
+    : "Vuelve a «Para imprimir».";
   return [
     `Atención: el ${l.nombre} ya se envió al laboratorio${l.enviadoAt ? ` el ${fechaDelPanel(l.enviadoAt)}` : ""}${descargo}. Puede que ya lo hayan impreso.`,
     "",
-    `¿Sacar ${pedido} del lote igual? Vuelve a «Para imprimir» y le avisamos al laboratorio por correo que no lo imprima.`,
+    `¿Sacar ${pedido} del lote igual? ${despues}`,
   ].join("\n");
 }
 

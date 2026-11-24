@@ -9,6 +9,7 @@ import TarjetaDeLote from "./TarjetaDeLote";
 import DialogoEnviarLote, { type DatosDeEnvio } from "./DialogoEnviarLote";
 import {
   agruparEnElLaboratorio,
+  avisaAlLabAlSacar,
   columnaDelLote,
   confirmacionAlMover,
   confirmacionAlSacar,
@@ -293,9 +294,9 @@ export default function PanelImpresiones() {
   }
 
   function quitar(lote: LoteDelPanel, e: EntradaDelPanel) {
-    if (!window.confirm(confirmacionAlSacar(lote, e.albumOrderId))) return;
+    if (!window.confirm(confirmacionAlSacar(lote, e))) return;
     const n = e.albumOrderId != null ? ` #${e.albumOrderId}` : "";
-    const lab = lote.estado !== "ARMADO" && !lote.porFuera && ["ENVIADO", "EN_PRODUCCION", "LISTO", "DESPACHADO"].includes(lote.estado);
+    const lab = avisaAlLabAlSacar(lote, e);
     void accion(
       `/api/fotografo/impresiones/entradas/${e.id}`,
       { motivo: "SACAR" },

@@ -22,6 +22,8 @@ import {
   NOTA_PARA_IMPRIMIR,
   agruparEnElLaboratorio,
   confirmacionAlSacar,
+  avisaAlLabAlSacar,
+  sePuedeSacar,
   esImpresoPorFuera,
   faseDelLote,
   fechaYHoraDelPanel,
@@ -282,15 +284,31 @@ test("fechaYHoraDelPanel y seguimientoDelLote: sólo lo que ya pasó, en hora ar
 });
 
 test("confirmacionAlSacar: si el lote ya salió avisa que el laboratorio puede haberlo impreso", () => {
+  const e = { albumOrderId: 15, retiraCliente: false };
   const armado = lote(1, "ARMADO", []);
-  assert.match(confirmacionAlSacar(armado, 15), /^¿Sacar el pedido #15 del Lote 1/);
-  assert.doesNotMatch(confirmacionAlSacar(armado, 15), /Atención/);
-  const enviado = { ...lote(2, "ENVIADO", []), enviadoAt: "2026-11-22T15:00:00.000Z", labDescargoAt: "2026-11-23T17:05:00.000Z" };
-  const t = confirmacionAlSacar(enviado, 15);
+  assert.match(confirmacionAlSacar(armado, e), /^¿Sacar el pedido #15 del Lote 1/);
+  assert.doesNotMatch(confirmacionAlSacar(armado, e), /Atención/);
+  const enviado = { ...lote(2, "ENVIADO", []), laboratorio: "Procolor", enviadoAt: "2026-11-22T15:00:00.000Z", labDescargoAt: "2026-11-23T17:05:00.000Z" };
+  const t = confirmacionAlSacar(enviado, e);
   assert.match(t, /ya se envió al laboratorio el 22\/11 y descargó las fotos el 23\/11 14:05/);
   assert.match(t, /Puede que ya lo hayan impreso/);
   assert.match(t, /le avisamos al laboratorio por correo/);
-  assert.match(confirmacionAlSacar({ ...lote(3, "RECIBIDO", []), porFuera: true }, 15), /Deja de figurar como impreso/);
+  // Recibido: sólo se le escribe al laboratorio si el cliente retira allá (las copias siguen ahí).
+  const recibido = { ...enviado, estado: "RECIBIDO" as const };
+  assert.doesNotMatch(confirmacionAlSacar(recibido, e), /le avisamos/);
+  assert.match(confirmacionAlSacar(recibido, { ...e, retiraCliente: true }), /le avisamos/);
+  assert.match(confirmacionAlSacar({ ...lote(3, "RECIBIDO", []), porFuera: true }, e), /Deja de figurar como impreso/);
+});
+
+test("avisaAlLabAlSacar y sePuedeSacar", () => {
+  const l = { estado: "LISTO" as const, enviadoAt: "2026-11-22T15:00:00.000Z", laboratorio: "Procolor" };
+  assert.equal(avisaAlLabAlSacar(l, { retiraCliente: false }), true);
+  assert.equal(avisaAlLabAlSacar({ ...l, laboratorio: null }, { retiraCliente: false }), false);
+  assert.equal(avisaAlLabAlSacar({ ...l, enviadoAt: null }, { retiraCliente: false }), false);
+  assert.equal(avisaAlLabAlSacar({ ...l, porFuera: true }, { retiraCliente: false }), false);
+  assert.equal(sePuedeSacar(entrada(1)), true);
+  assert.equal(sePuedeSacar(entrada(1, { entregadoAt: "2026-11-23T10:00:00.000Z" })), false);
+  assert.equal(sePuedeSacar(entrada(1, { estadoPedido: "DELIVERED" })), false);
 });
 
 test("esImpresoPorFuera y accionesDelLote: sin laboratorio no se mueve ni se paga, sólo se saca", () => {
