@@ -47,3 +47,20 @@ export function resolveAvailableFormats(input: FormatsInput): AvailableFormats {
     preferred: digital ? "digital" : print ? "impresa" : null,
   };
 }
+
+/**
+ * Ajusta el formato guardado de una foto a lo que se puede vender hoy.
+ *
+ * La pantalla de compra arma (y guarda en el navegador) los ítems antes de que
+ * llegue la configuración del álbum, así que una foto podía quedar como
+ * "digital" en un álbum que sólo vende impresas. El selector mostraba
+ * "Impresa" —la única opción—, pero el precio se calculaba como digital: $0.
+ */
+export function fitTipoToFormats(
+  tipo: "digital" | "impresa" | null | undefined,
+  formats: AvailableFormats
+): "digital" | "impresa" {
+  if (tipo === "digital" && formats.digital) return "digital";
+  if (tipo === "impresa" && formats.print) return "impresa";
+  return formats.preferred ?? tipo ?? "digital";
+}
