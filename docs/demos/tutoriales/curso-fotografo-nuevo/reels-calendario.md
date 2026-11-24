@@ -136,3 +136,12 @@ Cada reel es un tramo vertical de una clase del curso, con la voz de Daniel, sub
 
 **32 · S32 · Tu álbum en las historias de Instagram.** ComprameLaFoto publica historias de tu álbum en su Instagram, gratis y con tu etiqueta. Sumá al organizador para que la comparta. 🎬 El curso completo, gratis: compramelafoto.com/tutoriales
 #instagram #fotografiadeeventos #compramelafoto
+
+## Capítulo 10 · Para tu laboratorio (S33–S36, 19:00)
+
+| Fecha | Reel | Título | Clase | Texto |
+|---|---|---|---|---|
+| 31/12 | S33 | ¿Sos laboratorio? Así recibís un lote | C27 | ¿Imprimís para fotógrafos? Te llega un correo, abrís el lote sin cuenta y bajás todas las fotos en un ZIP. 🎬 Mandale el curso a tu laboratorio: compramelafoto.com/tutoriales #laboratoriofotografico #fotosimpresas #compramelafoto |
+| 01/01 | S34 | Cuántas copias imprimir, sin errores | C27 | Una carpeta por medida y acabado, y cada foto dice el número de pedido y cuántas copias van: «2x» son dos. Imposible equivocarse. 🎬 Mandale el curso a tu laboratorio: compramelafoto.com/tutoriales #laboratoriofotografico #impresionfotografica #compramelafoto |
+| 02/01 | S35 | «Retira el cliente»: qué quiere decir | C28 | Si el pedido dice «Retira el cliente», esa persona pasa por tu local y ya pagó: no le cobres nada. Del cliente solo ves el nombre. 🎬 Mandale el curso a tu laboratorio: compramelafoto.com/tutoriales #laboratoriofotografico #fotografos #compramelafoto |
+| 03/01 | S36 | Entregá con el QR del sobre | C28 | Cuando viene el cliente, escaneás el QR del sobre y tocás «Marcar entregado». El fotógrafo lo ve al instante. 🎬 Mandale el curso a tu laboratorio: compramelafoto.com/tutoriales #laboratoriofotografico #codigoqr #compramelafoto |
