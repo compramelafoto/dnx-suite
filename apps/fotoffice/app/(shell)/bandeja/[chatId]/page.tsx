@@ -17,6 +17,7 @@ import { hrefBandeja, leerFiltros } from "@/lib/bandeja/filtros";
 import { detalleChat } from "@/lib/bandeja/lecturas";
 import { requireBandeja } from "@/lib/bandeja/pagina";
 import { plantillasDelChat } from "@/lib/bandeja/plantillas";
+import { listarRespuestas } from "@/lib/bandeja/respuestas-rapidas";
 
 export const dynamic = "force-dynamic";
 
@@ -41,9 +42,10 @@ export default async function ChatPage({
 
   const ultimo = chat.mensajes[chat.mensajes.length - 1];
   // Plantillas aprobadas de Meta (sólo WhatsApp): fuera de las 24 h es la única forma de escribir.
-  const [plantillas, personas] = await Promise.all([
+  const [plantillas, personas, respuestas] = await Promise.all([
     puedeOperar && chat.canal !== "INSTAGRAM" ? plantillasDelChat(ctx, chat.id) : Promise.resolve([]),
     puedeOperar ? personasDeLaBandeja(ctx.workspaceId) : Promise.resolve([]),
+    puedeOperar ? listarRespuestas(ctx) : Promise.resolve([]),
   ]);
   const panelCliente = (
     <PanelDelCliente
@@ -130,7 +132,14 @@ export default async function ChatPage({
         <footer className="space-y-2 border-t border-[var(--fo-border)] p-3 sm:p-4">
           {puedeOperar ? (
             <>
-              <CajaDeRespuesta chatId={chat.id} dentroDeVentana={chat.dentroDeVentana} ultimoMensajeId={ultimo?.id ?? null} canal={chat.canal} />
+              <CajaDeRespuesta
+                chatId={chat.id}
+                dentroDeVentana={chat.dentroDeVentana}
+                ultimoMensajeId={ultimo?.id ?? null}
+                canal={chat.canal}
+                respuestas={respuestas ?? []}
+                nombreCliente={chat.cliente?.nombre ?? chat.nombrePerfil}
+              />
               {chat.canal !== "INSTAGRAM" ? (
                 <details open={!chat.dentroDeVentana} className="text-sm">
                   <summary className="cursor-pointer text-[var(--fo-accent-hover)]">Enviar una plantilla</summary>

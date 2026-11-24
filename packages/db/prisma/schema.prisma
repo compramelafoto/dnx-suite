@@ -27313,6 +27313,11 @@ model FotofficeWaChat {
   noLeidos         Int       @default(0)
   /// Quién lo marcó como resuelto (filtro «Resueltos de …»). Se borra al reabrirse.
   resueltoPorUserId Int?
+  /// Resumen de la conversación (lo arma Claude al derivar o a pedido), hasta 800 caracteres, y cuándo.
+  resumen          String?
+  resumenEn        DateTime?
+  /// A quién se le derivó y todavía no lo abrió (marca «Nuevo para vos» y el punto del menú).
+  derivadoSinVerUserId Int?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -29669,4 +29674,20 @@ model StolenGearMatch {
   @@unique([reportId, sightingId])
   @@index([status])
   @@index([notifiedAt])
+}
+
+/// Respuesta rápida de la Bandeja de WhatsApp (FOTOFFICE): un texto guardado con atajo (`/carnet`).
+model FotofficeWaRespuestaRapida {
+  id          String   @id @default(cuid())
+  workspaceId String
+  /// Minúsculas, sin espacios, hasta 30. Único por workspace.
+  atajo       String
+  titulo      String
+  texto       String
+  orden       Int      @default(0)
+  activa      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([workspaceId, atajo])
 }

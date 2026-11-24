@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useId, useRef, useState } from "react";
 import { agregarNotaAction, responderAction } from "@/app/actions/bandeja";
+import { aplicarVariables, filtrarRespuestas, type RespuestaRapida } from "@/lib/bandeja/respuestas-rapidas-puro";
 
 const MAXIMO = 4096;
 const AVISO_FUERA_DE_VENTANA =
@@ -21,7 +22,13 @@ export function CajaDeRespuesta({
   dentroDeVentana,
   ultimoMensajeId,
   canal = "WHATSAPP",
+  respuestas = [],
+  nombreCliente = null,
 }: {
+  /** Respuestas rápidas del workspace: «/» al principio o el botón ⚡ las abren; elegir inserta el texto. */
+  respuestas?: RespuestaRapida[];
+  /** Para `{nombre}` en las respuestas rápidas. */
+  nombreCliente?: string | null;
   chatId: string;
   dentroDeVentana: boolean;
   /** Sólo cambia el aviso fuera de la ventana: Instagram no tiene plantillas. */
@@ -42,6 +49,14 @@ export function CajaDeRespuesta({
   const envioEnCurso = useRef<{ token: string; texto: string } | null>(null);
 
   const [modo, setModo] = useState<"responder" | "nota">("responder");
+  const [rapidasAbiertas, setRapidasAbiertas] = useState(false);
+  // «/algo» al principio (sin espacios) filtra la lista; el botón ⚡ la abre completa.
+  const porBarra = /^\/[^\s]*$/.test(texto);
+  const visibles = respuestas.length > 0 && (porBarra || rapidasAbiertas) ? filtrarRespuestas(respuestas, porBarra ? texto.slice(1) : "").slice(0, 8) : [];
+  function elegirRapida(r: RespuestaRapida) {
+    setTexto(aplicarVariables(r.texto, { nombre: nombreCliente }));
+    setRapidasAbiertas(false);
+  }
   const vacio = texto.trim().length === 0;
   const nota = modo === "nota";
 
@@ -153,6 +168,22 @@ export function CajaDeRespuesta({
           </div>
         </div>
       ) : null}
+      {visibles.length > 0 ? (
+        <ul role="listbox" aria-label="Respuestas rápidas" className="max-h-56 overflow-y-auto rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-[var(--fo-surface)] p-1 shadow-sm">
+          {visibles.map((r) => (
+            <li key={r.id}>
+              <button type="button" role="option" aria-selected={false} className="block w-full rounded-[var(--fo-radius-sm)] px-3 py-1.5 text-left hover:bg-[var(--fo-surface-hover)]" onClick={() => elegirRapida(r)}>
+                <span className="text-sm font-medium">
+                  <span className="text-[var(--fo-accent-hover)]">/{r.atajo}</span> · {r.titulo}
+                </span>
+                <span className="block truncate text-xs text-[var(--fo-muted)]">{r.texto}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : porBarra && respuestas.length > 0 ? (
+        <p className="text-xs text-[var(--fo-muted)]">No hay respuestas rápidas con ese atajo.</p>
+      ) : null}
       <label htmlFor={idTexto} className="sr-only">
         {nota ? "Nota interna" : "Respuesta"}
       </label>
@@ -167,7 +198,12 @@ export function CajaDeRespuesta({
         placeholder={nota ? "Sólo la ve el equipo: no le llega al cliente ni la lee el bot" : "Escribí tu respuesta"}
       />
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs text-[var(--fo-muted)]" aria-live="off">
+        <span className="flex items-center gap-3 text-xs text-[var(--fo-muted)]" aria-live="off">
+          {respuestas.length > 0 ? (
+            <button type="button" className="rounded-full px-2 py-0.5 hover:bg-[var(--fo-surface-hover)]" aria-expanded={rapidasAbiertas} onClick={() => setRapidasAbiertas((v) => !v)} title="Respuestas rápidas (o escribí /)">
+              ⚡ Respuestas rápidas
+            </button>
+          ) : null}
           {texto.length}/{MAXIMO}
         </span>
         <button type="submit" className="fo-btn fo-btn-primary text-sm" disabled={enviando || vacio}>
