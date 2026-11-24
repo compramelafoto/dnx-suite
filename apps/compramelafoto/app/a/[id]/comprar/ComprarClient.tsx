@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import CanjeComboBanner from "@/components/canje-externo/CanjeComboBanner";
 import { readCanjeToken } from "@/lib/canje-externo/canje-token-storage";
-import { resolveAvailableFormats } from "@/lib/albums/available-formats";
+import { fitTipoToFormats, resolveAvailableFormats } from "@/lib/albums/available-formats";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import OrderItem from "@/components/order/OrderItem";
 import Button from "@/components/ui/Button";
@@ -1164,9 +1164,19 @@ export default function ComprarClient() {
           if (tipo === "impresa" && !sp) tipo = "digital";
           if (tipo === "digital" && !sd && sp) tipo = "impresa";
           if (tipo === "impresa" && !sp && sd) tipo = "digital";
+          // Lo guardado pudo armarse antes de conocer el álbum: manda lo que el álbum vende hoy.
+          tipo = fitTipoToFormats(
+            tipo,
+            resolveAvailableFormats({
+              albumAllowsDigital: albumPricing?.enableDigitalPhotos,
+              albumAllowsPrint: albumPricing?.enablePrintedPhotos,
+              photoSellsDigital: sd,
+              photoSellsPrint: sp,
+            })
+          );
           const size = tipo === "digital"
             ? "DIGITAL"
-            : (existing?.size || defaultSize);
+            : (existing?.size && existing.size !== "DIGITAL" ? existing.size : defaultSize);
           return {
             fileKey: photo.fileKey,
             previewUrl: photo.url,
@@ -1204,6 +1214,15 @@ export default function ComprarClient() {
       let tipo: "digital" | "impresa" = fallbackTipo;
       if (sd && !sp) tipo = "digital";
       else if (!sd && sp) tipo = "impresa";
+      tipo = fitTipoToFormats(
+        tipo,
+        resolveAvailableFormats({
+          albumAllowsDigital: albumPricing?.enableDigitalPhotos,
+          albumAllowsPrint: albumPricing?.enablePrintedPhotos,
+          photoSellsDigital: sd,
+          photoSellsPrint: sp,
+        })
+      );
       return {
         fileKey: photo.fileKey,
         previewUrl: photo.url,
