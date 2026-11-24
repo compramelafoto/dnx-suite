@@ -708,6 +708,93 @@ CURSO = [
             },
         ],
     },
+    {
+        "titulo": "Capítulo 10 · Para tu laboratorio",
+        "clases": [
+            {
+                "cod": "C27", "titulo": "Laboratorios: recibir el lote y bajar las fotos", "dur": "4 min",
+                "arranca": "El correo «Lote N de …» y la página del lote (/lab/lote/<enlace>), del lado del laboratorio",
+                "tomas": [
+                    ("Placa: «Para tu laboratorio». Abajo: «Mandale este video a tu laboratorio».",
+                     "Esta clase es para tu laboratorio. Si imprimís con un laboratorio, mandale este video: en "
+                     "cinco minutos sabe todo lo que tiene que hacer."),
+                    ("Correo «Lote 2 de … — 3 pedidos, 7 copias»: la lista «Copias por medida y acabado», el "
+                     "mensaje del fotógrafo y el botón «Abrir el lote».",
+                     "Cuando el fotógrafo te manda un lote, te llega un correo. Ya en el correo ves cuántos pedidos "
+                     "son y cuántas copias de cada medida. Tocás «Abrir el lote». No necesitás cuenta ni "
+                     "contraseña: el enlace ya te deja entrar."),
+                    ("Página del lote, arriba: «Lote de impresión de …», «Estado», «Entrega», «Para el» y «Pedidos "
+                     "y copias». Señalar la caja «Mensaje del fotógrafo».",
+                     "Arriba tenés el resumen: de qué fotógrafo es, en qué estado está, para qué fecha lo necesita "
+                     "y cuántos pedidos y copias son. En «Entrega» dice si lo retira el fotógrafo o si se lo envían "
+                     "ustedes. Y si te dejó un mensaje, lo ves acá."),
+                    ("Sección «Descargar las fotos»: tocar «Descargar el ZIP». Mostrar también un lote grande con "
+                     "«Parte 1 de 2» y «Parte 2 de 2».",
+                     "Para bajar las fotos, tocás «Descargar el ZIP». Si el lote es grande, viene en partes de "
+                     "hasta quince pedidos: bajá todas las partes."),
+                    ("Abrir el ZIP en el Finder: las carpetas «10x15 Brillo», «13x18 Mate»…, la carpeta «Control» y "
+                     "el archivo «RESUMEN_PARA_LABORATORIO.txt».",
+                     "Las fotos vienen ordenadas en carpetas, una por medida y acabado: todas las diez por quince "
+                     "brillo juntas, todas las trece por dieciocho mate juntas. Así imprimís de corrido, sin abrir "
+                     "pedido por pedido."),
+                    ("Dentro de una carpeta: archivos como «6664 2x DSC_1234.jpg». Resaltar el número de pedido y "
+                     "el «2x».",
+                     "Fijate el nombre de cada foto: empieza con el número de pedido, y después dice cuántas copias "
+                     "van. «Dos equis» son dos copias de esa foto. Así nunca te equivocás con la cantidad."),
+                    ("Abrir «RESUMEN_PARA_LABORATORIO.txt»: las copias por carpeta y el «TOTAL».",
+                     "Y para controlar, en el resumen tenés cuántas copias hay en cada carpeta y el total del lote. "
+                     "Es el mismo número que ves en la página, en «Copias por medida y acabado»."),
+                    ("Carpeta «Control»: el «REMITO.pdf» abierto, con una fila por pedido.",
+                     "En la carpeta «Control» viene el remito: un pedido por renglón, con el nombre y lo que lleva. "
+                     "Si alguna foto faltara, también lo vas a ver ahí."),
+                ],
+                "ojo": "Filmar con el lote 2 de la cuenta demo (enlace en la tabla EmailQueue). Descargar el ZIP y "
+                       "abrirlo en el Finder para las tomas de carpetas; si hace falta, armar una placa con el "
+                       "árbol de carpetas. No mostrar el enlace completo del lote en pantalla.",
+            },
+            {
+                "cod": "C28", "titulo": "Laboratorios: etiquetas, clientes y entrega", "dur": "4 min",
+                "arranca": "La página del lote del laboratorio, sección «Pedidos»",
+                "tomas": [
+                    ("Sección «Pedidos»: una fila con «Fotógrafo + Cliente», «Pedido #6664», el álbum y "
+                     "«2× 13x18 BRILLO».",
+                     "Abajo de todo están los pedidos, uno por uno. Cada pedido dice el nombre del fotógrafo y el "
+                     "del cliente, el número de pedido, el evento y qué copias lleva. Con eso armás cada sobre."),
+                    ("Señalar que no aparecen correo, teléfono ni importes del cliente.",
+                     "Del cliente ves solo el nombre. Nunca vas a ver su correo, su teléfono ni cuánto pagó: esos "
+                     "datos los cuida el fotógrafo."),
+                    ("Una fila con la marca amarilla «RETIRA EL CLIENTE · PAGADO, no cobrar».",
+                     "Fijate bien esta marca amarilla: «Retira el cliente». Quiere decir que ese cliente va a pasar "
+                     "a buscar sus fotos por tu local. Y ya está pago: no le cobres nada. Los pedidos sin esta "
+                     "marca van para el fotógrafo."),
+                    ("Placa con un sobre del panel del fotógrafo: «Fotógrafo + Cliente», «RETIRA EL CLIENTE · "
+                     "PAGADO, no cobrar», el laboratorio, «Pedido #… · Lote …», el contenido y el QR.",
+                     "El fotógrafo imprime desde su panel una etiqueta para cada sobre, con los mismos datos y un "
+                     "código QR. Si te las pasa, pegás cada una en su sobre. Si no, usás la lista de pedidos para "
+                     "rotularlos."),
+                    ("Sección «¿Cómo va?»: tocar «Lo empezamos» y confirmar. Después «Está listo» y el aviso «A los "
+                     "clientes que retiran acá les llega un correo avisando que ya pueden pasar».",
+                     "Mientras trabajás, vas avisando cómo va. Tocás «Lo empezamos» cuando arrancás, y «Está listo» "
+                     "cuando terminás. Ojo: al tocar «Está listo», a los clientes que retiran en tu local les llega "
+                     "un correo para que pasen. Tocalo solo cuando las copias estén listas de verdad."),
+                    ("En un lote con «Entrega: Lo envían ustedes», mostrar el botón «Lo despachamos».",
+                     "Si el fotógrafo eligió que se lo envíen, también te aparece «Lo despachamos»: lo tocás cuando "
+                     "sale el envío. Si lo retira él, no hace falta."),
+                    ("En el celular: escanear el QR de un sobre. Se abre la página del pedido; tocar «Marcar entregado».",
+                     "Cuando el cliente viene a buscar sus fotos, escaneás el QR de su sobre con el mismo celular "
+                     "donde abriste el lote, y tocás «Marcar entregado». Listo: el fotógrafo ve al instante que ese pedido "
+                     "quedó entregado."),
+                    ("Placa de cierre: «Abrir → Descargar → Imprimir → Está listo → Entregado».",
+                     "Y eso es todo: abrís el lote, bajás las fotos, imprimís por carpeta, avisás que está listo y "
+                     "entregás. Sin llamadas ni mensajes de ida y vuelta."),
+                ],
+                "ojo": "La marca «RETIRA EL CLIENTE» sale en el pedido #6664 del lote 2 de la demo (el laboratorio "
+                       "«Laboratorio Centro» es punto de retiro). Para «Lo despachamos» hace falta un lote con «Me "
+                       "lo envía el laboratorio». El QR del sobre se escanea en el mismo navegador que abrió el "
+                       "lote: si no, la página no deja «Marcar entregado».",
+            },
+        ],
+    },
 ]
 
 # Shorts verticales: un video corto por cada configuración o acción. (gancho, paso, cierre)
