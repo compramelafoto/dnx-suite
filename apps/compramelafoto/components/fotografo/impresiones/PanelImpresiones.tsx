@@ -5,6 +5,8 @@ import Card from "@/components/ui/Card";
 import { DsEmptyState } from "@/components/ui/DsEmptyState";
 import BarraDePasos from "@/components/fotografo/BarraDePasos";
 import TablaParaImprimir from "./TablaParaImprimir";
+import FiltrosParaImprimir from "./FiltrosParaImprimir";
+import { FILTRO_VACIO, filtrarParaImprimir, type FiltroParaImprimir } from "@/lib/print-batches/filtro-para-imprimir";
 import TarjetaDeLote from "./TarjetaDeLote";
 import DialogoEnviarLote, { type DatosDeEnvio } from "./DialogoEnviarLote";
 import {
@@ -147,6 +149,7 @@ export default function PanelImpresiones() {
   // null = todavía no eligió: se abre en el primer paso con pedidos (o en el del lote del QR).
   const [paso, setPaso] = useState<Columna | null>(null);
   const [avisarImpresos, setAvisarImpresos] = useState(true);
+  const [filtro, setFiltro] = useState<FiltroParaImprimir>(FILTRO_VACIO);
   const yaDesplazo = useRef(false);
 
   const cargar = useCallback(async () => {
@@ -339,7 +342,10 @@ export default function PanelImpresiones() {
   const recibidos = porColumna("LISTOS");
   const listos = pedidosListosParaEntregar(datos.lotes);
   const entregados = porColumna("ENTREGADOS");
-  const elegidos = datos.paraImprimir.filter((p) => seleccion.has(p.albumOrderId));
+  // Lo que se ve con el buscador y los filtros; las acciones sólo toman lo marcado que se ve.
+  const visibles = filtrarParaImprimir(datos.paraImprimir, filtro);
+  const elegidos = visibles.filter((p) => seleccion.has(p.albumOrderId));
+  const ocultos = datos.paraImprimir.filter((p) => seleccion.has(p.albumOrderId)).length - elegidos.length;
   const lab = laboratorioDeLaSeleccion(elegidos);
 
   function elegirPaso(c: Columna) {
@@ -368,6 +374,7 @@ export default function PanelImpresiones() {
           {vista === "PARA_IMPRIMIR" && elegidos.length > 0 ? (
             <span className="text-sm text-gray-700">
               {elegidos.length} {elegidos.length === 1 ? "marcado" : "marcados"}
+              {ocultos > 0 ? <span className="text-gray-500"> (y {ocultos} que el filtro esconde: no se incluyen)</span> : null}
             </span>
           ) : null}
         </div>
@@ -421,8 +428,19 @@ export default function PanelImpresiones() {
           <section className="space-y-3">
             {armados.length ? <Subtitulo>Pedidos para armar un lote</Subtitulo> : null}
             {datos.paraImprimir.length ? (
-              <TablaParaImprimir
+              <FiltrosParaImprimir
                 pedidos={datos.paraImprimir}
+                laboratorios={datos.laboratorios}
+                filtro={filtro}
+                onCambiar={setFiltro}
+                mostrados={visibles.length}
+              />
+            ) : null}
+            {datos.paraImprimir.length && !visibles.length ? (
+              <Vacio>Ningún pedido coincide con la búsqueda o los filtros.</Vacio>
+            ) : datos.paraImprimir.length ? (
+              <TablaParaImprimir
+                pedidos={visibles}
                 laboratorios={datos.laboratorios}
                 seleccion={seleccion}
                 onCambiarSeleccion={setSeleccion}
