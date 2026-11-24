@@ -77,7 +77,7 @@ export function historialParaElBot(
   const fotos = new Map<number, FotoNumerada>();
   let fotosBajando = 0;
   for (const m of mensajes) {
-    if (m.direccion === "SISTEMA" || m.autor === "SISTEMA") continue;
+    if (m.direccion === "SISTEMA" || m.direccion === "NOTA" || m.autor === "SISTEMA") continue;
     const role = m.direccion === "ENTRANTE" ? "user" : "assistant";
     let contenido = role === "user" ? textoDe(m, ahora) : m.texto?.trim();
     const anuncio = role === "user" ? anuncioDeMedia(m.media) : null;

@@ -124,6 +124,33 @@ export async function resolver(ctx: CtxBandeja, chatId: string, deps: Deps = {})
   return transicion(ctx, chatId, (chat) => (chat.estado === "RESUELTO" && chat.asignadoUserId === null ? null : alResolver(userId, ctx.userLabel)), deps.ahora ?? new Date());
 }
 
+/**
+ * Nota interna del equipo (§6.2 del diseño 2026-11-24): un mensaje con `direccion = "NOTA"` que sólo
+ * ve el equipo. No sale al cliente, el bot no la lee y no cambia la hora, los no leídos ni la vista
+ * previa del chat. Pide Gestionar.
+ */
+export async function agregarNota(ctx: CtxBandeja, chatId: string, textoCrudo: unknown, deps: Deps = {}): Promise<Resultado> {
+  const userId = ctx.userId;
+  if (userId === null || !puedeOperarBandeja(ctx)) return no(MENSAJES_BANDEJA.sinPermiso);
+  const texto = typeof textoCrudo === "string" ? textoCrudo.trim() : "";
+  if (!texto) return no(MENSAJES_BANDEJA.notaVacia);
+  if (texto.length > TEXTO_MAXIMO) return no(MENSAJES_BANDEJA.textoLargo);
+  try {
+    const chat = await prisma.fotofficeWaChat.findFirst({ where: { id: chatId, workspaceId: ctx.workspaceId }, select: { id: true } });
+    if (!chat) return no(MENSAJES_BANDEJA.noExiste);
+    await prisma.fotofficeWaMensaje.create({
+      data: {
+        workspaceId: ctx.workspaceId, chatId: chat.id, direccion: "NOTA", autor: "USUARIO", autorUserId: userId, autorLabel: ctx.userLabel,
+        tipo: "TEXTO", texto, createdAt: deps.ahora ?? new Date(),
+      },
+    });
+    return { ok: true };
+  } catch (e) {
+    console.error("[fotoffice][whatsapp] falló al guardar una nota", detalleDeError(e));
+    return no(MENSAJES_BANDEJA.fallo);
+  }
+}
+
 type DepsDerivar = Deps & { personaQuePuedeAtender?: (workspaceId: string, userId: number) => Promise<PersonaDeLaBandeja | null> };
 
 /**

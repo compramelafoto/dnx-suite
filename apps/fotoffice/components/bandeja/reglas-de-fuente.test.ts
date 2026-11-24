@@ -89,8 +89,8 @@ describe("caja de respuesta", () => {
     expect(f).toContain('setTexto("")');
   });
 
-  it("fuera de las 24 h no muestra el cuadro de texto, sólo el aviso", () => {
-    expect(f).toContain("if (!dentroDeVentana)");
+  it("fuera de las 24 h no muestra el cuadro de respuesta, sólo el aviso (las notas sí)", () => {
+    expect(f).toContain("if (!dentroDeVentana && !nota)");
     expect(f).toContain("Pasaron más de 24 horas desde el último mensaje del cliente");
   });
 });

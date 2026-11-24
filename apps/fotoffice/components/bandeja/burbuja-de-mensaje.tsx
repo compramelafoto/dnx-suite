@@ -76,6 +76,20 @@ function Archivo({ id, archivo: a, tipo, verificarEn }: { id: string; archivo: N
 /** Una burbuja: cliente a la izquierda; bot, persona o celular a la derecha; sistema, centrado y chico. */
 /** `verificarEn`: el chat, si quien mira puede operar (muestra «Verificar comprobante» en las fotos y los PDF del cliente). */
 export function BurbujaDeMensaje({ mensaje: m, verificarEn }: { mensaje: MensajeDeChat; verificarEn?: string }) {
+  // Nota interna: amarilla y centrada; sólo la ve el equipo.
+  if (m.direccion === "NOTA") {
+    return (
+      <li className="flex justify-center">
+        <div className="max-w-[85%] min-w-0 rounded-[var(--fo-radius)] border border-[var(--fo-warning-border)] bg-[var(--fo-warning-soft)] px-3 py-2">
+          <p className="text-xs font-semibold text-[var(--fo-warning)]">Nota interna · {m.autorLabel ?? "Equipo"}</p>
+          <p className="whitespace-pre-wrap break-words text-sm text-[var(--fo-text)]">{m.texto}</p>
+          <p className="mt-1 text-right text-[11px] text-[var(--fo-muted)]">
+            <time dateTime={m.createdAt.toISOString()}>{fechaYHora(m.createdAt)}</time>
+          </p>
+        </div>
+      </li>
+    );
+  }
   if (m.autor === "SISTEMA" || m.direccion === "SISTEMA") {
     return (
       <li className="flex justify-center">

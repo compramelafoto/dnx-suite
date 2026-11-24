@@ -3,6 +3,7 @@
 import { refresh, revalidatePath } from "next/cache";
 import { MENSAJES_BANDEJA } from "@/lib/bandeja/acceso";
 import {
+  agregarNota,
   crearContactoDesdeChat,
   derivar,
   devolverAlBot,
@@ -68,6 +69,11 @@ export async function devolverAlBotAction(chatId: string) {
 
 export async function excluirDelBotAction(chatId: string, excluir: boolean) {
   return conOperar(chatId, (ctx, id) => excluirDelBot(ctx, id, excluir === true));
+}
+
+/** Nota interna: sólo la ve el equipo (no sale al cliente ni la lee el bot). */
+export async function agregarNotaAction(chatId: string, texto: string) {
+  return conOperar(chatId, (ctx, id) => agregarNota(ctx, id, texto));
 }
 
 /** Deriva el chat a una persona del equipo (su id) o al bot (`"bot"`). El servidor valida el destino. */

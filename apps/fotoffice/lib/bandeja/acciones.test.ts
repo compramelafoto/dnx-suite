@@ -465,3 +465,22 @@ describe("derivar", () => {
     expect(chats()[0]).toMatchObject({ estado: "RESUELTO", asignadoUserId: null, resueltoPorUserId: 2 });
   });
 });
+
+describe("notas internas", () => {
+  it("guarda una NOTA con autor y no toca la hora, los no leídos ni la vista previa", async () => {
+    const { id } = await chatNuevo({ ultimoMensajeTexto: "hola", ultimoMensajeTipo: "TEXTO" });
+    const antes = { ...chats()[0] };
+    expect(await A.agregarNota(ANA, id, "  Ya le pasé el Oro  ", { ahora: AHORA })).toEqual({ ok: true });
+    expect(mensajes()).toHaveLength(1);
+    expect(mensajes()[0]).toMatchObject({ direccion: "NOTA", autor: "USUARIO", autorUserId: 2, autorLabel: "Ana", texto: "Ya le pasé el Oro" });
+    expect(chats()[0]).toMatchObject({ ultimoMensajeEn: antes.ultimoMensajeEn, noLeidos: antes.noLeidos, ultimoMensajeTexto: "hola", estado: antes.estado });
+  });
+  it("pide Gestionar, texto y el chat de su institución", async () => {
+    const { id } = await chatNuevo();
+    expect(await A.agregarNota(LEO, id, "x")).toEqual({ ok: false, error: "No tenés permiso para hacer esto." });
+    expect(await A.agregarNota(ANA, id, "   ")).toEqual({ ok: false, error: "Escribí la nota antes de guardarla." });
+    expect(await A.agregarNota(ANA, id, "x".repeat(4097))).toEqual({ ok: false, error: "El mensaje puede tener hasta 4096 caracteres." });
+    expect(await A.agregarNota(OTRA_INSTITUCION, id, "x")).toEqual({ ok: false, error: "No encontramos ese chat." });
+    expect(mensajes()).toHaveLength(0);
+  });
+});
