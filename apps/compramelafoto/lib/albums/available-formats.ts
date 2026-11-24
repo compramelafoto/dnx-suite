@@ -64,3 +64,22 @@ export function fitTipoToFormats(
   if (tipo === "impresa" && formats.print) return "impresa";
   return formats.preferred ?? tipo ?? "digital";
 }
+
+/**
+ * Medida de impresión válida para una foto del pedido.
+ *
+ * Mientras no llegan los precios, la pantalla usa "10x15" de relleno y lo guarda en
+ * el navegador. Si el álbum no vende 10x15, el selector igual mostraba la única
+ * medida disponible (p. ej. 15x20), pero el ítem seguía en 10x15: precio $0 y un
+ * pedido con una medida que no existe. Con la lista de medidas cargada, una medida
+ * que no está pasa a la primera disponible. Sin lista todavía, no se toca.
+ */
+export function fitSizeToAvailable(
+  size: string | null | undefined,
+  availableSizes: readonly string[],
+  fallback: string
+): string {
+  if (availableSizes.length === 0) return size || fallback;
+  if (size && availableSizes.includes(size)) return size;
+  return availableSizes.includes(fallback) ? fallback : availableSizes[0];
+}
