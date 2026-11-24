@@ -250,6 +250,7 @@ export type DetalleDeChat = {
   asignadoNombre: string | null;
   noLeidos: number;
   ultimoEntranteEn: Date | null;
+  ultimoMensajeEn: Date;
   /** Se puede mandar texto libre (ventana de 24 h). */
   dentroDeVentana: boolean;
   mensajes: MensajeDeChat[];
@@ -264,7 +265,7 @@ export async function detalleChat(ctx: CtxBandeja, chatId: string, ahora: Date =
   if (typeof chatId !== "string" || !ID_VALIDO.test(chatId)) return null;
   const c = (await prisma.fotofficeWaChat.findFirst({ where: { id: chatId, workspaceId: ctx.workspaceId } })) as {
     id: string; waId: string; canal: string; usuarioInstagram: string | null; nombre: string | null; clientId: string | null; estado: string; asignadoUserId: number | null;
-    botPausadoHasta: Date | null; botExcluido: boolean; ultimoEntranteEn: Date | null; noLeidos: number;
+    botPausadoHasta: Date | null; botExcluido: boolean; ultimoEntranteEn: Date | null; ultimoMensajeEn: Date; noLeidos: number;
   } | null;
   if (!c) return null;
 
@@ -306,6 +307,7 @@ export async function detalleChat(ctx: CtxBandeja, chatId: string, ahora: Date =
     asignadoNombre: c.asignadoUserId !== null ? (usuarios.get(c.asignadoUserId) ?? "Alguien del equipo") : null,
     noLeidos: c.noLeidos,
     ultimoEntranteEn: c.ultimoEntranteEn,
+    ultimoMensajeEn: c.ultimoMensajeEn,
     dentroDeVentana: puedeResponderLibre({ ultimoEntranteEn: c.ultimoEntranteEn }, ahora),
     mensajes,
     cliente,

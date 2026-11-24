@@ -2,6 +2,7 @@ import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BotonesDelChat } from "@/components/bandeja/botones-del-chat";
+import { ChipEspera } from "@/components/bandeja/chip-espera";
 import { BurbujaDeMensaje } from "@/components/bandeja/burbuja-de-mensaje";
 import { CajaDeRespuesta } from "@/components/bandeja/caja-de-respuesta";
 import { DesplazarAlFinal } from "@/components/bandeja/desplazar-al-final";
@@ -92,6 +93,7 @@ export default async function ChatPage({
                   <span>+{chat.waId}</span>
                 )}
                 <InsigniaEstado estado={chat.estado} atiendeElBot={chat.atiendeElBot} asignadoNombre={chat.asignadoNombre} />
+                <ChipEspera chat={chat} ahora={ahora} />
               </p>
             </div>
             {puedeOperar && ctx.userId !== null ? (
