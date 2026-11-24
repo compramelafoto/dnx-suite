@@ -239,6 +239,11 @@ jobs:
       - name: Pruebas de los sorteos de CLF
         run: pnpm --filter compramelafoto test:sorteos
 
+      # Equipos robados: la serie se normaliza igual que en el SQL de la migración;
+      # si esto cambia, el cruce deja de encontrar equipos.
+      - name: Pruebas de equipos robados de CLF
+        run: pnpm --filter compramelafoto test:equipos-robados
+
       - name: Pruebas del informe diario
         run: pnpm --filter @repo/ops-daily-report test
 

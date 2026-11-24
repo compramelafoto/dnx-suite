@@ -193,6 +193,9 @@ model User {
   photographicLenses                    PhotographicLens[]
   photographicGearCombinations          PhotographicGearCombination[]
   photographicGearObservations          PhotographicGearObservation[]
+  stolenGearReports                     StolenGearReport[]            @relation("StolenGearReporter")
+  stolenGearReviews                     StolenGearReport[]            @relation("StolenGearReviewer")
+  gearSerialSightings                   GearSerialSighting[]
   uploadedVideos                        VideoAsset[]                           @relation("VideoUploader")
   products                              PhotographerProduct[]
   catalogProductCategories              CatalogProductCategory[]
@@ -29554,4 +29557,111 @@ model ClfRaffleEvent {
   raffle ClfRaffle @relation(fields: [raffleId], references: [id], onDelete: Cascade)
 
   @@index([raffleId, createdAt])
+}
+
+// ─── CLF: denuncia y búsqueda de equipos robados ─────────────────────────────
+// Diseño: docs/superpowers/specs/2026-11-23-clf-equipos-robados-design.md
+
+enum GearSerialKind {
+  BODY
+  LENS
+}
+
+enum StolenGearReportStatus {
+  PENDING_REVIEW
+  ACTIVE
+  REJECTED
+  RECOVERED
+  WITHDRAWN
+}
+
+enum StolenGearMatchStatus {
+  NEW
+  REVIEWING
+  CONFIRMED
+  DISMISSED
+}
+
+/// Historial permanente de cada número de serie visto en fotos de CLF.
+/// No depende de las fotos: sobrevive a la limpieza de álbumes.
+model GearSerialSighting {
+  id                Int               @id @default(autoincrement())
+  kind              GearSerialKind
+  serialNormalized  String
+  serialRaw         String
+  make              String
+  model             String
+  photographerId    Int?
+  photographerLabel String?
+  firstSeenAt       DateTime
+  lastSeenAt        DateTime
+  /// Cuándo se subió a CLF la última foto con esta serie (el reloj de la cámara puede mentir).
+  lastUploadedAt    DateTime
+  photosCount       Int               @default(0)
+  lastAlbumId       Int?
+  lastAlbumTitle    String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  photographer      User?             @relation(fields: [photographerId], references: [id], onDelete: SetNull)
+  matches           StolenGearMatch[]
+
+  @@unique([kind, serialNormalized, photographerId])
+  @@index([serialNormalized])
+  @@index([photographerId])
+  @@index([lastSeenAt])
+}
+
+/// Denuncia de un equipo robado, cargada por un fotógrafo y aprobada por un admin.
+model StolenGearReport {
+  id                 Int                    @id @default(autoincrement())
+  reporterId         Int
+  kind               GearSerialKind
+  make               String
+  model              String
+  serialRaw          String
+  serialNormalized   String
+  stolenAt           DateTime
+  stolenPlace        String?
+  description        String?
+  policeReportNumber String?
+  invoiceKey         String
+  invoiceMime        String
+  policeReportKey    String?
+  policeReportMime   String?
+  status             StolenGearReportStatus @default(PENDING_REVIEW)
+  reviewedById       Int?
+  reviewedAt         DateTime?
+  adminNotes         String?
+  rejectionReason    String?
+  recoveredAt        DateTime?
+  lastScannedAt      DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  reporter           User                   @relation("StolenGearReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reviewedBy         User?                  @relation("StolenGearReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  matches            StolenGearMatch[]
+
+  @@index([reporterId])
+  @@index([status])
+  @@index([serialNormalized])
+}
+
+/// Un equipo denunciado apareció en fotos de otro fotógrafo. Sólo lo ve el admin.
+model StolenGearMatch {
+  id           Int                   @id @default(autoincrement())
+  reportId     Int
+  sightingId   Int
+  makeMismatch Boolean               @default(false)
+  status       StolenGearMatchStatus @default(NEW)
+  detectedAt   DateTime              @default(now())
+  notifiedAt   DateTime?
+  adminNotes   String?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+  report       StolenGearReport      @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  sighting     GearSerialSighting    @relation(fields: [sightingId], references: [id], onDelete: Cascade)
+
+  @@unique([reportId, sightingId])
+  @@index([status])
+  @@index([notifiedAt])
 }
