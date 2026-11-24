@@ -54,6 +54,8 @@ export type LoteDelPanel = {
   recibidoAt: string | null;
   cerradoAt: string | null;
   pagadoAlLabAt: string | null;
+  /** Lote de pedidos que el fotógrafo marcó «ya impresos» sin pasar por un laboratorio. */
+  porFuera: boolean;
   entradas: EntradaDelPanel[];
 };
 
@@ -107,6 +109,92 @@ const TEXTO_DEL_ESTADO: Record<EstadoLote, string> = {
 };
 export function textoDelEstadoDelLote(estado: EstadoLote): string {
   return TEXTO_DEL_ESTADO[estado] ?? estado;
+}
+
+/** Nombre de los lotes de pedidos marcados «ya impresos» sin laboratorio. */
+export const NOMBRE_IMPRESOS_POR_FUERA = "Impresos por fuera";
+
+/**
+ * Un lote «impreso por fuera» nunca se envió, no tiene laboratorio y ya está recibido o cerrado:
+ * así lo crea `marcarImpresosPorFuera` (no hay columna propia en la base).
+ */
+export function esImpresoPorFuera(b: { estado: EstadoLote; enviadoAt: Date | string | null; labContactId: number | null }): boolean {
+  return b.enviadoAt == null && b.labContactId == null && (b.estado === "RECIBIDO" || b.estado === "CERRADO");
+}
+
+export type FaseDelLote =
+  | "ARMADO" | "SIN_ABRIR" | "ABIERTO" | "DESCARGADO" | "EN_PRODUCCION" | "LISTO" | "DESPACHADO"
+  | "RECIBIDO" | "POR_FUERA" | "CERRADO" | "ANULADO";
+
+const TEXTO_DE_LA_FASE: Record<FaseDelLote, string> = {
+  ARMADO: "Armado, sin enviar",
+  SIN_ABRIR: "Enviado, el laboratorio todavía no lo abrió",
+  ABIERTO: "El laboratorio lo abrió, todavía no lo descargó",
+  DESCARGADO: "Descargado por el laboratorio",
+  EN_PRODUCCION: "En producción",
+  LISTO: "Listo en el laboratorio",
+  DESPACHADO: "Despachado",
+  RECIBIDO: "Recibido",
+  POR_FUERA: "Impreso por fuera",
+  CERRADO: "Entregado",
+  ANULADO: "Anulado",
+};
+
+/**
+ * La fase que se muestra del lote. Entre «Enviado» y «En producción» hay dos pasos intermedios que
+ * no son estados del lote sino registros del laboratorio: que abrió el enlace y que descargó el ZIP.
+ */
+export function faseDelLote(l: Pick<LoteDelPanel, "estado" | "labAbrioAt" | "labDescargoAt" | "porFuera">): FaseDelLote {
+  if (l.estado === "ENVIADO") return l.labDescargoAt ? "DESCARGADO" : l.labAbrioAt ? "ABIERTO" : "SIN_ABRIR";
+  if (l.estado === "RECIBIDO" && l.porFuera) return "POR_FUERA";
+  return l.estado;
+}
+export function textoDeLaFase(f: FaseDelLote): string {
+  return TEXTO_DE_LA_FASE[f];
+}
+
+/** Cómo se agrupan los lotes del paso «En el laboratorio», en orden; los grupos vacíos no se muestran. */
+export const GRUPOS_EN_EL_LABORATORIO: ReadonlyArray<{ titulo: string; fases: readonly FaseDelLote[] }> = [
+  { titulo: "Esperando que el laboratorio lo descargue", fases: ["SIN_ABRIR", "ABIERTO"] },
+  { titulo: "Descargados por el laboratorio", fases: ["DESCARGADO"] },
+  { titulo: "En producción", fases: ["EN_PRODUCCION"] },
+  { titulo: "Listos en el laboratorio o despachados", fases: ["LISTO", "DESPACHADO"] },
+];
+export function agruparEnElLaboratorio<L extends Pick<LoteDelPanel, "estado" | "labAbrioAt" | "labDescargoAt" | "porFuera">>(lotes: readonly L[]): Array<{ titulo: string; lotes: L[] }> {
+  return GRUPOS_EN_EL_LABORATORIO
+    .map((g) => ({ titulo: g.titulo, lotes: lotes.filter((l) => g.fases.includes(faseDelLote(l))) }))
+    .filter((g) => g.lotes.length > 0);
+}
+
+/** El registro de lo que pasó con el lote, en orden (sólo lo que ya pasó), con fecha y hora. */
+export function seguimientoDelLote(l: Pick<LoteDelPanel, "enviadoAt" | "labAbrioAt" | "labDescargoAt" | "listoAt" | "recibidoAt" | "cerradoAt" | "porFuera">): Array<{ texto: string; cuando: string }> {
+  const pasos: Array<[string, string | null]> = l.porFuera
+    ? [["Marcado como ya impreso", l.recibidoAt], ["Todo entregado", l.cerradoAt]]
+    : [
+        ["Enviado al laboratorio", l.enviadoAt],
+        ["El laboratorio abrió el enlace", l.labAbrioAt],
+        ["El laboratorio descargó las fotos", l.labDescargoAt],
+        ["Listo en el laboratorio", l.listoAt],
+        ["Lo recibiste", l.recibidoAt],
+        ["Todo entregado", l.cerradoAt],
+      ];
+  return pasos.filter((p): p is [string, string] => p[1] != null).map(([texto, cuando]) => ({ texto, cuando: fechaYHoraDelPanel(cuando) }));
+}
+
+/**
+ * Lo que se pregunta antes de sacar un pedido de un lote. Si el lote ya salió, avisa que el
+ * laboratorio puede haberlo impreso (y si ya descargó las fotos, cuándo).
+ */
+export function confirmacionAlSacar(l: Pick<LoteDelPanel, "nombre" | "estado" | "enviadoAt" | "labDescargoAt" | "porFuera">, albumOrderId: number | null): string {
+  const pedido = albumOrderId != null ? `el pedido #${albumOrderId}` : "este pedido";
+  if (l.estado === "ARMADO") return `¿Sacar ${pedido} del ${l.nombre}? Vuelve a «Para imprimir».`;
+  if (l.porFuera) return `¿Sacar ${pedido} de «${l.nombre}»? Deja de figurar como impreso y vuelve a «Para imprimir».`;
+  const descargo = l.labDescargoAt ? ` y descargó las fotos el ${fechaYHoraDelPanel(l.labDescargoAt)}` : "";
+  return [
+    `Atención: el ${l.nombre} ya se envió al laboratorio${l.enviadoAt ? ` el ${fechaDelPanel(l.enviadoAt)}` : ""}${descargo}. Puede que ya lo hayan impreso.`,
+    "",
+    `¿Sacar ${pedido} del lote igual? Vuelve a «Para imprimir» y le avisamos al laboratorio por correo que no lo imprima.`,
+  ].join("\n");
 }
 
 export type PedidoListo = { lote: Pick<LoteDelPanel, "id" | "nombre">; entrada: EntradaDelPanel };
@@ -175,8 +263,8 @@ export type AccionesDelLote = {
   deshacer: boolean;
   mover: BotonDeMover[];
   pagadoAlLab: boolean;
-  /** Qué hacer con cada pedido: sacarlo (lote sin enviar) o reimprimirlo (ya salió). */
-  quitar: "SACAR" | "REIMPRIMIR" | null;
+  /** Se puede sacar cualquier pedido sin entregar mientras el lote no esté cerrado. */
+  quitar: "SACAR" | null;
 };
 
 const BOTONES_DE_MOVER: ReadonlyArray<{ hacia: EstadoLote; texto: string }> = [
@@ -191,8 +279,9 @@ const BOTONES_DE_MOVER: ReadonlyArray<{ hacia: EstadoLote; texto: string }> = [
  * (por si el laboratorio no usa la plataforma); «Cerrado» no es un botón: se cierra solo al
  * entregarse todo. «Recibí el lote» es el principal cuando el lote está listo o despachado.
  */
-export function accionesDelLote(lote: Pick<LoteDelPanel, "estado" | "entregaPreferida" | "pagadoAlLabAt">): AccionesDelLote {
+export function accionesDelLote(lote: Pick<LoteDelPanel, "estado" | "entregaPreferida" | "pagadoAlLabAt"> & { porFuera?: boolean }): AccionesDelLote {
   const { estado, entregaPreferida } = lote;
+  if (lote.porFuera) return { enviar: false, deshacer: false, mover: [], pagadoAlLab: false, quitar: estado === "CERRADO" ? null : "SACAR" };
   if (estado === "ARMADO") return { enviar: true, deshacer: true, mover: [], pagadoAlLab: false, quitar: "SACAR" };
   if (estado === "CERRADO" || estado === "ANULADO") {
     return { enviar: false, deshacer: false, mover: [], pagadoAlLab: estado === "CERRADO" && !lote.pagadoAlLabAt, quitar: null };
@@ -200,7 +289,7 @@ export function accionesDelLote(lote: Pick<LoteDelPanel, "estado" | "entregaPref
   const posibles = BOTONES_DE_MOVER.filter((b) => puedeMover(estado, b.hacia, "FOTOGRAFO", entregaPreferida));
   const recibir = estado === "LISTO" || estado === "DESPACHADO";
   const mover = posibles.map((b, i) => ({ ...b, principal: recibir ? b.hacia === "RECIBIDO" : i === 0 }));
-  return { enviar: false, deshacer: false, mover, pagadoAlLab: !lote.pagadoAlLabAt, quitar: "REIMPRIMIR" };
+  return { enviar: false, deshacer: false, mover, pagadoAlLab: !lote.pagadoAlLabAt, quitar: "SACAR" };
 }
 
 export const AVISO_A_CLIENTES = "Se les avisa por correo a los clientes que ya pueden retirar.";
@@ -252,6 +341,17 @@ export function fechaDelPanel(iso: string | null): string {
   if (Number.isNaN(d.getTime())) return "";
   const sinHora = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && d.getUTCMilliseconds() === 0;
   return d.toLocaleDateString("es-AR", { timeZone: sinHora ? "UTC" : "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit" });
+}
+
+/** «23/11 14:05» en hora argentina. */
+export function fechaYHoraDelPanel(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const z = { timeZone: "America/Argentina/Buenos_Aires" } as const;
+  const dia = d.toLocaleDateString("es-AR", { ...z, day: "2-digit", month: "2-digit" });
+  const hora = d.toLocaleTimeString("es-AR", { ...z, hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${dia} ${hora}`;
 }
 
 /** «3× 13x18 BRILLO · 1× 10x15». */

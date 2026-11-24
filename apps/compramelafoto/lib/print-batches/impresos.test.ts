@@ -64,6 +64,7 @@ describe("limpio", () => {
     const c = textoDeContenido([{ medida: "13x18", acabado: "brillo", cantidad: 3 }, { medida: "10x15", acabado: "", cantidad: 2 }]);
     assert.equal(limpio(c), c);
     assert.equal(limpio("Ana 😀 Foto"), "Ana  Foto");
+    assert.equal(limpio("Dvořák Łucja Čech"), "Dvorák Lucja Cech");
     for (const l of lineasDelSobre(sobre(1, { cliente: "Peña", contenido: c }))) assert.equal(limpio(l), l);
   });
   it("un sobre con esos textos no rompe el PDF", async () => {

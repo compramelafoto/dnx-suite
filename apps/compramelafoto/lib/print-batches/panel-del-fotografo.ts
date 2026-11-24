@@ -4,7 +4,7 @@ import { secretoDeEntrega } from "@/lib/school-fulfillment/codigo-de-canje";
 import { codigoDeEntregaDePedido } from "./codigos";
 import { leerResumen } from "./puerta-del-lab";
 import { listarParaImprimir } from "./servicio";
-import { DIAS_DE_ENTREGADOS, textoDeImpresion, type DatosDelPanel, type EntradaDelPanel, type LoteDelPanel } from "./panel";
+import { DIAS_DE_ENTREGADOS, esImpresoPorFuera, textoDeImpresion, type DatosDelPanel, type EntradaDelPanel, type LoteDelPanel } from "./panel";
 import type { EstadoLote } from "./reglas";
 
 /**
@@ -60,6 +60,7 @@ export async function datosDelPanel(photographerId: number, ahora = new Date()):
       fechaPrometida: iso(b.fechaPrometida), createdAt: b.createdAt.toISOString(), enviadoAt: iso(b.enviadoAt),
       labAbrioAt: iso(b.labAbrioAt), labDescargoAt: iso(b.labDescargoAt), listoAt: iso(b.listoAt),
       recibidoAt: iso(b.recibidoAt), cerradoAt: iso(b.cerradoAt), pagadoAlLabAt: iso(b.pagadoAlLabAt),
+      porFuera: esImpresoPorFuera({ estado: b.estado as EstadoLote, enviadoAt: b.enviadoAt, labContactId: b.labContactId }),
       entradas: b.entries.map((e): EntradaDelPanel => {
         const r = leerResumen(e.resumen);
         // `leerResumen` esconde un correo usado como nombre (es para el laboratorio); el fotógrafo lo ve.

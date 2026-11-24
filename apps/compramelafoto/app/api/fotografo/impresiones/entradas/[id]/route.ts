@@ -1,7 +1,8 @@
 /**
  * POST /api/fotografo/impresiones/entradas/:id
- * - { motivo: "REIMPRIMIR" | "SACAR" }: saca un pedido del lote (lote sin enviar) o lo manda a
- *   reimprimir (vuelve a «Para imprimir»).
+ * - { motivo: "SACAR" } (o "REIMPRIMIR", el nombre viejo): saca un pedido sin entregar del lote, en
+ *   cualquier estado salvo cerrado; vuelve a «Para imprimir» y, si el lote está en el laboratorio,
+ *   se le avisa por correo.
  * - { accion: "ENTREGADO" }: el fotógrafo marca entregado el pedido (columna «Listos para entregar»).
  *   Sólo una entrada viva de un lote suyo que ya salió; si no, 404.
  */
@@ -24,7 +25,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string }> 
   if (!entregar && motivo !== "REIMPRIMIR" && motivo !== "SACAR") return NextResponse.json({ error: "Acción desconocida." }, { status: 400 });
   try {
     if (entregar) await entregarDesdeElPanel(yo.id, entryId);
-    else await quitarPedido(yo.id, entryId, motivo as "REIMPRIMIR" | "SACAR");
+    else await quitarPedido(yo.id, entryId);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return responderError(`POST /api/fotografo/impresiones/entradas/${entryId}`, err);

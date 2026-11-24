@@ -118,3 +118,21 @@ export function correoListoRetiraEnLaboratorio(p: {
     `Ya están pagas: decí que vas a buscar el pedido de ${p.fotografo} a nombre de ${p.cliente}.`;
   return { subject: "Tus copias están listas para retirar", ...conFirma(frase) };
 }
+
+/** Al laboratorio: el fotógrafo sacó un pedido de un lote que ya le había mandado. */
+export function correoPedidoSacadoDelLote(p: {
+  nombreLote: string;
+  fotografo: string;
+  pedido: number | null;
+  aNombreDe: string;
+  copias: readonly CopiaResumen[];
+}): Correo {
+  const cual = p.pedido != null ? `el pedido #${p.pedido}` : "un pedido";
+  const copias = resumirCopias(p.copias).map(lineaDeCopia).join(", ");
+  const subject = `${p.nombreLote} de ${p.fotografo}: sacaron ${cual}`;
+  const frase =
+    `${p.fotografo} sacó ${cual} (a nombre de ${p.aNombreDe}${copias ? `, ${copias}` : ""}) del ${p.nombreLote}. ` +
+    "Si todavía no lo imprimiste, no lo imprimas. Si ya lo imprimiste, separalo y avisale al fotógrafo.";
+  // Sin enlace: del lote sólo se guarda el hash del token. Sirve el enlace del correo original.
+  return { subject, ...conFirma(`${frase} En el enlace del lote ya no figura.`) };
+}

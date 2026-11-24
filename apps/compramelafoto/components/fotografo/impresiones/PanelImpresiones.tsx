@@ -8,8 +8,10 @@ import TablaParaImprimir from "./TablaParaImprimir";
 import TarjetaDeLote from "./TarjetaDeLote";
 import DialogoEnviarLote, { type DatosDeEnvio } from "./DialogoEnviarLote";
 import {
+  agruparEnElLaboratorio,
   columnaDelLote,
   confirmacionAlMover,
+  confirmacionAlSacar,
   confirmacionDeEntrega,
   conteoDelPanel,
   laboratorioDeLaSeleccion,
@@ -20,6 +22,7 @@ import {
   textoDeCopiasDelPanel,
   type Columna,
   type DatosDelPanel,
+  type EntradaDelPanel,
   type LoteDelPanel,
   type PedidoListo,
 } from "@/lib/print-batches/panel";
@@ -142,6 +145,7 @@ export default function PanelImpresiones() {
   const [resaltado, setResaltado] = useState<number | null>(null);
   // null = todavía no eligió: se abre en el primer paso con pedidos (o en el del lote del QR).
   const [paso, setPaso] = useState<Columna | null>(null);
+  const [avisarImpresos, setAvisarImpresos] = useState(true);
   const yaDesplazo = useRef(false);
 
   const cargar = useCallback(async () => {
@@ -219,6 +223,38 @@ export default function PanelImpresiones() {
     setOcupado(false);
   }
 
+  async function marcarImpresos(albumOrderIds: number[]) {
+    const n = albumOrderIds.length;
+    const pedidos = `${n} ${n === 1 ? "pedido" : "pedidos"}`;
+    const texto = [
+      `¿Marcar ${pedidos} como ya impresos?`,
+      "Es para lo que imprimiste por tu cuenta, sin mandarlo a un laboratorio. Pasan a «Listos para entregar» y los entregás vos.",
+      avisarImpresos ? "Les avisamos por correo a los clientes que sus copias están listas." : "No les mandamos correo a los clientes.",
+    ].join("\n\n");
+    if (!window.confirm(texto)) return;
+    setOcupado(true);
+    setError(null);
+    setAviso(null);
+    try {
+      const res = await fetch("/api/fotografo/impresiones/lotes", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion: "IMPRESOS_POR_FUERA", albumOrderIds, avisar: avisarImpresos }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) setError(data?.error || "No se pudieron marcar como impresos. Probá de nuevo.");
+      else {
+        setSeleccion(new Set());
+        setAviso(`Listo: ${pedidos} ${n === 1 ? "quedó" : "quedaron"} como ya impresos, en «Listos para entregar».`);
+      }
+    } catch {
+      setError(ERROR_DE_RED);
+    }
+    await cargar();
+    setOcupado(false);
+  }
+
   async function confirmarEnvio(lote: LoteDelPanel, d: DatosDeEnvio) {
     if (!window.confirm(`¿Enviar el ${lote.nombre}? Le llega un correo al laboratorio con el enlace.`)) return;
     setOcupado(true);
@@ -256,13 +292,15 @@ export default function PanelImpresiones() {
     void accion(`/api/fotografo/impresiones/lotes/${lote.id}`, { accion: "PAGADO_AL_LAB" });
   }
 
-  function quitar(lote: LoteDelPanel, entradaId: number, motivo: "SACAR" | "REIMPRIMIR") {
-    const texto =
-      motivo === "SACAR"
-        ? `¿Sacar este pedido del ${lote.nombre}? Vuelve a «Para imprimir».`
-        : `¿Reimprimir este pedido? Sale del ${lote.nombre} y vuelve a «Para imprimir» para armarlo en otro lote.`;
-    if (!window.confirm(texto)) return;
-    void accion(`/api/fotografo/impresiones/entradas/${entradaId}`, { motivo });
+  function quitar(lote: LoteDelPanel, e: EntradaDelPanel) {
+    if (!window.confirm(confirmacionAlSacar(lote, e.albumOrderId))) return;
+    const n = e.albumOrderId != null ? ` #${e.albumOrderId}` : "";
+    const lab = lote.estado !== "ARMADO" && !lote.porFuera && ["ENVIADO", "EN_PRODUCCION", "LISTO", "DESPACHADO"].includes(lote.estado);
+    void accion(
+      `/api/fotografo/impresiones/entradas/${e.id}`,
+      { motivo: "SACAR" },
+      `Sacaste el pedido${n} del ${lote.nombre}: volvió a «Para imprimir».${lab ? " Le avisamos al laboratorio por correo." : ""}`,
+    );
   }
 
   function entregar(p: PedidoListo) {
@@ -346,6 +384,24 @@ export default function PanelImpresiones() {
                   ? `Armar lote con ${elegidos.length} ${elegidos.length === 1 ? "pedido" : "pedidos"}`
                   : "Marcá pedidos para armar un lote"}
             </button>
+            <button
+              type="button"
+              disabled={ocupado || elegidos.length === 0}
+              onClick={() => void marcarImpresos(elegidos.map((p) => p.albumOrderId))}
+              className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+              title="Para los que imprimiste por tu cuenta, sin mandarlos a un laboratorio"
+            >
+              {elegidos.length > 0 ? `Ya los imprimí (${elegidos.length})` : "Ya los imprimí"}
+            </button>
+            <label className="inline-flex items-center gap-1.5 text-xs text-gray-600">
+              <input
+                type="checkbox"
+                checked={avisarImpresos}
+                onChange={(ev) => setAvisarImpresos(ev.target.checked)}
+                className="h-3.5 w-3.5 accent-[#c27b3d]"
+              />
+              Avisar a los clientes por correo
+            </label>
             {!lab.ok ? <span className="text-sm text-red-700">{lab.error}</span> : null}
           </div>
         ) : null}
@@ -380,7 +436,18 @@ export default function PanelImpresiones() {
       ) : null}
 
       {vista === "EN_LABORATORIO" ? (
-        enLab.length ? <GrillaDeLotes>{enLab.map(tarjeta)}</GrillaDeLotes> : <Vacio>No hay lotes en el laboratorio.</Vacio>
+        enLab.length ? (
+          agruparEnElLaboratorio(enLab).map((g) => (
+            <section key={g.titulo} className="space-y-3">
+              <Subtitulo>
+                {g.titulo} <span className="font-normal text-gray-500">({g.lotes.length})</span>
+              </Subtitulo>
+              <GrillaDeLotes>{g.lotes.map(tarjeta)}</GrillaDeLotes>
+            </section>
+          ))
+        ) : (
+          <Vacio>No hay lotes en el laboratorio.</Vacio>
+        )
       ) : null}
 
       {vista === "LISTOS" ? (
@@ -392,7 +459,7 @@ export default function PanelImpresiones() {
           )}
           {recibidos.length ? (
             <section className="space-y-3">
-              <Subtitulo>Lotes recibidos (se cierran solos cuando se entrega todo)</Subtitulo>
+              <Subtitulo>Lotes recibidos o impresos por fuera (se cierran solos cuando se entrega todo)</Subtitulo>
               <GrillaDeLotes>{recibidos.map(tarjeta)}</GrillaDeLotes>
             </section>
           ) : null}

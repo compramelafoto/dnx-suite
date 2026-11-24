@@ -17,9 +17,15 @@ export type SobreDePedido = {
 
 /**
  * Los PDFs usan fuentes estándar (WinAnsi). Se conserva el Latin-1 imprimible (tildes, ñ, ü, «×», «·»,
- * que Helvetica sí codifica) y se saca lo demás (emojis, símbolos) para que no rompa el PDF.
+ * que Helvetica sí codifica); las letras con otras tildes quedan sin tilde y se saca lo demás (emojis,
+ * símbolos) para que no rompa el PDF.
  */
-export const limpio = (s: string) => s.normalize("NFC").replace(/[^\x20-\x7E\xA0-\xFF]/g, "");
+const SIN_TILDE: Record<string, string> = { Ł: "L", ł: "l", Đ: "D", đ: "d", ı: "i", Œ: "OE", œ: "oe" };
+export const limpio = (s: string) =>
+  s
+    .normalize("NFC")
+    // Letras con tilde fuera de Latin-1 (ā, ł, ő, č...): se pasan a su letra base en vez de perderse.
+    .replace(/[^\x20-\x7E\xA0-\xFF]/g, (c) => (SIN_TILDE[c] ?? c).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\x20-\x7E\xA0-\xFF]/g, ""));
 
 /** «3× 13x18 brillo · 2× 10x15»: junta medida + acabado, ordenado por medida; sin acabado se omite. */
 export function textoDeContenido(copias: Array<{ medida: string; acabado: string; cantidad: number }>): string {
