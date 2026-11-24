@@ -40,11 +40,13 @@ export function leerRegla(fila: { mode: string; familyDays: number | null } | nu
 
 /**
  * Quién tiene que elegir hoy un pack todavía no canjeado. `inicio` es cuándo la familia pudo
- * empezar a elegir: el aviso de «ya están las fotos» o, sin aviso, la fecha del pack.
+ * empezar a elegir: el aviso de «ya están las fotos». Sin aviso (`null`) el plazo no corrió,
+ * porque una preventa se vende antes de que estén las fotos.
  */
-export function quienElige(regla: ReglaEleccion, pack: { inicio: Date }, ahora: Date): "FAMILIA" | "FOTOGRAFO" {
+export function quienElige(regla: ReglaEleccion, pack: { inicio: Date | null }, ahora: Date): "FAMILIA" | "FOTOGRAFO" {
   if (regla.mode === "FAMILY") return "FAMILIA";
   if (regla.mode === "PHOTOGRAPHER") return "FOTOGRAFO";
+  if (!pack.inicio) return "FAMILIA";
   const vence = pack.inicio.getTime() + regla.familyDays * DIA_MS;
   return ahora.getTime() >= vence ? "FOTOGRAFO" : "FAMILIA";
 }
@@ -52,6 +54,15 @@ export function quienElige(regla: ReglaEleccion, pack: { inicio: Date }, ahora: 
 /** ¿La familia puede confirmar el canje con su link? */
 export function familiaPuedeElegir(regla: ReglaEleccion): boolean {
   return regla.mode !== "PHOTOGRAPHER";
+}
+
+/**
+ * ¿Hay que frenar este canje? Sólo el de la familia con la regla PHOTOGRAPHER. El fotógrafo
+ * nunca, y tampoco «Probar como cliente» (pack de prueba), que recorre el canje de la familia.
+ */
+export function familiaBloqueada(regla: ReglaEleccion, canje: { comoFotografo: boolean; isTest: boolean }): boolean {
+  if (canje.comoFotografo || canje.isTest) return false;
+  return !familiaPuedeElegir(regla);
 }
 
 export const TEXTOS_MODO: Record<ModoEleccion, { titulo: string; ayuda: string }> = {
@@ -66,6 +77,6 @@ export const TEXTOS_MODO: Record<ModoEleccion, { titulo: string; ayuda: string }
   FAMILY_THEN_PHOTOGRAPHER: {
     titulo: "La familia, y si no elige, yo",
     ayuda:
-      "La familia tiene unos días para elegir. Si no lo hace, el pedido pasa a «Te toca elegir». Hasta que elijas vos, la familia todavía puede hacerlo.",
+      "La familia tiene unos días para elegir desde que le avisás que están las fotos. Si no lo hace, el pedido pasa a «Te toca elegir». Hasta que elijas vos, la familia todavía puede hacerlo.",
   },
 };

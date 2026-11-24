@@ -5,6 +5,7 @@ import {
   DIAS_POR_DEFECTO,
   MODOS_ELECCION,
   TEXTOS_MODO,
+  familiaBloqueada,
   familiaPuedeElegir,
   leerRegla,
   quienElige,
@@ -59,6 +60,10 @@ describe("quienElige", () => {
     assert.equal(quienElige(CON_PLAZO, { inicio }, ar("2026-11-08T00:01:00")), "FOTOGRAFO");
   });
 
+  it("con plazo y sin aviso de fotos listas: sigue la familia (el plazo arranca con el aviso)", () => {
+    assert.equal(quienElige(CON_PLAZO, { inicio: null }, ar("2027-06-01T00:00:00")), "FAMILIA");
+  });
+
   it("cambiar la regla sólo mueve lo que todavía no se canjeó (la cuenta depende sólo de la regla)", () => {
     const ahora = ar("2026-11-02T00:00:00");
     assert.equal(quienElige(FAMILIA, { inicio }, ahora), "FAMILIA");
@@ -79,5 +84,21 @@ describe("TEXTOS_MODO", () => {
     assert.equal(TEXTOS_MODO.FAMILY.titulo, "La familia");
     assert.equal(TEXTOS_MODO.PHOTOGRAPHER.titulo, "Yo (el fotógrafo)");
     assert.equal(TEXTOS_MODO.FAMILY_THEN_PHOTOGRAPHER.titulo, "La familia, y si no elige, yo");
+  });
+});
+
+describe("familiaBloqueada (canje de la familia)", () => {
+  it("con PHOTOGRAPHER se bloquea a la familia", () => {
+    assert.equal(familiaBloqueada(FOTOGRAFO, { comoFotografo: false, isTest: false }), true);
+  });
+  it("el fotógrafo nunca queda bloqueado", () => {
+    assert.equal(familiaBloqueada(FOTOGRAFO, { comoFotografo: true, isTest: false }), false);
+  });
+  it("«Probar como cliente» (pack de prueba) no se bloquea", () => {
+    assert.equal(familiaBloqueada(FOTOGRAFO, { comoFotografo: false, isTest: true }), false);
+  });
+  it("con FAMILY o con plazo la familia puede", () => {
+    assert.equal(familiaBloqueada(FAMILIA, { comoFotografo: false, isTest: false }), false);
+    assert.equal(familiaBloqueada(CON_PLAZO, { comoFotografo: false, isTest: false }), false);
   });
 });

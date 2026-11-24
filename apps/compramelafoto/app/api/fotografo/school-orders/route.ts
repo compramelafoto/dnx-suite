@@ -10,11 +10,11 @@ import { quienElige, type ReglaEleccion } from "@/lib/schools/quien-elige-las-fo
 import { cargarReglas } from "@/lib/schools/quien-elige-las-fotos-server";
 import { fechaAvisoFotosListas } from "@/lib/preventa-canjeable/aviso-fotos-listas";
 
-/** Desde cuándo la familia pudo elegir: el aviso «ya están las fotos» o, sin aviso, la fecha del pack. */
-function inicioDelPack(p: { createdAt: Date; redemptionPaymentRefsJson: unknown }): Date {
+/** Desde cuándo la familia pudo elegir: el aviso «ya están las fotos». Sin aviso, `null` (no corre el plazo). */
+function inicioDelPack(p: { redemptionPaymentRefsJson: unknown }): Date | null {
   const aviso = fechaAvisoFotosListas(p.redemptionPaymentRefsJson);
   const fecha = aviso ? new Date(aviso) : null;
-  return fecha && Number.isFinite(fecha.getTime()) ? fecha : p.createdAt;
+  return fecha && Number.isFinite(fecha.getTime()) ? fecha : null;
 }
 
 type DisenoFila = {
@@ -195,7 +195,7 @@ export async function GET(req: NextRequest) {
             ? packs.some((p) => quienElige(regla, { inicio: inicioDelPack(p) }, ahora) === "FOTOGRAFO")
               ? "FOTOGRAFO"
               : "FAMILIA"
-            : quienElige(regla, { inicio: new Date(String(fila.createdAt)) }, ahora)
+            : "FAMILIA" // sin pack para elegir desde acá: queda del lado de la familia
           : null;
     }
 

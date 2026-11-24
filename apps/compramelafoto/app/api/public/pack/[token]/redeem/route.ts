@@ -15,7 +15,7 @@ import { parsePreventaPackSnapshotV1 } from "@/lib/preventa-canjeable/preventa-p
 import { packRequiereAutorizacion } from "@/lib/revision-de-impresion/en-el-canje";
 import { getAuthUser } from "@/lib/auth";
 import { puedeUsarPackDePrueba } from "@/lib/canje-externo/reiniciar-pack-de-prueba";
-import { familiaPuedeElegir } from "@/lib/schools/quien-elige-las-fotos";
+import { familiaBloqueada } from "@/lib/schools/quien-elige-las-fotos";
 import { cargarRegla } from "@/lib/schools/quien-elige-las-fotos-server";
 import { claveDeCurso, grupalParaGuardar } from "@/lib/schools/grupal-del-curso";
 import { parseExternalPreventaRefs } from "@/lib/canje-externo/external-preventa";
@@ -143,6 +143,7 @@ export async function POST(req: Request, { params }: RouteParams) {
       preventaPackSnapshotJson: true,
       albumId: true,
       album: { select: { userId: true } },
+      isTest: true,
       preCompraPaymentRef: true,
       redemptionPaymentRefsJson: true,
     },
@@ -156,7 +157,10 @@ export async function POST(req: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Iniciá sesión con la cuenta del fotógrafo del álbum." }, { status: 403 });
   }
   if (pack.redemptionOrderId != null) return yaElegido(lookup.orderId);
-  if (!comoFotografo && pack.albumId && !familiaPuedeElegir(await cargarRegla(pack.albumId))) {
+  if (
+    pack.albumId &&
+    familiaBloqueada(await cargarRegla(pack.albumId), { comoFotografo, isTest: pack.isTest === true })
+  ) {
     return NextResponse.json(
       {
         error: "El fotógrafo elige las fotos de este pack. Te avisamos por correo cuando esté listo.",
@@ -200,6 +204,8 @@ export async function POST(req: Request, { params }: RouteParams) {
     });
   }
 
+  /** Canje propio ya confirmado: un error de lo que sigue no es «lo eligió otro». */
+  let result: { redemptionOrderId: number } | null = null;
   try {
     const revision = parsed.data.revision
       ? {
@@ -215,18 +221,13 @@ export async function POST(req: Request, { params }: RouteParams) {
           userAgent: req.headers.get("user-agent"),
         }
       : null;
-    const result = await executePreventaPackRedeemV1(lookup.orderId, parsed.data.selections, revision);
+    result = await executePreventaPackRedeemV1(
+      lookup.orderId,
+      parsed.data.selections,
+      revision,
+      fotografo ? { elegidoPorFotografoUserId: fotografo.id } : {}
+    );
     if (fotografo) {
-      // Queda registrado que lo eligió el fotógrafo (el canje ya está confirmado: sin propagar).
-      await prisma.schoolPhotoChosenByPhotographer
-        .create({
-          data: {
-            preventaOrderId: lookup.orderId,
-            redemptionOrderId: result.redemptionOrderId,
-            photographerUserId: fotografo.id,
-          },
-        })
-        .catch((err) => console.error("[preventa_redeem] chosen_by_photographer_failed", { err }));
       const grupal = grupalParaGuardar(
         parsed.data.grupalElegida,
         parsed.data.selections.flatMap((s) => s.units.flat())
@@ -252,12 +253,15 @@ export async function POST(req: Request, { params }: RouteParams) {
       { status: 201 }
     );
   } catch (err: unknown) {
+    // Confirmaron los dos a la vez (familia y fotógrafo): el segundo se entera de quién llegó
+    // primero, sea cual sea el error con que lo cortó la base (validación, P2034 o P2002).
+    const ahora = result
+      ? null
+      : await prisma.order
+          .findUnique({ where: { id: lookup.orderId }, select: { redemptionOrderId: true } })
+          .catch(() => null);
+    if (ahora?.redemptionOrderId != null) return yaElegido(lookup.orderId);
     if (err instanceof PreventaPackRedeemValidationError) {
-      // Confirmaron los dos a la vez: el segundo se entera de quién llegó primero.
-      const ahora = await prisma.order
-        .findUnique({ where: { id: lookup.orderId }, select: { redemptionOrderId: true } })
-        .catch(() => null);
-      if (ahora?.redemptionOrderId != null) return yaElegido(lookup.orderId);
       return NextResponse.json(
         {
           error: err.message,
