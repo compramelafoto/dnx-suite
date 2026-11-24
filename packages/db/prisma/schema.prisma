@@ -25029,6 +25029,9 @@ model FotofficeCitaTipo {
   address           String?
   /// Foto de la tarjeta en la página pública de turnos (se muestra chica, en círculo).
   imageUrl          String?
+  /// Píxel de Meta adicional sólo para la página de este turno (ej. el de otra marca que hace la publicidad).
+  /// Recibe la vista de la página y el evento `Schedule` al reservar. Sólo dígitos (validado al guardar).
+  metaPixelId       String?
 
   workspace Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   citas     FotofficeCita[]

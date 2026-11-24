@@ -304,7 +304,10 @@ export function buildTrackingScripts(analytics: WebsiteSiteSettings["analytics"]
         "!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};" +
         "if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;t.src=v;" +
         "s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');" +
-        `fbq('init',${JSON.stringify(pixel)});fbq('track','PageView');`,
+        // Sin el aviso automático de cambio de página de Meta: `SiteTracking` manda cada vista a mano y
+        // sólo en direcciones permitidas (si no, Meta recibiría un enlace con token al navegar).
+        // `trackSingle`: la vista es sólo de este píxel, no de otro que sume una página (ej. un turno).
+        `fbq.disablePushState=!0;fbq('init',${JSON.stringify(pixel)});fbq('trackSingle',${JSON.stringify(pixel)},'PageView');`,
     });
   }
   return out;
@@ -313,7 +316,7 @@ export function buildTrackingScripts(analytics: WebsiteSiteSettings["analytics"]
 /**
  * Páginas públicas con un token personal en la dirección: pedido, recibo, contrato, galería,
  * videos, presupuesto, archivos, permiso del autor, seguimiento de impresión, pedido de la tienda,
- * el testimonio personal (`/testimonio?t=…`) y la vuelta del pago de un curso
+ * el testimonio personal (`/testimonio?t=…`), la gestión de un turno (`/turnos/gestion/…`) y la vuelta del pago de un curso
  * (`/cursos/<curso>/inscripcion/…`). Ahí NO se mide nada: Google o Meta recibirían el enlace con
  * el token. Además, cualquier dirección con un parámetro sensible en la consulta queda afuera.
  * Sirve con y sin el prefijo `/w/<slug>` (dominio propio).
@@ -353,5 +356,7 @@ export function isTrackingExcludedPath(pathname: string, search = ""): boolean {
   if (TOKEN_SEGMENTS.has(segs[0])) return true;
   if (segs[0] === "obras" && segs[1] === "permiso") return true;
   if (segs[0] === "tienda" && segs[1] === "pedido") return true;
+  // Gestión de un turno (`/turnos/gestion/<token>`): el enlace permite cancelar o reprogramar.
+  if (segs[0] === "turnos" && segs[1] === "gestion") return true;
   return false;
 }

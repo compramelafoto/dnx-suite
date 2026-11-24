@@ -135,6 +135,8 @@ describe("buildTrackingScripts", () => {
   it("píxel: el número va como texto JSON y dispara PageView", () => {
     const [pixel] = buildTrackingScripts({ ga4Id: null, metaPixelId: "1551456739072627" });
     expect(pixel.inline).toContain(`fbq('init',"1551456739072627")`);
+    expect(pixel.inline).toContain(`fbq('trackSingle',"1551456739072627",'PageView')`);
+    expect(pixel.inline).toContain("fbq.disablePushState=!0");
     expect(pixel.inline).toContain("https://connect.facebook.net/en_US/fbevents.js");
   });
 
@@ -150,6 +152,9 @@ describe("isTrackingExcludedPath", () => {
     ["/w/dnx/galeria/tok/descargas", true],
     ["/obras/permiso/tok", true],
     ["/w/dnx/tienda/pedido/xyz", true],
+    ["/w/dnx/turnos/gestion/tok", true],
+    ["/turnos/gestion/tok", true],
+    ["/w/dnx/turnos/entrevista", false],
     ["/w/dnx", false],
     ["/w/dnx/blog/un-articulo", false],
     ["/presupuesto", false],

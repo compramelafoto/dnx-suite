@@ -18,7 +18,7 @@ export function PublicSiteExtras({ settings, workspaceSlug }: { settings: Websit
 
   return (
     <>
-      {scripts.length > 0 ? <SiteTracking scripts={scripts} /> : null}
+      {scripts.length > 0 ? <SiteTracking scripts={scripts} metaPixelId={scripts.some((s) => s.id === "fo-meta-pixel") ? settings.analytics.metaPixelId : null} /> : null}
       {waHref ? <WhatsappFloat href={waHref} welcomeMessage={wa.welcomeMessage} side={wa.side} size={wa.size} /> : null}
       {settings.photoProtection.enabled ? <PhotoProtection /> : null}
       {/* Contador de visitas por página (sin cookies ni datos personales): siempre encendido. */}

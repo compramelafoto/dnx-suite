@@ -98,6 +98,23 @@ export function ConfigTurno({ tipoId, inicial, enlacePublico }: { tipoId: string
         ) : null}
       </section>
 
+      <section className="fo-card space-y-2 p-5" aria-label="Medición de la publicidad">
+        <label className="fo-field-stack">
+          <span className="fo-label">Píxel de Meta de este turno (opcional)</span>
+          <input
+            className="fo-input w-full sm:max-w-xs"
+            inputMode="numeric"
+            maxLength={20}
+            value={c.metaPixelId}
+            onChange={(e) => set("metaPixelId", e.target.value.replace(/\D/g, ""))}
+            placeholder="Ej. 1234567890123456"
+          />
+        </label>
+        <p className="text-xs text-[var(--fo-muted)]">
+          Para medir una publicidad que lleva a este turno con un píxel distinto del de tu sitio. Ese píxel ve sólo la página de este turno y cada reserva (evento «Schedule»), nunca los datos de la persona.
+        </p>
+      </section>
+
       <section className="fo-card space-y-3 p-5" aria-label="Horarios en que se ofrece">
         <div>
           <p className="text-sm font-medium">Horarios en que lo ofrecés</p>
