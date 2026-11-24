@@ -34,7 +34,7 @@ export const INFO_PASOS: Record<PasoEmbudo, { numero: number; titulo: string; ay
   POR_CANJEAR: {
     numero: 1,
     titulo: "Por canjear",
-    ayuda: "Pagaron, pero la familia todavía no eligió sus fotos.",
+    ayuda: "Pagaron y falta elegir las fotos: la familia o vos, según la preventa.",
   },
   REVISAR_DISENO: {
     numero: 2,
@@ -272,16 +272,38 @@ export function packsPendientesPorAlbum(
     isDemo?: boolean;
     redemptionOrderId?: number | null;
     album: { id: number } | null;
+    eligeQuien?: ResponsablePorCanjear | null;
   }>,
 ): Map<number, number[]> {
   const out = new Map<number, number[]>();
   for (const f of filas) {
     if (f.kind !== "PACK_EXTERNO" || f.isDemo || !f.album || f.redemptionOrderId != null) continue;
+    // Los packs que elige el fotógrafo no reciben el aviso «ya podés elegir».
+    if (f.eligeQuien === "FOTOGRAFO") continue;
     const ids = out.get(f.album.id) ?? [];
     if (!ids.includes(f.id)) ids.push(f.id);
     out.set(f.album.id, ids);
   }
   return out;
+}
+
+/** Quién tiene que elegir las fotos de un pedido «Por canjear» (ver `quien-elige-las-fotos.ts`). */
+export type ResponsablePorCanjear = "FAMILIA" | "FOTOGRAFO";
+
+/**
+ * Los pedidos «Por canjear», separados entre los que esperan a la familia y los que le tocan al
+ * fotógrafo. Sin dato de quién elige, esperan a la familia (como siempre).
+ */
+export function separarPorCanjear<T extends { paso: string; eligeQuien?: ResponsablePorCanjear | null }>(
+  filas: T[],
+): { familia: T[]; fotografo: T[] } {
+  const familia: T[] = [];
+  const fotografo: T[] = [];
+  for (const f of filas) {
+    if (f.paso !== "POR_CANJEAR") continue;
+    (f.eligeQuien === "FOTOGRAFO" ? fotografo : familia).push(f);
+  }
+  return { familia, fotografo };
 }
 
 /** Texto del curso como se muestra ("5° A"). */
