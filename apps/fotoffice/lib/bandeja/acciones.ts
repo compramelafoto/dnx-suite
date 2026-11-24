@@ -41,6 +41,7 @@ export const aEstado = (c: ChatFila): EstadoChat => ({
   botPausadoHasta: c.botPausadoHasta,
   ultimoEntranteEn: c.ultimoEntranteEn,
   botExcluido: c.botExcluido,
+  resueltoPorUserId: c.resueltoPorUserId,
 });
 
 /** El chat del workspace, con la fila bloqueada y releída. `null` si no existe en este workspace. */

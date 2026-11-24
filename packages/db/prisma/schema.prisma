@@ -27311,6 +27311,8 @@ model FotofficeWaChat {
   ultimoMensajeTexto String?
   ultimoMensajeTipo  String?
   noLeidos         Int       @default(0)
+  /// Quién lo marcó como resuelto (filtro «Resueltos de …»). Se borra al reabrirse.
+  resueltoPorUserId Int?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 

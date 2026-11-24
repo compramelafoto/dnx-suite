@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   VENTANA_HORAS,
+  alDerivar,
   alDevolver,
   alEco,
   alEntrante,
@@ -129,7 +130,7 @@ describe("alTomar / alDevolver / alResolver", () => {
   });
   it("resolver: RESUELTO y suelta el chat, para que el próximo mensaje lo atienda el bot", () => {
     const r = alResolver(9, "Sabina");
-    expect(r.parche).toEqual({ estado: "RESUELTO", asignadoUserId: null, botPausadoHasta: null });
+    expect(r.parche).toEqual({ estado: "RESUELTO", asignadoUserId: null, botPausadoHasta: null, resueltoPorUserId: 9 });
     expect(alEntrante(chat({ ...r.parche }), AHORA).parche.estado).toBe("BOT");
     expect(r.sistema?.texto).toBe("Sabina marcó el chat como resuelto");
   });
@@ -165,5 +166,36 @@ describe("alExcluirDelBot", () => {
     expect(a.parche).toEqual({ botExcluido: true });
     expect(a.sistema?.texto).toBe("Dani marcó que el bot no atienda este número");
     expect(alExcluirDelBot(false, "Dani").parche).toEqual({ botExcluido: false });
+  });
+});
+
+describe("alDerivar", () => {
+  const SABI = { tipo: "persona" as const, userId: 7, nombre: "Camila" };
+  it("a una persona: HUMANO, asignado, sin pausa y el SISTEMA con quién y a quién", () => {
+    const r = alDerivar(chat({ botPausadoHasta: h(1) }), SABI, "Sabina")!;
+    expect(r.parche).toEqual({ estado: "HUMANO", asignadoUserId: 7, botPausadoHasta: null, resueltoPorUserId: null });
+    expect(r.sistema?.texto).toBe("Sabina se lo derivó a Camila");
+  });
+  it("a quien ya lo tiene: nada", () => {
+    expect(alDerivar(chat({ estado: "HUMANO", asignadoUserId: 7 }), SABI, "Sabina")).toBeNull();
+  });
+  it("desde RESUELTO lo reabre asignado", () => {
+    expect(alDerivar(chat({ estado: "RESUELTO", resueltoPorUserId: 3 }), SABI, "Sabina")?.parche.estado).toBe("HUMANO");
+  });
+  it("al bot: como devolver, con su SISTEMA", () => {
+    const r = alDerivar(chat({ estado: "HUMANO", asignadoUserId: 7 }), { tipo: "bot" }, "Sabina")!;
+    expect(r.parche).toEqual({ estado: "BOT", asignadoUserId: null, botPausadoHasta: null, resueltoPorUserId: null });
+    expect(r.sistema?.texto).toBe("Sabina se lo derivó al bot");
+  });
+  it("al bot si ya es del bot: nada; con el número excluido: nada", () => {
+    expect(alDerivar(chat(), { tipo: "bot" }, "Sabina")).toBeNull();
+    expect(alDerivar(chat({ estado: "HUMANO", asignadoUserId: 7, botExcluido: true }), { tipo: "bot" }, "Sabina")).toBeNull();
+  });
+});
+
+describe("resueltoPorUserId", () => {
+  it("resolver lo guarda; un entrante que reabre lo borra", () => {
+    expect(alResolver(9, "Sabina").parche.resueltoPorUserId).toBe(9);
+    expect(alEntrante(chat({ estado: "RESUELTO", resueltoPorUserId: 9 }), AHORA).parche.resueltoPorUserId).toBeNull();
   });
 });
