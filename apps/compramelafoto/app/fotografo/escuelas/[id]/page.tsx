@@ -753,6 +753,10 @@ export default function FotografoEscuelaDetallePage() {
 
   async function handleSaveSchool() {
     if (!school) return;
+    if (!editName.trim()) {
+      alert("La escuela necesita un nombre.");
+      return;
+    }
     setSaving(true);
     try {
       const res = await fetch(`/api/fotografo/schools/${school.id}`, {
@@ -1553,7 +1557,18 @@ export default function FotografoEscuelaDetallePage() {
               </div>
               <div className="flex-1 p-6 flex flex-col min-w-0">
             <div className="flex justify-between items-start gap-3 mb-4">
-              <h1 className="text-xl font-bold text-gray-900">{school.name}</h1>
+              {editing ? (
+                <input
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  aria-label="Nombre de la escuela"
+                  placeholder="Nombre de la escuela"
+                  autoFocus
+                  className="min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-2 py-1 text-xl font-bold text-gray-900 focus:border-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-200"
+                />
+              ) : (
+                <h1 className="text-xl font-bold text-gray-900">{school.name}</h1>
+              )}
               {!editing ? (
                 <Button variant="secondary" onClick={() => setEditing(true)}>
                   Editar
@@ -1622,10 +1637,6 @@ export default function FotografoEscuelaDetallePage() {
                     )}
                   </div>
                   <p className="text-xs text-gray-500 mt-1">JPG, PNG, WebP o GIF, máx. 5 MB.</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
-                  <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Email contacto</label>
