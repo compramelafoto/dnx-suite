@@ -19,7 +19,8 @@ import { lugarDelTurno, reservarTurno } from "@/lib/turnos/reservar";
  * después de responder (`after`).
  */
 
-export type EstadoAccionTurno = { error: string | null };
+/** `destino`: sólo al reservar; el formulario avisa a Meta y recién ahí va a la página del turno. */
+export type EstadoAccionTurno = { error: string | null; destino?: string };
 
 const FRENO = { limit: 12, windowMs: 10 * 60 * 1000 };
 
@@ -96,7 +97,9 @@ export async function reservarTurnoAction(_prev: EstadoAccionTurno, form: FormDa
     r.citaId,
     negocio.hostUserId,
   );
-  redirect(`/w/${encodeURIComponent(negocio.slug)}/turnos/gestion/${r.token}?nuevo=1`);
+  // No `redirect`: la página de gestión lleva el token en la dirección y no puede cargar el píxel.
+  // El formulario manda el evento a Meta desde la página del tipo y después entra con carga completa.
+  return { error: null, destino: `/w/${encodeURIComponent(negocio.slug)}/turnos/gestion/${r.token}?nuevo=1` };
 }
 
 async function turnoYTipo(form: FormData) {

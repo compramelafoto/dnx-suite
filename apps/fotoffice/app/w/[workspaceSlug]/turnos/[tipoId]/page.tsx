@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { FormularioReserva } from "@/components/turnos/formulario-reserva";
 import { FotoTurno } from "@/components/turnos/foto-turno";
+import { PixelDelTurno } from "@/components/turnos/pixel-del-turno";
 import { MENSAJES_TURNOS } from "@/lib/turnos/constantes";
 import { horariosPublicos } from "@/lib/turnos/horarios";
 import { leerAjustesTurnos, negocioPorSlug, tipoPublicado } from "@/lib/turnos/publico";
@@ -48,9 +49,10 @@ export default async function ReservarTurnoPage({ params }: Props) {
       ) : horarios.dias.length === 0 ? (
         <div className="fo-card p-6 text-center text-sm text-[var(--fo-muted)]">No quedan horarios libres por ahora. Probá en unos días o escribinos.</div>
       ) : (
-        <FormularioReserva workspaceSlug={workspaceSlug} tipoId={tipo.id} dias={horarios.dias} />
+        <FormularioReserva workspaceSlug={workspaceSlug} tipoId={tipo.id} tipoNombre={tipo.name} dias={horarios.dias} />
       )}
       <p className="text-xs text-[var(--fo-muted-soft)]">Horarios en hora de Argentina.</p>
+      {tipo.metaPixelId ? <PixelDelTurno pixelId={tipo.metaPixelId} /> : null}
     </main>
   );
 }

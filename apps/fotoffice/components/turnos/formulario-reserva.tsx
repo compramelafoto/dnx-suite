@@ -1,15 +1,30 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { reservarTurnoAction, type EstadoAccionTurno } from "@/app/w/[workspaceSlug]/turnos/actions";
 import type { DiaConHorarios } from "@/lib/turnos/disponibilidad";
+import { avisarReservaAMeta } from "@/lib/turnos/meta-pixel";
 import { SelectorHorario } from "./selector-horario";
 
 const INICIAL: EstadoAccionTurno = { error: null };
 
-export function FormularioReserva({ workspaceSlug, tipoId, dias }: { workspaceSlug: string; tipoId: string; dias: DiaConHorarios[] }) {
+/** Lo que se espera para que el evento salga antes de dejar la página. */
+const ESPERA_EVENTO_MS = 600;
+
+export function FormularioReserva({ workspaceSlug, tipoId, tipoNombre, dias }: { workspaceSlug: string; tipoId: string; tipoNombre: string; dias: DiaConHorarios[] }) {
   const [estado, accion, pendiente] = useActionState(reservarTurnoAction, INICIAL);
   const [inicio, setInicio] = useState<string | null>(null);
+  const reservado = Boolean(estado.destino);
+
+  useEffect(() => {
+    const destino = estado.destino;
+    if (!destino) return;
+    avisarReservaAMeta(tipoNombre);
+    // Carga completa (no navegación del lado del cliente): la página de gestión lleva el token en la
+    // dirección y así abre sin el píxel cargado.
+    const t = window.setTimeout(() => window.location.assign(destino), ESPERA_EVENTO_MS);
+    return () => window.clearTimeout(t);
+  }, [estado.destino, tipoNombre]);
 
   return (
     <form action={accion} className="space-y-6">
@@ -49,8 +64,8 @@ export function FormularioReserva({ workspaceSlug, tipoId, dias }: { workspaceSl
             {estado.error}
           </p>
         ) : null}
-        <button type="submit" className="fo-btn fo-btn-primary" disabled={pendiente || !inicio}>
-          {pendiente ? "Reservando…" : inicio ? "Confirmar turno" : "Elegí un horario"}
+        <button type="submit" className="fo-btn fo-btn-primary" disabled={pendiente || reservado || !inicio}>
+          {pendiente || reservado ? "Reservando…" : inicio ? "Confirmar turno" : "Elegí un horario"}
         </button>
       </div>
     </form>

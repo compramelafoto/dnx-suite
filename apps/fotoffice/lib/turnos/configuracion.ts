@@ -8,6 +8,9 @@ import {
 } from "./constantes";
 import { leerFranjas, type Franja } from "./franjas";
 
+/** Mismo formato que el píxel del sitio (`META_PIXEL_ID_RE` de los ajustes del sitio). */
+export const PIXEL_TURNO_RE = /^\d{6,20}$/;
+
 export type ConfigTurnoTipo = {
   isBookable: boolean;
   publicDescription: string | null;
@@ -15,6 +18,7 @@ export type ConfigTurnoTipo = {
   modality: Modalidad | null;
   address: string | null;
   imageUrl: string | null;
+  metaPixelId: string | null;
   franjas: Franja[];
 };
 
@@ -40,6 +44,9 @@ export function validarConfigTurnoTipo(v: unknown): Res<ConfigTurnoTipo> {
   const imageUrl = textoOpcional(o.imageUrl, 500);
   if (imageUrl === undefined || (imageUrl !== null && !/^https:\/\/[^\s]+$/.test(imageUrl))) return { ok: false, error: MENSAJES_TURNOS.imagen };
 
+  const metaPixelId = textoOpcional(o.metaPixelId, 20);
+  if (metaPixelId === undefined || (metaPixelId !== null && !PIXEL_TURNO_RE.test(metaPixelId))) return { ok: false, error: MENSAJES_TURNOS.pixel };
+
   let durationMinutes: number | null = null;
   if (o.durationMinutes !== null && o.durationMinutes !== undefined && o.durationMinutes !== "") {
     const n = Number(o.durationMinutes);
@@ -57,7 +64,7 @@ export function validarConfigTurnoTipo(v: unknown): Res<ConfigTurnoTipo> {
     if (franjas.length === 0) return { ok: false, error: MENSAJES_TURNOS.sinFranjas };
     if ((modality === "ESTUDIO" || modality === "DIRECCION") && !address) return { ok: false, error: MENSAJES_TURNOS.direccion };
   }
-  return { ok: true, valor: { isBookable, publicDescription, durationMinutes, modality, address, imageUrl, franjas } };
+  return { ok: true, valor: { isBookable, publicDescription, durationMinutes, modality, address, imageUrl, metaPixelId, franjas } };
 }
 
 function entero(v: unknown, min: number, max: number): number | null {

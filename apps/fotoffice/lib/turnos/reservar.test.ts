@@ -22,7 +22,7 @@ const LUNES_10 = ar("2026-11-09T10:00");
 
 const TIPO: TipoPublicado = {
   id: "tipo-1", name: "Asesoramiento uno a uno", color: "#000000", publicDescription: null, durationMinutes: 60,
-  modality: "ONLINE", address: "https://meet.google.com/abc", imageUrl: null, franjas: [{ weekday: 1, startMinute: 600, endMinute: 780 }],
+  modality: "ONLINE", address: "https://meet.google.com/abc", imageUrl: null, metaPixelId: null, franjas: [{ weekday: 1, startMinute: 600, endMinute: 780 }],
 };
 const DATOS = { nombre: "Ana Pérez", correo: "ana@x.com", telefono: "3415551234", mensaje: "Quiero ordenar mis precios" };
 const entrada = (over: Partial<Parameters<typeof reservarTurno>[0]> = {}) => ({
@@ -119,6 +119,13 @@ describe("configuración", () => {
     expect(validarConfigTurnoTipo({ ...base, modality: "X" })).toEqual({ ok: false, error: M.modalidad });
     // Sin publicar se puede guardar a medias.
     expect(validarConfigTurnoTipo({ isBookable: false }).ok).toBe(true);
+    // Píxel de Meta adicional: sólo cifras; vacío queda en null.
+    const conPixel = validarConfigTurnoTipo({ ...base, metaPixelId: " 2252434729020354 " });
+    expect(conPixel.ok && conPixel.valor.metaPixelId).toBe("2252434729020354");
+    const sinPixel = validarConfigTurnoTipo({ ...base, metaPixelId: "" });
+    expect(sinPixel.ok && sinPixel.valor.metaPixelId).toBeNull();
+    expect(validarConfigTurnoTipo({ ...base, metaPixelId: "12');alert(1)//" })).toEqual({ ok: false, error: M.pixel });
+    expect(validarConfigTurnoTipo({ ...base, metaPixelId: "123" })).toEqual({ ok: false, error: M.pixel });
   });
 
   it("guarda el tipo y sus franjas (reemplazándolas) y los ajustes; sólo quien configura", async () => {

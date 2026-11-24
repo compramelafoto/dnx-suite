@@ -26,7 +26,7 @@ declare global {
  * La consulta (`?t=…`) se lee de `window.location` dentro del efecto y no con `useSearchParams`:
  * éste, en un layout, obligaría a envolver el sitio en Suspense o a dibujarlo en el cliente.
  */
-export function SiteTracking({ scripts }: { scripts: TrackingScript[] }) {
+export function SiteTracking({ scripts, metaPixelId }: { scripts: TrackingScript[]; metaPixelId: string | null }) {
   const pathname = usePathname();
   const [cargar, setCargar] = useState(false);
   const vistaInicial = useRef<string | null>(null);
@@ -48,8 +48,8 @@ export function SiteTracking({ scripts }: { scripts: TrackingScript[] }) {
     }
     vistaInicial.current = null;
     window.gtag?.("event", "page_view", { page_location: window.location.href });
-    window.fbq?.("track", "PageView");
-  }, [pathname, cargar]);
+    if (metaPixelId) window.fbq?.("trackSingle", metaPixelId, "PageView");
+  }, [pathname, cargar, metaPixelId]);
 
   if (!cargar || scripts.length === 0) return null;
 
