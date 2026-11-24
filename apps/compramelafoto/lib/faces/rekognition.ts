@@ -4,6 +4,7 @@ import {
   CreateCollectionCommand,
   IndexFacesCommand,
   SearchFacesByImageCommand,
+  SearchFacesCommand,
   DeleteFacesCommand,
   ListFacesCommand,
   DetectFacesCommand,
@@ -152,6 +153,28 @@ export async function searchFacesByImage(imageBytes: Uint8Array): Promise<FaceSe
       },
     ];
   });
+}
+
+/**
+ * Caras parecidas a una cara ya indexada (la que tocó el fotógrafo en una foto del álbum). La
+ * colección es de toda la plataforma: se pide el máximo para que las del álbum no queden afuera,
+ * y quien llama filtra por álbum.
+ */
+export async function searchFacesByFaceId(faceId: string): Promise<FaceSearchMatch[]> {
+  const rekognition = getRekognitionClient();
+  const collectionId = getCollectionId();
+  await ensureCollectionExists();
+  const response = await rekognition.send(
+    new SearchFacesCommand({
+      CollectionId: collectionId,
+      FaceId: faceId,
+      FaceMatchThreshold: 70,
+      MaxFaces: 4096,
+    })
+  );
+  return (response.FaceMatches || []).flatMap((match) =>
+    match.Face?.FaceId ? [{ rekognitionFaceId: match.Face.FaceId, similarity: match.Similarity ?? null }] : []
+  );
 }
 
 /**

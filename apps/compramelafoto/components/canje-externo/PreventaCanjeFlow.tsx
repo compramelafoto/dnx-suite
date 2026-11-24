@@ -187,6 +187,13 @@ export default function PreventaCanjeFlow({
   const [enviando, setEnviando] = useState(false);
   const [resultado, setResultado] = useState<{ pedido: number; downloadUrl: string | null } | null>(null);
   const selfieInputRef = useRef<HTMLInputElement>(null);
+  /** Modo fotógrafo: el próximo toque en la grilla busca al alumno en vez de elegir la foto. */
+  const [tocarParaBuscar, setTocarParaBuscar] = useState(false);
+  /** Modo fotógrafo: la foto tocada tiene varias caras y hay que elegir cuál es el alumno. */
+  const [carasPorElegir, setCarasPorElegir] = useState<{
+    photoId: number;
+    caras: Array<{ detectionId: number; bbox: { left?: number; top?: number; width?: number; height?: number } }>;
+  } | null>(null);
   /** Revisión del librito: lo que corrige la familia, los cursos que suma, sus avisos y la autorización. */
   const [textosEditados, setTextosEditados] = useState<Record<string, string>>({});
   const [cursosElegidos, setCursosElegidos] = useState<string[]>([]);
@@ -337,6 +344,33 @@ export default function PreventaCanjeFlow({
     } finally {
       setBuscando(false);
       if (selfieInputRef.current) selfieInputRef.current.value = "";
+    }
+  }
+
+  /** Modo fotógrafo: las fotos del alumno a partir de una foto (y una cara) que tocó. */
+  async function buscarPorFoto(photoId: number, detectionId?: number) {
+    setBuscando(true);
+    setAviso(null);
+    try {
+      const q = new URLSearchParams({ albumId: String(album.id), photoId: String(photoId) });
+      if (detectionId != null) q.set("detectionId", String(detectionId));
+      const res = await fetch(`/api/fotografo/escolar/fotos-del-alumno?${q}`, { credentials: "include", cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "No pudimos buscar por esa foto.");
+      if (Array.isArray(data?.caras)) {
+        setCarasPorElegir({ photoId, caras: data.caras });
+        return;
+      }
+      setCarasPorElegir(null);
+      setTocarParaBuscar(false);
+      const ids = (Array.isArray(data?.photoIds) ? data.photoIds : []).map(Number).filter((id: number) => byId.has(id));
+      if (typeof data?.aviso === "string") setAviso(data.aviso);
+      setFiltro(ids.length > 1 ? ids : null);
+      if (ids.length <= 1 && !data?.aviso) setAviso("No encontramos otras fotos con esa cara. Probá con otra foto.");
+    } catch (e) {
+      setAviso(e instanceof Error ? e.message : "No pudimos buscar por esa foto.");
+    } finally {
+      setBuscando(false);
     }
   }
 
@@ -623,7 +657,70 @@ export default function PreventaCanjeFlow({
                 </p>
               ) : null}
             </div>
-            {album.selfieSearch ? (
+            {modoFotografo ? (
+              <div className="mb-4 rounded-xl border border-[#cfe3d8] bg-[#f3f9f5] p-4">
+                {filtro ? (
+                  <p className="m-0 text-sm text-[#1f2328]">
+                    Mostrando {filtro.length} fotos donde aparece {alumnoCorto ?? "el alumno"}.{" "}
+                    <button type="button" className="font-medium text-[#a8652e] underline" onClick={() => setFiltro(null)}>
+                      Ver todas
+                    </button>{" "}
+                    ·{" "}
+                    <button type="button" className="font-medium text-[#a8652e] underline" onClick={() => setTocarParaBuscar(true)}>
+                      Buscar con otra foto
+                    </button>
+                  </p>
+                ) : (
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="m-0 text-sm text-[#1f2328]">
+                      {tocarParaBuscar
+                        ? `Tocá una foto donde aparezca ${alumnoCorto ?? "el alumno"}.`
+                        : `Buscá a ${alumnoCorto ?? "el alumno"}: tocá una foto suya y te mostramos todas en las que aparece.`}
+                    </p>
+                    <button
+                      type="button"
+                      disabled={buscando}
+                      onClick={() => {
+                        setTocarParaBuscar((v) => !v);
+                        setCarasPorElegir(null);
+                      }}
+                      className="min-h-11 shrink-0 rounded-lg border border-[#1f5b3f] px-4 text-sm font-semibold text-[#1f5b3f] disabled:opacity-60"
+                    >
+                      {buscando ? "Buscando…" : tocarParaBuscar ? "Cancelar" : "Buscar al alumno"}
+                    </button>
+                  </div>
+                )}
+                {carasPorElegir ? (
+                  <div className="mt-3">
+                    <p className="m-0 mb-2 text-sm text-[#1f2328]">Hay varias caras: tocá la de {alumnoCorto ?? "el alumno"}.</p>
+                    <div className="relative inline-block max-w-full">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/api/photos/${carasPorElegir.photoId}/view?mode=preview&albumId=${album.id}`}
+                        alt="Foto para elegir la cara"
+                        className="block max-h-[60vh] max-w-full rounded-lg"
+                      />
+                      {carasPorElegir.caras.map((c) => (
+                        <button
+                          key={c.detectionId}
+                          type="button"
+                          aria-label="Es esta cara"
+                          disabled={buscando}
+                          onClick={() => void buscarPorFoto(carasPorElegir.photoId, c.detectionId)}
+                          className="absolute rounded-md border-2 border-white shadow-[0_0_0_2px_#1f5b3f] hover:bg-white/20"
+                          style={{
+                            left: `${(c.bbox.left ?? 0) * 100}%`,
+                            top: `${(c.bbox.top ?? 0) * 100}%`,
+                            width: `${(c.bbox.width ?? 0) * 100}%`,
+                            height: `${(c.bbox.height ?? 0) * 100}%`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : album.selfieSearch ? (
               <div className="mb-4 rounded-xl border border-[#e7e1da] bg-white p-4">
                 {filtro ? (
                   <p className="m-0 text-sm text-[#1f2328]">
@@ -665,7 +762,7 @@ export default function PreventaCanjeFlow({
             <PhotoPickGrid
               photoIds={visibles}
               selected={elegidas}
-              onToggle={tocar}
+              onToggle={(id) => (modoFotografo && tocarParaBuscar ? void buscarPorFoto(id) : tocar(id))}
               onZoom={setZoomId}
               thumbUrl={thumbUrl}
               full={completo}
