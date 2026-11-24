@@ -20,6 +20,15 @@ import {
   pedidosListosParaEntregar,
   confirmacionDeEntrega,
   NOTA_PARA_IMPRIMIR,
+  agruparEnElLaboratorio,
+  confirmacionAlSacar,
+  avisaAlLabAlSacar,
+  sePuedeSacar,
+  esImpresoPorFuera,
+  faseDelLote,
+  fechaYHoraDelPanel,
+  seguimientoDelLote,
+  textoDeLaFase,
   type LoteDelPanel,
   type EntradaDelPanel,
   type LaboratorioDelPanel,
@@ -88,7 +97,7 @@ test("accionesDelLote: enviado puede ir hacia adelante; despachado sólo si env�
   const retira = accionesDelLote({ estado: "ENVIADO", entregaPreferida: "RETIRA_FOTOGRAFO", pagadoAlLabAt: null });
   assert.deepEqual(retira.mover.map((m) => m.hacia), ["EN_PRODUCCION", "LISTO", "RECIBIDO"]);
   assert.equal(retira.mover[0]!.principal, true);
-  assert.equal(retira.quitar, "REIMPRIMIR");
+  assert.equal(retira.quitar, "SACAR");
   assert.equal(retira.pagadoAlLab, true);
   const envia = accionesDelLote({ estado: "ENVIADO", entregaPreferida: "ENVIA_LAB", pagadoAlLabAt: null });
   assert.deepEqual(envia.mover.map((m) => m.hacia), ["EN_PRODUCCION", "LISTO", "DESPACHADO", "RECIBIDO"]);
@@ -156,7 +165,7 @@ test("fechaDelPanel, copias y fecha prometida", () => {
 const lote = (id: number, estado: LoteDelPanel["estado"], entradas: EntradaDelPanel[]): LoteDelPanel => ({
   id, nombre: `Lote ${id}`, estado, entregaPreferida: "RETIRA_FOTOGRAFO", labContactId: null, laboratorio: null, mensajeAlLab: null,
   fechaPrometida: null, createdAt: "2026-11-20T15:00:00.000Z", enviadoAt: null, labAbrioAt: null, labDescargoAt: null,
-  listoAt: null, recibidoAt: null, cerradoAt: null, pagadoAlLabAt: null, entradas,
+  listoAt: null, recibidoAt: null, cerradoAt: null, pagadoAlLabAt: null, porFuera: false, entradas,
 });
 
 test("pedidosListosParaEntregar: cada pedido «Listo para retirar» sin entregar, retire quien retire", () => {
@@ -187,7 +196,7 @@ function loteDePrueba(estado: EstadoLote, entradas: Array<Partial<EntradaDelPane
   return {
     id: 1, nombre: "Lote 1 · 21/11", estado, entregaPreferida: "RETIRA_FOTOGRAFO", labContactId: null, laboratorio: null,
     mensajeAlLab: null, fechaPrometida: null, createdAt: "2026-11-21T12:00:00.000Z", enviadoAt: null, labAbrioAt: null,
-    labDescargoAt: null, listoAt: null, recibidoAt: null, cerradoAt: null, pagadoAlLabAt: null,
+    labDescargoAt: null, listoAt: null, recibidoAt: null, cerradoAt: null, pagadoAlLabAt: null, porFuera: false,
     entradas: entradas.map((e, i) => ({
       id: i + 1, albumOrderId: 100 + i, cliente: "Ana", album: "XV", copias: [], totalCopias: 1, retiraCliente: false,
       pickupLabContactId: null, estadoPedido: null, entregadoAt: null, codigoQr: null, ...e,
@@ -239,4 +248,75 @@ test("pasoInicialDelPanel: el primer paso con pedidos, sin abrir en «Entregados
 
 test("PASOS_DEL_PANEL: cuatro pasos numerados en orden", () => {
   assert.deepEqual(PASOS_DEL_PANEL.map((p) => [p.clave, p.numero]), [["PARA_IMPRIMIR", 1], ["EN_LABORATORIO", 2], ["LISTOS", 3], ["ENTREGADOS", 4]]);
+});
+
+test("faseDelLote: entre «Enviado» y «En producción» se ve si el laboratorio abrió y descargó", () => {
+  const base = { estado: "ENVIADO" as const, labAbrioAt: null, labDescargoAt: null, porFuera: false };
+  assert.equal(faseDelLote(base), "SIN_ABRIR");
+  assert.equal(faseDelLote({ ...base, labAbrioAt: "2026-11-23T17:00:00.000Z" }), "ABIERTO");
+  assert.equal(faseDelLote({ ...base, labAbrioAt: "2026-11-23T17:00:00.000Z", labDescargoAt: "2026-11-23T17:05:00.000Z" }), "DESCARGADO");
+  assert.equal(textoDeLaFase("DESCARGADO"), "Descargado por el laboratorio");
+  // En producción ya no muestra la descarga como fase (queda en el seguimiento).
+  assert.equal(faseDelLote({ ...base, estado: "EN_PRODUCCION", labDescargoAt: "2026-11-23T17:05:00.000Z" }), "EN_PRODUCCION");
+  assert.equal(faseDelLote({ ...base, estado: "RECIBIDO", porFuera: true }), "POR_FUERA");
+});
+
+test("agruparEnElLaboratorio: sin descargar, descargados, en producción y listos, sin grupos vacíos", () => {
+  const l = (id: number, estado: EstadoLote, descargo: string | null = null) => ({ ...lote(id, estado, []), labDescargoAt: descargo });
+  const grupos = agruparEnElLaboratorio([l(1, "ENVIADO"), l(2, "ENVIADO", "2026-11-23T17:05:00.000Z"), l(3, "LISTO"), l(4, "DESPACHADO")]);
+  assert.deepEqual(grupos.map((g) => [g.titulo, g.lotes.map((x) => x.id)]), [
+    ["Esperando que el laboratorio lo descargue", [1]],
+    ["Descargados por el laboratorio", [2]],
+    ["Listos en el laboratorio o despachados", [3, 4]],
+  ]);
+});
+
+test("fechaYHoraDelPanel y seguimientoDelLote: sólo lo que ya pasó, en hora argentina", () => {
+  assert.equal(fechaYHoraDelPanel("2026-11-23T17:05:00.000Z"), "23/11 14:05");
+  assert.equal(fechaYHoraDelPanel(null), "");
+  const s = seguimientoDelLote({ ...lote(1, "ENVIADO", []), enviadoAt: "2026-11-23T12:00:00.000Z", labDescargoAt: "2026-11-23T17:05:00.000Z" });
+  assert.deepEqual(s, [
+    { texto: "Enviado al laboratorio", cuando: "23/11 09:00" },
+    { texto: "El laboratorio descargó las fotos", cuando: "23/11 14:05" },
+  ]);
+  const fuera = seguimientoDelLote({ ...lote(2, "RECIBIDO", []), porFuera: true, recibidoAt: "2026-11-23T12:00:00.000Z" });
+  assert.deepEqual(fuera.map((x) => x.texto), ["Marcado como ya impreso"]);
+});
+
+test("confirmacionAlSacar: si el lote ya salió avisa que el laboratorio puede haberlo impreso", () => {
+  const e = { albumOrderId: 15, retiraCliente: false };
+  const armado = lote(1, "ARMADO", []);
+  assert.match(confirmacionAlSacar(armado, e), /^¿Sacar el pedido #15 del Lote 1/);
+  assert.doesNotMatch(confirmacionAlSacar(armado, e), /Atención/);
+  const enviado = { ...lote(2, "ENVIADO", []), laboratorio: "Procolor", enviadoAt: "2026-11-22T15:00:00.000Z", labDescargoAt: "2026-11-23T17:05:00.000Z" };
+  const t = confirmacionAlSacar(enviado, e);
+  assert.match(t, /ya se envió al laboratorio el 22\/11 y descargó las fotos el 23\/11 14:05/);
+  assert.match(t, /Puede que ya lo hayan impreso/);
+  assert.match(t, /le avisamos al laboratorio por correo/);
+  // Recibido: sólo se le escribe al laboratorio si el cliente retira allá (las copias siguen ahí).
+  const recibido = { ...enviado, estado: "RECIBIDO" as const };
+  assert.doesNotMatch(confirmacionAlSacar(recibido, e), /le avisamos/);
+  assert.match(confirmacionAlSacar(recibido, { ...e, retiraCliente: true }), /le avisamos/);
+  assert.match(confirmacionAlSacar({ ...lote(3, "RECIBIDO", []), porFuera: true }, e), /Deja de figurar como impreso/);
+});
+
+test("avisaAlLabAlSacar y sePuedeSacar", () => {
+  const l = { estado: "LISTO" as const, enviadoAt: "2026-11-22T15:00:00.000Z", laboratorio: "Procolor" };
+  assert.equal(avisaAlLabAlSacar(l, { retiraCliente: false }), true);
+  assert.equal(avisaAlLabAlSacar({ ...l, laboratorio: null }, { retiraCliente: false }), false);
+  assert.equal(avisaAlLabAlSacar({ ...l, enviadoAt: null }, { retiraCliente: false }), false);
+  assert.equal(avisaAlLabAlSacar({ ...l, porFuera: true }, { retiraCliente: false }), false);
+  assert.equal(sePuedeSacar(entrada(1)), true);
+  assert.equal(sePuedeSacar(entrada(1, { entregadoAt: "2026-11-23T10:00:00.000Z" })), false);
+  assert.equal(sePuedeSacar(entrada(1, { estadoPedido: "DELIVERED" })), false);
+});
+
+test("esImpresoPorFuera y accionesDelLote: sin laboratorio no se mueve ni se paga, sólo se saca", () => {
+  assert.equal(esImpresoPorFuera({ estado: "RECIBIDO", enviadoAt: null, labContactId: null }), true);
+  assert.equal(esImpresoPorFuera({ estado: "RECIBIDO", enviadoAt: "2026-11-22T15:00:00.000Z", labContactId: 3 }), false);
+  assert.equal(esImpresoPorFuera({ estado: "ARMADO", enviadoAt: null, labContactId: null }), false);
+  const a = accionesDelLote({ estado: "RECIBIDO", entregaPreferida: "RETIRA_FOTOGRAFO", pagadoAlLabAt: null, porFuera: true });
+  assert.deepEqual([a.enviar, a.deshacer, a.mover.length, a.pagadoAlLab, a.quitar], [false, false, 0, false, "SACAR"]);
+  const listo = accionesDelLote({ estado: "LISTO", entregaPreferida: "RETIRA_FOTOGRAFO", pagadoAlLabAt: null });
+  assert.equal(listo.quitar, "SACAR");
 });

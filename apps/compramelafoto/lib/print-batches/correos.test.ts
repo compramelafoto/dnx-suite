@@ -4,6 +4,7 @@ import {
   correoAlLaboratorio,
   correoListoRetiraEnLaboratorio,
   correoListoRetiraFotografo,
+  correoPedidoSacadoDelLote,
   resumirCopias,
 } from "./correos";
 
@@ -102,4 +103,16 @@ test("retira en el laboratorio sin dirección ni horario: no deja comas sueltas"
     cliente: "Ana",
   });
   assert.ok(c.body.includes("Retiralas en Procolor. Ya están pagas"));
+});
+
+test("correoPedidoSacadoDelLote: dice qué pedido salió, que no lo imprima y escapa el html", () => {
+  const c = correoPedidoSacadoDelLote({
+    nombreLote: "Lote 12 · 20/11", fotografo: "Daniel <b>", pedido: 15, aNombreDe: "Daniel + Ana",
+    copias: [{ medida: "13x18", acabado: "Brillo", cantidad: 2 }],
+  });
+  assert.equal(c.subject, "Lote 12 · 20/11 de Daniel <b>: sacaron el pedido #15");
+  assert.match(c.body, /sacó el pedido #15 \(a nombre de Daniel \+ Ana, 2× 13x18 Brillo\) del Lote 12/);
+  assert.match(c.body, /no lo imprimas/);
+  assert.match(c.body, /ya no figura/);
+  assert.doesNotMatch(c.htmlBody, /<b>/);
 });
