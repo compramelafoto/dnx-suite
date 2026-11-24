@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { assertCronAuth } from "@/lib/cron-auth";
 import { generateDailyAlbumStories } from "@/lib/social/album-stories";
 import { runSocialTokenCheck } from "@/lib/social/connect-account";
+import { generateWelcomeStories } from "@/lib/social/welcome-stories";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -15,6 +16,7 @@ export const maxDuration = 300;
  *    no vence). Si lo rechaza, la cuenta queda caída y el panel pide reconectar.
  * 2. Arma la historia de cada álbum público de más de 50 fotos y la deja agendada.
  *    Publicar lo hace `social-publish`, que corre solo en los diez horarios del día.
+ * 3. Arma la bienvenida de cada fotógrafo que subió su primer álbum (con logo e Instagram).
  */
 export async function GET(request: Request) {
   const unauthorized = assertCronAuth(request);
@@ -31,5 +33,14 @@ export async function GET(request: Request) {
   }
 
   const stories = await generateDailyAlbumStories();
-  return NextResponse.json({ ...stories, tokenCheck });
+  // Las bienvenidas van después: los álbumes eligen horario primero.
+  let welcomes: unknown;
+  try {
+    welcomes = await generateWelcomeStories();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[cron social-album-stories] bienvenidas: ${message}`);
+    welcomes = { ok: false, error: message };
+  }
+  return NextResponse.json({ ...stories, welcomes, tokenCheck });
 }

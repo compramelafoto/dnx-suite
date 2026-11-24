@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateDailyAlbumStories } from "@/lib/social/album-stories";
+import { generateWelcomeStories } from "@/lib/social/welcome-stories";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +27,8 @@ async function resolverAlbum(texto: string): Promise<number | null> {
 
 /**
  * «Armar ahora»: corre la generación diaria sin esperar al cron. Es idempotente.
- * Con `{ album }` arma las historias de ese álbum aunque no sea reciente.
+ * Con `{ album }` arma las historias de ese álbum aunque no sea reciente. Sin álbum, también
+ * arma las bienvenidas de los fotógrafos nuevos.
  */
 export async function POST(req: Request) {
   const { error, user } = await requireAuth([Role.ADMIN]);
@@ -37,5 +39,7 @@ export async function POST(req: Request) {
     if (!id) return NextResponse.json({ error: "No encontré ese álbum. Pegá su número o su link." }, { status: 404 });
     return NextResponse.json({ ...(await generateDailyAlbumStories(new Date(), { albumIds: [id] })), albumId: id });
   }
-  return NextResponse.json(await generateDailyAlbumStories());
+  const stories = await generateDailyAlbumStories();
+  const welcomes = await generateWelcomeStories();
+  return NextResponse.json({ ...stories, welcomes });
 }
