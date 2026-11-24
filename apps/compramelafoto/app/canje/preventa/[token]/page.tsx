@@ -29,6 +29,8 @@ import { marcasDeCurso } from "@/lib/preventa-canjeable/cursos-publicados";
 import { cursoDelPackTodaviaNoEsta } from "@/lib/preventa-canjeable/cursos-publicados-reglas";
 import { fechaAvisoFotosListas } from "@/lib/preventa-canjeable/aviso-fotos-listas";
 import { textoCurso } from "@/lib/schools/embudo-pedidos-escolares";
+import { familiaPuedeElegir } from "@/lib/schools/quien-elige-las-fotos";
+import { cargarRegla } from "@/lib/schools/quien-elige-las-fotos-server";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +70,9 @@ export default async function PreventaCanjePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { token } = await params;
-  const mirarIgual = (await searchParams).mirar === "igual";
+  const sp = await searchParams;
+  const mirarIgual = sp.mirar === "igual";
+  const pideComoFotografo = sp.como === "fotografo";
   const lookup = await getOrderIdForPackAccessToken(token);
   if (!lookup.ok) {
     return (
@@ -149,8 +153,13 @@ export default async function PreventaCanjePage({
    * álbum (o un admin) con su sesión, y entra sin selfie: él no aparece en las fotos.
    */
   let modoPrueba = false;
+  const viewer = order.isTest || pideComoFotografo ? await getAuthUser().catch(() => null) : null;
+  /*
+   * Modo fotógrafo: el dueño del álbum elige las fotos por la familia («Elegir de corrido»). Entra
+   * como en el modo prueba (sin selfie, con todas las fotos) y al confirmar sigue con el próximo.
+   */
+  const modoFotografo = pideComoFotografo && puedeUsarPackDePrueba(viewer, album.userId);
   if (order.isTest) {
-    const viewer = await getAuthUser().catch(() => null);
     if (!puedeUsarPackDePrueba(viewer, album.userId)) {
       return (
         <Aviso
@@ -162,6 +171,20 @@ export default async function PreventaCanjePage({
     modoPrueba = true;
   }
 
+  if (order.redemptionOrderId != null && modoFotografo) {
+    const yo = await prisma.schoolPhotoChosenByPhotographer.findUnique({
+      where: { preventaOrderId: order.id },
+      select: { id: true },
+    });
+    return (
+      <Aviso
+        titulo={yo ? "Este pack ya lo elegiste" : "Este pack ya lo eligió la familia"}
+        texto="Seguí con el próximo pedido de la lista."
+        href={`/fotografo/escuelas/elegir?hecho=${order.id}`}
+        link="Seguir con el próximo"
+      />
+    );
+  }
   if (order.redemptionOrderId != null && modoPrueba) {
     return (
       <section className="mx-auto max-w-lg px-4 py-16">
@@ -186,6 +209,17 @@ export default async function PreventaCanjePage({
         titulo="Este pack ya fue canjeado"
         texto="Las fotos de tu pack ya están pedidas. Si querés más, las podés comprar en la galería."
         href={galeriaHref}
+      />
+    );
+  }
+  // La preventa dice que elige el fotógrafo: la familia espera el aviso de que está listo.
+  if (!modoFotografo && !modoPrueba && !familiaPuedeElegir(await cargarRegla(album.id))) {
+    return (
+      <Aviso
+        titulo="El fotógrafo está eligiendo tus fotos"
+        texto={`${album.user?.name ?? "El fotógrafo"} va a elegir las mejores fotos de tu pack. Cuando esté listo te llega un correo con todo. No tenés que hacer nada más.`}
+        href={galeriaHref}
+        link="Mirar la galería"
       />
     );
   }
@@ -239,7 +273,7 @@ export default async function PreventaCanjePage({
    * está, la familia entraría a buscar fotos que no se subieron. Se le dice y se le deja mirar
    * igual (por si el fotógrafo se olvidó de marcarlo).
    */
-  if (!modoPrueba && !mirarIgual && preCompra?.schoolCourseId != null) {
+  if (!modoPrueba && !modoFotografo && !mirarIgual && preCompra?.schoolCourseId != null) {
     const marcas = (await marcasDeCurso([album.id])).get(album.id) ?? new Map();
     const faltaElCurso = cursoDelPackTodaviaNoEsta(
       { schoolCourseId: preCompra.schoolCourseId, avisoAt: fechaAvisoFotosListas(order.redemptionPaymentRefsJson) },
@@ -273,7 +307,7 @@ export default async function PreventaCanjePage({
     album.id,
     album.hiddenPhotosEnabled,
     album.photos.map((p) => ({ id: p.id, previewUrl: p.previewUrl ?? "", originalKey: p.originalKey })),
-    { photographerBypassGrant: modoPrueba, simulateClientView: false, grantCookieValue: grantCookie }
+    { photographerBypassGrant: modoPrueba || modoFotografo, simulateClientView: false, grantCookieValue: grantCookie }
   );
 
   /*
@@ -282,7 +316,7 @@ export default async function PreventaCanjePage({
    * de reintentar durante 30 minutos. Ahora vuelve a ver la verificación, con el porqué.
    */
   const selfieSinFotos = album.hiddenPhotosEnabled && visible.initialHasGrant && visible.photos.length === 0;
-  if (album.hiddenPhotosEnabled && (!visible.initialHasGrant || selfieSinFotos)) {
+  if (!modoFotografo && album.hiddenPhotosEnabled && (!visible.initialHasGrant || selfieSinFotos)) {
     const quien = alumnoDelPedido ? alumnoDelPedido : "tu hija o tu hijo";
     return (
       <ProtectedAlbumWrapper albumId={album.id} enableProtection>
@@ -460,7 +494,12 @@ export default async function PreventaCanjePage({
 
   return (
     <ProtectedAlbumWrapper albumId={album.id} enableProtection>
-      {modoPrueba ? (
+      {modoFotografo ? (
+        <div className="sticky top-0 z-30 bg-[#1f5b3f] px-4 py-2 text-center text-sm text-white">
+          <strong>Estás eligiendo por la familia{alumno ? ` de ${alumno}` : ""}.</strong> Ves todas las fotos del
+          álbum. Al confirmar, la familia recibe su correo como si hubiera elegido ella, y pasás al próximo pedido.
+        </div>
+      ) : modoPrueba ? (
         <div data-demo-ocultar="" className="bg-amber-100 px-4 py-2 text-center text-sm text-amber-900">
           <strong>Modo prueba.</strong> Estás viendo el canje como una familia. Ves todas las fotos
           del álbum sin selfie; una familia real primero se verifica y ve sólo las suyas. Lo que
@@ -489,9 +528,10 @@ export default async function PreventaCanjePage({
         photos={photos.map((p) => ({ ...p, faces: facesById.get(p.id) ?? null }))}
         designs={designs}
         designValues={designValues}
-        pedirContacto={isPlaceholderEmail(order.buyerEmail)}
+        pedirContacto={!modoFotografo && isPlaceholderEmail(order.buyerEmail)}
         extras={extras}
         modoPrueba={modoPrueba}
+        modoFotografo={modoFotografo ? { packOrderId: order.id, grupalDelCurso: null } : undefined}
         cursosParaSumar={cursosParaSumarAlListado}
         comprador={{
           nombre: familia ?? "",

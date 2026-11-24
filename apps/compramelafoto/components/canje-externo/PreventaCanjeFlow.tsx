@@ -105,6 +105,12 @@ type Props = {
   /** Pack de prueba del fotógrafo: los extras no se cobran. */
   modoPrueba?: boolean;
   /**
+   * El fotógrafo elige por la familia («Elegir de corrido»). Al confirmar no se ofrecen extras:
+   * se sigue con el próximo pack de la cola. `grupalDelCurso`: la grupal que ya eligió para este
+   * curso, puesta de entrada en el lugar grupal.
+   */
+  modoFotografo?: { packOrderId: number; grupalDelCurso: number | null };
+  /**
    * Los otros cursos del colegio que la familia puede sumar al listado del librito (sólo si la
    * plantilla lo permite). Sin el curso propio.
    */
@@ -145,6 +151,7 @@ export default function PreventaCanjeFlow({
   extras = null,
   comprador,
   modoPrueba = false,
+  modoFotografo,
   cursosParaSumar = [],
 }: Props) {
   /** Varias carpetas (o libritos) en el mismo pedido: se pregunta si van con las mismas fotos. */
@@ -247,6 +254,11 @@ export default function PreventaCanjeFlow({
     const i = plan.slots.findIndex((s, k) => claves.has(s.benefitKey) && s.role === "group" && filled[k] != null);
     const id = i >= 0 ? filled[i] : null;
     return id != null ? (facesById.get(id) ?? null) : null;
+  })();
+  /** La foto del primer lugar grupal (la que se recuerda para el curso en modo fotógrafo). */
+  const grupalElegida = (() => {
+    const i = plan.slots.findIndex((s, k) => s.role === "group" && filled[k] != null);
+    return i >= 0 ? filled[i] : null;
   })();
   // Una foto del librito del pack: un librito extra se pide sobre ella.
   const libritoPhotoId = (() => {
@@ -361,6 +373,9 @@ export default function PreventaCanjeFlow({
           ...(pedirContacto
             ? { contacto: { nombre: nombre.trim(), email: email.trim(), telefono: telefono.trim() } }
             : {}),
+          ...(modoFotografo
+            ? { comoFotografo: true, ...(grupalElegida != null ? { grupalElegida } : {}) }
+            : {}),
           ...(hayLibrito
             ? {
                 revision: {
@@ -378,6 +393,11 @@ export default function PreventaCanjeFlow({
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || "No pudimos confirmar el canje.");
+      if (modoFotografo) {
+        // Listo este pack: «Elegir de corrido» abre el próximo.
+        window.location.assign(`/fotografo/escuelas/elegir?hecho=${modoFotografo.packOrderId}`);
+        return;
+      }
       setResultado({
         pedido: Number(data.redemptionOrderId),
         downloadUrl: typeof data.downloadUrl === "string" ? data.downloadUrl : null,

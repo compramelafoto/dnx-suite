@@ -13,6 +13,25 @@ import { digitsOnly, isValidPhoneForPurchase } from "@/lib/phone-validation";
 import { isPlaceholderEmail } from "@/lib/canje-externo/external-preventa";
 import { parsePreventaPackSnapshotV1 } from "@/lib/preventa-canjeable/preventa-pack-snapshot-v1";
 import { packRequiereAutorizacion } from "@/lib/revision-de-impresion/en-el-canje";
+import { getAuthUser } from "@/lib/auth";
+import { puedeUsarPackDePrueba } from "@/lib/canje-externo/reiniciar-pack-de-prueba";
+import { familiaPuedeElegir } from "@/lib/schools/quien-elige-las-fotos";
+import { cargarRegla } from "@/lib/schools/quien-elige-las-fotos-server";
+
+/** El pack ya tiene canje: ¿lo hizo el fotógrafo o la familia? */
+async function yaElegido(preventaOrderId: number) {
+  const delFotografo = await prisma.schoolPhotoChosenByPhotographer.findUnique({
+    where: { preventaOrderId },
+    select: { id: true },
+  });
+  return NextResponse.json(
+    {
+      error: delFotografo ? "Este pack ya lo eligió el fotógrafo." : "Este pack ya lo eligió la familia.",
+      code: "already_redeemed",
+    },
+    { status: 409 }
+  );
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,6 +54,10 @@ const BodySchema = z.object({
       })
     )
     .min(1),
+  /** El fotógrafo elige por la familia («Elegir de corrido»): exige su sesión de dueño del álbum. */
+  comoFotografo: z.literal(true).optional(),
+  /** Modo fotógrafo: la foto del lugar grupal, para proponerla en el resto del curso. */
+  grupalElegida: z.number().int().positive().optional(),
   /** Pack cobrado por fuera: la familia carga sus datos al canjear (ver `external-preventa`). */
   contacto: z
     .object({
@@ -83,8 +106,33 @@ export async function POST(req: Request, { params }: RouteParams) {
   // Sin email real no hay a dónde mandar los digitales: el pack cargado por fuera los pide acá.
   const pack = await prisma.order.findUnique({
     where: { id: lookup.orderId },
-    select: { buyerEmail: true, buyerName: true, redemptionOrderId: true, preventaPackSnapshotJson: true },
+    select: {
+      buyerEmail: true,
+      buyerName: true,
+      redemptionOrderId: true,
+      preventaPackSnapshotJson: true,
+      albumId: true,
+      album: { select: { userId: true } },
+    },
   });
+  if (!pack) return NextResponse.json({ error: "token_invalid" }, { status: 404 });
+
+  // Quién confirma: el fotógrafo (con su sesión) o la familia (si la preventa la deja).
+  const comoFotografo = parsed.data.comoFotografo === true;
+  const fotografo = comoFotografo ? await getAuthUser().catch(() => null) : null;
+  if (comoFotografo && (!fotografo || !pack.album || !puedeUsarPackDePrueba(fotografo, pack.album.userId))) {
+    return NextResponse.json({ error: "Iniciá sesión con la cuenta del fotógrafo del álbum." }, { status: 403 });
+  }
+  if (pack.redemptionOrderId != null) return yaElegido(lookup.orderId);
+  if (!comoFotografo && pack.albumId && !familiaPuedeElegir(await cargarRegla(pack.albumId))) {
+    return NextResponse.json(
+      {
+        error: "El fotógrafo elige las fotos de este pack. Te avisamos por correo cuando esté listo.",
+        code: "photographer_chooses",
+      },
+      { status: 409 }
+    );
+  }
   // Un pack con librito no se canjea sin la autorización de impresión de la familia.
   if (pack && pack.redemptionOrderId == null && !parsed.data.revision) {
     let requiere = false;
@@ -103,7 +151,8 @@ export async function POST(req: Request, { params }: RouteParams) {
       );
     }
   }
-  if (pack && pack.redemptionOrderId == null && isPlaceholderEmail(pack.buyerEmail)) {
+  // El fotógrafo no sabe el email de la familia: sin contacto el canje sigue y él entrega.
+  if (isPlaceholderEmail(pack.buyerEmail) && !(comoFotografo && !parsed.data.contacto)) {
     const c = parsed.data.contacto;
     if (!c) {
       return NextResponse.json({ error: "Completá tu nombre, email y WhatsApp." }, { status: 400 });
@@ -123,14 +172,30 @@ export async function POST(req: Request, { params }: RouteParams) {
     const revision = parsed.data.revision
       ? {
           pedida: parsed.data.revision,
-          by: {
-            name: parsed.data.contacto?.nombre ?? pack?.buyerName ?? null,
-            email: parsed.data.contacto?.email ?? (isPlaceholderEmail(pack?.buyerEmail) ? null : (pack?.buyerEmail ?? null)),
-          },
+          // En modo fotógrafo, quien revisó y autorizó la impresión es el fotógrafo.
+          by: fotografo
+            ? { name: fotografo.name ?? null, email: fotografo.email ?? null }
+            : {
+                name: parsed.data.contacto?.nombre ?? pack?.buyerName ?? null,
+                email:
+                  parsed.data.contacto?.email ?? (isPlaceholderEmail(pack?.buyerEmail) ? null : (pack?.buyerEmail ?? null)),
+              },
           userAgent: req.headers.get("user-agent"),
         }
       : null;
     const result = await executePreventaPackRedeemV1(lookup.orderId, parsed.data.selections, revision);
+    if (fotografo) {
+      // Queda registrado que lo eligió el fotógrafo (el canje ya está confirmado: sin propagar).
+      await prisma.schoolPhotoChosenByPhotographer
+        .create({
+          data: {
+            preventaOrderId: lookup.orderId,
+            redemptionOrderId: result.redemptionOrderId,
+            photographerUserId: fotografo.id,
+          },
+        })
+        .catch((err) => console.error("[preventa_redeem] chosen_by_photographer_failed", { err }));
+    }
     const baseUrl = (process.env.APP_URL || new URL(req.url).origin).replace(/\/+$/, "");
     const { downloadUrl } = await completePreventaRedemption(
       result.redemptionOrderId,
@@ -143,6 +208,11 @@ export async function POST(req: Request, { params }: RouteParams) {
     );
   } catch (err: unknown) {
     if (err instanceof PreventaPackRedeemValidationError) {
+      // Confirmaron los dos a la vez: el segundo se entera de quién llegó primero.
+      const ahora = await prisma.order
+        .findUnique({ where: { id: lookup.orderId }, select: { redemptionOrderId: true } })
+        .catch(() => null);
+      if (ahora?.redemptionOrderId != null) return yaElegido(lookup.orderId);
       return NextResponse.json(
         {
           error: err.message,

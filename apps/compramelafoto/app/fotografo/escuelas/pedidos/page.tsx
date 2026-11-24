@@ -14,6 +14,7 @@ import RevisionDeCorrido, {
 } from "@/components/fotografo/escolar/RevisionDeCorrido";
 import { MAX_LIBRITOS_POR_ZIP_JPG as MAX_ZIP_JPG } from "@/lib/design-v2/produccion-reglas";
 import { ensurePhotographerSession } from "@/lib/photographer-session-client";
+import { COLA_ELEGIR_KEY, armarCola } from "@/lib/schools/cola-de-eleccion";
 import {
   INFO_FUERA,
   INFO_PASOS,
@@ -282,6 +283,22 @@ export default function FotografoEscuelasPedidosPage() {
   }
 
   // ------------------------------------------------------------------ acciones del paso
+
+  /** Por canjear · te toca elegir: abre el canje de cada pack uno atrás del otro. */
+  function elegirDeCorrido() {
+    const cola = armarCola((elegidas.length ? elegidas : filas).flatMap((o) => o.packOrderIds ?? []));
+    if (cola.length === 0) {
+      setMensaje({ tono: "ok", texto: "No hay packs para elegir en esta lista." });
+      return;
+    }
+    try {
+      sessionStorage.setItem(COLA_ELEGIR_KEY, JSON.stringify(cola));
+    } catch {
+      setMensaje({ tono: "error", texto: "Tu navegador no deja guardar la lista. Probá en otra ventana." });
+      return;
+    }
+    router.push("/fotografo/escuelas/elegir");
+  }
 
   /** Por canjear · principal: el aviso "ya están las fotos" de cada álbum (el mismo del álbum). */
   async function avisarFamilias() {
@@ -839,9 +856,15 @@ export default function FotografoEscuelasPedidosPage() {
           </div>
         );
         if (ladoEfectivo === "FOTOGRAFO") {
+          const paraElegir = armarCola((elegidas.length ? elegidas : filas).flatMap((o) => o.packOrderIds ?? [])).length;
           return (
             <>
               {pestanas}
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className={btnPrincipal} disabled={!!ocupado || paraElegir === 0} onClick={elegirDeCorrido}>
+                  Elegir de corrido{paraElegir ? ` (${paraElegir})` : ""}
+                </button>
+              </div>
               {nota(
                 "Estas familias pagaron y la preventa dice que elegís vos (o se les venció el plazo). Abrí el canje de cada una y elegí sus fotos: el pedido pasa a «Revisar diseño» como siempre.",
               )}
