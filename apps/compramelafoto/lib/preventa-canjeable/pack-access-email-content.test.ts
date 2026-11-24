@@ -151,3 +151,19 @@ test("con una sola unidad no agrega ruido", () => {
   assert.ok(!text.includes("(×1)"));
   assert.ok(!text.includes("Cada pack:"));
 });
+
+test("si elige el fotógrafo, avisa que él elige y el botón es para ver el pack", () => {
+  const { text, html } = buildPreventaPackAccessEmailContent({ ...baseInput(), eligeElFotografo: true });
+  assert.match(text, /va a elegir las mejores fotos/);
+  assert.match(html, /va a elegir las mejores fotos/);
+  assert.match(html, />Ver mi pack</);
+  assert.doesNotMatch(html, /Acceder a tu pack/);
+  assert.doesNotMatch(text, /elegir y canjear tus fotos/);
+});
+
+test("sin la marca, el correo queda como siempre", () => {
+  const antes = buildPreventaPackAccessEmailContent(baseInput());
+  const conFalse = buildPreventaPackAccessEmailContent({ ...baseInput(), eligeElFotografo: false });
+  assert.deepEqual(conFalse, antes);
+  assert.match(antes.html, /Acceder a tu pack/);
+});

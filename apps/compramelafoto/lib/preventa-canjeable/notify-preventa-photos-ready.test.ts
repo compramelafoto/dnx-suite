@@ -6,6 +6,7 @@ const m = vi.hoisted(() => ({
   update: vi.fn(),
   token: vi.fn(),
   mail: vi.fn(),
+  regla: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -15,6 +16,7 @@ vi.mock("@/lib/prisma", () => ({
       update: (...a: unknown[]) => m.update(...a),
     },
     preCompraOrder: { findUnique: async () => null },
+    schoolPhotoChooserSetting: { findUnique: (...a: unknown[]) => m.regla(...a) },
   },
   OrderOrigin: { PREVENTA_PACK: "PREVENTA_PACK" },
   OrderStatus: { PAID: "PAID" },
@@ -31,6 +33,7 @@ beforeEach(() => {
   for (const f of Object.values(m)) f.mockReset();
   m.album.mockResolvedValue({ title: "Colegio San Patricio", user: { name: "Ceci" } });
   m.token.mockImplementation(async (id: number) => ({ token: `t${id}` }));
+  m.regla.mockResolvedValue(null);
 });
 
 describe("pendingWhere", () => {
@@ -77,6 +80,17 @@ describe("notifyPreventaPhotosReady", () => {
       sinEmail: 0,
     });
     expect(m.find).not.toHaveBeenCalled();
+    expect(m.mail).not.toHaveBeenCalled();
+  });
+});
+
+describe("notifyPreventaPhotosReady con la regla de quién elige", () => {
+  it("si elige el fotógrafo no manda ningún aviso", async () => {
+    m.regla.mockResolvedValue({ mode: "PHOTOGRAPHER", familyDays: null });
+    m.find.mockResolvedValue([
+      { id: 4339, buyerEmail: "familia@example.com", buyerName: "Valenza", preCompraPaymentRef: null, preventaPackSnapshotJson: null, redemptionPaymentRefsJson: null },
+    ]);
+    expect(await notifyPreventaPhotosReady({ albumId: 1106, baseUrl: "https://x" })).toEqual({ enviados: 0, sinEmail: 0 });
     expect(m.mail).not.toHaveBeenCalled();
   });
 });
