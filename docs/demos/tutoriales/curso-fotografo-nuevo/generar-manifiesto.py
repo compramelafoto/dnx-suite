@@ -45,6 +45,7 @@ TOMAS = {
     20: [3.2, 14.8, 20.4, 29.8, 33.6], 21: [3.2, 16.6, 24.6, 31.7, 42.4, 52.6], 22: [3.2, 18.2, 23.0, 34.1, 41.2, 57.1],
     23: [3.2, 10.6, 21.8, 25.7, 34.5], 24: [3.2, 9.9, 16.8, 20.4, 25.5, 30.3, 38.7, 45.7, 54.7],
     25: [3.2, 16.1, 20.5, 30.1, 33.9, 40.7, 47.2, 53.2], 26: [3.2, 18.6, 23.4, 29.9],
+    27: [3.2, 13.4, 31.1, 47.9, 57.0, 72.7, 83.9, 96.3], 28: [3.2, 17.4, 25.0, 38.6, 52.2, 69.3, 78.2, 92.3],
 }
 
 COPYS = [
@@ -223,6 +224,21 @@ COPYS = [
                  "cierre del recorrido: ahora te toca a vos subir tu primer evento."),
          caps=[(0, 'Analytics'), (1, 'Filtrar por álbum y período'), (2, 'El dinero en Mercado Pago'), (3, 'Todo el recorrido')],
          etiquetas=['ganancias', 'mercado pago']),
+    dict(n=27, archivo='C27-laboratorios-recibir-el-lote-y-bajar-las-fotos.mp4', titulo='Para laboratorios: recibir el lote y bajar las fotos',
+         gancho=("Esta clase es para tu laboratorio: mandásela. Cuando el fotógrafo le manda un lote, le llega un correo y "
+                 "lo abre sin cuenta ni contraseña. Arriba ve el resumen, la fecha y cómo se entrega; baja las fotos en un "
+                 "ZIP, ordenadas en una carpeta por medida y acabado, y cada archivo dice el número de pedido y cuántas "
+                 "copias van. El resumen y el remito sirven para controlar."),
+         caps=[(0, 'Para tu laboratorio'), (1, 'El correo del lote'), (2, 'El resumen del lote'), (3, 'Descargar el ZIP'),
+               (4, 'Las carpetas'), (5, 'Cuántas copias imprimir'), (6, 'El resumen'), (7, 'El remito')],
+         etiquetas=['laboratorio fotografico', 'fotos impresas', 'impresion fotografica']),
+    dict(n=28, archivo='C28-laboratorios-etiquetas-clientes-y-entrega.mp4', titulo='Para laboratorios: etiquetas, clientes y entrega',
+         gancho=("Lo que el laboratorio tiene que saber de cada pedido: el nombre del fotógrafo y del cliente, qué copias "
+                 "lleva y si lo retira el cliente en su local, ya pago. Las etiquetas con QR de cada sobre, los botones "
+                 "«Lo empezamos», «Está listo» y «Lo despachamos», y cómo marcar la entrega cuando viene el cliente."),
+         caps=[(0, 'Los pedidos del lote'), (2, '«Retira el cliente»'), (3, 'Las etiquetas'), (4, 'Avisar cómo va'),
+               (6, 'Entregar con el QR'), (7, 'Todo el recorrido')],
+         etiquetas=['laboratorio fotografico', 'fotos impresas', 'entrega de pedidos']),
 ]
 SIGUIENTE = {c['n']: COPYS[i + 1]['titulo'] if i + 1 < len(COPYS) else None for i, c in enumerate(COPYS)}
 

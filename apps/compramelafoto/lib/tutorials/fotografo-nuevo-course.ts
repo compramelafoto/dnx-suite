@@ -83,6 +83,13 @@ export const FOTOGRAFO_NUEVO_COURSE_BLOCKS: CourseBlock[] = [
       { number: 26, title: "Cuánto ganaste y cierre del curso", audience: "Fotógrafo", summary: "Cuánto ganaste, y el cierre del recorrido." },
     ],
   },
+  {
+    title: "Para tu laboratorio",
+    lessons: [
+      { number: 27, title: "Para laboratorios: recibir el lote y bajar las fotos", audience: "Laboratorio", summary: "El correo, el lote sin cuenta y el ZIP ordenado por medida, con las copias en cada archivo." },
+      { number: 28, title: "Para laboratorios: etiquetas, clientes y entrega", audience: "Laboratorio", summary: "Quién retira, las etiquetas con QR, avisar cómo va y marcar la entrega." },
+    ],
+  },
 ];
 
 export const FOTOGRAFO_NUEVO_COURSE_LESSON_COUNT = countLessons(FOTOGRAFO_NUEVO_COURSE_BLOCKS);

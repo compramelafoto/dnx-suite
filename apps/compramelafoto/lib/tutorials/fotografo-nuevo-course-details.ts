@@ -132,4 +132,14 @@ export const FOTOGRAFO_NUEVO_COURSE_DETAILS: Record<number, CourseLessonDetail> 
     description: "Para ver cuánto ganaste entrás a «Analytics»: el neto es lo tuyo, sin la comisión, y filtrás por álbum y por período. Con el cobro dividido, tu parte llega a tu Mercado Pago en el momento de cada venta. Y el cierre del recorrido: ahora te toca a vos subir tu primer evento.",
     chapters: [{ at: 0, label: "Analytics" }, { at: 19, label: "Filtrar por álbum y período" }, { at: 30, label: "Todo el recorrido" }],
   },
+  27: {
+    durationSeconds: 111,
+    description: "Esta clase es para tu laboratorio: mandásela. Cuando el fotógrafo le manda un lote, le llega un correo y lo abre sin cuenta ni contraseña. Arriba ve el resumen, la fecha y cómo se entrega; baja las fotos en un ZIP, ordenadas en una carpeta por medida y acabado, y cada archivo dice el número de pedido y cuántas copias van. El resumen y el remito sirven para controlar.",
+    chapters: [{ at: 0, label: "Para tu laboratorio" }, { at: 13, label: "El correo del lote" }, { at: 31, label: "El resumen del lote" }, { at: 48, label: "Descargar el ZIP" }, { at: 73, label: "Cuántas copias imprimir" }, { at: 84, label: "El resumen" }, { at: 96, label: "El remito" }],
+  },
+  28: {
+    durationSeconds: 106,
+    description: "Lo que el laboratorio tiene que saber de cada pedido: el nombre del fotógrafo y del cliente, qué copias lleva y si lo retira el cliente en su local, ya pago. Las etiquetas con QR de cada sobre, los botones «Lo empezamos», «Está listo» y «Lo despachamos», y cómo marcar la entrega cuando viene el cliente.",
+    chapters: [{ at: 0, label: "Los pedidos del lote" }, { at: 25, label: "«Retira el cliente»" }, { at: 39, label: "Las etiquetas" }, { at: 52, label: "Avisar cómo va" }, { at: 78, label: "Entregar con el QR" }, { at: 92, label: "Todo el recorrido" }],
+  },
 };

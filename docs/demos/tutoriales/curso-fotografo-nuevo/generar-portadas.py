@@ -46,6 +46,8 @@ PORTADAS = {
     24: ('C24-la-entrega-de-las-fotos-impresas.mp4', 20, (240, 60, 1440, 810), 'Entregá<br><em>las impresas</em>'),
     25: ('C25-del-lote-al-laboratorio-y-el-pago.mp4', 37, (240, 60, 1440, 810), 'El lote<br><em>al laboratorio</em>'),
     26: ('C26-cuanto-ganaste-y-cierre.mp4', 9, (240, 60, 1440, 810), 'Cuánto<br><em>ganaste</em>'),
+    27: ('C27-laboratorios-recibir-el-lote-y-bajar-las-fotos.mp4', 38, (240, 0, 1440, 810), 'Para<br><em>laboratorios</em>'),
+    28: ('C28-laboratorios-etiquetas-clientes-y-entrega.mp4', 33, (240, 270, 1440, 810), 'Retira<br><em>el cliente</em>'),
 }
 
 CSS = """
