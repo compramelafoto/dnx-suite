@@ -12,6 +12,8 @@ import { Prisma, prisma } from "@repo/db";
 import { ALBUM_STORY_ENTITY_TYPE, isAlbumStillPublishable } from "./album-stories";
 import { storyCredit } from "./album-stories-plan";
 import { anclaDelCredito } from "./album-story-collages";
+import { isWelcomeStillPublishable, WELCOME_STORY_ENTITY_TYPE } from "./welcome-stories";
+import { WELCOME_TAG_ANCHOR } from "./welcome-story-template";
 import { ALBUM_SOCIAL_CONSENT_ENTITY_TYPE, createClfSocialStore, logSocialRequest, toSocialAccount } from "./prisma-store";
 
 const store = createClfSocialStore();
@@ -121,6 +123,15 @@ export async function processSocialPublishRequest(requestId: string) {
     return { status: "SKIPPED" as const };
   }
 
+  if (request.entityType === WELCOME_STORY_ENTITY_TYPE && !(await isWelcomeStillPublishable(Number(request.entityId)))) {
+    await prisma.dnxSocialPublishRequest.update({
+      where: { id: request.id },
+      data: { status: "CANCELLED", rejectionReason: "El fotógrafo ya no está activo o sacó su Instagram" },
+    });
+    await logSocialRequest(request.id, "CANCELLED", null, { reason: "PHOTOGRAPHER_NOT_PUBLISHABLE" });
+    return { status: "SKIPPED" as const };
+  }
+
   const assets = readAssets(request.assets);
   if (!assets.some((asset) => asset.publicUrl)) {
     return fail(request, "ASSETS_NOT_READY", "Assets sin publicUrl", true);
@@ -171,7 +182,12 @@ export async function processSocialPublishRequest(requestId: string) {
       format: meta.format ?? "SINGLE_IMAGE",
       collaborators: Array.isArray(meta.collaborators) ? (meta.collaborators as string[]) : [],
       userTags: etiquetas,
-      userTagAnchor: request.entityType === ALBUM_STORY_ENTITY_TYPE ? anclaDeLaEtiqueta(meta, etiquetas) : undefined,
+      userTagAnchor:
+        request.entityType === ALBUM_STORY_ENTITY_TYPE
+          ? anclaDeLaEtiqueta(meta, etiquetas)
+          : request.entityType === WELCOME_STORY_ENTITY_TYPE && etiquetas.length > 0
+            ? WELCOME_TAG_ANCHOR
+            : undefined,
       dryRun: !livePublish,
     });
     if (!result.ok) throw new Error(result.errorMessage ?? result.errorCode ?? "PUBLISH_FAILED");

@@ -35,6 +35,7 @@ import {
 import { logSocialRequest, resolveClfInstagramAccount } from "./prisma-store";
 import { carasValidas, fotosConCarasBuenas, type CajaDeCara } from "./story-photo-crop";
 import { prepararFotosDelCollage } from "./story-photo-prepare";
+import { WELCOME_STORY_ENTITY_TYPE } from "./welcome-stories";
 
 /**
  * Historias diarias de álbumes en la cuenta de Instagram de CompraMeLaFoto.
@@ -48,6 +49,8 @@ import { prepararFotosDelCollage } from "./story-photo-prepare";
  */
 
 export const ALBUM_STORY_ENTITY_TYPE = "ALBUM_STORY";
+/** Historias que comparten agenda, tope diario, panel y veto: álbumes y bienvenidas. */
+const STORY_ENTITY_TYPES = [ALBUM_STORY_ENTITY_TYPE, WELCOME_STORY_ENTITY_TYPE];
 const APPLICATION = "COMPRAMELAFOTO";
 const TIMEZONE = "America/Argentina/Buenos_Aires";
 
@@ -256,7 +259,7 @@ export async function generateDailyAlbumStories(
   const ocupados = await prisma.dnxSocialPublishRequest.findMany({
     where: {
       application: APPLICATION,
-      entityType: ALBUM_STORY_ENTITY_TYPE,
+      entityType: { in: STORY_ENTITY_TYPES },
       status: { in: OCCUPYING },
       scheduleAt: { gte: inicioHoyArt },
     },
@@ -680,7 +683,7 @@ export async function listStoryQueue(now: Date = new Date()): Promise<StoryQueue
   const filas = await prisma.dnxSocialPublishRequest.findMany({
     where: {
       application: APPLICATION,
-      entityType: ALBUM_STORY_ENTITY_TYPE,
+      entityType: { in: STORY_ENTITY_TYPES },
       OR: [{ scheduleAt: { gte: desde } }, { status: { in: ["SCHEDULED", "FAILED", "PUBLISHING"] } }],
     },
     orderBy: { scheduleAt: "asc" },
@@ -689,14 +692,19 @@ export async function listStoryQueue(now: Date = new Date()): Promise<StoryQueue
   return filas.map((f) => {
     const m = (f.metadata ?? {}) as Record<string, unknown>;
     const assets = Array.isArray(f.assets) ? (f.assets as Array<{ publicUrl?: string }>) : [];
+    const bienvenida = f.entityType === WELCOME_STORY_ENTITY_TYPE;
     return {
       id: f.id,
       status: f.status,
       scheduleAt: f.scheduleAt?.toISOString() ?? null,
       publishedAt: f.publishedAt?.toISOString() ?? null,
       imageUrl: assets[0]?.publicUrl ?? null,
-      albumId: typeof m.albumId === "number" ? m.albumId : Number(f.entityId) || null,
-      albumTitle: typeof m.albumTitle === "string" ? m.albumTitle : `Álbum ${f.entityId}`,
+      albumId: bienvenida ? null : typeof m.albumId === "number" ? m.albumId : Number(f.entityId) || null,
+      albumTitle: bienvenida
+        ? "Bienvenida al fotógrafo"
+        : typeof m.albumTitle === "string"
+          ? m.albumTitle
+          : `Álbum ${f.entityId}`,
       albumSlug: typeof m.albumSlug === "string" ? m.albumSlug : null,
       photographer:
         typeof m.photographerHandle === "string" && m.photographerHandle
@@ -718,7 +726,7 @@ export async function listStoryQueue(now: Date = new Date()): Promise<StoryQueue
 /** Veto: saca una historia de la cola. Solo mientras no salió. */
 export async function cancelStory(id: string, actorUserId: number): Promise<boolean> {
   const r = await prisma.dnxSocialPublishRequest.updateMany({
-    where: { id, entityType: ALBUM_STORY_ENTITY_TYPE, status: { in: ["SCHEDULED", "FAILED"] } },
+    where: { id, entityType: { in: STORY_ENTITY_TYPES }, status: { in: ["SCHEDULED", "FAILED"] } },
     data: { status: "CANCELLED", rejectedAt: new Date(), rejectedByUserId: actorUserId, nextRetryAt: null },
   });
   if (r.count > 0) await logSocialRequest(id, "CANCELLED", actorUserId, { veto: true });
@@ -731,7 +739,7 @@ export async function cancelStory(id: string, actorUserId: number): Promise<bool
  */
 export async function publishStoryNow(id: string, actorUserId: number): Promise<boolean> {
   const r = await prisma.dnxSocialPublishRequest.updateMany({
-    where: { id, entityType: ALBUM_STORY_ENTITY_TYPE, status: "SCHEDULED" },
+    where: { id, entityType: { in: STORY_ENTITY_TYPES }, status: "SCHEDULED" },
     data: { scheduleAt: new Date() },
   });
   if (r.count > 0) await logSocialRequest(id, "RESCHEDULED", actorUserId, { now: true });
