@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import CanjeComboBanner from "@/components/canje-externo/CanjeComboBanner";
 import { readCanjeToken } from "@/lib/canje-externo/canje-token-storage";
-import { fitTipoToFormats, resolveAvailableFormats } from "@/lib/albums/available-formats";
+import { fitSizeToAvailable, fitTipoToFormats, resolveAvailableFormats } from "@/lib/albums/available-formats";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import OrderItem from "@/components/order/OrderItem";
 import Button from "@/components/ui/Button";
@@ -1139,6 +1139,7 @@ export default function ComprarClient() {
 
     const savedItems = sessionStorage.getItem(`album_${albumId}_items`);
     const defaultSize = labPricing.basePrices.length > 0 ? labPricing.basePrices[0].size : "10x15";
+    const availableSizes = labPricing.basePrices.map((p) => p.size).filter(Boolean);
     let defaultTipo: "digital" | "impresa" = "digital";
     if (albumPricing?.enableDigitalPhotos && !albumPricing?.enablePrintedPhotos) {
       defaultTipo = "digital";
@@ -1176,7 +1177,11 @@ export default function ComprarClient() {
           );
           const size = tipo === "digital"
             ? "DIGITAL"
-            : (existing?.size && existing.size !== "DIGITAL" ? existing.size : defaultSize);
+            : fitSizeToAvailable(
+                existing?.size && existing.size !== "DIGITAL" ? existing.size : null,
+                availableSizes,
+                defaultSize
+              );
           return {
             fileKey: photo.fileKey,
             previewUrl: photo.url,
