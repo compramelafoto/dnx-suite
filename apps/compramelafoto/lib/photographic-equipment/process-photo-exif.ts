@@ -4,6 +4,7 @@ import { isAlbumEligibleForExifScan, type AlbumRetentionFields } from "@/lib/alb
 import { hasUsefulDeviceData } from "@/lib/photographic-equipment/device-inference";
 import { extractExifMetadata } from "@/lib/photographic-equipment/extract-exif-metadata";
 import { upsertGearFromObservation } from "@/lib/photographic-equipment/upsert-gear";
+import { recordGearSerialSightings } from "@/lib/stolen-gear/record-sightings";
 
 export type PhotoExifProcessContext = {
   id: number;
@@ -168,6 +169,15 @@ export async function processPhotoExifFromBuffer(
     const gear = await upsertGearFromObservation({
       photographerId,
       photoId: photo.id,
+      albumId: photo.albumId,
+      uploadedAt: photo.createdAt,
+      exif,
+      seenAt,
+    });
+
+    // Historial permanente de números de serie (equipos robados). No lanza.
+    await recordGearSerialSightings({
+      photographerId,
       albumId: photo.albumId,
       uploadedAt: photo.createdAt,
       exif,

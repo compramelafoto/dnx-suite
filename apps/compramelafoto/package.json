@@ -68,6 +68,7 @@
     "test:origen-campania": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/origen-campania.test.ts middleware.referral.test.ts",
     "test:packs-vs-sueltas": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/album-packs/pack-vs-singles.test.ts",
     "test:fotoffice-vinculo": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/public-album/resumen.test.ts",
+    "test:equipos-robados": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/stolen-gear/serial.test.ts",
     "test:lab-seguridad": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/lab/session-lab-access.test.ts"
   },
   "dependencies": {

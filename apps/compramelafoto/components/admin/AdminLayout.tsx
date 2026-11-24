@@ -179,6 +179,7 @@ const menuGroups: MenuGroup[] = [
       { id: "auditoria-selfies", label: "Auditoría selfies", path: "/admin/auditoria-selfies" },
       { id: "procesamiento-fotos", label: "Procesamiento fotos", path: "/admin/procesamiento-fotos" },
       { id: "equipos-fotograficos", label: "Equipos fotográficos", path: "/admin/equipos-fotograficos" },
+      { id: "equipos-robados", label: "Equipos robados", path: "/admin/equipos-robados" },
       { id: "ia", label: "IA / Reconocimiento", path: "/admin/ia" },
       {
         id: "solicitudes-privacidad",
