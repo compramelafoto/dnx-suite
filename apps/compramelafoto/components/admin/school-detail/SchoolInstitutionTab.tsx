@@ -37,6 +37,7 @@ import {
   getOrderIdFromDiagnostic,
   getPackIdFromDiagnostic,
 } from "@/lib/admin/school-detail-diagnostics";
+import EliminarEscuelaBoton from "@/components/school/EliminarEscuelaBoton";
 
 export type SchoolInstitutionTabDiagnosticsProps = {
   diagnosticsSeverityFilter: "all" | "warning" | "error";
@@ -206,6 +207,11 @@ export function SchoolInstitutionTab({
               </Button>
             ) : (
               <div className="flex flex-wrap gap-2">
+                <EliminarEscuelaBoton
+                  schoolName={detail.school.name}
+                  deleteUrl={`/api/admin/schools/${detail.school.id}`}
+                  redirectTo="/admin/escuelas"
+                />
                 <Button
                   variant="outline"
                   size="sm"

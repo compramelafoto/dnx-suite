@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { Role } from "@/lib/prisma";
+import { eliminarEscuelaSiEstaVacia } from "@/lib/schools/eliminar-escuela";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -171,7 +172,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Escuela no encontrada" }, { status: 404 });
     }
 
-    await prisma.school.delete({ where: { id: schoolId } });
+    const resultado = await eliminarEscuelaSiEstaVacia(schoolId);
+    if (!resultado.ok) {
+      return NextResponse.json({ error: resultado.motivo }, { status: 409 });
+    }
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error("DELETE /api/fotografo/schools/[id]:", err);
