@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Role, StudentIdentificationMode } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
+import { eliminarEscuelaSiEstaVacia } from "@/lib/schools/eliminar-escuela";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -755,5 +756,50 @@ export async function PATCH(req: NextRequest, { params }: RouteContext) {
       { error: "Error actualizando escuela" },
       { status: 500 }
     );
+  }
+}
+
+/** DELETE: eliminar la escuela completa (sólo si no tiene álbumes, pedidos ni comisiones). */
+export async function DELETE(_req: NextRequest, { params }: RouteContext) {
+  try {
+    const { error, user } = await requireAuth([Role.ADMIN]);
+    if (error || !user) {
+      const status = error === "No autorizado" ? 403 : 401;
+      return NextResponse.json(
+        { error: error || "No autenticado. Se requiere rol ADMIN." },
+        { status }
+      );
+    }
+
+    const { schoolId: schoolIdRaw } = await params;
+    const schoolId = parseSchoolId(schoolIdRaw);
+    if (!schoolId) {
+      return NextResponse.json({ error: "schoolId inválido" }, { status: 400 });
+    }
+
+    const existing = await prisma.school.findUnique({
+      where: { id: schoolId },
+      select: { id: true, name: true, ownerId: true },
+    });
+    if (!existing) {
+      return NextResponse.json({ error: "Escuela no encontrada" }, { status: 404 });
+    }
+
+    const resultado = await eliminarEscuelaSiEstaVacia(schoolId);
+    if (!resultado.ok) {
+      return NextResponse.json({ error: resultado.motivo }, { status: 409 });
+    }
+
+    console.log("[admin_schools] school_deleted", {
+      adminUserId: user.id,
+      schoolId,
+      name: existing.name,
+      ownerId: existing.ownerId,
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("DELETE /api/admin/schools/[schoolId]:", err);
+    return NextResponse.json({ error: "Error eliminando escuela" }, { status: 500 });
   }
 }

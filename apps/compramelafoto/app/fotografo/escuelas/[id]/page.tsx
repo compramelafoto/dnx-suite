@@ -34,6 +34,7 @@ import {
   Wallet,
 } from "lucide-react";
 import AddressGeoSearch from "@/components/school/AddressGeoSearch";
+import EliminarEscuelaBoton from "@/components/school/EliminarEscuelaBoton";
 import { DsEmptyState } from "@/components/ui/DsEmptyState";
 import { DsDashboardInner, DsPageShell, DsTabPanel } from "@/components/ui/DsLayout";
 import { ensurePhotographerSession } from "@/lib/photographer-session-client";
@@ -1559,6 +1560,11 @@ export default function FotografoEscuelaDetallePage() {
                 </Button>
               ) : (
                 <div className="flex flex-wrap gap-2 justify-end">
+                  <EliminarEscuelaBoton
+                    schoolName={school.name}
+                    deleteUrl={`/api/fotografo/schools/${school.id}`}
+                    redirectTo="/fotografo/escuelas"
+                  />
                   <Button variant="primary" onClick={handleSaveSchool} disabled={saving}>
                     {saving ? "Guardando..." : "Guardar"}
                   </Button>
