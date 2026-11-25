@@ -5,6 +5,7 @@ import { Role } from "@prisma/client";
 import { logAdminAction, getRequestMetadata } from "@/lib/admin/audit";
 import { getAlbumOrderFulfillmentFromItems } from "@/lib/order-fulfillment";
 import { mapEventOrganizerCommissionRowToBreakdown } from "@/lib/event-organizer-commission-display";
+import { resumenComboExterno } from "@/lib/canje-externo/combo-externo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -153,6 +154,7 @@ export async function GET(
       paymentStatus: mapOrderStatusToPaymentStatus(order.status),
       orderType: "ALBUM",
       fulfillmentKind: fulfillment.kind,
+      comboExterno: resumenComboExterno(order),
       digitalItemsCount: fulfillment.digitalItemsCount,
       printItemsCount: fulfillment.printItemsCount,
       total: Math.round(order.totalCents),
