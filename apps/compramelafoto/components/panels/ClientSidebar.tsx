@@ -27,6 +27,12 @@ const clientMenu: SidebarItem[] = [
     icon: PanelIcons.support,
   },
   {
+    id: "cambiar-email",
+    label: "Cambiar email",
+    path: "/cuenta/cambiar-email",
+    icon: PanelIcons.settings,
+  },
+  {
     id: "cambiar-contrasena",
     label: "Cambiar contraseña",
     path: "/cuenta/cambiar-contrasena",

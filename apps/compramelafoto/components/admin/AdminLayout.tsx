@@ -196,6 +196,7 @@ const menuGroups: MenuGroup[] = [
       { id: "salud-plataforma", label: "Salud de la Plataforma", path: "/admin/salud-plataforma" },
       { id: "configuracion", label: "Configuración general", path: "/admin/configuracion" },
       { id: "r2", label: "Almacenamiento R2", path: "/admin/r2" },
+      { id: "cambiar-email", label: "Cambiar email", path: "/cuenta/cambiar-email" },
       { id: "cambiar-contrasena", label: "Cambiar contraseña", path: "/cuenta/cambiar-contrasena" },
     ],
   },
