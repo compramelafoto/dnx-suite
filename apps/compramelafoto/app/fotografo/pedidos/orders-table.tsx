@@ -33,6 +33,7 @@ import {
 } from "@/components/fotografo/orders/orders-bulk-helpers";
 import {
   filterOrders,
+  filterOrdersByDateRange,
   getOrderFulfillmentKind,
   matchesQuickFilter,
   rowKey,
@@ -69,6 +70,8 @@ type BulkLoadingState = {
 export default function PhotographerOrdersTable({ orders, photographerId }: PhotographerOrdersTableProps) {
   const [quickFilter, setQuickFilter] = useState<OrdersQuickFilter>("ALL");
   const [q, setQ] = useState<string>("");
+  const [desde, setDesde] = useState<string>("");
+  const [hasta, setHasta] = useState<string>("");
   const [updatingStatus, setUpdatingStatus] = useState<Record<number, boolean>>({});
   const [downloading, setDownloading] = useState<Record<string, boolean>>({});
   const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
@@ -122,9 +125,14 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** Pedidos dentro del rango de fechas elegido (sin fechas = todos). */
+  const datedOrders = useMemo(
+    () => filterOrdersByDateRange(orders, desde, hasta),
+    [orders, desde, hasta]
+  );
   const filtered = useMemo(
-    () => filterOrders(orders, quickFilter, q),
-    [orders, quickFilter, q]
+    () => filterOrders(datedOrders, quickFilter, q),
+    [datedOrders, quickFilter, q]
   );
   /** Sin los pedidos DEMO: para indicadores, alertas, analítica y actividad. */
   const realOrders = useMemo(() => sinPedidosDemo(orders), [orders]);
@@ -503,13 +511,21 @@ export default function PhotographerOrdersTable({ orders, photographerId }: Phot
 
       <div ref={listAnchorRef} className="scroll-mt-4 w-full min-w-0 space-y-3">
       <OrdersWorkspaceHeader
-        orders={orders}
+        orders={datedOrders}
         quickFilter={quickFilter}
         onQuickFilterChange={setQuickFilter}
         q={q}
         onSearchChange={setQ}
         onClearSearch={() => setQ("")}
         shownCount={filtered.length}
+        desde={desde}
+        hasta={hasta}
+        onDesdeChange={setDesde}
+        onHastaChange={setHasta}
+        onClearDates={() => {
+          setDesde("");
+          setHasta("");
+        }}
       />
 
       <OrdersDesktopList

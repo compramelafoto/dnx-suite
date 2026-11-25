@@ -228,6 +228,40 @@ export function matchesQuickFilter(o: PhotographerOrderRow, quick: OrdersQuickFi
   return true;
 }
 
+const AR_DAY_FORMAT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Argentina/Buenos_Aires",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** Día del pedido en hora argentina, como "AAAA-MM-DD" (mismo formato que un <input type="date">). */
+export function orderDayKey(o: Pick<PhotographerOrderRow, "createdAtIso">): string | null {
+  if (!o.createdAtIso) return null;
+  const d = new Date(o.createdAtIso);
+  if (Number.isNaN(d.getTime())) return null;
+  return AR_DAY_FORMAT.format(d);
+}
+
+/**
+ * Deja sólo los pedidos hechos entre `desde` y `hasta` (ambos incluidos, "AAAA-MM-DD", hora argentina).
+ * Vacío = sin límite de ese lado.
+ */
+export function filterOrdersByDateRange(
+  orders: PhotographerOrderRow[],
+  desde: string,
+  hasta: string
+): PhotographerOrderRow[] {
+  if (!desde && !hasta) return orders;
+  return orders.filter((o) => {
+    const day = orderDayKey(o);
+    if (!day) return false;
+    if (desde && day < desde) return false;
+    if (hasta && day > hasta) return false;
+    return true;
+  });
+}
+
 export function filterOrders(
   orders: PhotographerOrderRow[],
   quickFilter: OrdersQuickFilter,
