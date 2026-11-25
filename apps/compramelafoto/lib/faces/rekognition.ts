@@ -9,6 +9,7 @@ import {
   DetectFacesCommand,
 } from "@aws-sdk/client-rekognition";
 import { prepareRekognitionImageBytes } from "./rekognition-image";
+import { normalizeFaceSearchLimits, type FaceSearchLimits } from "./face-search-limits";
 
 type FaceIndexResult = {
   rekognitionFaceId: string;
@@ -126,7 +127,11 @@ export async function detectFaceCount(imageBytes: Uint8Array): Promise<number> {
   return response.FaceDetails?.length ?? 0;
 }
 
-export async function searchFacesByImage(imageBytes: Uint8Array): Promise<FaceSearchMatch[]> {
+export async function searchFacesByImage(
+  imageBytes: Uint8Array,
+  limits?: Partial<FaceSearchLimits>
+): Promise<FaceSearchMatch[]> {
+  const { maxFaces, faceMatchThreshold } = normalizeFaceSearchLimits(limits);
   const rekognition = getRekognitionClient();
   const collectionId = getCollectionId();
   await ensureCollectionExists();
@@ -136,8 +141,8 @@ export async function searchFacesByImage(imageBytes: Uint8Array): Promise<FaceSe
     new SearchFacesByImageCommand({
       CollectionId: collectionId,
       Image: { Bytes: safeBytes },
-      FaceMatchThreshold: 70,
-      MaxFaces: 20,
+      FaceMatchThreshold: faceMatchThreshold,
+      MaxFaces: maxFaces,
     })
   );
 

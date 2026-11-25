@@ -13,6 +13,7 @@ import {
   getHiddenAlbumGrantSecret,
 } from "@/lib/hidden-album-audit";
 import { detectFaceCount, searchFacesByImage } from "@/lib/faces/rekognition";
+import { FACE_SEARCH_PERSON_PHOTOS } from "@/lib/faces/face-search-limits";
 import { isVideoMvpEnabled } from "@/lib/videos/video-feature-flag";
 import { resolveAllowedVideoIds } from "@/lib/videos/hidden-album-videos";
 import { uploadToR2, generateR2Key } from "@/lib/r2-client";
@@ -227,7 +228,7 @@ export async function POST(
   // 5) Una cara: buscar coincidencias en la colección y armar allowedPhotoIds
   let matches: { rekognitionFaceId: string; similarity?: number | null }[];
   try {
-    matches = await searchFacesByImage(u8);
+    matches = await searchFacesByImage(u8, FACE_SEARCH_PERSON_PHOTOS);
   } catch (err: any) {
     await prisma.hiddenAlbumAttempt.update({
       where: { id: attempt.id },
