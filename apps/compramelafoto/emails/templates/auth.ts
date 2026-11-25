@@ -57,6 +57,60 @@ export function buildPasswordChangedEmail(params: { firstName?: string }) {
   return { subject, html };
 }
 
+export function buildConfirmEmailChangeEmail(params: {
+  firstName?: string;
+  confirmUrl: string;
+  newEmail: string;
+}) {
+  const { firstName, confirmUrl, newEmail } = params;
+  const subject = "Confirmá tu nuevo email en ComprameLaFoto";
+  const html = wrapEmail(`
+    <p>${greet(firstName)}</p>
+    <p>Pediste usar <strong>${newEmail}</strong> para iniciar sesión en ComprameLaFoto.</p>
+    <p>Para terminar el cambio, confirmá que esta dirección es tuya:</p>
+    <p>
+      <a href="${confirmUrl}" style="display: inline-block; background: #c27b3d; color: #ffffff; padding: 10px 18px; border-radius: 6px; text-decoration: none;">
+        Confirmar nuevo email
+      </a>
+    </p>
+    <p style="font-size: 13px; color: #6b7280;">
+      El enlace vence en 24 horas. Hasta que lo confirmes seguís entrando con tu email anterior.
+      Si no lo pediste, ignorá este mensaje.
+    </p>
+  `);
+  return { subject, html };
+}
+
+export function buildEmailChangeRequestedNoticeEmail(params: {
+  firstName?: string;
+  newEmail: string;
+}) {
+  const { firstName, newEmail } = params;
+  const subject = "Pedido de cambio de email en tu cuenta";
+  const html = wrapEmail(`
+    <p>${greet(firstName)}</p>
+    <p>Se pidió cambiar el email de tu cuenta de ComprameLaFoto a <strong>${newEmail}</strong>.</p>
+    <p>El cambio se hace sólo cuando se confirma desde esa dirección. Hasta entonces seguís entrando con este email.</p>
+    <p style="font-size: 13px; color: #6b7280;">
+      Si no fuiste vos, cambiá tu contraseña y contactanos cuanto antes.
+    </p>
+  `);
+  return { subject, html };
+}
+
+export function buildEmailChangedNoticeEmail(params: { firstName?: string; newEmail: string }) {
+  const { firstName, newEmail } = params;
+  const subject = "El email de tu cuenta cambió";
+  const html = wrapEmail(`
+    <p>${greet(firstName)}</p>
+    <p>Desde ahora iniciás sesión en ComprameLaFoto con <strong>${newEmail}</strong>.</p>
+    <p style="font-size: 13px; color: #6b7280;">
+      Si no fuiste vos, contactanos cuanto antes.
+    </p>
+  `);
+  return { subject, html };
+}
+
 export function buildAlbumInviteEmail(params: {
   albumTitle: string;
   inviteUrl: string;

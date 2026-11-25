@@ -147,9 +147,15 @@ export async function GET(req: Request) {
     }
 
     // 3. Buscar usuario existente
-    let user = await prisma.user.findUnique({
-      where: { email: email.toLowerCase() },
-    });
+    // Primero por la cuenta de Google ya vinculada: si la persona cambió su email en CLF,
+    // entrar con Google la sigue llevando a la misma cuenta.
+    let user =
+      (googleId
+        ? await prisma.user.findUnique({ where: { googleId: String(googleId) } })
+        : null) ??
+      (await prisma.user.findUnique({
+        where: { email: email.toLowerCase() },
+      }));
     let isNewUser = false;
 
     if (!user) {
