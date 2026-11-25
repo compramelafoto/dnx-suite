@@ -11,6 +11,7 @@ import {
 } from "@/lib/orders/resolve-album-order-buyer-contact";
 import { digitalOrdersVisibilityWhere } from "@/lib/agencies/order-visibility";
 import { esPedidoDemo } from "@/lib/canje-externo/pack-de-prueba";
+import { esComboExterno } from "@/lib/canje-externo/combo-externo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -128,7 +129,7 @@ export async function GET(req: Request) {
         };
       });
 
-    const digitalOrders = await prisma.order.findMany({
+    const albumOrdersRaw = await prisma.order.findMany({
       where: {
         AND: [
           digitalOrdersVisibilityWhere(id),
@@ -153,6 +154,10 @@ export async function GET(req: Request) {
         buyerUser: { select: { name: true, phone: true, whatsapp: true } },
       },
     });
+
+    // Los combos cobrados por fuera o de regalo no tienen fotos: son el cupo de la familia y
+    // se siguen en "Canjes". El pedido con fotos que arma la familia sí aparece acá.
+    const digitalOrders = albumOrdersRaw.filter((o) => !esComboExterno(o));
 
     // Diseños armados en el pedido (el librito del canje): el fotógrafo los abre desde el pedido.
     const designsByOrderId = new Map<number, number[]>();
