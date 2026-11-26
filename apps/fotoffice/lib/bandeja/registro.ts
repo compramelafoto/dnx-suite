@@ -1,4 +1,5 @@
 import { prisma, type Prisma } from "@repo/db";
+import { anuncioDeMedia } from "./anuncio";
 import { META_APP_ID } from "./coexistencia";
 import { PAUSA_BOT_HORAS_POR_DEFECTO, type Canal } from "./constantes";
 import { partirPorBytes } from "./instagram/partir";
@@ -21,6 +22,8 @@ import { mismoTextoSeguro, type EventoEco, type EventoEntrante, type EventoEstad
 export type ResultadoRegistro = {
   aplicados: number; duplicados: number; ignorados: number; fallidos: number; paraElBot: string[]; medios: string[];
   paraTelegram: { workspaceId: string; chatId: string; mensajeId: string }[];
+  /** Anuncios de Meta que trajeron estos mensajes (para preguntar su campaña si son nuevos). */
+  anuncios: { workspaceId: string; adId: string; titulo: string | null }[];
 };
 
 type Db = Prisma.TransactionClient;
@@ -63,7 +66,7 @@ export async function aplicarEventos(
   /** `workspaceId`: sólo para el simulador de Configuración. Resuelve la conexión por institución en vez de por `phoneNumberId`. */
   opciones: { workspaceId?: string } = {},
 ): Promise<ResultadoRegistro> {
-  const r: ResultadoRegistro = { aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 0, paraElBot: [], medios: [], paraTelegram: [] };
+  const r: ResultadoRegistro = { aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 0, paraElBot: [], medios: [], paraTelegram: [], anuncios: [] };
   const conexiones = new Map<string, { workspaceId: string; pausaBotHoras: number } | null>();
   /** Un aviso de estado sin mensaje conocido más nuevo que esto se cuenta como fallido, para que Meta reintente. */
   const REINTENTO_ESTADO_MS = 5 * 60_000;
@@ -107,6 +110,7 @@ export async function aplicarEventos(
         r.aplicados++;
         if (salida.paraElBot && !r.paraElBot.includes(salida.paraElBot)) r.paraElBot.push(salida.paraElBot);
         if (salida.mensajeConMedio) r.medios.push(salida.mensajeConMedio);
+        if (salida.anuncio && !r.anuncios.some((a) => a.adId === salida.anuncio!.adId)) r.anuncios.push({ workspaceId: conexion.workspaceId, ...salida.anuncio });
         if (salida.paraTelegram) r.paraTelegram.push({ workspaceId: conexion.workspaceId, chatId: salida.paraTelegram.chatId, mensajeId: salida.paraTelegram.mensajeId });
       }
     } catch (error) {
@@ -219,7 +223,10 @@ async function ecoPropioDeInstagram(workspaceId: string, ev: EventoEco, ahora: D
 }
 
 /** `paraElBot`: el chat, si entró un mensaje del cliente y lo atiende el bot. `mensajeConMedio`: el mensaje, si el cliente mandó un archivo. */
-type Escrito = { paraElBot: string | null; mensajeConMedio: string | null; paraTelegram: { chatId: string; mensajeId: string } | null };
+type Escrito = {
+  paraElBot: string | null; mensajeConMedio: string | null; paraTelegram: { chatId: string; mensajeId: string } | null;
+  anuncio: { adId: string; titulo: string | null } | null;
+};
 
 async function escribir(
   tx: Db,
@@ -289,6 +296,10 @@ async function escribir(
     parche.ultimoMensajeEn = cuando;
     Object.assign(parche, vistaPreviaDe(ev.texto, ev.mensajeTipo));
   }
+  // El último anuncio de Meta del que llegó el cliente (etapa 4 de la Bandeja: filtro por campaña).
+  const anuncio = entrante ? anuncioDeMedia(ev.media) : null;
+  const adId = anuncio?.id && /^[0-9]{1,30}$/.test(anuncio.id) ? anuncio.id : null;
+  if (adId) parche.anuncioId = adId;
   if (entrante) {
     parche.noLeidos = { increment: 1 };
     if (ev.nombre && ev.nombre !== chat.nombre) parche.nombre = ev.nombre;
@@ -312,6 +323,7 @@ async function escribir(
     // WhatsApp trae el id del archivo en Meta; Instagram, su dirección.
     mensajeConMedio: entrante && (ev.media?.id || ev.media?.url) ? creado.id : null,
     // Un entrante en un chat que atiende una persona: si esa persona usa Telegram, se le reenvía.
+    anuncio: adId ? { adId, titulo: anuncio?.titulo ?? null } : null,
     paraTelegram: entrante && chat.asignadoUserId !== null && (regla.parche.estado ?? chat.estado) === "HUMANO" ? { chatId: chat.id, mensajeId: creado.id } : null,
   };
 }

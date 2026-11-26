@@ -80,7 +80,7 @@ const TABLAS = [
   // Migración de Alboom (8B-2): el mapa de ids (lo histórico que no avisa), su libro de finanzas y la ficha.
   "fotofficeAlboomMapa", "fotofficeAlboomFinanza", "fotofficeNote", "fotofficeNoteCategory", "fotofficePersonEvent",
   // Bandeja de WhatsApp.
-  "fotofficeWaConexion", "fotofficeWaChat", "fotofficeWaMensaje", "fotofficeWaRespuestaRapida", "fotofficeWaTelegramAviso",
+  "fotofficeWaConexion", "fotofficeWaChat", "fotofficeWaMensaje", "fotofficeWaRespuestaRapida", "fotofficeWaTelegramAviso", "fotofficeMetaAnuncio",
   // Stock (la seña de un pedido aparta unidades con `applyStockMovement`).
   "productVariant", "stockMovement",
   // Digitalización: entregas de videos y cargos extra (spec 2026-10-22, E6).
@@ -246,11 +246,15 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   }),
   fotofficeWaChat: () => ({
     canal: "WHATSAPP", usuarioInstagram: null, nombre: null, clientId: null, estado: "BOT", asignadoUserId: null, botPausadoHasta: null, botExcluido: false, ultimoEntranteEn: null,
-    ultimoMensajeTexto: null, ultimoMensajeTipo: null, noLeidos: 0, resueltoPorUserId: null, resumen: null, resumenEn: null, derivadoSinVerUserId: null,
+    ultimoMensajeTexto: null, ultimoMensajeTipo: null, noLeidos: 0, resueltoPorUserId: null, resumen: null, resumenEn: null, derivadoSinVerUserId: null, anuncioId: null,
     createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeWaRespuestaRapida: () => ({ orden: 0, activa: true, createdAt: new Date(), updatedAt: new Date() }),
   fotofficeWaTelegramAviso: () => ({ textoPendiente: null, pendienteEn: null, createdAt: new Date() }),
+  fotofficeMetaAnuncio: () => ({
+    titulo: null, adName: null, adsetName: null, campaignId: null, campaignName: null, consultadoEn: null, intentos: 0, error: null,
+    createdAt: new Date(), updatedAt: new Date(),
+  }),
   fotofficeWaMensaje: () => ({
     autorUserId: null, autorLabel: null, tipo: "TEXTO", texto: null, media: null, waMessageId: null,
     estadoEnvio: "RECIBIDO", errorCodigo: null, clientToken: null, createdAt: new Date(),
@@ -673,6 +677,7 @@ export function crearBaseEnMemoria() {
     fotofficeWaChat: [{ columnas: ["workspaceId", "canal", "waId"] }],
     fotofficeWaRespuestaRapida: [{ columnas: ["workspaceId", "atajo"] }],
     fotofficeWaTelegramAviso: [{ columnas: ["conexionId", "telegramMessageId"] }],
+    fotofficeMetaAnuncio: [{ columnas: ["workspaceId", "adId"] }],
     // Testimonios: el hash del token y la clave del pedido automático son únicos (la clave, sólo si hay).
     fotofficeTestimonioInvitacion: [
       { columnas: ["tokenHash"] },

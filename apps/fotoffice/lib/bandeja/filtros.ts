@@ -28,7 +28,7 @@ export type FiltrosBandeja = {
 
 export const FILTROS_POR_OMISION: FiltrosBandeja = { quien: "todos", canal: "todos", estado: "abiertos", campana: "todas", q: "" };
 
-const CAMPANA_VALIDA = /^(sin-anuncio|ad:[0-9]{1,30}|[0-9]{1,30})$/;
+export const CAMPANA_VALIDA = /^(sin-anuncio|ad:[0-9]{1,30}|[0-9]{1,30})$/;
 
 const valor = (v: string | string[] | undefined): string => ((Array.isArray(v) ? v[0] : v) ?? "").trim();
 

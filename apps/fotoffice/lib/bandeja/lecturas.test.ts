@@ -364,3 +364,24 @@ describe("canal Instagram", () => {
     expect(await L.detalleChat(ANA, wa.id, AHORA)).toMatchObject({ canal: "WHATSAPP", usuarioInstagram: null, titulo: "Lu" });
   });
 });
+
+describe("filtro por campaña", () => {
+  it("por campaña (sus anuncios), por anuncio sin campaña y sin anuncio, con el chip", async () => {
+    B.agregar("fotofficeMetaAnuncio", { id: "a1", workspaceId: "w1", adId: "1", campaignId: "999", campaignName: "XV Noviembre" });
+    B.agregar("fotofficeMetaAnuncio", { id: "a2", workspaceId: "w1", adId: "2", campaignId: "999", campaignName: "XV Noviembre" });
+    B.agregar("fotofficeMetaAnuncio", { id: "a3", workspaceId: "w1", adId: "3", titulo: "Más info" });
+    const x = await chat("5490000000001", { anuncioId: "1" });
+    const y = await chat("5490000000002", { anuncioId: "2" });
+    const z = await chat("5490000000003", { anuncioId: "3" });
+    const sin = await chat("5490000000004");
+    const ids = async (campana: string) => (await L.listarChats(ANA, { campana, ahora: AHORA }))!.map((c) => c.id).sort();
+    expect(await ids("999")).toEqual([x.id, y.id].sort());
+    expect(await ids("ad:3")).toEqual([z.id]);
+    expect(await ids("sin-anuncio")).toEqual([sin.id]);
+    expect(await ids("todas")).toHaveLength(4);
+    const lista = (await L.listarChats(ANA, { ahora: AHORA }))!;
+    expect(lista.find((c) => c.id === x.id)!.campana).toBe("XV Noviembre");
+    expect(lista.find((c) => c.id === z.id)!.campana).toBe("Más info (sin campaña)");
+    expect(lista.find((c) => c.id === sin.id)!.campana).toBeNull();
+  });
+});
