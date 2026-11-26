@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma, TokenPurpose } from "@/lib/prisma";
 import { hashToken } from "@/lib/token-hash";
 import { decodificarCambioEmail } from "@/lib/auth/cambio-email";
+import { exigirReverificacionDeIdentidad } from "@/lib/auth/reverificar-identidad";
 import { buildEmailChangedNoticeEmail } from "@/emails/templates/auth";
 import { sendEmail } from "@/emails/send";
 
@@ -66,6 +67,9 @@ export async function POST(req: NextRequest) {
         where: { id: user.id },
         data: { email: emailNuevo, emailVerifiedAt: new Date() },
       });
+
+      // Portal de equipos: cambiar el correo obliga a reverificar la identidad (no-op sin fila).
+      await exigirReverificacionDeIdentidad(tx, user.id);
 
       // Pedidos hechos con el email anterior y sin cuenta asociada: se atan a la cuenta para que
       // el cliente los siga viendo (algunas pantallas los buscaban por email).
