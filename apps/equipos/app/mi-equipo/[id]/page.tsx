@@ -9,7 +9,7 @@ import {
   STATUS_LABELS,
 } from "@/lib/inventario/equipos";
 import { EVENT_LABELS, fechaHoraAr, fechaInput } from "@/lib/inventario/formato";
-import { guardarEquipo, subirComprobante, subirFoto } from "../actions";
+import { guardarEquipo, loRecupere, subirComprobante, subirFoto } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -164,6 +164,25 @@ export default async function EquipoPage({
           <p>JPG, PNG, WEBP o PDF, hasta 4 MB.</p>
         </form>
       </section>
+
+      {estadoEditable && item.status !== "SOLD" ? (
+        <section>
+          <h2>Robo o pérdida</h2>
+          <p>
+            <a href={`/mi-equipo/${item.id}/denunciar`}>Denunciar robo o pérdida</a>
+          </p>
+        </section>
+      ) : null}
+      {item.status === "STOLEN" || item.status === "LOST" ? (
+        <section>
+          <h2>Robo o pérdida</h2>
+          <p>Este equipo figura como {STATUS_LABELS[item.status].toLowerCase()}.</p>
+          <form action={loRecupere}>
+            <input type="hidden" name="id" value={item.id} />
+            <button type="submit">Lo recuperé</button>
+          </form>
+        </section>
+      ) : null}
 
       <section>
         <h2>Historial</h2>

@@ -14,7 +14,9 @@ export type EquipoErrorCode =
   | "NO_ENCONTRADO"
   | "DATO_INVALIDO"
   | "LIMITE_FOTOS"
-  | "ARCHIVO_INVALIDO";
+  | "ARCHIVO_INVALIDO"
+  | "FALTA_COMPROBANTE"
+  | "YA_DENUNCIADO";
 
 export class EquipoError extends Error {
   constructor(
@@ -47,7 +49,7 @@ export const STATUS_LABELS: Record<GearItemStatus, string> = {
 };
 
 /** Estados que la persona puede elegir a mano; los de denuncia salen de ese flujo. */
-const MANUAL_STATUSES: GearItemStatus[] = ["IN_USE", "FOR_SALE", "SOLD"];
+export const MANUAL_STATUSES: GearItemStatus[] = ["IN_USE", "FOR_SALE", "SOLD"];
 
 export type ManualItemInput = {
   kind: GearItemKind;
@@ -115,7 +117,7 @@ async function alertSerialConflict(
   }
 }
 
-async function findOwnItem(userId: number, itemId: number) {
+export async function findOwnItem(userId: number, itemId: number) {
   const item = await prisma.gearItem.findFirst({ where: { id: itemId, ownerId: userId } });
   if (!item) throw new EquipoError("NO_ENCONTRADO");
   return item;

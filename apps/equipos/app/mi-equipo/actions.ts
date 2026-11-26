@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import type { GearItemKind, GearItemStatus } from "@/lib/inventario/tipos";
 import { requireLevel } from "@/lib/guards";
+import { markRecovered, reportIncident } from "@/lib/inventario/denuncias";
 import {
   attachItemPhoto,
   attachPurchaseProof,
@@ -144,5 +145,48 @@ export async function subirComprobante(formData: FormData) {
   await run(volver, async () => {
     await attachPurchaseProof(user.id, id, fileOf(formData, "file"));
     return "Comprobante guardado.";
+  });
+}
+
+function optionalFile(fd: FormData, k: string): File | undefined {
+  const f = fd.get(k);
+  return f instanceof File && f.size > 0 ? f : undefined;
+}
+
+export async function denunciarEquipo(formData: FormData) {
+  const id = Number(text(formData, "id"));
+  const formPage = `${LISTA}/${id}/denunciar`;
+  const user = await requireLevel("identidad", formPage);
+  let destino: string;
+  try {
+    const incident = text(formData, "incident");
+    if (incident !== "THEFT" && incident !== "LOST") {
+      throw new EquipoError("DATO_INVALIDO", "Elegí si fue un robo o una pérdida.");
+    }
+    const occurredAt = dateOrNull(formData, "occurredAt");
+    if (!occurredAt) throw new EquipoError("DATO_INVALIDO", "Indicá la fecha del hecho.");
+    await reportIncident(user.id, id, {
+      incident,
+      occurredAt,
+      place: text(formData, "place"),
+      description: text(formData, "description"),
+      policeReportNumber: text(formData, "policeReportNumber"),
+      invoice: optionalFile(formData, "invoice"),
+      policeReport: optionalFile(formData, "policeReport"),
+    });
+    destino = `${LISTA}/${id}?ok=${encodeURIComponent("Recibimos tu denuncia. La vamos a revisar.")}`;
+  } catch (err) {
+    destino = `${formPage}?error=${encodeURIComponent(messageOf(err))}`;
+  }
+  redirect(destino);
+}
+
+export async function loRecupere(formData: FormData) {
+  const id = Number(text(formData, "id"));
+  const volver = `${LISTA}/${id}`;
+  const user = await requireLevel("identidad", volver);
+  await run(volver, async () => {
+    await markRecovered(user.id, id);
+    return "Listo, marcamos el equipo como recuperado.";
   });
 }
