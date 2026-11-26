@@ -21,6 +21,8 @@ export type PhotographerOrderRow = {
   orderType?: string;
   /** OrderOrigin de Prisma — PREVENTA_PACK, PACK_REDEMPTION, STANDARD_CHECKOUT */
   origin?: string | null;
+  /** CheckoutPaymentSource de Prisma — PREPAID_PACK = lo cubrió un pack o combo (canje). */
+  checkoutPaymentSource?: string | null;
   source?: "PRINT_ORDER" | "ALBUM_ORDER";
   fulfillmentKind?: OrderFulfillmentKind;
   hasDigitalItems?: boolean;
