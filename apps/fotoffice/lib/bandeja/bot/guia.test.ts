@@ -2,6 +2,16 @@ import { describe, expect, it } from "vitest";
 import { guiaDeAtencion, situacionDeAtencion } from "./guia";
 
 describe("guía del bot de atención", () => {
+  it("VHS: dice el plazo de hasta 7 días, ofrece el retiro en el Gran Rosario y pregunta qué día pasa", () => {
+    const g = guiaDeAtencion();
+    expect(g).toContain("está lista en hasta 7 días");
+    expect(g).toContain("desde 3 casetes y dentro del Gran Rosario");
+    expect(g).toContain("aproximadamente entre $5.000 y $15.000");
+    expect(g).toContain('"retiro a domicilio de VHS: "');
+    expect(g).toContain("preguntale qué día piensa pasar");
+    expect(g).not.toContain("No prometas plazos.\n");
+  });
+
   it("nombra las tres herramientas y las reglas que no se negocian", () => {
     const g = guiaDeAtencion();
     for (const t of ["buscar_productos", "datos_del_estudio", "preparar_presupuesto", "armar_pedido", "pasar_a_persona"]) expect(g).toContain(t);

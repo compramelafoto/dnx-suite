@@ -270,13 +270,17 @@ export default function Home() {
 
       <section className="sobre-claro px-6 py-20 sm:py-24">
         <div className="mx-auto max-w-5xl">
-          <p className="max-w-[52ch] text-lg leading-relaxed">
-            Estamos terminando de construirla. SubiLaFoto abre en{" "}
-            <strong className="font-extrabold" style={{ color: "var(--slf-violeta-texto)" }}>
-              octubre de 2026
-            </strong>
-            .
+          <h2 className="text-[clamp(1.5rem,3.5vw,2.25rem)] font-extrabold leading-[1.1] tracking-[-0.02em]">
+            Empezá hoy
+          </h2>
+          <p className="mt-4 max-w-[52ch] text-lg leading-relaxed">
+            Entrás con tu cuenta de Google, armás tu ficha en tres pasos y te llevás un kit
+            para ofrecerlo: placas para redes, un folleto y los mensajes para mandarle a tus
+            clientes, todo con tu marca.
           </p>
+          <Link href="/login?next=%2Fpanel" className="mt-8" style={estiloBotonDnx("primario")}>
+            Empezar a vender
+          </Link>
           {/*
             Acá va el contacto cuando exista la casilla del dominio. Publicar una
             dirección que rebota es peor que no publicar ninguna.

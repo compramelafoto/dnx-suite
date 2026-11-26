@@ -1,5 +1,5 @@
 import { cifrasPermitidas, textosDelTurno } from "@/lib/dnx-bot/cifras";
-import { guiaDeAtencion } from "./guia";
+import { guiaDeAtencion, RETIRO_VHS_APROXIMADO_ARS } from "./guia";
 
 /**
  * Cifras que puede decir el bot de WhatsApp. Además de lo que respalda cualquier turno de DNX Bot
@@ -35,6 +35,9 @@ export function cifrasRespaldadasEnAtencion(history: readonly unknown[], appende
   const dichoAntes = (history as Msg[]).filter((m) => m?.role === "assistant").map(textoDe);
   const ok = cifrasPermitidas([...textosDelTurno(todos), ...dichoAntes]);
   for (const c of PORCENTAJES_DE_LA_GUIA) ok.add(c);
+  // Los montos aproximados del retiro de VHS a domicilio que fija la guía.
+  ok.add(`$${RETIRO_VHS_APROXIMADO_ARS.desde}`);
+  ok.add(`$${RETIRO_VHS_APROXIMADO_ARS.hasta}`);
 
   const conCantidades = [...todos.filter((m) => m?.role === "user").map(textoDe), respuesta.replace(/\$\s?[\d.,]+/g, " ")].join("\n");
   const cantidades = new Set<number>();

@@ -12,6 +12,7 @@ import {
   type Valor,
 } from "@/lib/alta-cliente/tipos";
 import { enviarAlta, guardarAlta } from "./actions";
+import { CampoFotos, TokenDeAlta } from "./campo-fotos";
 
 const CAMPO = "fo-input text-base";
 const ESPERA_GUARDADO_MS = 1200;
@@ -112,6 +113,7 @@ export function FormularioAlta({
   if (!seccion) return null;
 
   return (
+    <TokenDeAlta.Provider value={token}>
     <div ref={arriba} className="space-y-5 scroll-mt-4">
       {enviado ? (
         <div role="status" className="fo-alert-success rounded-xl p-4 text-sm leading-relaxed">
@@ -199,6 +201,7 @@ export function FormularioAlta({
         )}
       </div>
     </div>
+    </TokenDeAlta.Provider>
   );
 }
 
@@ -350,6 +353,18 @@ function CampoDePregunta({
         </fieldset>
       );
     }
+    case "fotos":
+      return (
+        <div className="fo-field-stack">
+          <Encabezado p={p} />
+          <CampoFotos
+            valor={typeof v === "string" ? v : ""}
+            poner={(x) => cambiar(p.id, x)}
+            maximo={p.maximo}
+            etiqueta={p.titulo}
+          />
+        </div>
+      );
     case "lista":
       return <CampoLista p={p} v={v} cambiar={cambiar} />;
   }
@@ -368,10 +383,13 @@ function CampoLista({
     Array.isArray(v) && (v.length === 0 || typeof v[0] === "object")
       ? (v as Record<string, string>[])
       : p.filasIniciales ?? [{}];
+  // Las fotos terminan de subir después de un render: se parte siempre de las filas más nuevas.
+  const ultimas = useRef(filas);
+  ultimas.current = filas;
   const poner = (i: number, campo: string, valor: string) =>
     cambiar(
       p.id,
-      filas.map((f, j) => (j === i ? { ...f, [campo]: valor } : f)),
+      ultimas.current.map((f, j) => (j === i ? { ...f, [campo]: valor } : f)),
     );
 
   return (
@@ -410,6 +428,15 @@ function CampoLista({
 }
 
 function CampoDeFila({ campo, valor, poner }: { campo: CampoDeLista; valor: string; poner: (v: string) => void }) {
+  if (campo.tipo === "fotos") {
+    return (
+      <div className="fo-field-stack">
+        <span className="text-xs font-medium">{campo.titulo}</span>
+        {campo.ayuda ? <span className="fo-helper">{campo.ayuda}</span> : null}
+        <CampoFotos valor={valor} poner={poner} maximo={campo.maximo} etiqueta={campo.titulo} />
+      </div>
+    );
+  }
   return (
     <label className="fo-field-stack">
       <span className="text-xs font-medium">{campo.titulo}</span>

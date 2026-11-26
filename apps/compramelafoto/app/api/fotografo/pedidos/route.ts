@@ -286,6 +286,7 @@ export async function GET(req: Request) {
             ? "PREVENTA"
             : f.kind,
         origin: o.origin ?? null,
+        checkoutPaymentSource: o.checkoutPaymentSource ?? null,
         source: "ALBUM_ORDER" as const,
         hasDigitalItems: f.hasDigitalItems,
         hasPrintItems: f.hasPrintItems,

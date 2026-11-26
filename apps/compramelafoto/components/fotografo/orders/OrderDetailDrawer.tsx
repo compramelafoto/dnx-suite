@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCanjeAwareAmount } from "@/lib/orders/canje-order-label";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
@@ -189,7 +190,11 @@ export default function OrderDetailDrawer({
                 ) : null}
                 <SummaryRow
                   label="Monto"
-                  value={`${order.currency} ${order.total.toLocaleString("es-AR")}`}
+                  value={formatCanjeAwareAmount(
+                    order,
+                    order.total,
+                    `${order.currency} ${order.total.toLocaleString("es-AR")}`
+                  )}
                   strong
                 />
               </div>

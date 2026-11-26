@@ -112,6 +112,7 @@ export default function PhotographerPedidosPage() {
     paymentStatus: o.paymentStatus ?? null,
     orderType: o.orderType,
     origin: o.origin ?? null,
+    checkoutPaymentSource: o.checkoutPaymentSource ?? null,
     source: o.source,
     fulfillmentKind: o.fulfillmentKind,
     hasDigitalItems: o.hasDigitalItems,

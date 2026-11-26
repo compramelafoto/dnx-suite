@@ -42,6 +42,11 @@ export const FOTOFFICE_R2_PREFIXES = {
   fotolibroPhoto: "fotoffice/fotolibros",
   /** Foto que sube el inscripto a un evento, para su credencial y su placa de bienvenida. */
   eventoInscriptoPhoto: "fotoffice/evento-inscriptos",
+  /**
+   * Fotos que sube un cliente nuevo desde su formulario de alta (`/alta/<token>`): productos,
+   * logo, taller. Una carpeta por formulario: `fotoffice/alta-clientes/<id del alta>/`.
+   */
+  altaClientePhoto: "fotoffice/alta-clientes",
   /** Fotos que el socio sube sólo para su placa de Socio de la semana («Más sobre mí»). */
   memberFeaturedPhoto: "fotoffice/member-featured",
   /** Vista previa con marca de agua de una obra de concurso de FotoRank publicada en la tienda. */
