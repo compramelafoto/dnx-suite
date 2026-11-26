@@ -95,6 +95,7 @@ const nextConfig: NextConfig = {
     "@repo/guided-tour",
     "@repo/dnx-bot",
     "@repo/db",
+    "@repo/gear",
     "@repo/partners",
     "@repo/auth",
     "@repo/auth-ui",

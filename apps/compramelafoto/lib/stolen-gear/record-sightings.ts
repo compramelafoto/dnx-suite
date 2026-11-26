@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { ExtractedExifMetadata } from "@/lib/photographic-equipment/extract-exif-metadata";
-import { normalizeGearSerial } from "@/lib/stolen-gear/serial";
+import { extractGearSerials } from "@repo/gear/exif";
 
 type SightingInput = {
   photographerId: number;
@@ -20,25 +20,22 @@ type OneSighting = {
 
 function pickSerials(exif: ExtractedExifMetadata): OneSighting[] {
   const out: OneSighting[] = [];
-  const bodyNorm = normalizeGearSerial(exif.serialNumber);
-  if (bodyNorm && exif.serialNumber) {
+  const { bodySerial, lensSerial } = extractGearSerials(exif);
+  if (bodySerial && exif.serialNumber) {
     out.push({
       kind: "BODY",
       serialRaw: String(exif.serialNumber).trim(),
-      serialNormalized: bodyNorm,
+      serialNormalized: bodySerial,
       make: exif.make?.trim() || "Desconocido",
       model: exif.model?.trim() || "Desconocido",
     });
   }
   const lensRaw = exif.rawExifSummary?.LensSerialNumber;
-  const lensNorm = normalizeGearSerial(
-    typeof lensRaw === "string" || typeof lensRaw === "number" ? lensRaw : null
-  );
-  if (lensNorm && lensRaw != null) {
+  if (lensSerial && lensRaw != null) {
     out.push({
       kind: "LENS",
       serialRaw: String(lensRaw).trim(),
-      serialNormalized: lensNorm,
+      serialNormalized: lensSerial,
       make: exif.lensMake?.trim() || exif.make?.trim() || "Desconocido",
       model: exif.lensModel?.trim() || "Desconocido",
     });
