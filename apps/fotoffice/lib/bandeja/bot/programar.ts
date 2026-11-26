@@ -1,6 +1,7 @@
 import "server-only";
 import { after } from "next/server";
 import { descargarMedios } from "../medios";
+import { avisarEntrantes } from "../telegram";
 import { responderConBot } from "./responder";
 
 /**
@@ -22,11 +23,17 @@ export function programarBot(chatIds: readonly string[]): void {
  * Después de registrar un aviso de Meta: primero baja los archivos que mandó el cliente (la URL de
  * Meta vence en minutos y el bot tiene que ver la resolución) y recién después contesta el bot.
  */
-export function programarTrasRegistro(r: { medios: readonly string[]; paraElBot: readonly string[] }): void {
-  if (r.medios.length === 0 && r.paraElBot.length === 0) return;
+export function programarTrasRegistro(r: {
+  medios: readonly string[];
+  paraElBot: readonly string[];
+  paraTelegram?: readonly { workspaceId: string; chatId: string; mensajeId: string }[];
+}): void {
+  const telegram = r.paraTelegram ?? [];
+  if (r.medios.length === 0 && r.paraElBot.length === 0 && telegram.length === 0) return;
   const correr = async () => {
     await descargarMedios(r.medios);
-    await Promise.all(r.paraElBot.map((id) => responderConBot(id)));
+    // Los chats que atiende una persona con Telegram (Bandeja §7.2.2): se le reenvía el mensaje.
+    await Promise.all([...r.paraElBot.map((id) => responderConBot(id)), avisarEntrantes(telegram)]);
   };
   try {
     after(correr);

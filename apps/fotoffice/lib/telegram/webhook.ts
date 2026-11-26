@@ -42,7 +42,12 @@ export type UpdateTelegram =
   | { tipo: "START"; chatId: string; chatPrivado: boolean; codigo: string | null; nombre: string | null }
   | { tipo: "BOTON"; callbackId: string; chatId: string | null; deId: string; messageId: string | null; data: string }
   | { tipo: "RESPUESTA"; chatId: string; chatPrivado: boolean; deId: string | null; messageId: string | null; respondeA: string; texto: string }
+  /** Sólo con `{ bandeja: true }`: citó un mensaje del bot con algo que no es texto (foto, audio, sticker). */
+  | { tipo: "RESPUESTA_NO_TEXTO"; chatId: string; deId: string | null; respondeA: string }
   | { tipo: "OTRO" };
+
+/** Tope del texto de una respuesta para la Bandeja: lo que admite WhatsApp. */
+export const MAX_TEXTO_RESPUESTA_BANDEJA = 4096;
 
 /** Tope del texto de una respuesta (Telegram admite 4096; una corrección no necesita más). */
 export const MAX_TEXTO_RESPUESTA = 2000;
@@ -50,7 +55,12 @@ export const MAX_TEXTO_RESPUESTA = 2000;
 const objeto = (v: unknown): Record<string, unknown> | null => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
 const id = (v: unknown): string | null => (typeof v === "number" && Number.isFinite(v) ? String(v) : typeof v === "string" && /^-?\d{1,20}$/.test(v) ? v : null);
 
-export function leerUpdate(payload: unknown): UpdateTelegram {
+/**
+ * `bandeja`: el bot de la institución también recibe respuestas para la Bandeja de WhatsApp, que
+ * van al cliente tal cual: se admiten hasta 4096 caracteres, textos que empiezan con «/» y se avisa
+ * cuando la cita no es texto. Sin la opción (canal de agentes) todo queda como antes.
+ */
+export function leerUpdate(payload: unknown, opciones: { bandeja?: boolean } = {}): UpdateTelegram {
   const u = objeto(payload);
   if (!u) return { tipo: "OTRO" };
 
@@ -76,7 +86,8 @@ export function leerUpdate(payload: unknown): UpdateTelegram {
   if (!start) {
     // Texto que responde a otro mensaje (no un comando): una corrección para el canal de agentes.
     const respondeA = id(objeto(m.reply_to_message)?.message_id);
-    if (!respondeA || !texto || texto.startsWith("/")) return { tipo: "OTRO" };
+    if (opciones.bandeja && respondeA && typeof m.text !== "string") return { tipo: "RESPUESTA_NO_TEXTO", chatId, deId: id(de?.id), respondeA };
+    if (!respondeA || !texto || (texto.startsWith("/") && !opciones.bandeja)) return { tipo: "OTRO" };
     return {
       tipo: "RESPUESTA",
       chatId,
@@ -84,7 +95,7 @@ export function leerUpdate(payload: unknown): UpdateTelegram {
       deId: id(de?.id),
       messageId: id(m.message_id),
       respondeA,
-      texto: texto.slice(0, MAX_TEXTO_RESPUESTA),
+      texto: texto.slice(0, opciones.bandeja ? MAX_TEXTO_RESPUESTA_BANDEJA : MAX_TEXTO_RESPUESTA),
     };
   }
   const nombre = [de?.first_name, de?.last_name].filter((x): x is string => typeof x === "string" && x.trim() !== "").join(" ").slice(0, 80) || null;

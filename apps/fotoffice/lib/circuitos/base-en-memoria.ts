@@ -80,7 +80,7 @@ const TABLAS = [
   // Migración de Alboom (8B-2): el mapa de ids (lo histórico que no avisa), su libro de finanzas y la ficha.
   "fotofficeAlboomMapa", "fotofficeAlboomFinanza", "fotofficeNote", "fotofficeNoteCategory", "fotofficePersonEvent",
   // Bandeja de WhatsApp.
-  "fotofficeWaConexion", "fotofficeWaChat", "fotofficeWaMensaje", "fotofficeWaRespuestaRapida",
+  "fotofficeWaConexion", "fotofficeWaChat", "fotofficeWaMensaje", "fotofficeWaRespuestaRapida", "fotofficeWaTelegramAviso",
   // Stock (la seña de un pedido aparta unidades con `applyStockMovement`).
   "productVariant", "stockMovement",
   // Digitalización: entregas de videos y cargos extra (spec 2026-10-22, E6).
@@ -229,7 +229,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
   }),
   fotofficePropuestaModelo: () => ({ terms: null, autoSendOnWeb: false, templateId: null, updatedAt: new Date(), updatedByUserId: null }),
   fotofficeTelegramConexion: () => ({
-    chatId: null, chatNombre: null, linkCode: null, linkCodeExpiresAt: null, linkedAt: null, connectedByUserId: null,
+    chatId: null, chatNombre: null, linkCode: null, linkCodeExpiresAt: null, linkedAt: null, connectedByUserId: null, bandejaActiva: true,
     createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficePresupuestoAutoCategoria: () => ({ telegramEnabled: false, portfolio: null, updatedByUserId: null, createdAt: new Date(), updatedAt: new Date() }),
@@ -250,6 +250,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeWaRespuestaRapida: () => ({ orden: 0, activa: true, createdAt: new Date(), updatedAt: new Date() }),
+  fotofficeWaTelegramAviso: () => ({ textoPendiente: null, pendienteEn: null, createdAt: new Date() }),
   fotofficeWaMensaje: () => ({
     autorUserId: null, autorLabel: null, tipo: "TEXTO", texto: null, media: null, waMessageId: null,
     estadoEnvio: "RECIBIDO", errorCodigo: null, clientToken: null, createdAt: new Date(),
@@ -671,6 +672,7 @@ export function crearBaseEnMemoria() {
     ],
     fotofficeWaChat: [{ columnas: ["workspaceId", "canal", "waId"] }],
     fotofficeWaRespuestaRapida: [{ columnas: ["workspaceId", "atajo"] }],
+    fotofficeWaTelegramAviso: [{ columnas: ["conexionId", "telegramMessageId"] }],
     // Testimonios: el hash del token y la clave del pedido automático son únicos (la clave, sólo si hay).
     fotofficeTestimonioInvitacion: [
       { columnas: ["tokenHash"] },

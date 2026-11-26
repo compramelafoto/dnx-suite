@@ -3,6 +3,7 @@
 import { refresh, revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { generarResumen } from "@/lib/bandeja/resumen";
+import { avisarDerivacion } from "@/lib/bandeja/telegram";
 import { MENSAJES_BANDEJA } from "@/lib/bandeja/acceso";
 import {
   agregarNota,
@@ -83,7 +84,13 @@ export async function derivarAction(chatId: string, destino: number | "bot") {
   return conOperar(chatId, async (ctx, id) => {
     const r = await derivar(ctx, id, destino);
     // A una persona: el resumen se arma en segundo plano (no frena la pantalla).
-    if (r.ok && r.cambio && destino !== "bot") after(() => generarResumen(ctx.workspaceId, id).then(() => undefined));
+    // Si se lo derivó a quien usa Telegram, le llega la tarjeta con ese resumen (§7.2.1).
+    if (r.ok && r.cambio && destino !== "bot") {
+      after(async () => {
+        const resumen = await generarResumen(ctx.workspaceId, id);
+        await avisarDerivacion(ctx.workspaceId, id, { userId: ctx.userId, nombre: ctx.userLabel }, { resumir: async () => resumen });
+      });
+    }
     return r;
   });
 }

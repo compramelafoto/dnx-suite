@@ -28035,6 +28035,8 @@ model FotofficeTelegramConexion {
   webhookSecretHash String
   linkedAt          DateTime?
   connectedByUserId Int?
+  /// Mandar por Telegram los chats de la Bandeja asignados a `connectedByUserId` (y responder citando).
+  bandejaActiva     Boolean   @default(true)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 }
@@ -29690,4 +29692,22 @@ model FotofficeWaRespuestaRapida {
   updatedAt   DateTime @updatedAt
 
   @@unique([workspaceId, atajo])
+}
+
+/// Mensaje que el bot de Telegram de la institución mandó por la Bandeja: ata el mensaje de Telegram
+/// a su chat de WhatsApp/Instagram (al citarlo, la respuesta va a ese chat y a ningún otro).
+model FotofficeWaTelegramAviso {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  conexionId        String
+  /// `FotofficeWaChat.id`.
+  chatId            String
+  telegramMessageId String
+  /// Lo que se escribió citando cuando el chat lo atendía otra persona («Tomarlo y enviar»), hasta 4096.
+  textoPendiente    String?
+  pendienteEn       DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@unique([conexionId, telegramMessageId])
+  @@index([chatId])
 }

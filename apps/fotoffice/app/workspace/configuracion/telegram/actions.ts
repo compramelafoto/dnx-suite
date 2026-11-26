@@ -10,7 +10,7 @@ import { editarPortfolio, guardarAcuse, guardarAprobacionTelegram, MENSAJES_AJUS
 import type { CambioPortfolio } from "@/lib/presupuesto-automatico/portfolio-items";
 import { guardarAjustesPorHoras } from "@/lib/presupuesto-automatico/por-horas";
 import { subirFotoAlPortfolio } from "@/lib/presupuesto-automatico/portfolio";
-import { avisarPorTelegram, conectarTelegram, desconectarTelegram, MENSAJES_TELEGRAM, nuevoCodigoTelegram } from "@/lib/telegram/conexion";
+import { avisarPorTelegram, cambiarBandejaTelegram, conectarTelegram, desconectarTelegram, MENSAJES_TELEGRAM, nuevoCodigoTelegram } from "@/lib/telegram/conexion";
 
 /** Estado de los formularios de Configuración → Telegram (`useActionState`). Nunca lleva el token. */
 export type EstadoTelegramConfig = { error: string | null; ok?: string };
@@ -144,4 +144,15 @@ export async function guardarPorHorasAction(_prev: EstadoTelegramConfig | undefi
   if (!r.ok) return { error: r.error };
   revalidatePath(RUTA);
   return { error: null, ok: "Guardado." };
+}
+
+/** Bandeja de WhatsApp: mandar (o no) por Telegram los chats asignados a quien conectó el bot. */
+export async function cambiarBandejaTelegramAction(_prev: EstadoTelegramConfig | undefined, fd: FormData): Promise<EstadoTelegramConfig> {
+  const ctx = await contexto();
+  if (!ctx) return { error: MENSAJES_TELEGRAM.sinPermiso };
+  const encendido = texto(fd, "encendido") === "1";
+  const r = await cambiarBandejaTelegram(ctx, encendido);
+  if (!r.ok) return { error: r.error };
+  revalidatePath(RUTA);
+  return { error: null, ok: encendido ? "Listo: te van a llegar los chats de la Bandeja asignados a vos." : "Listo: ya no te llegan los chats de la Bandeja." };
 }

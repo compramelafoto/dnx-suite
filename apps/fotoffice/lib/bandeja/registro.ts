@@ -17,7 +17,11 @@ import { mismoTextoSeguro, type EventoEco, type EventoEntrante, type EventoEstad
 /** `fallidos`: eventos que fallaron por un error inesperado (el resto del lote se aplicó igual). */
 /** `paraElBot`: chats donde entró un mensaje del cliente y los atiende el bot (los contesta `responderConBot`). */
 /** `medios`: mensajes nuevos del cliente con un archivo de Meta para bajar (`descargarMedios`). */
-export type ResultadoRegistro = { aplicados: number; duplicados: number; ignorados: number; fallidos: number; paraElBot: string[]; medios: string[] };
+/** `paraTelegram`: entrantes de chats atendidos por una persona (se reenvían si esa persona usa Telegram). */
+export type ResultadoRegistro = {
+  aplicados: number; duplicados: number; ignorados: number; fallidos: number; paraElBot: string[]; medios: string[];
+  paraTelegram: { workspaceId: string; chatId: string; mensajeId: string }[];
+};
 
 type Db = Prisma.TransactionClient;
 
@@ -59,7 +63,7 @@ export async function aplicarEventos(
   /** `workspaceId`: sólo para el simulador de Configuración. Resuelve la conexión por institución en vez de por `phoneNumberId`. */
   opciones: { workspaceId?: string } = {},
 ): Promise<ResultadoRegistro> {
-  const r: ResultadoRegistro = { aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 0, paraElBot: [], medios: [] };
+  const r: ResultadoRegistro = { aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 0, paraElBot: [], medios: [], paraTelegram: [] };
   const conexiones = new Map<string, { workspaceId: string; pausaBotHoras: number } | null>();
   /** Un aviso de estado sin mensaje conocido más nuevo que esto se cuenta como fallido, para que Meta reintente. */
   const REINTENTO_ESTADO_MS = 5 * 60_000;
@@ -103,6 +107,7 @@ export async function aplicarEventos(
         r.aplicados++;
         if (salida.paraElBot && !r.paraElBot.includes(salida.paraElBot)) r.paraElBot.push(salida.paraElBot);
         if (salida.mensajeConMedio) r.medios.push(salida.mensajeConMedio);
+        if (salida.paraTelegram) r.paraTelegram.push({ workspaceId: conexion.workspaceId, chatId: salida.paraTelegram.chatId, mensajeId: salida.paraTelegram.mensajeId });
       }
     } catch (error) {
       r.fallidos++;
@@ -214,7 +219,7 @@ async function ecoPropioDeInstagram(workspaceId: string, ev: EventoEco, ahora: D
 }
 
 /** `paraElBot`: el chat, si entró un mensaje del cliente y lo atiende el bot. `mensajeConMedio`: el mensaje, si el cliente mandó un archivo. */
-type Escrito = { paraElBot: string | null; mensajeConMedio: string | null };
+type Escrito = { paraElBot: string | null; mensajeConMedio: string | null; paraTelegram: { chatId: string; mensajeId: string } | null };
 
 async function escribir(
   tx: Db,
@@ -306,6 +311,8 @@ async function escribir(
     paraElBot: entrante && atiendeElBot({ ...estado, ...regla.parche }, ahora) ? chat.id : null,
     // WhatsApp trae el id del archivo en Meta; Instagram, su dirección.
     mensajeConMedio: entrante && (ev.media?.id || ev.media?.url) ? creado.id : null,
+    // Un entrante en un chat que atiende una persona: si esa persona usa Telegram, se le reenvía.
+    paraTelegram: entrante && chat.asignadoUserId !== null && (regla.parche.estado ?? chat.estado) === "HUMANO" ? { chatId: chat.id, mensajeId: creado.id } : null,
   };
 }
 

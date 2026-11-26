@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { InputMoneda } from "@/components/campos/input-moneda";
 import type { AjustesPorHoras } from "@/lib/presupuesto-automatico/por-horas-puro";
 import {
+  cambiarBandejaTelegramAction,
   cambiarCategoriaAction,
   conectarTelegramAction,
   desconectarTelegramAction,
@@ -95,6 +96,27 @@ export function DesconectarForm() {
       <button type="submit" disabled={desconectando} className="fo-btn fo-btn-secondary text-sm">
         {desconectando ? "Desconectando…" : "Desconectar Telegram"}
       </button>
+    </form>
+  );
+}
+
+/** Bandeja de WhatsApp: recibir por Telegram los chats asignados y responderlos citando. */
+export function BandejaTelegramForm({ encendido }: { encendido: boolean }) {
+  const [estado, cambiar, cambiando] = useActionState(cambiarBandejaTelegramAction, INICIAL);
+  return (
+    <form action={cambiar} className="space-y-1">
+      <input type="hidden" name="encendido" value={encendido ? "0" : "1"} />
+      <button
+        type="submit"
+        disabled={cambiando}
+        role="switch"
+        aria-checked={encendido}
+        aria-label="Mandarme por Telegram los chats de la Bandeja asignados a mí"
+        className={`fo-btn text-sm ${encendido ? "fo-btn-primary" : "fo-btn-secondary"}`}
+      >
+        {cambiando ? "Guardando…" : encendido ? "Encendido" : "Apagado"}
+      </button>
+      <Mensaje estado={estado} />
     </form>
   );
 }
