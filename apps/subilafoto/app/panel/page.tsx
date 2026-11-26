@@ -6,6 +6,7 @@ import { prisma } from "@repo/db";
 import { perfilDeVenta } from "@/lib/perfil-de-venta";
 import { formatearPesos } from "@/lib/precios";
 import { eventosQueAdministra } from "@/lib/acceso-al-evento";
+import { pasoSiguiente, pasosDelAlta } from "@/lib/kit/pasos";
 
 export const dynamic = "force-dynamic";
 
@@ -94,7 +95,13 @@ export default async function Panel() {
   ]);
 
   const esAdmin = fila?.globalRole === "SUPER_ADMIN" || fila?.globalRole === "PLATFORM_SUPPORT";
-  const listoParaVender = Boolean(perfil?.isPublished && perfil.basePriceCents > 0);
+  const pasos = pasosDelAlta({
+    basePriceCents: perfil?.basePriceCents ?? 0,
+    mpConnected: perfil?.mpConnected ?? false,
+    isPublished: perfil?.isPublished ?? false,
+  });
+  const siguiente = pasoSiguiente(pasos);
+  const hechos = pasos.filter((p) => p.hecho).length;
   const enlace = `${baseUrl()}/v/${perfil?.slug ?? ""}`;
 
   return (
@@ -145,57 +152,107 @@ export default async function Panel() {
         </section>
       ) : null}
 
-      {/* Lo primero: si se puede vender o no. Es la pregunta que trae al panel. */}
-      <section
-        className="mt-8 rounded-2xl p-7"
-        style={{ background: "var(--slf-purpura)", color: "white" }}
-      >
-        {listoParaVender ? (
-          <>
-            <h2 className="text-xl font-extrabold">Tu enlace de venta está publicado</h2>
-            <p className="mt-3 break-all font-extrabold" style={{ color: "var(--slf-amarillo)" }}>
-              {enlace.replace(/^https?:\/\//, "")}
-            </p>
-            <p className="mt-3 text-sm" style={{ color: "var(--slf-lila)" }}>
-              {formatearPesos(perfil!.basePriceCents)} por evento.
-            </p>
-          </>
-        ) : (
-          <>
-            <h2 className="text-xl font-extrabold">Todavía no podés vender</h2>
-            <p className="mt-3 leading-relaxed" style={{ color: "var(--slf-lila)" }}>
-              {perfil && perfil.basePriceCents > 0
-                ? "Tu ficha tiene precio pero está sin publicar."
-                : "Falta poner tu precio y publicar tu ficha."}
-            </p>
-          </>
-        )}
-
-        {!perfil?.mpConnected ? (
-          <p className="mt-5 border-t pt-5 text-sm" style={{ borderColor: "#ffffff22", color: "var(--slf-lila)" }}>
-            Mercado Pago no está conectado: nadie puede pagarte todavía.
+      {/*
+        Lo primero: si se puede vender o no. Mientras falte algo, es una lista de tres
+        pasos con avance y un solo botón destacado —el del primer paso pendiente—. Antes
+        eran dos botones sueltos y el fotógrafo tenía que adivinar el orden.
+      */}
+      {siguiente ? (
+        <section
+          className="mt-8 rounded-2xl p-7"
+          style={{ background: "var(--slf-purpura)", color: "white" }}
+          aria-labelledby="titulo-alta"
+        >
+          <p className="text-sm font-extrabold" style={{ color: "var(--slf-amarillo)" }}>
+            {hechos} de {pasos.length} listos
           </p>
-        ) : null}
-
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link
-            href="/panel/perfil"
-            className="inline-flex min-h-[44px] items-center rounded-xl px-6 font-extrabold"
-            style={{ background: "var(--slf-amarillo)", color: "#050505" }}
+          <h2 id="titulo-alta" className="mt-2 text-xl font-extrabold">
+            Empezá a vender en tres pasos
+          </h2>
+          <div
+            className="mt-4 h-2 overflow-hidden rounded-full"
+            style={{ background: "#ffffff22" }}
+            aria-hidden
           >
-            {listoParaVender ? "Editar mi ficha" : "Completar mi ficha"}
-          </Link>
-          {!perfil?.mpConnected ? (
-            <a
-              href="/api/pagos/conectar"
+            <div
+              className="h-full rounded-full"
+              style={{
+                width: `${Math.round((hechos / pasos.length) * 100)}%`,
+                background: "var(--slf-amarillo)",
+              }}
+            />
+          </div>
+
+          <ol className="mt-6 space-y-5">
+            {pasos.map((paso, i) => {
+              const esElSiguiente = paso.clave === siguiente.clave;
+              return (
+                <li key={paso.clave} className="flex gap-4">
+                  <span
+                    aria-hidden
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-extrabold"
+                    style={
+                      paso.hecho
+                        ? { background: "var(--slf-amarillo)", color: "#050505" }
+                        : { border: "2px solid #ffffff55", color: "white" }
+                    }
+                  >
+                    {paso.hecho ? "✓" : i + 1}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block font-extrabold">
+                      {paso.titulo}
+                      {paso.hecho ? <span className="sr-only"> (hecho)</span> : null}
+                    </span>
+                    <span className="mt-1 block text-sm leading-relaxed" style={{ color: "var(--slf-lila)" }}>
+                      {paso.detalle}
+                    </span>
+                    {esElSiguiente ? (
+                      <a
+                        href={paso.href}
+                        className="mt-4 inline-flex min-h-[44px] items-center rounded-xl px-6 font-extrabold"
+                        style={{ background: "var(--slf-amarillo)", color: "#050505" }}
+                      >
+                        {paso.boton}
+                      </a>
+                    ) : null}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      ) : (
+        <section
+          className="mt-8 rounded-2xl p-7"
+          style={{ background: "var(--slf-purpura)", color: "white" }}
+        >
+          <h2 className="text-xl font-extrabold">Tu enlace de venta está publicado</h2>
+          <p className="mt-3 break-all font-extrabold" style={{ color: "var(--slf-amarillo)" }}>
+            {enlace.replace(/^https?:\/\//, "")}
+          </p>
+          <p className="mt-3 text-sm" style={{ color: "var(--slf-lila)" }}>
+            {formatearPesos(perfil!.basePriceCents)} por evento.
+          </p>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link
+              href="/panel/kit"
+              className="inline-flex min-h-[44px] items-center rounded-xl px-6 font-extrabold"
+              style={{ background: "var(--slf-amarillo)", color: "#050505" }}
+            >
+              Tu kit para vender
+            </Link>
+            <Link
+              href="/panel/perfil"
               className="inline-flex min-h-[44px] items-center rounded-xl border-2 px-6 font-extrabold"
               style={{ borderColor: "var(--slf-amarillo)", color: "var(--slf-amarillo)" }}
             >
-              Conectar Mercado Pago
-            </a>
-          ) : null}
-        </div>
-      </section>
+              Editar mi ficha
+            </Link>
+          </div>
+        </section>
+      )}
 
       <div className="mt-12 flex items-baseline justify-between gap-4">
         <h2 className="text-xl font-extrabold">Tus eventos ({eventos.length})</h2>

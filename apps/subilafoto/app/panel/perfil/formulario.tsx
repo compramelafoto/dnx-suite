@@ -211,7 +211,7 @@ export function FormularioPerfil({
         />
       </div>
 
-      <div className="rounded-xl border p-5" style={BORDE}>
+      <div id="publicar" className="scroll-mt-6 rounded-xl border p-5" style={BORDE}>
         <label className="flex gap-3 text-sm">
           <input
             type="checkbox"
