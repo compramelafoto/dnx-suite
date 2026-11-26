@@ -16,7 +16,9 @@ export type EquipoErrorCode =
   | "LIMITE_FOTOS"
   | "ARCHIVO_INVALIDO"
   | "FALTA_COMPROBANTE"
-  | "YA_DENUNCIADO";
+  | "YA_DENUNCIADO"
+  | "NO_DENUNCIABLE"
+  | "EN_DENUNCIA";
 
 export class EquipoError extends Error {
   constructor(
@@ -241,6 +243,23 @@ export async function updateItem(
     serialChanged = serial.serialNormalized !== current.serialNormalized;
   }
 
+  // Con una denuncia en curso, la identidad del equipo y su estado no se tocan: la única salida
+  // de STOLEN/LOST es «Lo recuperé» (markRecovered).
+  if (current.status === "STOLEN" || current.status === "LOST") {
+    const changesIdentity =
+      (patch.status !== undefined && patch.status !== current.status) ||
+      (patch.kind !== undefined && patch.kind !== current.kind) ||
+      (data.make !== undefined && data.make !== current.make) ||
+      (data.model !== undefined && data.model !== current.model) ||
+      (patch.serialRaw !== undefined && serialChanged);
+    if (changesIdentity) {
+      throw new EquipoError(
+        "EN_DENUNCIA",
+        "Este equipo tiene una denuncia: no se pueden cambiar su estado, serie, tipo, marca ni modelo. Si lo recuperaste, usá «Lo recuperé».",
+      );
+    }
+  }
+
   const statusChanged = patch.status !== undefined && patch.status !== current.status;
   const item = await prisma.$transaction(async (tx) => {
     const updated = await tx.gearItem.update({ where: { id: itemId }, data });
@@ -306,8 +325,14 @@ export async function attachPurchaseProof(
 
 export async function listItemHistory(userId: number, itemId: number): Promise<GearItemEvent[]> {
   await findOwnItem(userId, itemId);
-  return prisma.gearItemEvent.findMany({
+  const events = await prisma.gearItemEvent.findMany({
     where: { gearItemId: itemId },
     orderBy: { createdAt: "desc" },
+  });
+  // Los eventos de cruce con denuncias ajenas (`matchReportId`) son internos: quien tiene el
+  // equipo nunca debe enterarse de que coincidió con una denuncia.
+  return events.filter((e) => {
+    const d = e.detail;
+    return !(d && typeof d === "object" && !Array.isArray(d) && "matchReportId" in d);
   });
 }

@@ -24,7 +24,7 @@ export default async function DenunciarPage({
     if (err instanceof EquipoError && err.code === "NO_ENCONTRADO") notFound();
     throw err;
   }
-  if (item.status !== "IN_USE" && item.status !== "FOR_SALE") redirect(`/mi-equipo/${id}`);
+  if (!["IN_USE", "FOR_SALE", "RECOVERED"].includes(item.status)) redirect(`/mi-equipo/${id}`);
 
   const conSerie = (item.kind === "BODY" || item.kind === "LENS") && !!item.serialNormalized;
   const tieneComprobante = !!item.purchaseProofKey;

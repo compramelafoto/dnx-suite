@@ -342,7 +342,37 @@ describe("attachPurchaseProof", () => {
   });
 });
 
+describe("updateItem con el equipo robado o perdido", () => {
+  const stolen = { id: 7, ownerId: 1, status: "STOLEN", kind: "BODY", make: "Canon", model: "R5", serialNormalized: "AB123", serialRaw: "AB123" };
+  it.each([
+    ["estado", { status: "IN_USE" as const }],
+    ["serie", { serialRaw: "ZZ999" }],
+    ["tipo", { kind: "LENS" as const }],
+    ["marca", { make: "Nikon" }],
+    ["modelo", { model: "Z9" }],
+  ])("rechaza cambiar %s con EN_DENUNCIA", async (_n, patch) => {
+    m.itemFindFirst.mockResolvedValue(stolen);
+    await expect(updateItem(1, 7, patch)).rejects.toMatchObject({ code: "EN_DENUNCIA" });
+    expect(m.tx).not.toHaveBeenCalled();
+  });
+  it("permite editar notas (y reenviar los mismos datos)", async () => {
+    m.itemFindFirst.mockResolvedValue(stolen);
+    await updateItem(1, 7, { notes: "ok", make: "Canon", model: "R5", kind: "BODY", serialRaw: "AB123" });
+    expect(m.txItemUpdate).toHaveBeenCalled();
+  });
+});
+
 describe("listItemHistory", () => {
+  it("nunca devuelve los eventos de cruce (matchReportId)", async () => {
+    m.itemFindFirst.mockResolvedValue({ id: 7, ownerId: 1 });
+    m.eventFindMany.mockResolvedValue([
+      { id: 1, type: "UPDATED", detail: { matchReportId: 3 } },
+      { id: 2, type: "UPDATED", detail: { fields: ["notes"] } },
+      { id: 3, type: "CREATED", detail: null },
+    ]);
+    const r = await listItemHistory(1, 7);
+    expect(r.map((e) => e.id)).toEqual([2, 3]);
+  });
   it("equipo ajeno → NO_ENCONTRADO", async () => {
     m.itemFindFirst.mockResolvedValue(null);
     await expect(listItemHistory(1, 7)).rejects.toMatchObject({ code: "NO_ENCONTRADO" });

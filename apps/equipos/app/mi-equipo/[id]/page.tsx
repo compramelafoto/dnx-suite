@@ -165,7 +165,7 @@ export default async function EquipoPage({
         </form>
       </section>
 
-      {estadoEditable && item.status !== "SOLD" ? (
+      {item.status === "IN_USE" || item.status === "FOR_SALE" || item.status === "RECOVERED" ? (
         <section>
           <h2>Robo o pérdida</h2>
           <p>

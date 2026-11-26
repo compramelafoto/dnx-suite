@@ -1,7 +1,10 @@
 import { prisma } from "@repo/db";
 import { uploadPrivateFile, validateFile } from "@/lib/archivos";
 import { sendPortalEmail } from "@/lib/correo";
-import { EquipoError, findOwnItem, MANUAL_STATUSES } from "./equipos";
+import { EquipoError, findOwnItem } from "./equipos";
+
+/** Estados desde los que se puede denunciar (un equipo recuperado puede volver a ser robado). */
+const REPORTABLE_STATUSES = ["IN_USE", "FOR_SALE", "RECOVERED"];
 
 /**
  * Denuncias de robo o pérdida desde «Mi equipo». Crean una `StolenGearReport` en revisión (la
@@ -32,8 +35,11 @@ export async function reportIncident(
   input: IncidentInput,
 ): Promise<{ reportId: number | null }> {
   const item = await findOwnItem(userId, itemId);
-  if (!MANUAL_STATUSES.includes(item.status)) {
-    throw new EquipoError("YA_DENUNCIADO", "Este equipo ya tiene una denuncia o fue vendido.");
+  if (item.status === "STOLEN" || item.status === "LOST") {
+    throw new EquipoError("YA_DENUNCIADO", "Este equipo ya tiene una denuncia.");
+  }
+  if (!REPORTABLE_STATUSES.includes(item.status)) {
+    throw new EquipoError("NO_DENUNCIABLE", "Este equipo figura como vendido.");
   }
   if (!(input.occurredAt instanceof Date) || Number.isNaN(input.occurredAt.getTime())) {
     throw new EquipoError("DATO_INVALIDO", "Indicá la fecha del hecho.");

@@ -137,6 +137,22 @@ describe("reportIncident", () => {
     });
   });
 
+  it("un equipo vendido falla con NO_DENUNCIABLE", async () => {
+    m.itemFindFirst.mockResolvedValue(body({ status: "SOLD" }));
+    await expect(reportIncident(1, 7, { incident: "LOST", occurredAt: when })).rejects.toMatchObject({
+      code: "NO_DENUNCIABLE",
+      message: "Este equipo figura como vendido.",
+    });
+    expect(m.tx).not.toHaveBeenCalled();
+  });
+
+  it("un equipo recuperado se puede volver a denunciar", async () => {
+    m.itemFindFirst.mockResolvedValue(body({ status: "RECOVERED" }));
+    await expect(reportIncident(1, 7, { incident: "LOST", occurredAt: when })).resolves.toEqual({
+      reportId: 99,
+    });
+  });
+
   it("un correo que falla no frena la denuncia", async () => {
     m.itemFindFirst.mockResolvedValue(body());
     m.email.mockRejectedValue(new Error("boom"));
