@@ -4,11 +4,13 @@ const m = vi.hoisted(() => ({
   phoneFind: vi.fn(),
   phoneUpsert: vi.fn(),
   idUpdateMany: vi.fn(),
+  tx: vi.fn(),
 }));
 vi.mock("@repo/db", () => ({
   prisma: {
     phoneVerification: { findUnique: m.phoneFind, upsert: m.phoneUpsert },
     identityVerification: { updateMany: m.idUpdateMany },
+    $transaction: m.tx,
   },
 }));
 
@@ -19,6 +21,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.phoneUpsert.mockResolvedValue({});
   m.idUpdateMany.mockResolvedValue({ count: 1 });
+  m.tx.mockResolvedValue([]);
 });
 
 describe("startPhoneVerification", () => {
@@ -44,12 +47,24 @@ describe("startPhoneVerification", () => {
   it("cambiar un teléfono ya verificado exige reverificar la identidad", async () => {
     m.phoneFind.mockResolvedValue({ phone: "543415551234", verifiedAt: new Date("2026-11-01") });
     await startPhoneVerification(1, "11 2345-6789", now);
+    expect(m.tx).toHaveBeenCalledTimes(1);
+    expect(m.tx.mock.calls[0][0]).toHaveLength(2);
+    expect(m.phoneUpsert).toHaveBeenCalledTimes(1);
     expect(m.idUpdateMany).toHaveBeenCalledWith({ where: { userId: 1 }, data: { reverifyRequiredAt: now } });
   });
 
-  it("reenviar el mismo teléfono verificado no exige reverificar", async () => {
+  it("reenviar el mismo teléfono verificado conserva la verificación y no escribe", async () => {
     m.phoneFind.mockResolvedValue({ phone: "543415551234", verifiedAt: new Date("2026-11-01") });
-    await startPhoneVerification(1, "+54 9 341 5551234", now);
+    const r = await startPhoneVerification(1, "0341 15 555-1234", now);
+    expect(r.ok).toBe(true);
+    expect(m.phoneUpsert).not.toHaveBeenCalled();
+    expect(m.tx).not.toHaveBeenCalled();
     expect(m.idUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("formato 03415551234 se guarda normalizado", async () => {
+    m.phoneFind.mockResolvedValue(null);
+    await startPhoneVerification(1, "03415551234", now);
+    expect(m.phoneUpsert.mock.calls[0][0].update.phone).toBe("543415551234");
   });
 });

@@ -1,55 +1,37 @@
 /**
- * Formatea teléfono para WhatsApp Cloud API.
- * Pensado para Argentina: acepta 9, 10, 11 dígitos y normaliza a formato internacional.
+ * Normaliza un celular argentino a la forma canónica `54` + 10 dígitos (área + número, sin 0, sin 15, sin 9).
+ * Es la misma forma a la que se reduce lo que manda WhatsApp (`5493415551234` -> `543415551234`),
+ * así se pueden comparar ambos lados.
  *
- * Ejemplos:
- * - 11 1234-5678 -> 5491112345678
- * - 011 15 1234-5678 -> 5491112345678
- * - +54 9 11 1234-5678 -> 5491112345678
+ * Ejemplos (todos dan 543415551234):
+ * - 341 555-1234, 03415551234, 0341 15 555-1234, +54 9 341 5551234, 5493415551234
+ * - 011 15 1234-5678 -> 541112345678
+ *
+ * Devuelve "" si no se puede reducir a un número argentino de 10 dígitos.
  */
-
 export function normalizarTelefono(phone: string): string {
   if (!phone || typeof phone !== "string") return "";
+  let d = phone.replace(/\D/g, "");
+  if (d.length === 0) return "";
 
-  // Quitar todo excepto dígitos
-  let digits = phone.replace(/\D/g, "");
+  if (d.startsWith("54")) {
+    d = d.slice(2);
+    // Móvil internacional: 54 9 <10 dígitos>.
+    if (d.length === 11 && d.startsWith("9")) d = d.slice(1);
+  }
+  // Prefijo troncal 0 (03415551234, 011 ...).
+  if (d.startsWith("0")) d = d.slice(1);
 
-  if (digits.length === 0) return "";
-
-  // Argentina: código país 54
-  // Si empieza con 54, ya tiene código país
-  if (digits.startsWith("54")) {
-    // Quitar el 9 después del 54 si existe (54 9 11... -> 54 11...)
-    if (digits.length > 10 && digits.charAt(2) === "9") {
-      digits = "54" + digits.slice(3);
+  // Prefijo móvil 15 después del código de área (2 a 4 dígitos): área + 15 + número = 12 dígitos.
+  if (d.length === 12) {
+    for (const area of [2, 3, 4]) {
+      if (d.slice(area, area + 2) === "15") {
+        d = d.slice(0, area) + d.slice(area + 2);
+        break;
+      }
     }
-    return digits;
   }
 
-  // Si tiene 10 dígitos: asumir 11 (CABA) + 8 dígitos
-  if (digits.length === 10 && digits.startsWith("11")) {
-    return "54" + digits;
-  }
-
-  // Si tiene 9 dígitos: asumir 9 (móvil) + código área 11 + 7 dígitos
-  if (digits.length === 9) {
-    return "549" + digits;
-  }
-
-  // Si tiene 8 dígitos: asumir CABA 11 + 8 dígitos
-  if (digits.length === 8) {
-    return "54911" + digits;
-  }
-
-  // Si tiene 11 dígitos y empieza con 9: 9 + 10 dígitos (código área + número)
-  if (digits.length === 11 && digits.startsWith("9")) {
-    return "54" + digits;
-  }
-
-  // Default: agregar 54 si no lo tiene
-  if (!digits.startsWith("54") && digits.length >= 9) {
-    return "54" + digits;
-  }
-
-  return digits;
+  if (d.length !== 10 || d.startsWith("0")) return "";
+  return "54" + d;
 }
