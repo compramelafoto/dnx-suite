@@ -250,7 +250,7 @@ const DEFECTOS: Partial<Record<Tabla, () => Fila>> = {
     createdAt: new Date(), updatedAt: new Date(),
   }),
   fotofficeWaRespuestaRapida: () => ({ orden: 0, activa: true, createdAt: new Date(), updatedAt: new Date() }),
-  fotofficeWaTelegramAviso: () => ({ textoPendiente: null, pendienteEn: null, createdAt: new Date() }),
+  fotofficeWaTelegramAviso: () => ({ textoPendiente: null, telegramPendienteId: null, pendienteEn: null, createdAt: new Date() }),
   fotofficeMetaAnuncio: () => ({
     titulo: null, adName: null, adsetName: null, campaignId: null, campaignName: null, consultadoEn: null, intentos: 0, error: null,
     createdAt: new Date(), updatedAt: new Date(),
@@ -676,7 +676,7 @@ export function crearBaseEnMemoria() {
     ],
     fotofficeWaChat: [{ columnas: ["workspaceId", "canal", "waId"] }],
     fotofficeWaRespuestaRapida: [{ columnas: ["workspaceId", "atajo"] }],
-    fotofficeWaTelegramAviso: [{ columnas: ["conexionId", "telegramMessageId"] }],
+    fotofficeWaTelegramAviso: [{ columnas: ["conexionId", "telegramChatId", "telegramMessageId"] }],
     fotofficeMetaAnuncio: [{ columnas: ["workspaceId", "adId"] }],
     // Testimonios: el hash del token y la clave del pedido automático son únicos (la clave, sólo si hay).
     fotofficeTestimonioInvitacion: [

@@ -80,6 +80,8 @@ export function decidirSeguimiento(mensajes: readonly MensajeDelChat[]): Decisio
   if (!tema && !OFRECIO_PEDIDO.test(oferta)) return null;
 
   for (const m of mensajes.slice(i + 1)) {
+    // Una nota interna no es atender al cliente.
+    if (m.direccion === "NOTA") continue;
     // Una persona del estudio ya lo atendió (desde la Bandeja o desde el celular).
     if (m.autor === "USUARIO" || m.autor === "CELULAR") return null;
     if (m.direccion === "SISTEMA" && /paso el chat a una persona|tomo el chat/.test(normalizar(m.texto ?? ""))) return null;

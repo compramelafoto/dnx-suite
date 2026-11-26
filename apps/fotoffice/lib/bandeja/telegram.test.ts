@@ -39,8 +39,8 @@ function deps(p: Record<string, unknown> = {}) {
 async function chat(p: Record<string, unknown> = {}) {
   return (await P.fotofficeWaChat.create({ data: { workspaceId: "w1", waId: "549341", nombre: "María", estado: "HUMANO", asignadoUserId: 4, ultimoMensajeEn: hace(5), ultimoEntranteEn: hace(5), ...p } })) as { id: string };
 }
-async function aviso(chatId: string, telegramMessageId = "77", workspaceId = "w1") {
-  return (await P.fotofficeWaTelegramAviso.create({ data: { workspaceId, conexionId: CONEXION.id, chatId, telegramMessageId } })) as { id: string };
+async function aviso(chatId: string, telegramMessageId = "77", workspaceId = "w1", telegramChatId = TG) {
+  return (await P.fotofficeWaTelegramAviso.create({ data: { workspaceId, conexionId: CONEXION.id, chatId, telegramChatId, telegramMessageId } })) as { id: string };
 }
 const respuesta = (texto: string, p: Record<string, unknown> = {}) => ({ tipo: "RESPUESTA" as const, chatId: TG, chatPrivado: true, deId: TG, messageId: "900", respondeA: "77", texto, ...p });
 const boton = (data: string) => ({ tipo: "BOTON" as const, callbackId: "cb", chatId: TG, deId: TG, messageId: "77", data });
@@ -189,5 +189,40 @@ describe("avisos", () => {
     await T.avisarEntrantes([{ workspaceId: "w1", chatId: mio.id, mensajeId: m1.id }, { workspaceId: "w1", chatId: deCamila.id, mensajeId: m2.id }], d);
     expect(d.api.mandar).toHaveBeenCalledTimes(1);
     expect((d.api.mandar.mock.calls[0] as unknown as [string, string, string])[2]).toBe("💬 <b>María</b>: hola");
+  });
+});
+
+describe("arreglos de la revisión", () => {
+  it("tras vincular otro celular, una cita con el mismo número de mensaje no va al chat viejo", async () => {
+    const viejo = await chat({ waId: "549111" });
+    const nuevo = await chat({ waId: "549222" });
+    await aviso(viejo.id, "77", "w1", "OTRO_CELULAR");
+    const d = deps();
+    // El celular nuevo recibe la tarjeta del chat nuevo con el mismo número 77.
+    d.api.mandar.mockImplementationOnce(async () => "77");
+    await T.avisarDerivacion("w1", nuevo.id, { userId: 7, nombre: "Camila" }, d);
+    await T.atenderRespuesta(CONEXION, respuesta("hola"), d);
+    expect(d.responder).toHaveBeenCalledWith(DANIEL, nuevo.id, "hola", "tg-conexion0001-900");
+    expect(d.responder).not.toHaveBeenCalledWith(DANIEL, viejo.id, expect.anything(), expect.anything());
+  });
+  it("Tomarlo y enviar usa el token de la respuesta pendiente: un segundo pendiente sobre la misma tarjeta sí sale", async () => {
+    const c = await chat({ asignadoUserId: 7 });
+    const a = await aviso(c.id);
+    const tomar = vi.fn(async () => ({ ok: true as const, cambio: true }));
+    const d = deps({ tomar });
+    await T.atenderRespuesta(CONEXION, respuesta("primero", { messageId: "900" }), d);
+    await T.atenderBoton(CONEXION, boton(`bj:t:${a.id}`), d);
+    await P.fotofficeWaChat.update({ where: { id: c.id }, data: { asignadoUserId: 7 } });
+    await T.atenderRespuesta(CONEXION, respuesta("segundo", { messageId: "901" }), d);
+    await T.atenderBoton(CONEXION, boton(`bj:t:${a.id}`), d);
+    expect(d.responder.mock.calls.map((x) => (x as unknown[])[3])).toEqual(["tg-conexion0001-900", "tg-conexion0001-901"]);
+  });
+  it("si tomar falla, lo pendiente no se pierde", async () => {
+    const c = await chat({ asignadoUserId: 7 });
+    const a = await aviso(c.id);
+    const d = deps({ tomar: vi.fn(async () => ({ ok: false as const, error: "No se pudo completar la acción. Probá de nuevo." })) });
+    await T.atenderRespuesta(CONEXION, respuesta("texto"), d);
+    await T.atenderBoton(CONEXION, boton(`bj:t:${a.id}`), d);
+    expect(B.datos.fotofficeWaTelegramAviso.find((x) => x.id === a.id)!.textoPendiente).toBe("texto");
   });
 });

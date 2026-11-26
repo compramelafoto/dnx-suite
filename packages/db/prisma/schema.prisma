@@ -29705,13 +29705,17 @@ model FotofficeWaTelegramAviso {
   conexionId        String
   /// `FotofficeWaChat.id`.
   chatId            String
+  /// Chat de Telegram donde salió: Telegram numera los mensajes por chat (al vincular otro celular se repiten).
+  telegramChatId    String
   telegramMessageId String
-  /// Lo que se escribió citando cuando el chat lo atendía otra persona («Tomarlo y enviar»), hasta 4096.
+  /// Lo que se escribió citando cuando el chat lo atendía otra persona («Tomarlo y enviar»), hasta 4096,
+  /// y el id de ESE mensaje de Telegram (de ahí sale el identificador del envío).
   textoPendiente    String?
+  telegramPendienteId String?
   pendienteEn       DateTime?
   createdAt         DateTime  @default(now())
 
-  @@unique([conexionId, telegramMessageId])
+  @@unique([conexionId, telegramChatId, telegramMessageId])
   @@index([chatId])
 }
 

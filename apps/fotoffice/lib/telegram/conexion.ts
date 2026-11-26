@@ -154,7 +154,9 @@ export async function nuevoCodigoTelegram(ctx: CtxConsultas, deps: DepsConexionT
   try {
     const r = await prisma.fotofficeTelegramConexion.updateMany({
       where: { workspaceId: ctx.workspaceId },
-      data: { linkCode: codigoDeVinculo(), linkCodeExpiresAt: new Date(ahora.getTime() + MINUTOS_CODIGO * 60_000) },
+      // Quien pide el código es quien va a vincular su celular: pasa a ser el dueño del chat de Telegram
+      // (le llegan los chats de la Bandeja asignados a él y responde con su usuario).
+      data: { linkCode: codigoDeVinculo(), linkCodeExpiresAt: new Date(ahora.getTime() + MINUTOS_CODIGO * 60_000), connectedByUserId: ctx.userId },
     });
     return r.count === 1 ? { ok: true } : no(MENSAJES_TELEGRAM.sinConexion);
   } catch (e) {

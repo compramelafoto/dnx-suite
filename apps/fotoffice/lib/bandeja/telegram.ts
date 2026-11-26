@@ -114,7 +114,7 @@ async function mandarYRegistrar(
   const messageId = await api(d).mandar(token, conexion.chatId, html, teclado, responderA);
   if (!messageId) return null;
   await prisma.fotofficeWaTelegramAviso
-    .create({ data: { workspaceId: conexion.workspaceId, conexionId: conexion.id, chatId, telegramMessageId: messageId } })
+    .create({ data: { workspaceId: conexion.workspaceId, conexionId: conexion.id, chatId, telegramChatId: conexion.chatId, telegramMessageId: messageId } })
     .catch((e: unknown) => registrarError("no se pudo registrar el aviso", e));
   return messageId;
 }
@@ -236,7 +236,10 @@ export async function atenderRespuesta(conexion: ConexionTelegram, update: Updat
   if (update.tipo !== "RESPUESTA" && update.tipo !== "RESPUESTA_NO_TEXTO") return false;
   try {
     if (!delChatVinculado(conexion, update.chatId, update.deId)) return false;
-    const aviso = await prisma.fotofficeWaTelegramAviso.findUnique({ where: { conexionId_telegramMessageId: { conexionId: conexion.id, telegramMessageId: update.respondeA } } });
+    // El aviso se busca en ESTE chat de Telegram: los números de mensaje se repiten entre chats.
+    const aviso = await prisma.fotofficeWaTelegramAviso.findUnique({
+      where: { conexionId_telegramChatId_telegramMessageId: { conexionId: conexion.id, telegramChatId: update.chatId, telegramMessageId: update.respondeA } },
+    });
     if (!aviso || aviso.workspaceId !== conexion.workspaceId) return false; // cita otra cosa (p. ej. una cotización)
     const token = await (d.leerToken ?? leerTokenTelegram)(conexion.workspaceId);
     if (!token || !conexion.chatId) return true;
@@ -259,7 +262,7 @@ export async function atenderRespuesta(conexion: ConexionTelegram, update: Updat
       return true;
     }
     if (chat.estado === "HUMANO" && chat.asignadoUserId !== null && chat.asignadoUserId !== ctx.userId) {
-      await prisma.fotofficeWaTelegramAviso.update({ where: { id: aviso.id }, data: { textoPendiente: update.texto, pendienteEn: d.ahora ?? new Date() } });
+      await prisma.fotofficeWaTelegramAviso.update({ where: { id: aviso.id }, data: { textoPendiente: update.texto, telegramPendienteId: update.messageId, pendienteEn: d.ahora ?? new Date() } });
       await contar(`Ahora lo atiende ${escapar(await nombreDe(chat.asignadoUserId))}. ¿Lo tomás y lo mando?`, botonTomarYEnviar(aviso.id));
       return true;
     }
@@ -300,7 +303,9 @@ export async function atenderBoton(conexion: ConexionTelegram, update: UpdateTel
         return true;
       }
       const texto = aviso.textoPendiente;
-      await prisma.fotofficeWaTelegramAviso.update({ where: { id: aviso.id }, data: { textoPendiente: null, pendienteEn: null } });
+      // El identificador sale del mensaje que quedó pendiente: un doble toque no manda dos veces y un
+      // pendiente nuevo sobre la misma tarjeta sí sale.
+      const clientToken = `tg-${conexion.id}-${aviso.telegramPendienteId ?? `t-${aviso.id}`}`;
       const tomado = await (d.tomar ?? tomar)(ctx, aviso.chatId);
       if (!tomado.ok) {
         await contestar(tomado.error);
@@ -312,7 +317,8 @@ export async function atenderBoton(conexion: ConexionTelegram, update: UpdateTel
         return true;
       }
       await contestar("Lo tomaste. Enviando…");
-      await enviarYContar(conexion, token, ctx, chat, texto, `tg-${conexion.id}-t-${aviso.id}`, update.messageId ?? undefined, d);
+      await enviarYContar(conexion, token, ctx, chat, texto, clientToken, update.messageId ?? undefined, d);
+      await prisma.fotofficeWaTelegramAviso.update({ where: { id: aviso.id }, data: { textoPendiente: null, telegramPendienteId: null, pendienteEn: null } });
       return true;
     }
 
