@@ -246,6 +246,56 @@ Antes de abrir al público: invitar a los fotógrafos de CLF y a los socios de S
 cargar su equipo durante dos o tres semanas, con el sello en CLF como incentivo. Las redes arrancan
 cuando ya hay artículos.
 
+### 16. Pedidos de compra («Busco») — agregado el 26/11/2026, etapa 1b
+
+**Pedido de Daniel:** si alguien busca un equipo puntual (ejemplo: un lente Sony 20 mm f/1.8), el portal
+avisa a quienes lo tienen que hay un comprador interesado. Invierte la lógica habitual: el comprador no
+espera a que alguien publique, el portal sale a buscar al dueño.
+
+**Para qué:** destrabar ventas de equipo que está guardado y que nadie pensaba vender, y traer
+fotógrafos al portal (el objetivo de sumar registros): un aviso del tipo «hay un comprador para tu
+lente» es la mejor invitación a publicar.
+
+**Cómo funciona (propuesta de Claude, a confirmar):**
+
+1. **El comprador crea un pedido.** Requiere identidad verificada. Elige el modelo de una lista que se
+   autocompleta con los modelos que el sistema ya conoce (los que aparecen en `GearSerialSighting` y en
+   los inventarios: por ejemplo «Sony FE 20mm F1.8 G»), para no depender de texto libre. Agrega precio
+   máximo opcional, estado aceptable (nuevo, muy bueno, con detalles) y zona. Un comprador puede tener
+   hasta 5 pedidos activos; cada uno vence a los 30 días y se puede renovar.
+2. **El portal busca dueños** con ese mismo modelo:
+   - Si ya hay una **publicación en venta** de ese modelo, se la muestra al comprador al instante y no se
+     molesta a nadie más.
+   - Si no, avisa a los **dueños con ese modelo en su inventario** (estado en uso o recuperado; nunca
+     robado, perdido o vendido).
+3. **El dueño recibe un aviso privado** por correo (y WhatsApp más adelante): «Un comprador verificado
+   busca un Sony FE 20mm F1.8 G, como el que tenés en tu inventario. Ofrece hasta $X.» Con dos botones:
+   «Me interesa vender» (crea un borrador de publicación con los datos del inventario ya cargados y
+   conecta con el comprador) o «No, gracias» (no vuelve a avisarle por ese pedido).
+4. **Privacidad:** el comprador **nunca** sabe quién tiene el equipo ni cuántos dueños hay, hasta que un
+   dueño acepta. El inventario sigue siendo privado. El dueño ve el nombre verificado y la calificación
+   del comprador sólo cuando decide responder.
+5. **Anti-spam:** cada dueño recibe como máximo 2 avisos de pedidos por semana (los demás se agrupan en
+   un resumen); un mismo dueño no recibe dos veces el mismo pedido; el comprador que cancela muchos
+   pedidos sin comprar pierde la opción por un tiempo.
+6. **Registro:** cada pedido, cada aviso enviado y cada respuesta quedan registrados (alimenta el
+   historial de interesados del §7 y las estadísticas del panel).
+7. **Redes:** los pedidos pueden salir en las redes del portal como «Se busca» (sin datos del
+   comprador), para llegar a dueños que todavía no están en el portal.
+
+**Decisión pendiente de Daniel — avisar a fotógrafos de CLF que todavía no están en el portal.** CLF
+sabe, por las fotos que suben, qué cámaras y lentes usa cada fotógrafo (`GearSerialSighting`, 201 series
+al 26/11/2026). Avisarles («un comprador busca un lente como el que usás en tus fotos; publicalo gratis
+en el portal») sería el mejor imán de registros, pero usa datos de CLF para un fin nuevo. Recomendación
+de Claude: hacerlo sólo si la política de privacidad de CLF lo cubre o si se agrega un permiso explícito
+(«avisame si alguien busca equipo como el mío»), y sin decirle nunca al comprador que el dueño existe.
+
+**Cambios técnicos previstos (para el plan de la etapa 1b):** tabla de pedidos (`PurchaseRequest`:
+comprador, modelo normalizado, precio máximo, estado, zona, vencimiento) y de avisos
+(`PurchaseRequestNotice`: pedido, dueño, equipo, fecha, respuesta), normalización de modelos (marca +
+modelo de lente o cámara, sin espacios ni mayúsculas, con alias conocidos), un proceso diario que cruza
+pedidos activos contra inventarios y publicaciones, y las plantillas de correo.
+
 ## Decisiones de Claude tras la revisión del constructor (Daniel puede corregirlas)
 
 - **Rol en CLF**: al registrarse en el portal se pregunta «¿Sos fotógrafo?». Sí → `PHOTOGRAPHER`;

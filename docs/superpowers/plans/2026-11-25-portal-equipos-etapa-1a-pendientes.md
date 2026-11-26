@@ -14,6 +14,11 @@ Falta la Task 13 del plan (paso a producción), que requiere el OK de Daniel.
    `equipos` **y de CLF** (CLF lo usa para abrir los comprobantes subidos desde el portal).
 3. Proyecto de Vercel nuevo sólo para `apps/equipos`, variables de `apps/equipos/.env.example`, crons de `vercel.json`.
 
+Estado al 26/11/2026: migración aplicada en producción (respaldo previo en la rama Neon
+`respaldo-antes-migracion-equipos-1a`), bucket privado `equipos-privado` creado y `EQUIPOS_R2_BUCKET` cargada
+en producción de `compramelafoto-dnxsuite`. **Sin verificar:** que las credenciales R2 de CLF tengan permiso
+sobre `equipos-privado` (si el token está limitado a `compramelafoto-prod`, hay que ampliarlo en Cloudflare).
+
 ## Antes de abrir el portal al público
 
 - Elegir el proveedor de identidad real (cotizar Didit, MetaMap, Veriff, Truora) e implementarlo sobre
@@ -24,6 +29,11 @@ Falta la Task 13 del plan (paso a producción), que requiere el OK de Daniel.
 - Token de verificación de correo consumido al abrir el enlace (GET): los antivirus de correo pueden gastarlo.
 - Nombre y dominio definitivos; diseño visual (las pantallas de la 1a no tienen estilos).
 - Límites de intentos en registro, recuperación de clave y reenvío de correo.
+
+## Nueva función para la etapa 1b
+
+- Pedidos de compra («Busco»): diseño en la sección 16 del documento de diseño. Falta la decisión de
+  Daniel sobre avisar a fotógrafos de CLF que todavía no están en el portal.
 
 ## Pendientes menores (no bloquean)
 
