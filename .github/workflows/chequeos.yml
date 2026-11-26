@@ -93,6 +93,9 @@ jobs:
       - name: Pruebas de FOTOFFICE
         run: pnpm --filter fotoffice test
 
+      - name: Pruebas del portal de equipos
+        run: pnpm --filter equipos test
+
       - name: Pruebas de las reglas de Muestras
         run: pnpm --filter @repo/muestras test
 
