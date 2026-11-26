@@ -26,6 +26,9 @@ type Report = {
   description: string | null;
   policeReportNumber: string | null;
   policeReportKey: string | null;
+  /** Null en las pérdidas cargadas sin comprobante. */
+  invoiceKey: string | null;
+  incident: "THEFT" | "LOST";
   status: "PENDING_REVIEW" | "ACTIVE" | "REJECTED" | "RECOVERED" | "WITHDRAWN";
   rejectionReason: string | null;
   adminNotes: string | null;
@@ -329,7 +332,7 @@ export default function AdminEquiposRobadosPage() {
                       <strong>Denunció:</strong> <Person u={r.reporter} /> · el {fmt(r.createdAt)}
                     </p>
                     <p className="m-0">
-                      Robado el {fmt(r.stolenAt)}
+                      {r.incident === "LOST" ? "Perdido" : "Robado"} el {fmt(r.stolenAt)}
                       {r.stolenPlace ? ` en ${r.stolenPlace}` : ""}
                       {r.policeReportNumber ? ` · denuncia policial N° ${r.policeReportNumber}` : ""}
                     </p>
@@ -338,9 +341,13 @@ export default function AdminEquiposRobadosPage() {
                     {r.lastScannedAt && <p className="text-xs text-gray-500 m-0">Último cruce: {fmt(r.lastScannedAt)}</p>}
                   </div>
                   <div className="flex flex-wrap gap-3 text-sm">
-                    <a className="text-blue-700 hover:underline" href={`/api/admin/equipos-robados/denuncias/${r.id}/archivo?cual=factura`} target="_blank" rel="noreferrer">
-                      Ver factura
-                    </a>
+                    {r.invoiceKey ? (
+                      <a className="text-blue-700 hover:underline" href={`/api/admin/equipos-robados/denuncias/${r.id}/archivo?cual=factura`} target="_blank" rel="noreferrer">
+                        Ver factura
+                      </a>
+                    ) : (
+                      <span className="text-gray-500">Sin comprobante (pérdida)</span>
+                    )}
                     {r.policeReportKey && (
                       <a className="text-blue-700 hover:underline" href={`/api/admin/equipos-robados/denuncias/${r.id}/archivo?cual=denuncia`} target="_blank" rel="noreferrer">
                         Ver denuncia policial
