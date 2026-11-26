@@ -5,6 +5,7 @@
  * Con 2+ digitales: aviso de ZIP en preparación como opción secundaria.
  */
 
+import { formatCanjeAwareAmount, isCanjeOrder } from "@/lib/orders/canje-order-label";
 import { prisma } from "@/lib/prisma";
 import { queueEmail, getOrCreateTemplate } from "@/lib/email-queue";
 import { getOrderDownloadTokens } from "@/lib/download-tokens";
@@ -345,6 +346,8 @@ export async function queuePhotographerOrderNotification(orderId: number): Promi
       currency: true,
       status: true,
       albumId: true,
+      origin: true,
+      checkoutPaymentSource: true,
       buyerUser: { select: { name: true, phone: true, whatsapp: true } },
       album: {
         select: {
@@ -373,7 +376,14 @@ export async function queuePhotographerOrderNotification(orderId: number): Promi
     order.items
   );
   const isMixed = kind === "MIXED";
-  const total = formatOrderTotal(order.totalCents, order.currency);
+  // Un canje sale en $0 (o sólo cobra extras): decirlo, para que no parezca un error.
+  const isCanje = isCanjeOrder(order);
+  const total = formatCanjeAwareAmount(
+    order,
+    order.totalCents,
+    formatOrderTotal(order.totalCents, order.currency)
+  );
+  const orderNoun = isCanje ? "canje" : "pedido";
   // Abre la pantalla de pedidos con este pedido ya desplegado.
   const pedidosUrl = `${APP_URL}/fotografo/pedidos?pedido=ALBUM_ORDER-${order.id}`;
   const exportPrintUrl = `${APP_URL}/api/fotografo/pedidos/${order.id}/export-print`;
@@ -401,8 +411,8 @@ export async function queuePhotographerOrderNotification(orderId: number): Promi
 
   await queueEmail({
     to: photographer.email,
-    subject: `Nuevo pedido #${order.id} en tu álbum - ${buyerLabel}`,
-    body: `Hola ${photographer.name || "fotógrafo/a"},\n\nTenés un nuevo pedido en tu álbum "${order.album.title}".\n\nDatos del cliente:\n${buyerContactLines}\n\nTotal: ${total}\nEstado: ${order.status === "PAID" ? "Pagado" : order.status}${bodyPrint}\n\nVer este pedido en tu panel: ${pedidosUrl}\n\nSaludos,\nComprameLaFoto`,
+    subject: `Nuevo ${orderNoun} #${order.id} en tu álbum - ${buyerLabel}`,
+    body: `Hola ${photographer.name || "fotógrafo/a"},\n\nTenés un nuevo ${orderNoun} en tu álbum "${order.album.title}".\n\nDatos del cliente:\n${buyerContactLines}\n\nTotal: ${total}\nEstado: ${order.status === "PAID" ? "Pagado" : order.status}${bodyPrint}\n\nVer este pedido en tu panel: ${pedidosUrl}\n\nSaludos,\nComprameLaFoto`,
     htmlBody: "",
     templateId: template.id,
     templateData: {
@@ -414,6 +424,7 @@ export async function queuePhotographerOrderNotification(orderId: number): Promi
       buyerPhone: buyer.phone || "",
       buyerLabel,
       total,
+      isCanje,
       hasPrintItems,
       hasDigitalItems,
       isMixed,
