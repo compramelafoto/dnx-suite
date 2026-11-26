@@ -16,6 +16,8 @@ export type EstadoChat = {
   ultimoEntranteEn: Date | null;
   /** El bot nunca atiende este número (lo marca una persona desde la Bandeja). */
   botExcluido?: boolean;
+  /** Quién lo resolvió (para filtrar «Resueltos de Camila»). Se borra al reabrirse. */
+  resueltoPorUserId?: number | null;
 };
 
 export type ParcheChat = Partial<EstadoChat>;
@@ -62,6 +64,7 @@ export function alEntrante(chat: EstadoChat, ahora: Date): ResultadoRegla {
   const parche: ParcheChat = { ultimoEntranteEn: ahora };
   if (chat.estado !== "RESUELTO") return { parche };
   parche.estado = chat.asignadoUserId !== null ? "HUMANO" : "BOT";
+  parche.resueltoPorUserId = null;
   return { parche, sistema: { texto: "Se reabrió con un mensaje nuevo" } };
 }
 
@@ -107,8 +110,8 @@ export function alDevolver(_userId: number, nombre: string): ResultadoRegla {
  * mensaje del cliente reabre el chat en `BOT` (si no, el bot quedaba callado para siempre con
  * quien alguna vez se tomó el chat).
  */
-export function alResolver(_userId: number, nombre: string): ResultadoRegla {
-  return { parche: { estado: "RESUELTO", asignadoUserId: null, botPausadoHasta: null }, sistema: { texto: `${nombre} marcó el chat como resuelto` } };
+export function alResolver(userId: number, nombre: string): ResultadoRegla {
+  return { parche: { estado: "RESUELTO", asignadoUserId: null, botPausadoHasta: null, resueltoPorUserId: userId }, sistema: { texto: `${nombre} marcó el chat como resuelto` } };
 }
 
 /**
@@ -137,5 +140,29 @@ export function alExcluirDelBot(excluir: boolean, nombre: string): ResultadoRegl
   return {
     parche: { botExcluido: excluir },
     sistema: { texto: excluir ? `${nombre} marcó que el bot no atienda este número` : `${nombre} volvió a dejar que el bot atienda este número` },
+  };
+}
+
+/** A quién se deriva un chat: una persona del equipo (con Gestionar) o el bot. */
+export type DestinoDerivar = { tipo: "persona"; userId: number; nombre: string } | { tipo: "bot" };
+
+/**
+ * Derivar un chat (diseño 2026-11-24 §5.3). A una persona: `HUMANO` y asignado a ella. Al bot: lo
+ * mismo que devolver. Devuelve `null` si ya estaba así o si se lo quiere dar al bot con el número
+ * excluido (el bot nunca lo atendería). Un chat RESUELTO derivado queda abierto.
+ */
+export function alDerivar(chat: EstadoChat, destino: DestinoDerivar, quien: string): ResultadoRegla | null {
+  if (destino.tipo === "bot") {
+    if (chat.botExcluido) return null;
+    if (chat.estado === "BOT" && chat.asignadoUserId === null) return null;
+    return {
+      parche: { estado: "BOT", asignadoUserId: null, botPausadoHasta: null, resueltoPorUserId: null },
+      sistema: { texto: `${quien} se lo derivó al bot` },
+    };
+  }
+  if (chat.estado === "HUMANO" && chat.asignadoUserId === destino.userId) return null;
+  return {
+    parche: { estado: "HUMANO", asignadoUserId: destino.userId, botPausadoHasta: null, resueltoPorUserId: null },
+    sistema: { texto: `${quien} se lo derivó a ${destino.nombre}` },
   };
 }

@@ -4,6 +4,7 @@ import { refresh, revalidatePath } from "next/cache";
 import { MENSAJES_BANDEJA } from "@/lib/bandeja/acceso";
 import {
   crearContactoDesdeChat,
+  derivar,
   devolverAlBot,
   excluirDelBot,
   marcarLeido,
@@ -67,6 +68,11 @@ export async function devolverAlBotAction(chatId: string) {
 
 export async function excluirDelBotAction(chatId: string, excluir: boolean) {
   return conOperar(chatId, (ctx, id) => excluirDelBot(ctx, id, excluir === true));
+}
+
+/** Deriva el chat a una persona del equipo (su id) o al bot (`"bot"`). El servidor valida el destino. */
+export async function derivarAction(chatId: string, destino: number | "bot") {
+  return conOperar(chatId, (ctx, id) => derivar(ctx, id, destino));
 }
 
 export async function resolverAction(chatId: string) {

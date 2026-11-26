@@ -7,7 +7,9 @@ import { MENSAJES_BANDEJA, puedeOperarBandeja, puedeVerBandeja, type CtxBandeja 
 import { leerConexion } from "./conexion";
 import { CANALES, TEXTO_MAXIMO, type Canal } from "./constantes";
 import { enviarTexto, type ResultadoEnvio } from "./envio";
+import { personaQuePuedeAtender, type PersonaDeLaBandeja } from "./equipo";
 import {
+  alDerivar,
   alDevolver,
   alExcluirDelBot,
   alResolver,
@@ -41,6 +43,7 @@ export const aEstado = (c: ChatFila): EstadoChat => ({
   botPausadoHasta: c.botPausadoHasta,
   ultimoEntranteEn: c.ultimoEntranteEn,
   botExcluido: c.botExcluido,
+  resueltoPorUserId: c.resueltoPorUserId,
 });
 
 /** El chat del workspace, con la fila bloqueada y releída. `null` si no existe en este workspace. */
@@ -57,23 +60,27 @@ export async function escribirSistema(tx: Tx, workspaceId: string, chatId: strin
   });
 }
 
-/** Aplica una regla de transición (tomar, devolver, resolver) con candado y deja el SISTEMA. */
+/**
+ * Aplica una regla de transición (tomar, devolver, resolver, derivar) con candado y deja el SISTEMA.
+ * La regla puede devolver `{ error }` para rechazar con el chat ya releído. `cambio` dice si se tocó algo.
+ */
 async function transicion(
   ctx: CtxBandeja,
   chatId: string,
-  regla: (chat: ChatFila) => ResultadoRegla | null,
+  regla: (chat: ChatFila) => ResultadoRegla | null | { error: string },
   ahora: Date,
-): Promise<Resultado> {
+): Promise<Resultado<{ cambio: boolean }>> {
   if (!puedeOperarBandeja(ctx)) return no(MENSAJES_BANDEJA.sinPermiso);
   try {
-    return await prisma.$transaction(async (tx): Promise<Resultado> => {
+    return await prisma.$transaction(async (tx): Promise<Resultado<{ cambio: boolean }>> => {
       const chat = await chatBloqueado(tx, ctx.workspaceId, chatId);
       if (!chat) return no(MENSAJES_BANDEJA.noExiste);
       const r = regla(chat);
-      if (!r) return { ok: true }; // ya estaba así: nada que contar
+      if (r && "error" in r) return no(r.error);
+      if (!r) return { ok: true, cambio: false }; // ya estaba así: nada que contar
       await tx.fotofficeWaChat.update({ where: { id: chat.id }, data: r.parche });
       if (r.sistema) await escribirSistema(tx, ctx.workspaceId, chat.id, r.sistema.texto, ahora);
-      return { ok: true };
+      return { ok: true, cambio: true };
     });
   } catch (e) {
     console.error("[fotoffice][whatsapp] falló una acción de la bandeja", detalleDeError(e));
@@ -115,6 +122,25 @@ export async function resolver(ctx: CtxBandeja, chatId: string, deps: Deps = {})
   const userId = ctx.userId;
   if (userId === null) return no(MENSAJES_BANDEJA.sinPermiso);
   return transicion(ctx, chatId, (chat) => (chat.estado === "RESUELTO" && chat.asignadoUserId === null ? null : alResolver(userId, ctx.userLabel)), deps.ahora ?? new Date());
+}
+
+type DepsDerivar = Deps & { personaQuePuedeAtender?: (workspaceId: string, userId: number) => Promise<PersonaDeLaBandeja | null> };
+
+/**
+ * Deriva el chat a una persona del equipo (con Gestionar en la Bandeja de ESTE workspace) o al bot
+ * (`"bot"`). Lo que no es "bot" ni un id entero se rechaza. Al bot con el número excluido: error.
+ */
+export async function derivar(ctx: CtxBandeja, chatId: string, destinoCrudo: unknown, deps: DepsDerivar = {}): Promise<Resultado<{ cambio: boolean }>> {
+  if (ctx.userId === null || !puedeOperarBandeja(ctx)) return no(MENSAJES_BANDEJA.sinPermiso);
+  const ahora = deps.ahora ?? new Date();
+  if (destinoCrudo === "bot") {
+    return transicion(ctx, chatId, (chat) => (chat.botExcluido ? { error: MENSAJES_BANDEJA.botExcluido } : alDerivar(aEstado(chat), { tipo: "bot" }, ctx.userLabel)), ahora);
+  }
+  const userId = typeof destinoCrudo === "number" ? destinoCrudo : typeof destinoCrudo === "string" && /^[1-9][0-9]{0,9}$/.test(destinoCrudo) ? Number(destinoCrudo) : NaN;
+  if (!Number.isInteger(userId) || userId <= 0) return no(MENSAJES_BANDEJA.destinoInvalido);
+  const persona = await (deps.personaQuePuedeAtender ?? personaQuePuedeAtender)(ctx.workspaceId, userId).catch(() => null);
+  if (!persona) return no(MENSAJES_BANDEJA.destinoInvalido);
+  return transicion(ctx, chatId, (chat) => alDerivar(aEstado(chat), { tipo: "persona", userId, nombre: persona.nombre }, ctx.userLabel), ahora);
 }
 
 /** Marca el chat como leído (VIEW alcanza: no cambia quién lo atiende). Bajo el mismo candado de fila. */

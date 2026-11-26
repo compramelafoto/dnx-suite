@@ -39,5 +39,7 @@ export const MENSAJES_BANDEJA = {
   falloEnvio: "No se pudo enviar el mensaje por WhatsApp. Quedó registrado como fallido.",
   sinConexionInstagram: "Instagram no está conectado: revisá la conexión en Configuración → WhatsApp → Instagram.",
   falloEnvioInstagram: "No se pudo enviar el mensaje por Instagram. Quedó registrado como fallido.",
+  destinoInvalido: "Esa persona no puede atender la Bandeja.",
+  botExcluido: "El bot no atiende este número.",
   fallo: "No se pudo completar la acción. Probá de nuevo.",
 } as const;

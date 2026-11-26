@@ -8,114 +8,143 @@ import { DesplazarAlFinal } from "@/components/bandeja/desplazar-al-final";
 import { EnviarPlantilla } from "@/components/bandeja/enviar-plantilla";
 import { InsigniaEstado } from "@/components/bandeja/insignia-estado";
 import { MarcarLeido } from "@/components/bandeja/marcar-leido";
+import { PanelDeLista } from "@/components/bandeja/panel-de-lista";
 import { PanelDelCliente } from "@/components/bandeja/panel-del-cliente";
 import { RefrescoPeriodico } from "@/components/bandeja/refresco-periodico";
+import { personasDeLaBandeja } from "@/lib/bandeja/equipo";
+import { hrefBandeja, leerFiltros } from "@/lib/bandeja/filtros";
 import { detalleChat } from "@/lib/bandeja/lecturas";
 import { requireBandeja } from "@/lib/bandeja/pagina";
 import { plantillasDelChat } from "@/lib/bandeja/plantillas";
 
 export const dynamic = "force-dynamic";
 
-/** Una conversación: burbujas por autor, caja de respuesta, acciones y panel del cliente. Se refresca cada 5 segundos. */
-export default async function ChatPage({ params }: { params: Promise<{ chatId: string }> }) {
+/**
+ * Una conversación, con la lista al costado en escritorio (estilo WhatsApp Web). Encabezado fijo con
+ * las acciones, conversación con su propio desplazamiento y la caja de respuesta siempre abajo. En
+ * el teléfono, sólo el chat con «← Volver» (que conserva los filtros). Se refresca cada 5 segundos.
+ */
+export default async function ChatPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ chatId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { ctx, puedeOperar, puedeOperarClientes } = await requireBandeja();
   const { chatId } = await params;
-  const chat = await detalleChat(ctx, chatId);
+  const filtros = leerFiltros(await searchParams, ctx.userId);
+  const ahora = new Date();
+  const chat = await detalleChat(ctx, chatId, ahora);
   if (!chat) notFound();
 
-  const esMio = chat.estado === "HUMANO" && chat.asignadoUserId === ctx.userId;
   const ultimo = chat.mensajes[chat.mensajes.length - 1];
   // Plantillas aprobadas de Meta (sólo WhatsApp): fuera de las 24 h es la única forma de escribir.
-  const plantillas = puedeOperar && chat.canal !== "INSTAGRAM" ? await plantillasDelChat(ctx, chat.id) : [];
+  const [plantillas, personas] = await Promise.all([
+    puedeOperar && chat.canal !== "INSTAGRAM" ? plantillasDelChat(ctx, chat.id) : Promise.resolve([]),
+    puedeOperar ? personasDeLaBandeja(ctx.workspaceId) : Promise.resolve([]),
+  ]);
+  const panelCliente = (
+    <PanelDelCliente
+      chatId={chat.id}
+      cliente={chat.cliente}
+      clienteOculto={chat.clienteOculto}
+      puedeOperar={puedeOperar}
+      puedeCrearContacto={puedeOperarClientes}
+      nombrePerfil={chat.nombrePerfil}
+      waId={chat.waId}
+      canal={chat.canal}
+      usuarioInstagram={chat.usuarioInstagram}
+    />
+  );
+
   return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <Link href="/bandeja" className="text-sm text-[var(--fo-accent-hover)] underline">
-          ← Volver a la bandeja
-        </Link>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 space-y-1">
-            <h1 className="break-words text-2xl font-semibold tracking-tight text-[var(--fo-text)]">
-              {/* Con un cliente vinculado, el título es su nombre: lleva a su ficha. */}
-              <EnlaceCliente clientId={chat.cliente?.id}>{chat.titulo}</EnlaceCliente>
-            </h1>
-            {chat.canal === "INSTAGRAM" ? (
-              <p className="text-sm text-[var(--fo-muted)]">
-                Instagram
-                {chat.usuarioInstagram ? (
-                  <>
-                    {" · "}
-                    <a
-                      href={`https://instagram.com/${encodeURIComponent(chat.usuarioInstagram)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[var(--fo-accent-hover)] underline"
-                    >
-                      @{chat.usuarioInstagram}
-                    </a>
-                  </>
-                ) : null}
-              </p>
-            ) : (
-              <p className="text-sm text-[var(--fo-muted)]">+{chat.waId}</p>
-            )}
-            <InsigniaEstado estado={chat.estado} atiendeElBot={chat.atiendeElBot} asignadoNombre={chat.asignadoNombre} />
-          </div>
-          {puedeOperar ? (
-            <BotonesDelChat
-              chatId={chat.id}
-              puedeTomar={!esMio}
-              puedeDevolver={chat.estado !== "BOT"}
-              puedeResolver={chat.estado !== "RESUELTO"}
-              botExcluido={chat.botExcluido}
-            />
-          ) : null}
-        </div>
+    <div className="grid gap-4 lg:h-[calc(100dvh-9rem)] lg:grid-cols-[22rem_minmax(0,1fr)]">
+      <div className="hidden min-h-0 flex-col lg:flex">
+        <PanelDeLista ctx={ctx} filtros={filtros} base={`/bandeja/${chat.id}`} activoId={chat.id} ahora={ahora} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="min-w-0 space-y-4">
-          <section aria-label="Conversación" className="fo-card max-h-[60vh] overflow-y-auto overflow-x-hidden !p-3 sm:!p-4">
-            {chat.mensajes.length === 0 ? (
-              <p className="text-sm text-[var(--fo-muted)]">Todavía no hay mensajes.</p>
-            ) : (
-              <ol className="space-y-2">
-                {chat.mensajes.map((m) => (
-                  <BurbujaDeMensaje key={m.id} mensaje={m} verificarEn={puedeOperar ? chat.id : undefined} />
-                ))}
-              </ol>
-            )}
-            <DesplazarAlFinal clave={ultimo?.id ?? "vacio"} />
-          </section>
+      <section aria-label="Chat" className="flex min-h-0 flex-col overflow-hidden rounded-[var(--fo-radius)] border border-[var(--fo-border)] bg-[var(--fo-surface)] max-lg:h-[calc(100dvh-8rem)]">
+        <header className="space-y-2 border-b border-[var(--fo-border)] p-3 sm:p-4">
+          <Link href={hrefBandeja(filtros)} className="text-sm text-[var(--fo-accent-hover)] underline lg:hidden">
+            ← Volver
+          </Link>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-1">
+              <h1 className="break-words text-lg font-semibold tracking-tight text-[var(--fo-text)]">
+                {/* Con un cliente vinculado, el título es su nombre: lleva a su ficha. */}
+                <EnlaceCliente clientId={chat.cliente?.id}>{chat.titulo}</EnlaceCliente>
+              </h1>
+              <p className="flex flex-wrap items-center gap-2 text-sm text-[var(--fo-muted)]">
+                {chat.canal === "INSTAGRAM" ? (
+                  <span>
+                    Instagram
+                    {chat.usuarioInstagram ? (
+                      <>
+                        {" · "}
+                        <a href={`https://instagram.com/${encodeURIComponent(chat.usuarioInstagram)}`} target="_blank" rel="noopener noreferrer" className="text-[var(--fo-accent-hover)] underline">
+                          @{chat.usuarioInstagram}
+                        </a>
+                      </>
+                    ) : null}
+                  </span>
+                ) : (
+                  <span>+{chat.waId}</span>
+                )}
+                <InsigniaEstado estado={chat.estado} atiendeElBot={chat.atiendeElBot} asignadoNombre={chat.asignadoNombre} />
+              </p>
+            </div>
+            {puedeOperar && ctx.userId !== null ? (
+              <BotonesDelChat
+                chatId={chat.id}
+                yo={ctx.userId}
+                asignadoUserId={chat.asignadoUserId}
+                estado={chat.estado}
+                atiendeElBot={chat.atiendeElBot}
+                botExcluido={chat.botExcluido}
+                personas={personas.filter((p) => p.puedeOperar).map((p) => ({ userId: p.userId, nombre: p.nombre }))}
+              />
+            ) : null}
+          </div>
+          <details className="text-sm">
+            <summary className="cursor-pointer text-[var(--fo-accent-hover)]">Datos del cliente</summary>
+            <div className="mt-2">{panelCliente}</div>
+          </details>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4" aria-label="Conversación">
+          {chat.mensajes.length === 0 ? (
+            <p className="text-sm text-[var(--fo-muted)]">Todavía no hay mensajes.</p>
+          ) : (
+            <ol className="space-y-2">
+              {chat.mensajes.map((m) => (
+                <BurbujaDeMensaje key={m.id} mensaje={m} verificarEn={puedeOperar ? chat.id : undefined} />
+              ))}
+            </ol>
+          )}
+          <DesplazarAlFinal clave={ultimo?.id ?? "vacio"} />
+        </div>
+
+        <footer className="space-y-2 border-t border-[var(--fo-border)] p-3 sm:p-4">
           {puedeOperar ? (
-            <div className="space-y-3">
+            <>
               <CajaDeRespuesta chatId={chat.id} dentroDeVentana={chat.dentroDeVentana} ultimoMensajeId={ultimo?.id ?? null} canal={chat.canal} />
               {chat.canal !== "INSTAGRAM" ? (
-                <div className="fo-card !p-3 sm:!p-4">
-                  <EnviarPlantilla chatId={chat.id} plantillas={plantillas} abierta={!chat.dentroDeVentana} />
-                </div>
+                <details open={!chat.dentroDeVentana} className="text-sm">
+                  <summary className="cursor-pointer text-[var(--fo-accent-hover)]">Enviar una plantilla</summary>
+                  <div className="mt-2">
+                    <EnviarPlantilla chatId={chat.id} plantillas={plantillas} abierta={!chat.dentroDeVentana} />
+                  </div>
+                </details>
               ) : null}
-            </div>
+            </>
           ) : (
             <p role="status" className="text-sm text-[var(--fo-muted)]">
               Tenés permiso para ver la bandeja, pero no para responder.
             </p>
           )}
-        </div>
-        <aside className="min-w-0">
-          <PanelDelCliente
-            chatId={chat.id}
-            cliente={chat.cliente}
-            clienteOculto={chat.clienteOculto}
-            puedeOperar={puedeOperar}
-            puedeCrearContacto={puedeOperarClientes}
-            nombrePerfil={chat.nombrePerfil}
-            waId={chat.waId}
-            canal={chat.canal}
-            usuarioInstagram={chat.usuarioInstagram}
-          />
-        </aside>
-      </div>
+        </footer>
+      </section>
 
       <MarcarLeido chatId={chat.id} noLeidos={chat.noLeidos} />
       <RefrescoPeriodico segundos={5} />

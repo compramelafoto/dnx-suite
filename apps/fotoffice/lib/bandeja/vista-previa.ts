@@ -48,3 +48,23 @@ export function textoDeVistaPrevia(chat: { ultimoMensajeTexto: string | null; ul
   if (chat.ultimoMensajeTipo) return `[${TEXTO_POR_TIPO[chat.ultimoMensajeTipo] ?? "Mensaje"}]`;
   return null;
 }
+
+export type Fragmento = { antes: string; coincide: string; despues: string };
+
+/**
+ * El pedazo de un mensaje donde aparece la búsqueda, con hasta 40 caracteres de cada lado (en una
+ * sola línea, con «…» si se cortó). `null` si no aparece. Sin distinguir mayúsculas.
+ */
+export function fragmentoDe(texto: string | null | undefined, q: string, lado = 40): Fragmento | null {
+  if (!texto || !q) return null;
+  const plano = texto.replace(/\s+/g, " ").trim();
+  const i = plano.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return null;
+  const desde = Math.max(0, i - lado);
+  const hasta = Math.min(plano.length, i + q.length + lado);
+  return {
+    antes: (desde > 0 ? "…" : "") + plano.slice(desde, i),
+    coincide: plano.slice(i, i + q.length),
+    despues: plano.slice(i + q.length, hasta) + (hasta < plano.length ? "…" : ""),
+  };
+}
