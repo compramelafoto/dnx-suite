@@ -41,9 +41,11 @@ export async function POST(request: Request) {
     const code = extractCode(mensaje.texto);
     if (!code) continue;
     try {
-      const pending = await prisma.phoneVerification.findFirst({ where: { code } });
-      if (!pending) continue;
       const now = new Date();
+      const pending = await prisma.phoneVerification.findFirst({
+        where: { code, verifiedAt: null, codeExpiresAt: { gt: now } },
+      });
+      if (!pending) continue;
       if (matchPhoneVerification({ fromPhone: mensaje.waId, text: mensaje.texto, now, pending })) {
         await prisma.phoneVerification.update({ where: { id: pending.id }, data: { verifiedAt: now } });
       }

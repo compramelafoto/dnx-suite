@@ -111,10 +111,10 @@ async function alertSerialConflict(
       console.warn("[equipos] ADMIN_EMAIL no configurado; no se avisa el conflicto de serie.");
       return;
     }
-    const base = process.env.APP_URL?.replace(/\/$/, "");
+    const base = process.env.CLF_URL?.replace(/\/$/, "");
     await sendPortalEmail(to, "conflicto_serie_admin", {
       detalle: `Serie ${serialNormalized}: equipo #${itemId} (usuario ${ownerId}) y equipo #${other.id} de otro usuario.`,
-      url: base ? `${base}/admin` : "",
+      url: base ? `${base}/admin/equipos-robados` : "",
     });
   } catch (err) {
     console.error("[equipos] No se pudo avisar el conflicto de serie:", err);

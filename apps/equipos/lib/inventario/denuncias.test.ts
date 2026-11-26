@@ -211,6 +211,7 @@ describe("findInventoryMatches", () => {
 describe("notifyNewInventoryMatches", () => {
   beforeEach(() => {
     process.env.ADMIN_EMAIL = "admin@dnx.test";
+    process.env.CLF_URL = "https://clf.test/";
     m.reportFindMany.mockResolvedValue([{ id: 1, reporterId: 10, serialNormalized: "AB123" }]);
     m.itemFindMany.mockResolvedValue([{ id: 55 }]);
   });
@@ -218,7 +219,11 @@ describe("notifyNewInventoryMatches", () => {
   it("avisa lo nuevo, sin datos personales en el asunto, y lo recuerda", async () => {
     m.eventFindFirst.mockResolvedValue(null);
     expect(await notifyNewInventoryMatches()).toEqual({ found: 1, notified: 1 });
-    expect(m.email).toHaveBeenCalledWith("admin@dnx.test", "coincidencia_inventario_admin", expect.any(Object));
+    expect(m.email).toHaveBeenCalledWith(
+      "admin@dnx.test",
+      "coincidencia_inventario_admin",
+      expect.objectContaining({ url: "https://clf.test/admin/equipos-robados" }),
+    );
     expect(m.eventCreate.mock.calls[0][0].data).toMatchObject({
       gearItemId: 55,
       type: "UPDATED",

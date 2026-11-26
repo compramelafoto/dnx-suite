@@ -14,6 +14,8 @@ import { guardarEquipo, loRecupere, subirComprobante, subirFoto } from "../actio
 export const dynamic = "force-dynamic";
 
 const ESTADOS_EDITABLES = ["IN_USE", "FOR_SALE", "SOLD"] as const;
+// Un equipo recuperado vuelve al uso normal: el servidor lo permite.
+const ESTADOS_CON_SELECTOR = [...ESTADOS_EDITABLES, "RECOVERED"] as readonly string[];
 
 export default async function EquipoPage({
   params,
@@ -40,7 +42,7 @@ export default async function EquipoPage({
   // Archivos privados: sólo con URL firmada y de corta vida, generada para el dueño.
   const fotos = await Promise.all(item.photoKeys.map((k) => getSignedFileUrl(k)));
   const comprobante = item.purchaseProofKey ? await getSignedFileUrl(item.purchaseProofKey) : null;
-  const estadoEditable = (ESTADOS_EDITABLES as readonly string[]).includes(item.status);
+  const estadoEditable = ESTADOS_CON_SELECTOR.includes(item.status);
 
   return (
     <main style={{ maxWidth: 720, margin: "0 auto", padding: 24 }}>
@@ -73,7 +75,10 @@ export default async function EquipoPage({
           {estadoEditable ? (
             <label>
               Estado
-              <select name="status" defaultValue={item.status}>
+              <select name="status" defaultValue={item.status === "RECOVERED" ? "" : item.status}>
+                {item.status === "RECOVERED" ? (
+                  <option value="">{STATUS_LABELS.RECOVERED} (sin cambios)</option>
+                ) : null}
                 {ESTADOS_EDITABLES.map((s) => (
                   <option key={s} value={s}>
                     {STATUS_LABELS[s]}

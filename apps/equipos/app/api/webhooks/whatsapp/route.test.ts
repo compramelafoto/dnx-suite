@@ -74,7 +74,11 @@ describe("POST", () => {
     const body = payload("5493415551234", "hola EQ-123456");
     const res = await POST(pedido(body, firmar(body)));
     expect(res.status).toBe(200);
-    expect(m.findFirst).toHaveBeenCalledWith({ where: { code: "EQ-123456" } });
+    expect(m.findFirst).toHaveBeenCalledTimes(1);
+    const where = m.findFirst.mock.calls[0][0].where;
+    expect(where.code).toBe("EQ-123456");
+    expect(where.verifiedAt).toBeNull();
+    expect(where.codeExpiresAt.gt).toBeInstanceOf(Date);
     expect(m.update).toHaveBeenCalledTimes(1);
     expect(m.update.mock.calls[0][0].where).toEqual({ id: 7 });
     expect(m.update.mock.calls[0][0].data.verifiedAt).toBeInstanceOf(Date);

@@ -152,6 +152,9 @@ CREATE INDEX IF NOT EXISTS "GearItem_serialNormalized_idx" ON "GearItem"("serial
 CREATE UNIQUE INDEX IF NOT EXISTS "GearSightingDismissal_userId_sightingId_key" ON "GearSightingDismissal"("userId", "sightingId");
 CREATE UNIQUE INDEX IF NOT EXISTS "GearOwnerSettings_userId_key" ON "GearOwnerSettings"("userId");
 CREATE UNIQUE INDEX IF NOT EXISTS "InsuranceReport_code_key" ON "InsuranceReport"("code");
+CREATE INDEX IF NOT EXISTS "GearItemEvent_gearItemId_idx" ON "GearItemEvent"("gearItemId");
+CREATE INDEX IF NOT EXISTS "StolenGearReport_gearItemId_idx" ON "StolenGearReport"("gearItemId");
+CREATE INDEX IF NOT EXISTS "InsuranceReport_ownerId_idx" ON "InsuranceReport"("ownerId");
 
 DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'StolenGearReport_gearItemId_fkey') THEN

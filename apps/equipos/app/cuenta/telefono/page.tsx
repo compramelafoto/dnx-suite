@@ -38,7 +38,12 @@ export default async function TelefonoPage({
       {error ? <p role="alert">{error}</p> : null}
 
       {pending?.verifiedAt ? (
-        <p>Tu teléfono está verificado ({pending.phone}). Si lo cambiás, vas a tener que verificarlo de nuevo.</p>
+        <p>
+          Tu teléfono está verificado ({pending.phone}). Si lo cambiás, vas a tener que verificarlo de nuevo
+          {user.identity?.status === "APPROVED"
+            ? " y también vas a tener que volver a verificar tu identidad (DNI y selfie)."
+            : "."}
+        </p>
       ) : null}
 
       {vigente && number ? (

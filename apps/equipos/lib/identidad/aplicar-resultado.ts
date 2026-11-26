@@ -1,6 +1,7 @@
 import { prisma } from "@repo/db";
 import { sendPortalEmail } from "../correo";
 import { hashDni, normalizeDni } from "./dni";
+import { motivoParaUsuario } from "./motivos";
 import { decideVerification, type ProviderResult } from "./resultado";
 
 export type ApplyOutcome = "applied" | "unknown_ref" | "already_final";
@@ -47,6 +48,8 @@ export async function applyProviderResult(result: ProviderResult): Promise<Apply
       legalName: decision.legalName,
       rejectionReason: decision.rejectionReason,
       approvedAt: decision.status === "APPROVED" ? new Date() : null,
+      // Decisión del proveedor: nunca queda una revisión manual vieja colgada.
+      reviewedById: null,
       // Re-verificación completada: vuelve a nivel "identidad".
       ...(decision.status === "APPROVED" ? { reverifyRequiredAt: null } : {}),
     },
@@ -56,7 +59,7 @@ export async function applyProviderResult(result: ProviderResult): Promise<Apply
     const admin = process.env.ADMIN_EMAIL;
     if (admin) {
       await sendPortalEmail(admin, "verificacion_en_revision_admin", {
-        url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/admin/verificaciones`,
+        url: `${process.env.APP_URL ?? ""}/admin/verificaciones`,
       });
     }
   } else {
@@ -68,7 +71,7 @@ export async function applyProviderResult(result: ProviderResult): Promise<Apply
       await sendPortalEmail(
         user.email,
         decision.status === "APPROVED" ? "verificacion_aprobada" : "verificacion_rechazada",
-        { nombre: user.name ?? "", motivo: decision.rejectionReason ?? "" },
+        { nombre: user.name ?? "", motivo: decision.status === "REJECTED" ? motivoParaUsuario(decision.rejectionReason) : "" },
       );
     }
   }

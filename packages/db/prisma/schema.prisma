@@ -29677,6 +29677,7 @@ model StolenGearReport {
   @@index([reporterId])
   @@index([status])
   @@index([serialNormalized])
+  @@index([gearItemId])
 }
 
 /// Un equipo denunciado apareció en fotos de otro fotógrafo. Sólo lo ve el admin.
@@ -29816,6 +29817,8 @@ model GearItemEvent {
   detail     Json?
   createdAt  DateTime          @default(now())
   gearItem   GearItem          @relation(fields: [gearItemId], references: [id], onDelete: Cascade)
+
+  @@index([gearItemId])
 }
 
 /// El fotógrafo dijo «no es mío» a un número de serie visto en CLF.
@@ -29849,6 +29852,8 @@ model InsuranceReport {
   totalUsd    Int
   createdAt   DateTime @default(now())
   owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
 }
 
 /// Respuesta rápida de la Bandeja de WhatsApp (FOTOFFICE): un texto guardado con atajo (`/carnet`).

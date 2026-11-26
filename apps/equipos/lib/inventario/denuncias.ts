@@ -196,10 +196,10 @@ export async function notifyNewInventoryMatches(): Promise<{ found: number; noti
       console.warn("[cruce-inventario] ADMIN_EMAIL no configurado; no se avisa.");
       continue;
     }
-    const base = process.env.APP_URL?.replace(/\/$/, "");
+    const base = process.env.CLF_URL?.replace(/\/$/, "");
     const res = await sendPortalEmail(to, "coincidencia_inventario_admin", {
       detalle: `Denuncia #${mt.reportId} coincide con el equipo #${mt.gearItemId} del portal.`,
-      url: base ? `${base}/admin` : "",
+      url: base ? `${base}/admin/equipos-robados` : "",
     });
     if (!res.success) continue; // se reintenta mañana
     await prisma.gearItemEvent.create({

@@ -67,6 +67,9 @@ export async function POST(req: Request) {
       providerRef,
       consentAt: new Date(),
       rejectionReason: null,
+      // Reinicio: se pierde la marca de revisión manual anterior (si no, un rechazo del
+      // proveedor quedaría bloqueado para siempre).
+      reviewedById: null,
     },
   });
 

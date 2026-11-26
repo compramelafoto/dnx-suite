@@ -49,6 +49,7 @@ const file = (type: string, size = 10) => new File([new Uint8Array(size)], "x", 
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.ADMIN_EMAIL = "admin@dnx.test";
+  process.env.CLF_URL = "https://clf.test/";
   m.tx.mockImplementation(async (cb: (tx: unknown) => unknown) =>
     cb({
       gearItem: { create: m.txItemCreate, update: m.txItemUpdate },
@@ -171,6 +172,16 @@ describe("createManualItem", () => {
     expect(to).toBe("admin@dnx.test");
     expect(template).toBe("conflicto_serie_admin");
     expect(Object.values(data as Record<string, string>).join(" ")).toContain("ABC12345");
+    expect((data as { url: string }).url).toBe("https://clf.test/admin/equipos-robados");
+  });
+
+  it("sin CLF_URL, el aviso al admin no lleva enlace", async () => {
+    const prev = process.env.CLF_URL;
+    delete process.env.CLF_URL;
+    m.itemFindFirst.mockResolvedValue({ id: 99 });
+    await createManualItem(1, { kind: "BODY", make: "Canon", model: "R6", serialRaw: "ABC-12345" });
+    expect((m.email.mock.calls[0][2] as { url: string }).url).toBe("");
+    process.env.CLF_URL = prev;
   });
 
   it("si el aviso falla, no frena la creación", async () => {

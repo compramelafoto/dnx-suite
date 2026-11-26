@@ -128,10 +128,38 @@ describe("applyProviderResult", () => {
   });
 
   it("el correo al admin apunta a /admin/verificaciones", async () => {
-    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://e.test");
+    vi.stubEnv("APP_URL", "https://e.test");
     m.findUnique.mockResolvedValue({ id: 1, userId: 5, status: "PENDING" });
     await applyProviderResult({ providerRef: "x", outcome: "review" });
     expect(m.send.mock.calls[0][2].url).toBe("https://e.test/admin/verificaciones");
+  });
+
+  it("decisión del proveedor limpia reviewedById", async () => {
+    m.findUnique.mockResolvedValue({ id: 1, userId: 5, status: "PENDING", reviewedById: 3 });
+    await applyProviderResult({ providerRef: "x", outcome: "rejected", reason: "DOC_ILEGIBLE" });
+    expect(m.update.mock.calls[0][0].data.reviewedById).toBeNull();
+  });
+
+  it("rechazo: el correo muestra una frase en español, no el código", async () => {
+    m.findUnique.mockResolvedValue({ id: 1, userId: 5, status: "PENDING" });
+    m.findFirst.mockResolvedValue({ userId: 9 });
+    await applyProviderResult({
+      providerRef: "x",
+      outcome: "approved",
+      documentNumber: "12345678",
+      legalName: "A B",
+    });
+    const motivo = m.send.mock.calls[0][2].motivo as string;
+    expect(motivo).toBe("Ese DNI ya está verificado en otra cuenta");
+    expect(motivo).not.toContain("DNI_YA_USADO");
+  });
+
+  it("rechazo con motivo desconocido del proveedor -> frase genérica", async () => {
+    m.findUnique.mockResolvedValue({ id: 1, userId: 5, status: "PENDING" });
+    await applyProviderResult({ providerRef: "x", outcome: "rejected", reason: "DOC_ILEGIBLE" });
+    expect(m.send.mock.calls[0][2].motivo).toBe(
+      "No pudimos confirmar tu identidad con las imágenes enviadas.",
+    );
   });
 
   it("DNI ya usado por otro usuario -> rechazado", async () => {

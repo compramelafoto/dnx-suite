@@ -62,6 +62,17 @@ describe("POST /api/identidad/iniciar", () => {
     expect(m.upsert).not.toHaveBeenCalled();
   });
 
+  it("aprobado a mano + reverificación exigida: reinicia y limpia reviewedById", async () => {
+    m.idFind.mockResolvedValue({
+      status: "APPROVED",
+      reverifyRequiredAt: new Date(),
+      reviewedById: 3,
+      rejectionReason: null,
+    });
+    expect((await POST(pedido())).status).toBe(303);
+    expect(m.upsert.mock.calls[0][0].update.reviewedById).toBeNull();
+  });
+
   it("rechazo del proveedor permite reintentar", async () => {
     m.idFind.mockResolvedValue({
       status: "REJECTED",

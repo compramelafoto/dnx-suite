@@ -3,15 +3,12 @@ import { prisma } from "@repo/db";
 import { NextResponse } from "next/server";
 import { sendPortalEmail } from "@/lib/correo";
 import { hashDni, normalizeDni } from "@/lib/identidad/dni";
+import { MOTIVOS } from "@/lib/identidad/motivos";
 import { decideVerification, type ProviderResult } from "@/lib/identidad/resultado";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MOTIVOS: Record<string, string> = {
-  DNI_YA_USADO: "Ese DNI ya está verificado en otra cuenta",
-  DNI_DISTINTO: "El DNI no coincide con el que ya tenía verificado esta cuenta",
-};
 
 /** Decide a mano una verificación en revisión: aprobar (con DNI y nombre) o rechazar (con motivo). */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
