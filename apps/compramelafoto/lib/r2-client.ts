@@ -350,10 +350,11 @@ export async function uploadToR2(
  */
 export async function getSignedUrlForFile(
   key: string,
-  expiresIn: number = 3600
+  expiresIn: number = 3600,
+  bucketOverride?: string
 ): Promise<string> {
   const client = getS3Client();
-  const bucketName = getBucketName();
+  const bucketName = bucketOverride ?? getBucketName();
 
   const command = new GetObjectCommand({
     Bucket: bucketName,

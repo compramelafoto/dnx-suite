@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSignedUrlForFile } from "@/lib/r2-client";
 import { requireStolenGearAdmin } from "@/lib/stolen-gear/admin";
+import { bucketOverrideForKey } from "@/lib/stolen-gear/bucket";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,6 @@ export async function GET(req: NextRequest, context: RouteContext) {
   });
   const key = which === "denuncia" ? report?.policeReportKey : report?.invoiceKey;
   if (!key) return NextResponse.json({ error: "No hay archivo" }, { status: 404 });
-  const url = await getSignedUrlForFile(key, 600);
+  const url = await getSignedUrlForFile(key, 600, bucketOverrideForKey(key));
   return NextResponse.redirect(url);
 }
