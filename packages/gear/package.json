@@ -10,7 +10,8 @@
     ".": "./src/index.ts",
     "./serial": "./src/serial.ts",
     "./exif": "./src/exif.ts",
-    "./shutter-count": "./src/shutter-count.ts"
+    "./shutter-count": "./src/shutter-count.ts",
+    "./verificado": "./src/verificado.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",

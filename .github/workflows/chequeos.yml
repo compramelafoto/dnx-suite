@@ -247,6 +247,9 @@ jobs:
       - name: Pruebas de equipos robados de CLF
         run: pnpm --filter compramelafoto test:equipos-robados
 
+      - name: Pruebas del sello Fotógrafo verificado de CLF
+        run: pnpm --filter compramelafoto test:sello-verificado
+
       - name: Pruebas del informe diario
         run: pnpm --filter @repo/ops-daily-report test
 

@@ -14,6 +14,7 @@ import {
   getOrganizerLandingMetadataBySlug,
   getPublishedOrganizerLandingBySlug,
 } from "@/lib/organizer-public-landing-server";
+import { loadVerifiedPhotographer } from "@/lib/fotografo/sello-verificado";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -252,6 +253,9 @@ export default async function PhotographerHandlerPage({
     notFound();
   }
 
+  // La consulta de getPhotographerData ya filtra role PHOTOGRAPHER; nunca rompe la página.
+  const verifiedPhotographer = await loadVerifiedPhotographer(prisma, photographer.id, "PHOTOGRAPHER");
+
   // Aplicar valores por defecto si es necesario
   if (photographer.enableAlbumsPage === null || photographer.enableAlbumsPage === undefined) {
     photographer.enableAlbumsPage = true;
@@ -417,6 +421,7 @@ export default async function PhotographerHandlerPage({
       handler={handler}
       albums={allAlbums}
       hideLogo={hideLogo}
+      verifiedPhotographer={verifiedPhotographer}
     />
   );
 }
