@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@repo/db";
 import { sendPortalEmail } from "@/lib/correo";
 import { fechaAr } from "@/lib/inventario/formato";
-import { isRenewalReminderDue } from "@/lib/informe/recordatorio";
+import { isRenewalReminderDue, nextRenewalAnniversary } from "@/lib/informe/recordatorio";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,7 +40,8 @@ export async function GET(req: NextRequest) {
       try {
         const r = await sendPortalEmail(c.user.email, "recordatorio_poliza", {
           nombre: c.user.name ?? "",
-          fecha: fechaAr(c.policyRenewalDate),
+          // El próximo aniversario, no la fecha original cargada (que puede ser de años atrás).
+          fecha: fechaAr(nextRenewalAnniversary(c.policyRenewalDate, now)),
           url: base ? `${base}/mi-equipo/informe` : "",
         });
         if (r.success) {

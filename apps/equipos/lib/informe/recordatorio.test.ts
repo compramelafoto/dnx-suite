@@ -1,8 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { isRenewalReminderDue } from "./recordatorio";
+import { isRenewalReminderDue, nextRenewalAnniversary } from "./recordatorio";
+
+const dia = (x: Date) => x.toISOString().slice(0, 10);
 
 // Mediodía UTC = mismo día calendario en Argentina.
 const d = (s: string) => new Date(`${s}T12:00:00.000Z`);
+
+describe("nextRenewalAnniversary", () => {
+  it("renovación 10/01/2024, hoy 11/12/2026 → 10/01/2027", () => {
+    expect(dia(nextRenewalAnniversary(d("2024-01-10"), d("2026-12-11")))).toBe("2027-01-10");
+  });
+  it("29 de febrero en año común → 28 de febrero", () => {
+    expect(dia(nextRenewalAnniversary(d("2024-02-29"), d("2027-01-29")))).toBe("2027-02-28");
+  });
+  it("29 de febrero en año bisiesto se conserva", () => {
+    expect(dia(nextRenewalAnniversary(d("2024-02-29"), d("2027-12-30")))).toBe("2028-02-29");
+  });
+});
 
 describe("isRenewalReminderDue", () => {
   it("avisa exactamente 30 días antes del aniversario", () => {
