@@ -7,7 +7,7 @@ import { esPedidoDemo } from "@/lib/canje-externo/pack-de-prueba";
 import { nombreDelProximoLote } from "@/lib/design-v2/produccion-reglas";
 import { fileExistsInR2, urlToR2Key } from "@/lib/r2-client";
 import { queueEmail } from "@/lib/email-queue";
-import { avisaAlCliente, ESPEJO_ENTREGADO, estadoDelPedidoEnElTramo, loteCerrado, motivoParaNoEntrar, puedeMover, vaPorPedidosEscolares, type EstadoLote } from "./reglas";
+import { avisaAlCliente, ESPEJO_ENTREGADO, estadoDelPedidoEnElTramo, loteCerrado, esComboDeImpresas, motivoParaNoEntrar, puedeMover, vaPorPedidosEscolares, type EstadoLote } from "./reglas";
 import { contactoDeRetiro, direccionDelContacto, retiraElCliente } from "./puntos-de-retiro";
 import { contactoDeRetiroDelPedido, contactosActivosDelFotografo } from "./retiro-del-pedido";
 import { aNombreDe, leerResumen, nombreDelFotografo } from "./puerta-del-lab";
@@ -84,19 +84,27 @@ async function cargarCandidatos(photographerId: number, ids?: number[]): Promise
   const vivos = orders.filter((o) => !esPedidoDemo(o));
   if (vivos.length === 0) return [];
   const oids = vivos.map((o) => o.id);
-  const [espejos, conDiseno, escolares, contactos] = await Promise.all([
+  const canjeados = [...new Set(vivos.map((o) => o.redeemsOrderId).filter((id): id is number => id != null))];
+  const [espejos, conDiseno, escolares, contactos, packsCanjeados] = await Promise.all([
     prisma.printOrder.findMany({ where: { tags: { hasSome: oids.map(tagDe) } }, select: { id: true, tags: true, status: true } }),
     prisma.designProject.findMany({ where: { albumOrderId: { in: oids }, albumPackDraftId: null }, select: { albumOrderId: true }, distinct: ["albumOrderId"] }),
     prisma.schoolCopiesPrintJob.findMany({ where: { orderId: { in: oids } }, select: { orderId: true } }),
     contactosActivosDelFotografo(photographerId),
+    canjeados.length
+      ? prisma.order.findMany({ where: { id: { in: canjeados } }, select: { id: true, redemptionPaymentRefsJson: true } })
+      : Promise.resolve([]),
   ]);
+  const combosDeImpresas = new Set(packsCanjeados.filter((p) => esComboDeImpresas(p.redemptionPaymentRefsJson)).map((p) => p.id));
   const espejoDe = new Map<number, { id: number; status: string }>();
   for (const e of espejos) for (const t of e.tags) if (t.startsWith("ALBUM_ORDER:")) espejoDe.set(Number(t.slice(12)), e);
   const tienenDiseno = new Set(conDiseno.map((d) => d.albumOrderId));
   const enLineaEscolar = new Set(escolares.map((e) => e.orderId));
 
   const esCanje = (o: (typeof vivos)[number]) =>
-    vaPorPedidosEscolares({ origin: o.origin, redeemsOrderId: o.redeemsOrderId, enLineaEscolar: enLineaEscolar.has(o.id) });
+    vaPorPedidosEscolares({
+      origin: o.origin, redeemsOrderId: o.redeemsOrderId, enLineaEscolar: enLineaEscolar.has(o.id),
+      canjeaComboDeImpresas: o.redeemsOrderId != null && combosDeImpresas.has(o.redeemsOrderId),
+    });
   // En el listado no van los canjes (viajan por Pedidos escolares) ni los espejos ya resueltos por otro lado.
   const aMirar = ids ? vivos : vivos.filter((o) => {
     const espejo = espejoDe.get(o.id);

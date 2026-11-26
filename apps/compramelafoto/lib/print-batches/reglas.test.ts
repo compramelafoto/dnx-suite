@@ -9,6 +9,7 @@ import {
   motivoParaNoEntrar,
   puedeMover,
   vaPorPedidosEscolares,
+  esComboDeImpresas,
   type EstadoLote,
   type PedidoCandidato,
 } from "./reglas";
@@ -155,4 +156,18 @@ test("vaPorPedidosEscolares: con avance de copias escolares va por Pedidos escol
 });
 test("vaPorPedidosEscolares: un canje sin dato de origen igual va por Pedidos escolares", () => {
   assert.equal(vaPorPedidosEscolares({ origin: null, redeemsOrderId: 7, enLineaEscolar: false }), true);
+});
+
+test("vaPorPedidosEscolares: el canje de un combo de impresas va por Impresiones", () => {
+  assert.equal(vaPorPedidosEscolares({ ...COMUN, redeemsOrderId: 10, canjeaComboDeImpresas: true }), false);
+});
+test("vaPorPedidosEscolares: el canje de un combo de impresas con avance escolar sigue en Pedidos escolares", () => {
+  assert.equal(vaPorPedidosEscolares({ ...COMUN, redeemsOrderId: 10, canjeaComboDeImpresas: true, enLineaEscolar: true }), true);
+});
+test("esComboDeImpresas: reconoce los combos de impresas y no los packs de colegio", () => {
+  assert.equal(esComboDeImpresas({ kind: "EXTERNAL_PREPAID_PRINT_CREDIT", printUnits: 3 }), true);
+  assert.equal(esComboDeImpresas({ kind: "EXTERNAL_SHARED_GIFT_LINK" }), true);
+  assert.equal(esComboDeImpresas({ kind: "EXTERNAL_PREVENTA_PACK" }), false);
+  assert.equal(esComboDeImpresas(null), false);
+  assert.equal(esComboDeImpresas("x"), false);
 });

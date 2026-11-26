@@ -143,8 +143,25 @@ export function vaPorPedidosEscolares(p: {
   origin: string | null;
   redeemsOrderId: number | null;
   enLineaEscolar: boolean;
+  /**
+   * El pedido canjea un combo de impresas cobrado por fuera («3 impresas de regalo», como las
+   * comuniones del álbum 1649). Ese combo no es de colegio: «Pedidos escolares» no lo lista, así
+   * que su canje se imprime desde «Impresiones». Sin este dato el canje quedaba en ningún panel.
+   */
+  canjeaComboDeImpresas?: boolean;
 }): boolean {
-  return (
-    p.origin === "PREVENTA_PACK" || p.origin === "PACK_REDEMPTION" || p.redeemsOrderId != null || p.enLineaEscolar
-  );
+  if (p.enLineaEscolar) return true;
+  if (p.origin === "PREVENTA_PACK" || p.origin === "PACK_REDEMPTION") return true;
+  if (p.redeemsOrderId != null) return !p.canjeaComboDeImpresas;
+  return false;
+}
+
+/** Tipos de combo de impresas cobrado por fuera (`redemptionPaymentRefsJson.kind` del pack canjeado). */
+const KINDS_COMBO_DE_IMPRESAS = new Set(["EXTERNAL_PREPAID_PRINT_CREDIT", "EXTERNAL_SHARED_GIFT_LINK"]);
+
+/** ¿El pack canjeado es un combo de impresas (y no un pack de colegio)? Lee su `redemptionPaymentRefsJson`. */
+export function esComboDeImpresas(refs: unknown): boolean {
+  if (!refs || typeof refs !== "object") return false;
+  const kind = (refs as Record<string, unknown>).kind;
+  return typeof kind === "string" && KINDS_COMBO_DE_IMPRESAS.has(kind);
 }
