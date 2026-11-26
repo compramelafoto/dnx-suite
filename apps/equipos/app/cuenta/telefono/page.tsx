@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
-import { getCurrentUser } from "@repo/auth-guards";
+import { requireLevel } from "@/lib/guards";
 import { buildWhatsappLink } from "@/lib/telefono/codigo";
 import { startPhoneVerification } from "@/lib/telefono/registrar";
 
@@ -8,13 +8,7 @@ export const dynamic = "force-dynamic";
 
 async function guardarTelefono(formData: FormData) {
   "use server";
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { emailVerifiedAt: true },
-  });
-  if (!dbUser?.emailVerifiedAt) redirect("/cuenta/telefono");
+  const user = await requireLevel("registrado", "/cuenta/telefono");
 
   const r = await startPhoneVerification(user.id, String(formData.get("phone") ?? ""), new Date());
   redirect(r.ok ? "/cuenta/telefono" : `/cuenta/telefono?error=${encodeURIComponent(r.error)}`);
@@ -30,23 +24,10 @@ export default async function TelefonoPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  const user = await requireLevel("registrado", "/cuenta/telefono");
   const { error } = await searchParams;
 
-  const [dbUser, pending] = await Promise.all([
-    prisma.user.findUnique({ where: { id: user.id }, select: { emailVerifiedAt: true } }),
-    prisma.phoneVerification.findUnique({ where: { userId: user.id } }),
-  ]);
-
-  if (!dbUser?.emailVerifiedAt) {
-    return (
-      <main style={{ maxWidth: 520, margin: "0 auto", padding: 24 }}>
-        <h1>Verificá tu teléfono</h1>
-        <p>Primero tenés que verificar tu correo electrónico. Después volvé a esta página.</p>
-      </main>
-    );
-  }
+  const pending = await prisma.phoneVerification.findUnique({ where: { userId: user.id } });
 
   const number = process.env.WHATSAPP_VERIFY_NUMBER?.trim();
   const vigente = pending && !pending.verifiedAt && pending.codeExpiresAt.getTime() > Date.now();

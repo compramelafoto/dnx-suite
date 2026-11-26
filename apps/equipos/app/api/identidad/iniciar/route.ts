@@ -1,7 +1,6 @@
-import { getCurrentUser } from "@repo/auth-guards";
 import { prisma } from "@repo/db";
 import { NextResponse } from "next/server";
-import { computeLevel } from "@/lib/identidad/nivel";
+import { getPortalUser } from "@/lib/guards";
 import { getIdentityProvider } from "@/lib/identidad/proveedor";
 
 export const runtime = "nodejs";
@@ -12,30 +11,10 @@ export const dynamic = "force-dynamic";
  * explícito (checkbox `consent`), que se guarda como `consentAt`.
  */
 export async function POST(req: Request) {
-  const user = await getCurrentUser();
+  const user = await getPortalUser();
   if (!user) return NextResponse.json({ error: "Necesitás iniciar sesión" }, { status: 401 });
 
-  const [dbUser, phone, identity] = await Promise.all([
-    prisma.user.findUnique({ where: { id: user.id }, select: { emailVerifiedAt: true } }),
-    prisma.phoneVerification.findUnique({
-      where: { userId: user.id },
-      select: { verifiedAt: true },
-    }),
-    prisma.identityVerification.findUnique({
-      where: { userId: user.id },
-      select: {
-        status: true,
-        reverifyRequiredAt: true,
-        reviewedById: true,
-        rejectionReason: true,
-      },
-    }),
-  ]);
-  const level = computeLevel({
-    emailVerifiedAt: dbUser?.emailVerifiedAt ?? null,
-    phoneVerifiedAt: phone?.verifiedAt ?? null,
-    identity: identity ?? null,
-  });
+  const { level, identity } = user;
   if (level !== "telefono" && level !== "identidad") {
     return NextResponse.json(
       { error: "Primero verificá tu correo y tu celular" },
