@@ -81,6 +81,13 @@ export default async function ConfiguracionWhatsappPage() {
       />
       <InstagramForm conectado={instagram.conectado} usuario={instagram.usuario} />
       <BotForm encendido={bot} disponible={botDisponible} />
+      <section className="fo-card space-y-1 p-5 text-sm" aria-labelledby="wa-rapidas-titulo">
+        <h2 id="wa-rapidas-titulo" className="text-base font-semibold">Respuestas rápidas</h2>
+        <p className="text-[var(--fo-muted)]">Textos guardados que el equipo inserta en la Bandeja escribiendo «/» o con el botón ⚡.</p>
+        <Link href="/workspace/configuracion/whatsapp/respuestas-rapidas" className="text-[var(--fo-accent)] hover:underline">
+          Administrar respuestas rápidas →
+        </Link>
+      </section>
       <section className="fo-card space-y-2 p-5 text-sm" aria-labelledby="wa-meta-titulo">
         <h2 id="wa-meta-titulo" className="text-base font-semibold">Datos para Meta</h2>
         <p className="text-[var(--fo-muted)]">En el panel de Meta, en Webhooks, pegá esta dirección:</p>

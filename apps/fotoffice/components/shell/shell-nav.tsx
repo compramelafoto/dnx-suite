@@ -134,6 +134,8 @@ type Item = {
   description?: string;
   /** Cantidad a mostrar al lado del nombre (ej. mensajes sin leer). Se omite si es 0. */
   badge?: number;
+  /** Segundo aviso, en otro color (ej. chats derivados a mí sin abrir). Se omite si es 0. */
+  aviso?: { cantidad: number; texto: string };
 };
 
 function exact(href: string) {
@@ -258,6 +260,12 @@ function Section({
                     <span className="sr-only"> sin leer</span>
                   </span>
                 ) : null}
+                {item.aviso && item.aviso.cantidad > 0 ? (
+                  <span className="rounded-full bg-[var(--fo-warning)] px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white" title={item.aviso.texto}>
+                    {item.aviso.cantidad > 99 ? "99+" : item.aviso.cantidad}
+                    <span className="sr-only"> {item.aviso.texto}</span>
+                  </span>
+                ) : null}
               </Link>
             );
           })}
@@ -277,6 +285,7 @@ export function ShellNav({
   vocabulary,
   openGroups = [],
   bandejaNoLeidos = 0,
+  bandejaDerivados = 0,
 }: {
   /** Nivel en cada módulo, de `getModuleLevels`. Un módulo apagado viene en NONE. */
   levels: ModuleLevels;
@@ -294,6 +303,8 @@ export function ShellNav({
   openGroups?: readonly string[];
   /** Mensajes sin leer de la Bandeja de WhatsApp (se calculan en el servidor). */
   bandejaNoLeidos?: number;
+  /** Chats derivados a quien mira y todavía no abiertos (punto aparte del contador). */
+  bandejaDerivados?: number;
 }) {
   const path = usePathname() ?? "";
   const { closeDrawer } = useShellNav();
@@ -434,6 +445,7 @@ export function ShellNav({
           icon: MessageCircle,
           isActive: under("/bandeja"),
           badge: bandejaNoLeidos,
+          aviso: { cantidad: bandejaDerivados, texto: "derivados a vos sin abrir" },
         },
       ]
     : [];

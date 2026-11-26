@@ -2,6 +2,7 @@ import { EnlaceCliente } from "@/components/entidades/enlace-cliente";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BotonesDelChat } from "@/components/bandeja/botones-del-chat";
+import { ChipEspera } from "@/components/bandeja/chip-espera";
 import { BurbujaDeMensaje } from "@/components/bandeja/burbuja-de-mensaje";
 import { CajaDeRespuesta } from "@/components/bandeja/caja-de-respuesta";
 import { DesplazarAlFinal } from "@/components/bandeja/desplazar-al-final";
@@ -9,6 +10,7 @@ import { EnviarPlantilla } from "@/components/bandeja/enviar-plantilla";
 import { InsigniaEstado } from "@/components/bandeja/insignia-estado";
 import { MarcarLeido } from "@/components/bandeja/marcar-leido";
 import { PanelDeLista } from "@/components/bandeja/panel-de-lista";
+import { TarjetaResumen } from "@/components/bandeja/tarjeta-resumen";
 import { PanelDelCliente } from "@/components/bandeja/panel-del-cliente";
 import { RefrescoPeriodico } from "@/components/bandeja/refresco-periodico";
 import { personasDeLaBandeja } from "@/lib/bandeja/equipo";
@@ -16,8 +18,19 @@ import { hrefBandeja, leerFiltros } from "@/lib/bandeja/filtros";
 import { detalleChat } from "@/lib/bandeja/lecturas";
 import { requireBandeja } from "@/lib/bandeja/pagina";
 import { plantillasDelChat } from "@/lib/bandeja/plantillas";
+import { listarRespuestas } from "@/lib/bandeja/respuestas-rapidas";
 
 export const dynamic = "force-dynamic";
+
+/** «hace 3 min», «hace 2 h», «hace 4 días». */
+function haceCuanto(d: Date, ahora: Date): string {
+  const min = Math.max(0, Math.floor((ahora.getTime() - d.getTime()) / 60_000));
+  if (min < 1) return "recién";
+  if (min < 60) return `hace ${min} min`;
+  if (min < 60 * 24) return `hace ${Math.floor(min / 60)} h`;
+  const dias = Math.floor(min / (60 * 24));
+  return `hace ${dias} ${dias === 1 ? "día" : "días"}`;
+}
 
 /**
  * Una conversación, con la lista al costado en escritorio (estilo WhatsApp Web). Encabezado fijo con
@@ -40,9 +53,10 @@ export default async function ChatPage({
 
   const ultimo = chat.mensajes[chat.mensajes.length - 1];
   // Plantillas aprobadas de Meta (sólo WhatsApp): fuera de las 24 h es la única forma de escribir.
-  const [plantillas, personas] = await Promise.all([
+  const [plantillas, personas, respuestas] = await Promise.all([
     puedeOperar && chat.canal !== "INSTAGRAM" ? plantillasDelChat(ctx, chat.id) : Promise.resolve([]),
     puedeOperar ? personasDeLaBandeja(ctx.workspaceId) : Promise.resolve([]),
+    puedeOperar ? listarRespuestas(ctx) : Promise.resolve([]),
   ]);
   const panelCliente = (
     <PanelDelCliente
@@ -92,6 +106,7 @@ export default async function ChatPage({
                   <span>+{chat.waId}</span>
                 )}
                 <InsigniaEstado estado={chat.estado} atiendeElBot={chat.atiendeElBot} asignadoNombre={chat.asignadoNombre} />
+                <ChipEspera chat={chat} ahora={ahora} />
               </p>
             </div>
             {puedeOperar && ctx.userId !== null ? (
@@ -112,7 +127,8 @@ export default async function ChatPage({
           </details>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4" aria-label="Conversación">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden p-3 sm:p-4" aria-label="Conversación">
+          <TarjetaResumen chatId={chat.id} resumen={chat.resumen} haceTexto={chat.resumenEn ? haceCuanto(chat.resumenEn, ahora) : null} puedeActualizar={puedeOperar} />
           {chat.mensajes.length === 0 ? (
             <p className="text-sm text-[var(--fo-muted)]">Todavía no hay mensajes.</p>
           ) : (
@@ -128,7 +144,14 @@ export default async function ChatPage({
         <footer className="space-y-2 border-t border-[var(--fo-border)] p-3 sm:p-4">
           {puedeOperar ? (
             <>
-              <CajaDeRespuesta chatId={chat.id} dentroDeVentana={chat.dentroDeVentana} ultimoMensajeId={ultimo?.id ?? null} canal={chat.canal} />
+              <CajaDeRespuesta
+                chatId={chat.id}
+                dentroDeVentana={chat.dentroDeVentana}
+                ultimoMensajeId={ultimo?.id ?? null}
+                canal={chat.canal}
+                respuestas={respuestas ?? []}
+                nombreCliente={chat.cliente?.nombre ?? chat.nombrePerfil}
+              />
               {chat.canal !== "INSTAGRAM" ? (
                 <details open={!chat.dentroDeVentana} className="text-sm">
                   <summary className="cursor-pointer text-[var(--fo-accent-hover)]">Enviar una plantilla</summary>

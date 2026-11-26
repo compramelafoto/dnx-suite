@@ -14,7 +14,7 @@ import { ShellHeader } from "@/components/shell/shell-header";
 import { SHELL_NAV_COOKIE, parseShellNavPreference } from "@/lib/shell/nav-preference";
 import { NAV_GROUPS_COOKIE, parseOpenGroups } from "@/lib/shell/nav-groups";
 import { BANDEJA_MODULE_KEY } from "@/lib/bandeja/constantes";
-import { noLeidosDelWorkspace } from "@/lib/bandeja/lecturas";
+import { derivadosSinVer, noLeidosDelWorkspace } from "@/lib/bandeja/lecturas";
 import { hasLevel } from "@/lib/permissions/levels";
 import { accountMenu, listUserProfiles, roleSelector } from "@/lib/portal/profiles";
 import { botEnPanel } from "@/lib/dnx-bot/panel";
@@ -60,8 +60,10 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
   const activeRole = workspace !== null ? await resolveWorkspaceRole(user.id, workspace.id) : null;
   const levels = workspace !== null ? await getModuleLevels(user.id, workspace.id) : {};
   // Mensajes sin leer de la Bandeja de WhatsApp: sólo se consultan con el módulo encendido y "Ver".
-  const bandejaNoLeidos =
-    workspace !== null && hasLevel(levels[BANDEJA_MODULE_KEY] ?? "NONE", "VIEW") ? await noLeidosDelWorkspace(workspace.id) : 0;
+  const veBandeja = workspace !== null && hasLevel(levels[BANDEJA_MODULE_KEY] ?? "NONE", "VIEW");
+  const [bandejaNoLeidos, bandejaDerivados] = veBandeja
+    ? await Promise.all([noLeidosDelWorkspace(workspace.id), derivadosSinVer(workspace.id, user.id)])
+    : [0, 0];
   const canManageWorkspaceSettingsFlag = canManageWorkspaceSettings(activeRole);
   // Las acciones sensibles que alguna entrada del menú exige. Se calculan acá, en el servidor:
   // el menú es un componente de cliente y sólo recibe la lista ya resuelta.
@@ -129,6 +131,7 @@ export async function AdminShell({ user, children }: { user: PanelUser; children
             openGroups={openGroups}
             logoPropio={colorPanel ? (branding?.logoUrl ?? null) : null}
             bandejaNoLeidos={bandejaNoLeidos}
+            bandejaDerivados={bandejaDerivados}
           />
         }
         header={

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Instagram, MessageCircle } from "lucide-react";
 import { hrefBandeja, type FiltrosBandeja } from "@/lib/bandeja/filtros";
 import type { ChatDeLista } from "@/lib/bandeja/lecturas";
+import { ChipEspera } from "./chip-espera";
 import { horaDeLista } from "./formato";
 
 /** Ícono del canal a la izquierda del título (con el nombre para lectores de pantalla). */
@@ -88,7 +89,11 @@ export function ListaDeChats({
                 ) : null}
               </span>
               <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+                {c.nuevoParaMi ? (
+                  <span className="inline-block rounded-full bg-[var(--fo-warning)] px-2 py-0.5 text-[11px] font-semibold text-white">Nuevo para vos</span>
+                ) : null}
                 <ChipQuienAtiende chat={c} />
+                <ChipEspera chat={c} ahora={ahora} />
                 {extras?.(c)}
               </span>
             </Link>

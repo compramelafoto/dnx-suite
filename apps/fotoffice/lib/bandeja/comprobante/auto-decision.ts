@@ -135,7 +135,7 @@ type MensajeLeido = { id: string; direccion: string; tipo: string; media: unknow
 export function archivosParaComprobante(mensajes: readonly MensajeLeido[]): string[] {
   const ids: string[] = [];
   for (const m of mensajes) {
-    if (m.direccion === "SISTEMA") continue;
+    if (m.direccion === "SISTEMA" || m.direccion === "NOTA") continue;
     if (m.direccion !== "ENTRANTE") break;
     if (m.tipo !== "IMAGEN" && m.tipo !== "DOCUMENTO") continue;
     const a = archivoDeMensaje(m.tipo, m.media);

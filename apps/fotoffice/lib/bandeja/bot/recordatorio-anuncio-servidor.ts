@@ -79,7 +79,7 @@ export async function recordarConsultasDeAnuncio(deps: DepsRecordatorioAnuncio =
       if (!consulta) continue;
       const n = cualRecordatorio(chat.ultimoEntranteEn, ahora, consulta.ya);
       if (!n) continue;
-      const ultimo = [...charla].reverse().find((m) => m.direccion !== "SISTEMA");
+      const ultimo = [...charla].reverse().find((m) => m.direccion !== "SISTEMA" && m.direccion !== "NOTA");
       if (!ultimo || ultimo.direccion !== "SALIENTE") continue;
       if (!activo.has(chat.workspaceId)) activo.set(chat.workspaceId, await d.botActivo(chat.workspaceId));
       if (!activo.get(chat.workspaceId)) continue;

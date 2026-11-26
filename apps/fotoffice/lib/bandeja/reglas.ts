@@ -18,6 +18,8 @@ export type EstadoChat = {
   botExcluido?: boolean;
   /** Quién lo resolvió (para filtrar «Resueltos de Camila»). Se borra al reabrirse. */
   resueltoPorUserId?: number | null;
+  /** A quién se le derivó y todavía no lo abrió. */
+  derivadoSinVerUserId?: number | null;
 };
 
 export type ParcheChat = Partial<EstadoChat>;

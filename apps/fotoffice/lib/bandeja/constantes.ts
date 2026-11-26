@@ -15,8 +15,14 @@ export type EstadoDelChat = (typeof ESTADOS_CHAT)[number];
 export const MODOS_CONEXION = ["SIMULADO", "REAL"] as const;
 export type ModoConexion = (typeof MODOS_CONEXION)[number];
 
-export const DIRECCIONES = ["ENTRANTE", "SALIENTE", "SISTEMA"] as const;
+export const DIRECCIONES = ["ENTRANTE", "SALIENTE", "SISTEMA", "NOTA"] as const;
 export type Direccion = (typeof DIRECCIONES)[number];
+
+/**
+ * Lo que NO es un mensaje real de la charla: los avisos SISTEMA y las notas internas del equipo
+ * (NOTA). Ningún proceso automático (bot, recordatorios, comprobantes) debe tomarlas como mensaje.
+ */
+export const DIRECCIONES_NO_REALES = ["SISTEMA", "NOTA"];
 
 export const AUTORES = ["CLIENTE", "BOT", "USUARIO", "CELULAR", "SISTEMA"] as const;
 export type Autor = (typeof AUTORES)[number];

@@ -20,6 +20,7 @@ import { botEncendido } from "./interruptor";
 import { registrarUsoWa, usoWa } from "./uso";
 import { archivosParaComprobante } from "../comprobante/auto-decision";
 import type { atenderComprobanteDelBot, SalidaAutoComprobante } from "../comprobante/auto-servidor";
+import { DIRECCIONES_NO_REALES } from "../constantes";
 
 /**
  * Un turno del bot en un chat de la Bandeja (etapa 3a). Lo dispara `after()` cuando entra un
@@ -57,7 +58,7 @@ const dormir = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 async function ultimoMensaje(chatId: string) {
   return prisma.fotofficeWaMensaje.findFirst({
-    where: { chatId, direccion: { not: "SISTEMA" } },
+    where: { chatId, direccion: { notIn: DIRECCIONES_NO_REALES } },
     orderBy: { createdAt: "desc" },
     select: { id: true, direccion: true },
   });
@@ -79,7 +80,7 @@ async function hayArchivosBajando(chatId: string, ahora: Date): Promise<boolean>
  */
 async function ultimoSalienteDelTurno(chatId: string, ultimoEntranteId: string): Promise<string> {
   const ultimo = await prisma.fotofficeWaMensaje.findFirst({
-    where: { chatId, direccion: { not: "SISTEMA" } },
+    where: { chatId, direccion: { notIn: DIRECCIONES_NO_REALES } },
     orderBy: { createdAt: "desc" },
     select: { id: true, direccion: true, autor: true },
   });

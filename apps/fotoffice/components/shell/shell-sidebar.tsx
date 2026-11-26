@@ -20,6 +20,7 @@ export function ShellSidebar({
   roleSelector = null,
   openGroups = [],
   bandejaNoLeidos = 0,
+  bandejaDerivados = 0,
   logoPropio = null,
 }: {
   /**
@@ -46,6 +47,8 @@ export function ShellSidebar({
   openGroups?: readonly string[];
   /** Mensajes sin leer de la Bandeja de WhatsApp (0 si no hay o no corresponde). */
   bandejaNoLeidos?: number;
+  /** Chats derivados a quien mira y todavía no abiertos. */
+  bandejaDerivados?: number;
   /** Con colores propios del panel, el logo del negocio va en lugar del de FOTOFFICE. */
   logoPropio?: string | null;
 }) {
@@ -85,6 +88,7 @@ export function ShellSidebar({
         vocabulary={vocabulary}
         openGroups={openGroups}
         bandejaNoLeidos={bandejaNoLeidos}
+        bandejaDerivados={bandejaDerivados}
       />
       {/* Al pie, a mano para todo el equipo: las guías paso a paso de cada pantalla y los cursos en video. */}
       <div className="mt-8 border-t border-[var(--fo-border)] pt-4">

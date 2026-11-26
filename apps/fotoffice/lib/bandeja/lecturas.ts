@@ -63,6 +63,8 @@ export type ChatDeLista = {
   fragmento: Fragmento | null;
   /** Último mensaje del cliente (base del tiempo de espera). */
   ultimoEntranteEn: Date | null;
+  /** Se lo derivaron a quien mira y todavía no lo abrió. */
+  nuevoParaMi: boolean;
   ultimoMensajeEn: Date;
   noLeidos: number;
 };
@@ -177,7 +179,7 @@ export async function listarChats(ctx: CtxBandeja, opciones: OpcionesLista = {})
   })) as {
     id: string; waId: string; canal: string; usuarioInstagram: string | null; nombre: string | null; clientId: string | null; estado: string; asignadoUserId: number | null;
     botPausadoHasta: Date | null; botExcluido: boolean; ultimoMensajeEn: Date; ultimoEntranteEn: Date | null; noLeidos: number;
-    ultimoMensajeTexto: string | null; ultimoMensajeTipo: string | null;
+    ultimoMensajeTexto: string | null; ultimoMensajeTipo: string | null; derivadoSinVerUserId: number | null;
   }[];
   if (esperando) chats = chats.filter((c) => c.ultimoEntranteEn !== null && c.ultimoEntranteEn.getTime() >= c.ultimoMensajeEn.getTime()).slice(0, MAXIMO_CHATS);
 
@@ -204,6 +206,7 @@ export async function listarChats(ctx: CtxBandeja, opciones: OpcionesLista = {})
       ultimoMensaje: textoDeVistaPrevia(c),
       fragmento: q ? fragmentoDe(porPalabra.get(c.id), q) : null,
       ultimoEntranteEn: c.ultimoEntranteEn,
+      nuevoParaMi: c.derivadoSinVerUserId !== null && c.derivadoSinVerUserId === ctx.userId,
       ultimoMensajeEn: c.ultimoMensajeEn,
       noLeidos: c.noLeidos,
     };
@@ -250,6 +253,10 @@ export type DetalleDeChat = {
   asignadoNombre: string | null;
   noLeidos: number;
   ultimoEntranteEn: Date | null;
+  ultimoMensajeEn: Date;
+  /** Resumen de la charla (Claude) y cuándo se armó. */
+  resumen: string | null;
+  resumenEn: Date | null;
   /** Se puede mandar texto libre (ventana de 24 h). */
   dentroDeVentana: boolean;
   mensajes: MensajeDeChat[];
@@ -264,7 +271,8 @@ export async function detalleChat(ctx: CtxBandeja, chatId: string, ahora: Date =
   if (typeof chatId !== "string" || !ID_VALIDO.test(chatId)) return null;
   const c = (await prisma.fotofficeWaChat.findFirst({ where: { id: chatId, workspaceId: ctx.workspaceId } })) as {
     id: string; waId: string; canal: string; usuarioInstagram: string | null; nombre: string | null; clientId: string | null; estado: string; asignadoUserId: number | null;
-    botPausadoHasta: Date | null; botExcluido: boolean; ultimoEntranteEn: Date | null; noLeidos: number;
+    botPausadoHasta: Date | null; botExcluido: boolean; ultimoEntranteEn: Date | null; ultimoMensajeEn: Date; noLeidos: number;
+    resumen: string | null; resumenEn: Date | null;
   } | null;
   if (!c) return null;
 
@@ -306,6 +314,9 @@ export async function detalleChat(ctx: CtxBandeja, chatId: string, ahora: Date =
     asignadoNombre: c.asignadoUserId !== null ? (usuarios.get(c.asignadoUserId) ?? "Alguien del equipo") : null,
     noLeidos: c.noLeidos,
     ultimoEntranteEn: c.ultimoEntranteEn,
+    ultimoMensajeEn: c.ultimoMensajeEn,
+    resumen: c.resumen ?? null,
+    resumenEn: c.resumenEn ?? null,
     dentroDeVentana: puedeResponderLibre({ ultimoEntranteEn: c.ultimoEntranteEn }, ahora),
     mensajes,
     cliente,
@@ -322,6 +333,15 @@ export async function noLeidosDelWorkspace(workspaceId: string): Promise<number>
   try {
     const r = await prisma.fotofficeWaChat.aggregate({ where: { workspaceId, noLeidos: { gt: 0 } }, _sum: { noLeidos: true } });
     return r._sum.noLeidos ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Chats derivados a esta persona que todavía no abrió (el punto del menú). Si falla, 0. */
+export async function derivadosSinVer(workspaceId: string, userId: number): Promise<number> {
+  try {
+    return await prisma.fotofficeWaChat.count({ where: { workspaceId, derivadoSinVerUserId: userId, estado: { in: ["BOT", "HUMANO"] } } });
   } catch {
     return 0;
   }

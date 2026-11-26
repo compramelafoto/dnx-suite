@@ -89,8 +89,8 @@ describe("caja de respuesta", () => {
     expect(f).toContain('setTexto("")');
   });
 
-  it("fuera de las 24 h no muestra el cuadro de texto, sólo el aviso", () => {
-    expect(f).toContain("if (!dentroDeVentana)");
+  it("fuera de las 24 h no muestra el cuadro de respuesta, sólo el aviso (las notas sí)", () => {
+    expect(f).toContain("if (!dentroDeVentana && !nota)");
     expect(f).toContain("Pasaron más de 24 horas desde el último mensaje del cliente");
   });
 });
@@ -152,9 +152,10 @@ describe("menú", () => {
     expect(f).toContain("badge: bandejaNoLeidos");
   });
 
-  it("el total de no leídos sólo se consulta con Ver en el módulo", () => {
+  it("el total de no leídos y los derivados sólo se consultan con Ver en el módulo", () => {
     const f = leer("components/shell/admin-shell.tsx");
-    expect(f).toMatch(/hasLevel\(levels\[BANDEJA_MODULE_KEY\] \?\? "NONE", "VIEW"\) \? await noLeidosDelWorkspace/);
+    expect(f).toMatch(/const veBandeja = workspace !== null && hasLevel\(levels\[BANDEJA_MODULE_KEY\] \?\? "NONE", "VIEW"\);/);
+    expect(f).toMatch(/veBandeja\s*\? await Promise\.all\(\[noLeidosDelWorkspace\(workspace\.id\), derivadosSinVer\(workspace\.id, user\.id\)\]\)\s*: \[0, 0\]/);
   });
 });
 

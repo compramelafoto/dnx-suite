@@ -124,6 +124,33 @@ export async function resolver(ctx: CtxBandeja, chatId: string, deps: Deps = {})
   return transicion(ctx, chatId, (chat) => (chat.estado === "RESUELTO" && chat.asignadoUserId === null ? null : alResolver(userId, ctx.userLabel)), deps.ahora ?? new Date());
 }
 
+/**
+ * Nota interna del equipo (§6.2 del diseño 2026-11-24): un mensaje con `direccion = "NOTA"` que sólo
+ * ve el equipo. No sale al cliente, el bot no la lee y no cambia la hora, los no leídos ni la vista
+ * previa del chat. Pide Gestionar.
+ */
+export async function agregarNota(ctx: CtxBandeja, chatId: string, textoCrudo: unknown, deps: Deps = {}): Promise<Resultado> {
+  const userId = ctx.userId;
+  if (userId === null || !puedeOperarBandeja(ctx)) return no(MENSAJES_BANDEJA.sinPermiso);
+  const texto = typeof textoCrudo === "string" ? textoCrudo.trim() : "";
+  if (!texto) return no(MENSAJES_BANDEJA.notaVacia);
+  if (texto.length > TEXTO_MAXIMO) return no(MENSAJES_BANDEJA.textoLargo);
+  try {
+    const chat = await prisma.fotofficeWaChat.findFirst({ where: { id: chatId, workspaceId: ctx.workspaceId }, select: { id: true } });
+    if (!chat) return no(MENSAJES_BANDEJA.noExiste);
+    await prisma.fotofficeWaMensaje.create({
+      data: {
+        workspaceId: ctx.workspaceId, chatId: chat.id, direccion: "NOTA", autor: "USUARIO", autorUserId: userId, autorLabel: ctx.userLabel,
+        tipo: "TEXTO", texto, createdAt: deps.ahora ?? new Date(),
+      },
+    });
+    return { ok: true };
+  } catch (e) {
+    console.error("[fotoffice][whatsapp] falló al guardar una nota", detalleDeError(e));
+    return no(MENSAJES_BANDEJA.fallo);
+  }
+}
+
 type DepsDerivar = Deps & { personaQuePuedeAtender?: (workspaceId: string, userId: number) => Promise<PersonaDeLaBandeja | null> };
 
 /**
@@ -134,13 +161,31 @@ export async function derivar(ctx: CtxBandeja, chatId: string, destinoCrudo: unk
   if (ctx.userId === null || !puedeOperarBandeja(ctx)) return no(MENSAJES_BANDEJA.sinPermiso);
   const ahora = deps.ahora ?? new Date();
   if (destinoCrudo === "bot") {
-    return transicion(ctx, chatId, (chat) => (chat.botExcluido ? { error: MENSAJES_BANDEJA.botExcluido } : alDerivar(aEstado(chat), { tipo: "bot" }, ctx.userLabel)), ahora);
+    return transicion(
+      ctx,
+      chatId,
+      (chat) => {
+        if (chat.botExcluido) return { error: MENSAJES_BANDEJA.botExcluido };
+        const r = alDerivar(aEstado(chat), { tipo: "bot" }, ctx.userLabel);
+        return r ? { ...r, parche: { ...r.parche, derivadoSinVerUserId: null } } : null;
+      },
+      ahora,
+    );
   }
   const userId = typeof destinoCrudo === "number" ? destinoCrudo : typeof destinoCrudo === "string" && /^[1-9][0-9]{0,9}$/.test(destinoCrudo) ? Number(destinoCrudo) : NaN;
   if (!Number.isInteger(userId) || userId <= 0) return no(MENSAJES_BANDEJA.destinoInvalido);
   const persona = await (deps.personaQuePuedeAtender ?? personaQuePuedeAtender)(ctx.workspaceId, userId).catch(() => null);
   if (!persona) return no(MENSAJES_BANDEJA.destinoInvalido);
-  return transicion(ctx, chatId, (chat) => alDerivar(aEstado(chat), { tipo: "persona", userId, nombre: persona.nombre }, ctx.userLabel), ahora);
+  return transicion(
+    ctx,
+    chatId,
+    (chat) => {
+      const r = alDerivar(aEstado(chat), { tipo: "persona", userId, nombre: persona.nombre }, ctx.userLabel);
+      // «Nuevo para vos»: hasta que esa persona abra el chat (derivárselo a uno mismo no cuenta).
+      return r ? { ...r, parche: { ...r.parche, derivadoSinVerUserId: userId === ctx.userId ? null : userId } } : null;
+    },
+    ahora,
+  );
 }
 
 /** Marca el chat como leído (VIEW alcanza: no cambia quién lo atiende). Bajo el mismo candado de fila. */
@@ -150,7 +195,8 @@ export async function marcarLeido(ctx: CtxBandeja, chatId: string): Promise<Resu
     return await prisma.$transaction(async (tx): Promise<Resultado> => {
       const chat = await chatBloqueado(tx, ctx.workspaceId, chatId);
       if (!chat) return no(MENSAJES_BANDEJA.noExiste);
-      if (chat.noLeidos !== 0) await tx.fotofficeWaChat.update({ where: { id: chat.id }, data: { noLeidos: 0 } });
+      const verlo = chat.derivadoSinVerUserId !== null && chat.derivadoSinVerUserId === ctx.userId;
+      if (chat.noLeidos !== 0 || verlo) await tx.fotofficeWaChat.update({ where: { id: chat.id }, data: { noLeidos: 0, ...(verlo ? { derivadoSinVerUserId: null } : {}) } });
       return { ok: true };
     });
   } catch (e) {
