@@ -102,6 +102,34 @@ export async function mandarMensaje(
   return { ok: true, resultado: { messageId: String(id) } };
 }
 
+/** Manda un mensaje citando otro (`reply_parameters`); si el citado ya no existe, sale igual. */
+export async function responderMensaje(
+  token: string,
+  chatId: string,
+  html: string,
+  responderA: string,
+  teclado: TecladoTelegram | null,
+  deps: DepsTelegramApi = {},
+): Promise<RespuestaTelegram<{ messageId: string }>> {
+  const r = await llamarTelegram<{ message_id?: unknown }>(
+    token,
+    "sendMessage",
+    {
+      chat_id: chatId,
+      text: html,
+      parse_mode: "HTML",
+      link_preview_options: { is_disabled: true },
+      reply_parameters: { message_id: Number(responderA), allow_sending_without_reply: true },
+      ...(teclado ? { reply_markup: teclado } : {}),
+    },
+    deps,
+  );
+  if (!r.ok) return r;
+  const id = r.resultado?.message_id;
+  if (typeof id !== "number" && typeof id !== "string") return { ok: false, codigo: "SIN_ID" };
+  return { ok: true, resultado: { messageId: String(id) } };
+}
+
 /** Reemplaza el texto (y los botones) de un mensaje ya enviado. */
 export function editarMensaje(
   token: string,

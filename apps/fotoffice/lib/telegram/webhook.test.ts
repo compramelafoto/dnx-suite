@@ -88,3 +88,17 @@ describe("dato de los botones y token", () => {
     expect(tokenConForma("hola")).toBe(false);
   });
 });
+
+describe("leerUpdate para la Bandeja", () => {
+  const cita = (m: Record<string, unknown>) => ({ message: { message_id: 9, chat: { id: 1, type: "private" }, from: { id: 1 }, reply_to_message: { message_id: 3 }, ...m } });
+  it("acepta hasta 4096 caracteres y textos con «/»; sin la opción sigue como antes", () => {
+    const largo = leerUpdate(cita({ text: "a".repeat(5000) }), { bandeja: true });
+    expect(largo.tipo === "RESPUESTA" && largo.texto.length).toBe(4096);
+    expect(leerUpdate(cita({ text: "/hola" }), { bandeja: true })).toMatchObject({ tipo: "RESPUESTA", texto: "/hola" });
+    expect(leerUpdate(cita({ text: "/hola" }))).toEqual({ tipo: "OTRO" });
+  });
+  it("una foto o un audio citando: RESPUESTA_NO_TEXTO (sólo con la opción)", () => {
+    expect(leerUpdate(cita({ photo: [{ file_id: "x" }] }), { bandeja: true })).toEqual({ tipo: "RESPUESTA_NO_TEXTO", chatId: "1", deId: "1", respondeA: "3" });
+    expect(leerUpdate(cita({ photo: [{ file_id: "x" }] }))).toEqual({ tipo: "OTRO" });
+  });
+});

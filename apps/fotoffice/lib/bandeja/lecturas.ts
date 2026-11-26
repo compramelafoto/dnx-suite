@@ -11,7 +11,8 @@ import { archivoDeMensaje, type ArchivoDeMensaje } from "./archivo-de-mensaje";
 import { CANALES, type Autor, type Canal, type Direccion, type EstadoDelChat, type TipoMensaje } from "./constantes";
 import { atiendeElBot, estadoVisible, puedeResponderLibre } from "./reglas";
 import { fragmentoDe, textoDeVistaPrevia, truncarSeguro, type Fragmento } from "./vista-previa";
-import { FILTROS_POR_OMISION, ESTADOS_FILTRO, type FiltrosBandeja } from "./filtros";
+import { anunciosDeCampana, etiquetasDeAnuncios } from "./campanas";
+import { CAMPANA_VALIDA, FILTROS_POR_OMISION, ESTADOS_FILTRO, type FiltrosBandeja } from "./filtros";
 
 /**
  * Lecturas de la Bandeja de WhatsApp (servidor): la lista de chats, el detalle de uno y el total de
@@ -65,6 +66,8 @@ export type ChatDeLista = {
   ultimoEntranteEn: Date | null;
   /** Se lo derivaron a quien mira y todavía no lo abrió. */
   nuevoParaMi: boolean;
+  /** Campaña de Meta del último anuncio del que llegó (o el título del anuncio, si no se sabe la campaña). */
+  campana: string | null;
   ultimoMensajeEn: Date;
   noLeidos: number;
 };
@@ -130,6 +133,10 @@ export async function listarChats(ctx: CtxBandeja, opciones: OpcionesLista = {})
   // Entre los resueltos nadie queda asignado: "de Camila" son los que resolvió ella.
   else if (typeof f.quien === "number") condiciones.push(f.estado === "resueltos" ? { resueltoPorUserId: f.quien } : { asignadoUserId: f.quien });
   if (f.canal !== "todos") condiciones.push({ canal: f.canal });
+  if (typeof opciones.campana === "string" && CAMPANA_VALIDA.test(opciones.campana)) f.campana = opciones.campana;
+  if (f.campana === "sin-anuncio") condiciones.push({ anuncioId: null });
+  else if (f.campana.startsWith("ad:")) condiciones.push({ anuncioId: f.campana.slice(3) });
+  else if (f.campana !== "todas") condiciones.push({ anuncioId: { in: await anunciosDeCampana(ctx.workspaceId, f.campana).catch(() => [] as string[]) } });
   if (f.estado === "esperando") condiciones.push({ ultimoEntranteEn: { gte: new Date(ahora.getTime() - DIAS_ESPERANDO * 86_400_000) } });
 
   // Sin permiso de Clientes la búsqueda no entra a la ficha: sólo perfil de WhatsApp y número.
@@ -179,13 +186,14 @@ export async function listarChats(ctx: CtxBandeja, opciones: OpcionesLista = {})
   })) as {
     id: string; waId: string; canal: string; usuarioInstagram: string | null; nombre: string | null; clientId: string | null; estado: string; asignadoUserId: number | null;
     botPausadoHasta: Date | null; botExcluido: boolean; ultimoMensajeEn: Date; ultimoEntranteEn: Date | null; noLeidos: number;
-    ultimoMensajeTexto: string | null; ultimoMensajeTipo: string | null; derivadoSinVerUserId: number | null;
+    ultimoMensajeTexto: string | null; ultimoMensajeTipo: string | null; derivadoSinVerUserId: number | null; anuncioId: string | null;
   }[];
   if (esperando) chats = chats.filter((c) => c.ultimoEntranteEn !== null && c.ultimoEntranteEn.getTime() >= c.ultimoMensajeEn.getTime()).slice(0, MAXIMO_CHATS);
 
-  const [usuarios, clientes] = await Promise.all([
+  const [usuarios, clientes, campanas] = await Promise.all([
     nombresDeUsuarios(chats.flatMap((c) => (c.asignadoUserId !== null ? [c.asignadoUserId] : []))),
     clientesPorId(ctx.workspaceId, chats.flatMap((c) => (c.clientId ? [c.clientId] : []))),
+    etiquetasDeAnuncios(ctx.workspaceId, chats.flatMap((c) => (c.anuncioId ? [c.anuncioId] : []))),
   ]);
 
   return chats.map((c) => {
@@ -207,6 +215,7 @@ export async function listarChats(ctx: CtxBandeja, opciones: OpcionesLista = {})
       fragmento: q ? fragmentoDe(porPalabra.get(c.id), q) : null,
       ultimoEntranteEn: c.ultimoEntranteEn,
       nuevoParaMi: c.derivadoSinVerUserId !== null && c.derivadoSinVerUserId === ctx.userId,
+      campana: c.anuncioId ? (campanas.get(c.anuncioId) ?? null) : null,
       ultimoMensajeEn: c.ultimoMensajeEn,
       noLeidos: c.noLeidos,
     };

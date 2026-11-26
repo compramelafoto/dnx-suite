@@ -94,6 +94,11 @@ export function ListaDeChats({
                 ) : null}
                 <ChipQuienAtiende chat={c} />
                 <ChipEspera chat={c} ahora={ahora} />
+                {c.campana ? (
+                  <span className="inline-block max-w-[12rem] truncate rounded-full border border-[var(--fo-border)] bg-[var(--fo-surface-hover)] px-2 py-0.5 text-[11px] text-[var(--fo-text-secondary)]" title={`Campaña: ${c.campana}`}>
+                    📣 {c.campana}
+                  </span>
+                ) : null}
                 {extras?.(c)}
               </span>
             </Link>

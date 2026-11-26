@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { recordarPagosPendientes } from "@/lib/bandeja/bot/recordatorio-pago-servidor";
 import { recordarConsultasDeAnuncio } from "@/lib/bandeja/bot/recordatorio-anuncio-servidor";
+import { reintentarAnuncios } from "@/lib/bandeja/campanas";
 import { isAuthorizedCronRequest } from "@/lib/security/cron-auth";
 import { sanitizeError } from "@/lib/payments/connect/log";
 
@@ -27,7 +28,9 @@ export async function POST(request: Request) {
   try {
     const reporte = await recordarPagosPendientes();
     const anuncios = await recordarConsultasDeAnuncio();
-    return NextResponse.json({ ok: true, ...reporte, anuncios });
+    // Bandeja: volver a preguntarle a Meta la campaña de los anuncios que fallaron (una vez por día, hasta 7).
+    const campanas = await reintentarAnuncios();
+    return NextResponse.json({ ok: true, ...reporte, anuncios, campanas });
   } catch (error) {
     console.error("[fotoffice][whatsapp] fallaron los recordatorios de pago", { detalle: sanitizeError(error) });
     return NextResponse.json({ ok: false, error: "fallaron los recordatorios" }, { status: 500 });

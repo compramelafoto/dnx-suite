@@ -9,7 +9,7 @@ import { ACUSE_POR_OMISION } from "@/lib/presupuesto-automatico/canales";
 import { leerAjustesPorHoras } from "@/lib/presupuesto-automatico/por-horas";
 import { listarPropuestasModelo } from "@/lib/presupuestos/propuestas-modelo";
 import { estadoTelegram } from "@/lib/telegram/conexion";
-import { AcuseForm, CategoriaForm, ConectarForm, DesconectarForm, PorHorasForm, VincularForm } from "./telegram-form";
+import { AcuseForm, BandejaTelegramForm, CategoriaForm, ConectarForm, DesconectarForm, PorHorasForm, VincularForm } from "./telegram-form";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -107,6 +107,17 @@ export default async function ConfiguracionTelegramPage() {
           </>
         )}
       </section>
+
+      {estado.vinculado ? (
+        <section className="fo-card space-y-3 p-5 text-sm" aria-labelledby="tg-bandeja-titulo">
+          <h2 id="tg-bandeja-titulo" className="text-base font-semibold">Bandeja de WhatsApp</h2>
+          <p className="text-[var(--fo-muted)]">
+            Mandarme por Telegram los chats de la Bandeja asignados a mí (a quien conectó este bot): te llega una tarjeta con un resumen y cada mensaje nuevo
+            del cliente. Para responderle, citá el mensaje y escribí. También podés derivar o resolver desde los botones.
+          </p>
+          <BandejaTelegramForm encendido={estado.bandejaActiva} />
+        </section>
+      ) : null}
 
       <section className="fo-card space-y-3 p-5 text-sm" aria-labelledby="tg-cat-titulo">
         <h2 id="tg-cat-titulo" className="text-base font-semibold">Paso 4 · Qué consultas te llegan para aprobar</h2>

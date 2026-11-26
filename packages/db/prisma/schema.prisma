@@ -27318,6 +27318,8 @@ model FotofficeWaChat {
   resumenEn        DateTime?
   /// A quién se le derivó y todavía no lo abrió (marca «Nuevo para vos» y el punto del menú).
   derivadoSinVerUserId Int?
+  /// Último anuncio de Meta del que llegó el cliente (`referral.source_id`); su campaña en `FotofficeMetaAnuncio`.
+  anuncioId        String?
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -27329,6 +27331,7 @@ model FotofficeWaChat {
   @@index([workspaceId, estado, ultimoMensajeEn])
   @@index([workspaceId, asignadoUserId])
   @@index([clientId])
+  @@index([workspaceId, anuncioId])
 }
 
 /// Un mensaje de un chat. Las acciones (tomó, devolvió al bot, resolvió) quedan como SISTEMA.
@@ -28035,6 +28038,8 @@ model FotofficeTelegramConexion {
   webhookSecretHash String
   linkedAt          DateTime?
   connectedByUserId Int?
+  /// Mandar por Telegram los chats de la Bandeja asignados a `connectedByUserId` (y responder citando).
+  bandejaActiva     Boolean   @default(true)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 }
@@ -29690,4 +29695,48 @@ model FotofficeWaRespuestaRapida {
   updatedAt   DateTime @updatedAt
 
   @@unique([workspaceId, atajo])
+}
+
+/// Mensaje que el bot de Telegram de la institución mandó por la Bandeja: ata el mensaje de Telegram
+/// a su chat de WhatsApp/Instagram (al citarlo, la respuesta va a ese chat y a ningún otro).
+model FotofficeWaTelegramAviso {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  conexionId        String
+  /// `FotofficeWaChat.id`.
+  chatId            String
+  /// Chat de Telegram donde salió: Telegram numera los mensajes por chat (al vincular otro celular se repiten).
+  telegramChatId    String
+  telegramMessageId String
+  /// Lo que se escribió citando cuando el chat lo atendía otra persona («Tomarlo y enviar»), hasta 4096,
+  /// y el id de ESE mensaje de Telegram (de ahí sale el identificador del envío).
+  textoPendiente    String?
+  telegramPendienteId String?
+  pendienteEn       DateTime?
+  createdAt         DateTime  @default(now())
+
+  @@unique([conexionId, telegramChatId, telegramMessageId])
+  @@index([chatId])
+}
+
+/// Anuncio de Meta del que llegaron chats a la Bandeja, con su conjunto y campaña (se le pregunta a
+/// Meta una vez por anuncio). `titulo` es el del `referral`, para mostrar algo si Meta no contesta.
+model FotofficeMetaAnuncio {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  adId         String
+  titulo       String?
+  adName       String?
+  adsetName    String?
+  campaignId   String?
+  campaignName String?
+  consultadoEn DateTime?
+  intentos     Int       @default(0)
+  /// Código del último error de Meta (sin textos).
+  error        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@unique([workspaceId, adId])
+  @@index([workspaceId, campaignId])
 }
