@@ -43,8 +43,9 @@ export function validateFile(file: { type: string; size: number }, kind: FileKin
 let s3: S3Client | null = null;
 
 function bucketName(): string {
-  const b = process.env.R2_BUCKET_NAME || process.env.R2_BUCKET;
-  if (!b) throw new Error("R2_BUCKET_NAME o R2_BUCKET debe estar configurado");
+  // Bucket propio y privado, sin dominio público. Nunca el de CLF (R2_BUCKET_NAME / R2_BUCKET).
+  const b = process.env.EQUIPOS_R2_BUCKET?.trim();
+  if (!b) throw new Error("Falta configurar EQUIPOS_R2_BUCKET (bucket privado de equipos)");
   return b;
 }
 

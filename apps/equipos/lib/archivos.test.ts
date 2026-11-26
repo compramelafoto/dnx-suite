@@ -26,7 +26,9 @@ beforeEach(() => {
   process.env.R2_ACCESS_KEY_ID = "k";
   process.env.R2_SECRET_ACCESS_KEY = "s";
   process.env.R2_ENDPOINT = "https://x.r2.cloudflarestorage.com";
-  process.env.R2_BUCKET_NAME = "bucket";
+  process.env.EQUIPOS_R2_BUCKET = "bucket";
+  delete process.env.R2_BUCKET_NAME;
+  delete process.env.R2_BUCKET;
   m.send.mockResolvedValue({});
   m.sign.mockResolvedValue("https://firmada");
 });
@@ -59,6 +61,23 @@ describe("uploadPrivateFile", () => {
   it("no sube un archivo inválido", async () => {
     await expect(uploadPrivateFile(file("image/gif"), "photo")).rejects.toThrow(/Formato/);
     expect(m.send).not.toHaveBeenCalled();
+  });
+});
+
+describe("bucket propio (R9)", () => {
+  it("sin EQUIPOS_R2_BUCKET falla con un error claro, aunque exista el bucket de CLF", async () => {
+    delete process.env.EQUIPOS_R2_BUCKET;
+    process.env.R2_BUCKET_NAME = "bucket-de-clf";
+    process.env.R2_BUCKET = "bucket-de-clf";
+    await expect(uploadPrivateFile(file("image/png"), "photo")).rejects.toThrow(/EQUIPOS_R2_BUCKET/);
+    await expect(getSignedFileUrl("equipos/a.jpg")).rejects.toThrow(/EQUIPOS_R2_BUCKET/);
+    expect(m.send).not.toHaveBeenCalled();
+    expect(m.sign).not.toHaveBeenCalled();
+  });
+  it("usa EQUIPOS_R2_BUCKET y no R2_BUCKET_NAME", async () => {
+    process.env.R2_BUCKET_NAME = "bucket-de-clf";
+    await uploadPrivateFile(file("image/png"), "photo");
+    expect(m.send.mock.calls[0][0].input.Bucket).toBe("bucket");
   });
 });
 

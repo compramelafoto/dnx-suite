@@ -120,6 +120,21 @@ describe("createManualItem", () => {
     expect(m.txEventCreate.mock.calls[0][0].data).toMatchObject({ gearItemId: 50, type: "CREATED" });
   });
 
+  it("variantes de la misma serie se normalizan igual y disparan el conflicto con el mismo valor", async () => {
+    expect(normalizeGearSerial("0123-45")).toBe(normalizeGearSerial("012345"));
+    expect(normalizeGearSerial("012345")).toBe(normalizeGearSerial(" 012345 "));
+    const n = normalizeGearSerial(" 012345 ");
+    // Otro usuario ya tiene el equipo guardado desde " 012345 " (mismo serialNormalized).
+    m.itemFindFirst.mockResolvedValue({ id: 99, serialNormalized: n });
+    await createManualItem(1, { kind: "BODY", make: "Canon", model: "R6", serialRaw: "0123-45" });
+    expect(m.txItemCreate.mock.calls[0][0].data.serialNormalized).toBe(n);
+    expect(m.itemFindFirst.mock.calls[0][0].where).toEqual({
+      serialNormalized: n,
+      ownerId: { not: 1 },
+    });
+    expect(m.email).toHaveBeenCalledTimes(1);
+  });
+
   it("serie muy corta queda sin normalizar (null)", async () => {
     await createManualItem(1, { kind: "BAG", make: "Lowepro", model: "Pro", serialRaw: "12" });
     expect(m.txItemCreate.mock.calls[0][0].data.serialNormalized).toBeNull();

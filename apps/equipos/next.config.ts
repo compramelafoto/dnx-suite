@@ -16,6 +16,11 @@ const nextConfig: NextConfig = {
       "../../packages/db/prisma/**",
     ],
   },
+  experimental: {
+    // Next limita por defecto el cuerpo de una Server Action a 1 MB. Fotos y comprobantes llegan
+    // hasta 4 MB (el límite real lo valida lib/archivos.ts); el margen cubre el armado del form.
+    serverActions: { bodySizeLimit: "5mb" },
+  },
   turbopack: {
     // Silencia la detección errónea de root por lockfiles fuera del monorepo.
     root: path.join(appDir, "../.."),
