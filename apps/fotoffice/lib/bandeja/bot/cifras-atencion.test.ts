@@ -48,4 +48,10 @@ describe("cifras respaldadas en la atención por WhatsApp", () => {
     expect(cifrasNoRespaldadas("Para dejarlo señado pagás el 50 %.", ok)).toEqual([]);
     expect(cifrasNoRespaldadas("Te hago un 37 % de descuento.", ok)).toEqual(["37%"]);
   });
+
+  it("los montos aproximados del retiro de VHS que fija la guía valen; otro monto inventado no", () => {
+    const ok = cifrasRespaldadasEnAtencion([{ role: "user", content: "soy de Rosario, tengo 4 VHS" }], []);
+    expect(cifrasNoRespaldadas("El retiro sale aproximadamente entre $5.000 y $15.000 según la zona.", ok)).toEqual([]);
+    expect(cifrasNoRespaldadas("El retiro sale $8.000.", ok)).toEqual(["$8000"]);
+  });
 });
