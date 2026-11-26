@@ -122,6 +122,8 @@ export async function comprarAdicional(formData: FormData): Promise<void> {
       notificationUrl: `${base}/api/pagos/aviso`,
       // Sin `marketplaceFeeMinor`: cobramos nosotros y no hay nada que retener.
       sourceApp: "subilafoto",
+      // En modo LIVE el adaptador sólo usa el token que viaja en el pedido.
+      accessTokenOverride: nuestroToken,
     });
 
     await prisma.subilafotoOrder.update({
