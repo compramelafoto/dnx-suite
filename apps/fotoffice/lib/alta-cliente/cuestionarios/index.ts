@@ -1,5 +1,6 @@
 import type { Cuestionario } from "../tipos";
 import { CUESTIONARIO_CLUB_POR_SUSCRIPCION } from "./club-por-suscripcion";
+import { CUESTIONARIO_MARCA_TIENDA_COMUNIDAD } from "./marca-tienda-comunidad";
 import { CUESTIONARIO_PRODUCTORA_DOCENTE } from "./productora-docente";
 import { CUESTIONARIO_REGISTRO_DOCENTE } from "./registro-docente";
 
@@ -11,6 +12,7 @@ const CUESTIONARIOS: Record<string, Cuestionario> = {
   [CUESTIONARIO_PRODUCTORA_DOCENTE.clave]: CUESTIONARIO_PRODUCTORA_DOCENTE,
   [CUESTIONARIO_CLUB_POR_SUSCRIPCION.clave]: CUESTIONARIO_CLUB_POR_SUSCRIPCION,
   [CUESTIONARIO_REGISTRO_DOCENTE.clave]: CUESTIONARIO_REGISTRO_DOCENTE,
+  [CUESTIONARIO_MARCA_TIENDA_COMUNIDAD.clave]: CUESTIONARIO_MARCA_TIENDA_COMUNIDAD,
 };
 
 export function cuestionarioPorClave(clave: string): Cuestionario | null {
