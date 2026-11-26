@@ -69,6 +69,7 @@ if (process.env.NODE_ENV !== "production") {
 
 export { Prisma };
 export type { PrismaClient };
+export type { IdentityVerificationStatus } from "@prisma/client";
 /** Re-export Prisma enums for apps that depend on `@repo/db` but not on `@prisma/client` directly. */
 export {
   Role,
