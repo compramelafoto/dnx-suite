@@ -29,6 +29,10 @@ export type PrintExportFile = {
   transform?: (bytes: Buffer) => Buffer | Uint8Array;
   /** Sólo en copias sueltas: con qué se agrupan en el ZIP ordenado por tamaño. */
   impresion?: { producto: string; acabado: string; tamano: string; copias: number };
+  /** Sólo para «Verificar lote»: imágenes que muestran el archivo (p. ej. las caras JPG de un PDF). No entran al ZIP. */
+  vistaPrevia?: string[];
+  /** Sólo para «Verificar lote»: de qué trabajo es («Librito · 7 A · Celoria Pedro»). No entra al ZIP. */
+  detalle?: string;
 };
 
 /** De dónde salen los archivos: R2, salvo en las pruebas. Null si no existe. */
@@ -72,16 +76,32 @@ function appendAndWait(archive: Archiver, data: Buffer | string, name: string): 
   });
 }
 
+/**
+ * Las rutas finales de un pedido dentro del ZIP, en el orden en que entran: fotos, avisos, MANIFEST
+ * y resumen. Las usa el ZIP y también «Verificar lote», así lo que se ve es lo que llega.
+ */
+export function rutasDelPlan(
+  plan: PrintExportPlan,
+  usadas: Set<string>,
+): { files: string[]; notes: string[]; manifest: string; summary: string } {
+  // Tope de largo para Windows y sin nombres repetidos (ver `rutas-cortas`).
+  const files = plan.files.map((file) => ajustarRuta(file.zipPath, usadas));
+  const notes = (plan.notes ?? []).map((note) => ajustarRuta(`${plan.folder}/${note.name}`, usadas));
+  const manifest = ajustarRuta(`${plan.folder}/${plan.manifestName ?? "MANIFEST.txt"}`, usadas);
+  const summary = ajustarRuta(`${plan.folder}/${plan.summaryName ?? "RESUMEN_PEDIDO.pdf"}`, usadas);
+  return { files, notes, manifest, summary };
+}
+
 async function writePlan(
   archive: Archiver,
   plan: PrintExportPlan,
   leer: LectorDeArchivos,
   usadas: Set<string>,
 ): Promise<void> {
+  const rutas = rutasDelPlan(plan, usadas);
   const lines = [...plan.manifestHeader];
-  for (const file of plan.files) {
-    // Tope de largo para Windows y sin nombres repetidos (ver `rutas-cortas`).
-    const zipPath = ajustarRuta(file.zipPath, usadas);
+  for (const [i, file] of plan.files.entries()) {
+    const zipPath = rutas.files[i]!;
     let ok = false;
     try {
       const buffer = await leer(file.r2Key);
@@ -96,15 +116,11 @@ async function writePlan(
     }
     lines.push(ok ? file.manifestLine.split(file.zipPath).join(zipPath) : file.missingLine);
   }
-  for (const note of plan.notes ?? []) {
-    await appendAndWait(archive, note.content, ajustarRuta(`${plan.folder}/${note.name}`, usadas));
+  for (const [i, note] of (plan.notes ?? []).entries()) {
+    await appendAndWait(archive, note.content, rutas.notes[i]!);
   }
-  await appendAndWait(archive, lines.join("\n"), ajustarRuta(`${plan.folder}/${plan.manifestName ?? "MANIFEST.txt"}`, usadas));
-  await appendAndWait(
-    archive,
-    Buffer.from(plan.pdfBytes),
-    ajustarRuta(`${plan.folder}/${plan.summaryName ?? "RESUMEN_PEDIDO.pdf"}`, usadas),
-  );
+  await appendAndWait(archive, lines.join("\n"), rutas.manifest);
+  await appendAndWait(archive, Buffer.from(plan.pdfBytes), rutas.summary);
 }
 
 export function streamPrintExportZip(

@@ -64,6 +64,7 @@ export async function copiasSueltasDelLote(
           manifestLine: `OK      ${CARPETA_COPIAS_SUELTAS}/${nombre}`,
           missingLine: `FALTA   ${CARPETA_COPIAS_SUELTAS}/${nombre}`,
           impresion: f.impresion,
+          detalle: `Copia aparte del librito · ${[t.libro.curso, t.libro.alumno].filter(Boolean).join(" · ")}`,
         });
       }
     }
@@ -103,6 +104,7 @@ export async function copiasDePedidosSinLibrito(
           manifestLine: `OK      ${CARPETA_COPIAS_SUELTAS}/${nombre}`,
           missingLine: `FALTA   ${CARPETA_COPIAS_SUELTAS}/${nombre}`,
           impresion: f.impresion,
+          detalle: `Pedido de solo copias · ${[p.curso, p.alumno].filter(Boolean).join(" · ")}`,
         });
       }
     }
