@@ -1,4 +1,4 @@
-import { contraste } from "@/lib/contraste";
+import { contraste } from "../contraste";
 
 /**
  * Los colores de las placas y el folleto, a partir del color del fotógrafo.

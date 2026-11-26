@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { contraste } from "@/lib/contraste";
+import { contraste } from "../contraste";
 import { PURPURA, paletaDelVendedor } from "./colores";
 
 describe("paletaDelVendedor", () => {

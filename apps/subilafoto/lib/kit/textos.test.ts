@@ -21,7 +21,7 @@ describe("textosDeVenta", () => {
   });
 
   it("es marca blanca: no nombra a la plataforma", () => {
-    expect(todo.replace(datos.enlace, "")).not.toMatch(/subilafoto/i);
+    expect(todo.replaceAll(datos.enlace, "")).not.toMatch(/subilafoto/i);
   });
 
   it("responde si hace falta pantalla, que es lo que frenó el primer evento", () => {
