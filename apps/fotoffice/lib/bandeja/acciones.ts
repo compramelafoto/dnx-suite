@@ -161,13 +161,31 @@ export async function derivar(ctx: CtxBandeja, chatId: string, destinoCrudo: unk
   if (ctx.userId === null || !puedeOperarBandeja(ctx)) return no(MENSAJES_BANDEJA.sinPermiso);
   const ahora = deps.ahora ?? new Date();
   if (destinoCrudo === "bot") {
-    return transicion(ctx, chatId, (chat) => (chat.botExcluido ? { error: MENSAJES_BANDEJA.botExcluido } : alDerivar(aEstado(chat), { tipo: "bot" }, ctx.userLabel)), ahora);
+    return transicion(
+      ctx,
+      chatId,
+      (chat) => {
+        if (chat.botExcluido) return { error: MENSAJES_BANDEJA.botExcluido };
+        const r = alDerivar(aEstado(chat), { tipo: "bot" }, ctx.userLabel);
+        return r ? { ...r, parche: { ...r.parche, derivadoSinVerUserId: null } } : null;
+      },
+      ahora,
+    );
   }
   const userId = typeof destinoCrudo === "number" ? destinoCrudo : typeof destinoCrudo === "string" && /^[1-9][0-9]{0,9}$/.test(destinoCrudo) ? Number(destinoCrudo) : NaN;
   if (!Number.isInteger(userId) || userId <= 0) return no(MENSAJES_BANDEJA.destinoInvalido);
   const persona = await (deps.personaQuePuedeAtender ?? personaQuePuedeAtender)(ctx.workspaceId, userId).catch(() => null);
   if (!persona) return no(MENSAJES_BANDEJA.destinoInvalido);
-  return transicion(ctx, chatId, (chat) => alDerivar(aEstado(chat), { tipo: "persona", userId, nombre: persona.nombre }, ctx.userLabel), ahora);
+  return transicion(
+    ctx,
+    chatId,
+    (chat) => {
+      const r = alDerivar(aEstado(chat), { tipo: "persona", userId, nombre: persona.nombre }, ctx.userLabel);
+      // «Nuevo para vos»: hasta que esa persona abra el chat (derivárselo a uno mismo no cuenta).
+      return r ? { ...r, parche: { ...r.parche, derivadoSinVerUserId: userId === ctx.userId ? null : userId } } : null;
+    },
+    ahora,
+  );
 }
 
 /** Marca el chat como leído (VIEW alcanza: no cambia quién lo atiende). Bajo el mismo candado de fila. */
@@ -177,7 +195,8 @@ export async function marcarLeido(ctx: CtxBandeja, chatId: string): Promise<Resu
     return await prisma.$transaction(async (tx): Promise<Resultado> => {
       const chat = await chatBloqueado(tx, ctx.workspaceId, chatId);
       if (!chat) return no(MENSAJES_BANDEJA.noExiste);
-      if (chat.noLeidos !== 0) await tx.fotofficeWaChat.update({ where: { id: chat.id }, data: { noLeidos: 0 } });
+      const verlo = chat.derivadoSinVerUserId !== null && chat.derivadoSinVerUserId === ctx.userId;
+      if (chat.noLeidos !== 0 || verlo) await tx.fotofficeWaChat.update({ where: { id: chat.id }, data: { noLeidos: 0, ...(verlo ? { derivadoSinVerUserId: null } : {}) } });
       return { ok: true };
     });
   } catch (e) {

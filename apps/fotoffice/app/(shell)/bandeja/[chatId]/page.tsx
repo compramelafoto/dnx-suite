@@ -10,6 +10,7 @@ import { EnviarPlantilla } from "@/components/bandeja/enviar-plantilla";
 import { InsigniaEstado } from "@/components/bandeja/insignia-estado";
 import { MarcarLeido } from "@/components/bandeja/marcar-leido";
 import { PanelDeLista } from "@/components/bandeja/panel-de-lista";
+import { TarjetaResumen } from "@/components/bandeja/tarjeta-resumen";
 import { PanelDelCliente } from "@/components/bandeja/panel-del-cliente";
 import { RefrescoPeriodico } from "@/components/bandeja/refresco-periodico";
 import { personasDeLaBandeja } from "@/lib/bandeja/equipo";
@@ -20,6 +21,16 @@ import { plantillasDelChat } from "@/lib/bandeja/plantillas";
 import { listarRespuestas } from "@/lib/bandeja/respuestas-rapidas";
 
 export const dynamic = "force-dynamic";
+
+/** «hace 3 min», «hace 2 h», «hace 4 días». */
+function haceCuanto(d: Date, ahora: Date): string {
+  const min = Math.max(0, Math.floor((ahora.getTime() - d.getTime()) / 60_000));
+  if (min < 1) return "recién";
+  if (min < 60) return `hace ${min} min`;
+  if (min < 60 * 24) return `hace ${Math.floor(min / 60)} h`;
+  const dias = Math.floor(min / (60 * 24));
+  return `hace ${dias} ${dias === 1 ? "día" : "días"}`;
+}
 
 /**
  * Una conversación, con la lista al costado en escritorio (estilo WhatsApp Web). Encabezado fijo con
@@ -116,7 +127,8 @@ export default async function ChatPage({
           </details>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-3 sm:p-4" aria-label="Conversación">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overflow-x-hidden p-3 sm:p-4" aria-label="Conversación">
+          <TarjetaResumen chatId={chat.id} resumen={chat.resumen} haceTexto={chat.resumenEn ? haceCuanto(chat.resumenEn, ahora) : null} puedeActualizar={puedeOperar} />
           {chat.mensajes.length === 0 ? (
             <p className="text-sm text-[var(--fo-muted)]">Todavía no hay mensajes.</p>
           ) : (

@@ -484,3 +484,24 @@ describe("notas internas", () => {
     expect(mensajes()).toHaveLength(0);
   });
 });
+
+describe("Nuevo para vos", () => {
+  const deps = { ahora: AHORA, personaQuePuedeAtender: vi.fn(async (_w: string, userId: number) => ({ userId, nombre: "Camila", puedeOperar: true })) };
+  it("derivar a otra persona la marca; derivarse a uno mismo o al bot, no", async () => {
+    const { id } = await chatNuevo();
+    await A.derivar(ANA, id, 7, deps);
+    expect(chats()[0].derivadoSinVerUserId).toBe(7);
+    await A.derivar(ANA, id, 2, deps);
+    expect(chats()[0].derivadoSinVerUserId).toBeNull();
+    await A.derivar(ANA, id, 7, deps);
+    await A.derivar(ANA, id, "bot", deps);
+    expect(chats()[0].derivadoSinVerUserId).toBeNull();
+  });
+  it("abrir el chat la borra sólo para esa persona", async () => {
+    const { id } = await chatNuevo({ derivadoSinVerUserId: 7 });
+    await A.marcarLeido(ANA, id);
+    expect(chats()[0].derivadoSinVerUserId).toBe(7);
+    await A.marcarLeido({ ...ANA, userId: 7 }, id);
+    expect(chats()[0].derivadoSinVerUserId).toBeNull();
+  });
+});
