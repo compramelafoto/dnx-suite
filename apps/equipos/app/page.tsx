@@ -4,7 +4,7 @@ export default function Home() {
       <h1>Equipos verificados</h1>
       <p>
         <a href="/crear-cuenta">Crear cuenta</a> · <a href="/login">Iniciar sesión</a> ·{" "}
-        <a href="/cuenta/verificacion">Mi verificación</a>
+        <a href="/cuenta/verificacion">Mi verificación</a> · <a href="/mi-equipo">Mi equipo</a>
       </p>
     </main>
   );
