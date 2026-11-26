@@ -41,3 +41,45 @@ describe("decideVerification", () => {
     expect(r.documentHash).toBeNull();
   });
 });
+
+describe("decideVerification con fila previa (DNI ya verificado)", () => {
+  const dniOk = {
+    providerRef: "x",
+    outcome: "approved" as const,
+    documentNumber: "30.123.456",
+    legalName: "Ana Pérez",
+  };
+  const previa = (hash: string) => ({ documentHash: hash, documentLast3: "999", legalName: "Ana Vieja" });
+  const mismoHash = decideVerification(dniOk, ctx).documentHash as string;
+
+  it("rechazo o revisión conservan hash, últimos 3 y nombre previos", () => {
+    for (const result of [
+      { providerRef: "x", outcome: "rejected" as const, reason: "R" },
+      { providerRef: "x", outcome: "review" as const },
+      { providerRef: "x", outcome: "approved" as const },
+    ]) {
+      const r = decideVerification(result, { ...ctx, previous: previa("h".repeat(64)) });
+      expect(r.documentHash).toBe("h".repeat(64));
+      expect(r.documentLast3).toBe("999");
+      expect(r.legalName).toBe("Ana Vieja");
+    }
+  });
+  it("aprobado con el mismo hash previo queda APPROVED", () => {
+    const r = decideVerification(dniOk, { ...ctx, previous: previa(mismoHash) });
+    expect(r.status).toBe("APPROVED");
+    expect(r.documentLast3).toBe("456");
+  });
+  it("aprobado con hash distinto al previo va a IN_REVIEW DNI_DISTINTO y conserva lo viejo", () => {
+    const r = decideVerification(dniOk, { ...ctx, previous: previa("h".repeat(64)) });
+    expect(r.status).toBe("IN_REVIEW");
+    expect(r.rejectionReason).toBe("DNI_DISTINTO");
+    expect(r.documentHash).toBe("h".repeat(64));
+    expect(r.legalName).toBe("Ana Vieja");
+  });
+  it("DNI de otro usuario con fila previa: REJECTED sin tocar el hash previo", () => {
+    const r = decideVerification(dniOk, { ...ctx, hashOwnerUserId: 2, previous: previa("h".repeat(64)) });
+    expect(r.status).toBe("REJECTED");
+    expect(r.rejectionReason).toBe("DNI_YA_USADO");
+    expect(r.documentHash).toBe("h".repeat(64));
+  });
+});

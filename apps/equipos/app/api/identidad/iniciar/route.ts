@@ -23,7 +23,12 @@ export async function POST(req: Request) {
     }),
     prisma.identityVerification.findUnique({
       where: { userId: user.id },
-      select: { status: true, reverifyRequiredAt: true },
+      select: {
+        status: true,
+        reverifyRequiredAt: true,
+        reviewedById: true,
+        rejectionReason: true,
+      },
     }),
   ]);
   const level = computeLevel({
@@ -39,6 +44,19 @@ export async function POST(req: Request) {
   }
   if (identity?.status === "APPROVED" && identity.reverifyRequiredAt === null) {
     return NextResponse.json({ error: "Tu identidad ya está verificada" }, { status: 409 });
+  }
+
+  if (identity?.status === "IN_REVIEW") {
+    return NextResponse.json({ error: "Tu verificación está en revisión" }, { status: 409 });
+  }
+  if (
+    identity?.status === "REJECTED" &&
+    (identity.reviewedById !== null || identity.rejectionReason === "DNI_YA_USADO")
+  ) {
+    return NextResponse.json(
+      { error: "Esta verificación no puede reiniciarse; contactá a soporte" },
+      { status: 409 },
+    );
   }
 
   const form = await req.formData().catch(() => null);

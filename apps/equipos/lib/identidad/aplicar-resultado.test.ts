@@ -59,6 +59,81 @@ describe("applyProviderResult", () => {
     expect(m.send).toHaveBeenCalledWith("u@x.com", "verificacion_aprobada", expect.any(Object));
   });
 
+  it("aprobado limpia reverifyRequiredAt", async () => {
+    m.findUnique.mockResolvedValue({ id: 1, userId: 5, status: "PENDING", reverifyRequiredAt: new Date() });
+    await applyProviderResult({
+      providerRef: "x",
+      outcome: "approved",
+      documentNumber: "12345678",
+      legalName: "Ana Pérez",
+    });
+    expect(m.update.mock.calls[0][0].data.reverifyRequiredAt).toBeNull();
+  });
+
+  it("el dueño del hash se busca sin filtrar por estado y excluyendo al propio usuario", async () => {
+    m.findUnique.mockResolvedValue({ id: 1, userId: 5, status: "PENDING" });
+    await applyProviderResult({
+      providerRef: "x",
+      outcome: "approved",
+      documentNumber: "12345678",
+      legalName: "Ana Pérez",
+    });
+    const where = m.findFirst.mock.calls[0][0].where;
+    expect(where.status).toBeUndefined();
+    expect(where.userId).toEqual({ not: 5 });
+  });
+
+  it("hash de otro usuario en cualquier estado -> REJECTED DNI_YA_USADO sin pisar el hash previo", async () => {
+    m.findUnique.mockResolvedValue({
+      id: 1,
+      userId: 5,
+      status: "PENDING",
+      documentHash: "h".repeat(64),
+      documentLast3: "999",
+      legalName: "Ana Vieja",
+    });
+    m.findFirst.mockResolvedValue({ userId: 9 });
+    await applyProviderResult({
+      providerRef: "x",
+      outcome: "approved",
+      documentNumber: "12345678",
+      legalName: "Ana Pérez",
+    });
+    const data = m.update.mock.calls[0][0].data;
+    expect(data.status).toBe("REJECTED");
+    expect(data.rejectionReason).toBe("DNI_YA_USADO");
+    expect(data.documentHash).toBe("h".repeat(64));
+    expect(data.reverifyRequiredAt).toBeUndefined();
+  });
+
+  it("fila con hash previo y DNI distinto -> IN_REVIEW DNI_DISTINTO", async () => {
+    m.findUnique.mockResolvedValue({
+      id: 1,
+      userId: 5,
+      status: "PENDING",
+      documentHash: "h".repeat(64),
+      documentLast3: "999",
+      legalName: "Ana Vieja",
+    });
+    await applyProviderResult({
+      providerRef: "x",
+      outcome: "approved",
+      documentNumber: "12345678",
+      legalName: "Ana Pérez",
+    });
+    const data = m.update.mock.calls[0][0].data;
+    expect(data.status).toBe("IN_REVIEW");
+    expect(data.rejectionReason).toBe("DNI_DISTINTO");
+    expect(data.legalName).toBe("Ana Vieja");
+  });
+
+  it("el correo al admin apunta a /admin/verificaciones", async () => {
+    vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://e.test");
+    m.findUnique.mockResolvedValue({ id: 1, userId: 5, status: "PENDING" });
+    await applyProviderResult({ providerRef: "x", outcome: "review" });
+    expect(m.send.mock.calls[0][2].url).toBe("https://e.test/admin/verificaciones");
+  });
+
   it("DNI ya usado por otro usuario -> rechazado", async () => {
     m.findUnique.mockResolvedValue({ id: 1, userId: 5, status: "PENDING" });
     m.findFirst.mockResolvedValue({ userId: 9 });

@@ -17,33 +17,52 @@ export type VerificationDecision = {
   rejectionReason: string | null;
 };
 
-const EMPTY = {
-  documentHash: null,
-  documentLast3: null,
-  legalName: null,
-  rejectionReason: null,
-} as const;
+/** Lo que la fila ya tenía guardado de una verificación anterior aprobada. */
+export type PreviousIdentity = {
+  documentHash: string | null;
+  documentLast3: string | null;
+  legalName: string | null;
+};
 
 export function decideVerification(
   result: ProviderResult,
-  ctx: { userId: number; hashOwnerUserId: number | null; pepper: string },
+  ctx: {
+    userId: number;
+    /** Otro usuario que ya tiene este hash (en cualquier estado), o null. */
+    hashOwnerUserId: number | null;
+    pepper: string;
+    previous?: PreviousIdentity | null;
+  },
 ): VerificationDecision {
+  // Un DNI ya verificado nunca se libera: si la fila tenía hash, se conserva siempre.
+  const kept: Omit<VerificationDecision, "status" | "rejectionReason"> = ctx.previous?.documentHash
+    ? {
+        documentHash: ctx.previous.documentHash,
+        documentLast3: ctx.previous.documentLast3,
+        legalName: ctx.previous.legalName,
+      }
+    : { documentHash: null, documentLast3: null, legalName: null };
+
   if (result.outcome === "rejected") {
-    return { ...EMPTY, status: "REJECTED", rejectionReason: result.reason ?? null };
+    return { ...kept, status: "REJECTED", rejectionReason: result.reason ?? null };
   }
   if (result.outcome === "review") {
-    return { ...EMPTY, status: "IN_REVIEW" };
+    return { ...kept, status: "IN_REVIEW", rejectionReason: null };
   }
 
   const dni = result.documentNumber ? normalizeDni(result.documentNumber) : null;
   const legalName = result.legalName?.trim() || null;
   if (!dni || !legalName) {
-    return { ...EMPTY, status: "IN_REVIEW" };
+    return { ...kept, status: "IN_REVIEW", rejectionReason: null };
   }
 
   const documentHash = hashDni(dni, ctx.pepper);
   if (ctx.hashOwnerUserId !== null && ctx.hashOwnerUserId !== ctx.userId) {
-    return { ...EMPTY, status: "REJECTED", rejectionReason: "DNI_YA_USADO" };
+    return { ...kept, status: "REJECTED", rejectionReason: "DNI_YA_USADO" };
+  }
+  if (ctx.previous?.documentHash && ctx.previous.documentHash !== documentHash) {
+    // Cambio de identidad: lo decide una persona.
+    return { ...kept, status: "IN_REVIEW", rejectionReason: "DNI_DISTINTO" };
   }
   return {
     status: "APPROVED",

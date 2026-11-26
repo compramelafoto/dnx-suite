@@ -19,14 +19,24 @@ export async function applyProviderResult(result: ProviderResult): Promise<Apply
   let hashOwnerUserId: number | null = null;
   const dni = result.documentNumber ? normalizeDni(result.documentNumber) : null;
   if (result.outcome === "approved" && dni) {
+    // documentHash es único: quien lo tiene, en el estado que sea, es el dueño.
     const owner = await prisma.identityVerification.findFirst({
-      where: { status: "APPROVED", documentHash: hashDni(dni, pepper) },
+      where: { documentHash: hashDni(dni, pepper), userId: { not: row.userId } },
       select: { userId: true },
     });
     hashOwnerUserId = owner?.userId ?? null;
   }
 
-  const decision = decideVerification(result, { userId: row.userId, hashOwnerUserId, pepper });
+  const decision = decideVerification(result, {
+    userId: row.userId,
+    hashOwnerUserId,
+    pepper,
+    previous: {
+      documentHash: row.documentHash ?? null,
+      documentLast3: row.documentLast3 ?? null,
+      legalName: row.legalName ?? null,
+    },
+  });
 
   await prisma.identityVerification.update({
     where: { id: row.id },
@@ -37,6 +47,8 @@ export async function applyProviderResult(result: ProviderResult): Promise<Apply
       legalName: decision.legalName,
       rejectionReason: decision.rejectionReason,
       approvedAt: decision.status === "APPROVED" ? new Date() : null,
+      // Re-verificación completada: vuelve a nivel "identidad".
+      ...(decision.status === "APPROVED" ? { reverifyRequiredAt: null } : {}),
     },
   });
 
@@ -44,7 +56,7 @@ export async function applyProviderResult(result: ProviderResult): Promise<Apply
     const admin = process.env.ADMIN_EMAIL;
     if (admin) {
       await sendPortalEmail(admin, "verificacion_en_revision_admin", {
-        url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/admin/identidad`,
+        url: `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/admin/verificaciones`,
       });
     }
   } else {
