@@ -62,7 +62,7 @@ const PASOS = [
   {
     titulo: "Contactá y revisá en persona",
     texto:
-      "Escribile a quien vende desde la publicación, encontrense en un lugar seguro y probá el equipo antes de pagar.",
+      "Escribile a quien vende desde la publicación, encuéntrense en un lugar seguro y probá el equipo antes de pagar.",
   },
 ];
 
