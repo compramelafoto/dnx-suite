@@ -19,6 +19,7 @@ export type PortalEmailTemplate =
   | "confirmar_compra"
   | "venta_confirmada"
   | "venta_no_confirmada"
+  | "venta_cancelada"
   | "alerta_busqueda"
   | "pedido_dueno"
   | "pedido_publicado"
@@ -198,8 +199,11 @@ export function renderPortalEmail(
         `Se confirmó la venta de ${d("equipo", "equipo")}${d("precio") ? ` por ${d("precio")}` : ""}.`,
         d("rol") === "comprador"
           ? "El equipo ya está en tu inventario."
-          : `El equipo ya pasó al inventario de ${d("otraParte", "quien lo compró")}. Si querés, ahora podés calificar la operación.`,
-        url ? `Ver la operación: ${url}` : "",
+          : `El equipo ya pasó al inventario de ${d("otraParte", "quien lo compró")}.`,
+        d("rol") === "comprador"
+          ? `Si querés, ahora podés calificar a ${d("otraParte", "quien te lo vendió")}.`
+          : `Si querés, ahora podés calificar a ${d("otraParte", "quien lo compró")}.`,
+        url ? `Ver la operación y calificar: ${url}` : "",
       ];
       break;
     case "venta_no_confirmada":
@@ -209,7 +213,18 @@ export function renderPortalEmail(
         d("motivo") === "vencio"
           ? `${d("comprador", "El comprador")} no confirmó a tiempo la compra de ${d("equipo", "equipo")} y el plazo venció.`
           : `${d("comprador", "El comprador")} rechazó la compra de ${d("equipo", "equipo")}.`,
-        "Tu equipo volvió a tu inventario como «En uso». Si querés, podés publicarlo de nuevo.",
+        // Sólo si el equipo de verdad volvió a «En uso» (uno denunciado mientras tanto no se toca).
+        d("enUso") === "si"
+          ? "Tu equipo volvió a tu inventario como «En uso». Si querés, podés publicarlo de nuevo."
+          : "Tu equipo no cambió de dueño.",
+        url ? `Ver la operación: ${url}` : "",
+      ];
+      break;
+    case "venta_cancelada":
+      subject = `Se canceló la venta de ${d("equipo", "equipo")}`;
+      lineas = [
+        saludo,
+        `La venta de ${d("equipo", "equipo")} se canceló. No se hizo ningún traspaso.`,
         url ? `Ver la operación: ${url}` : "",
       ];
       break;

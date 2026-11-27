@@ -28,15 +28,12 @@ export default async function CuentaBloqueadaPage() {
           vendedores, comprar, vender ni pedir equipos, y tus publicaciones no se muestran en el
           catálogo.
         </p>
-        <p>
-          {contacto ? (
-            <>
-              Si creés que es un error, <a href={contacto}>escribinos</a> y lo revisamos.
-            </>
-          ) : (
-            "Si creés que es un error, respondé el correo en el que te avisamos de la suspensión."
-          )}
-        </p>
+        {/* Sin casilla de contacto configurada no se invita a escribir: nadie leería la respuesta. */}
+        {contacto ? (
+          <p>
+            Si creés que es un error, <a href={contacto}>escribinos</a> y lo revisamos.
+          </p>
+        ) : null}
         <form action="/api/auth/logout" method="post" className="acciones">
           <Boton variante="secundario">Cerrar sesión</Boton>
         </form>

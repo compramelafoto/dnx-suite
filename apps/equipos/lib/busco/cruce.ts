@@ -3,21 +3,17 @@ import { formatPesos, sellerFirstName } from "@/lib/catalogo/buscar";
 import { sendPortalEmail } from "@/lib/correo";
 import { CONDITION_LABELS, type GearListingCondition } from "@/lib/publicaciones/catalogos";
 import { urlBaseDeLaApp } from "@/lib/sesion";
-import { CUENTA_SIN_BLOQUEO, blockedUserIds } from "@/lib/usuarios/bloqueo";
+import { VENDEDOR_VERIFICADO, VENDEDOR_VISIBLE } from "@/lib/catalogo/visibilidad";
+import { blockedUserIds } from "@/lib/usuarios/bloqueo";
 import { NOTICES_PER_WEEK, makeKey, makeVariants, modelKey } from "./modelo";
 
 /**
  * Cruce diario de pedidos «Busco» y aviso al comprador cuando un dueño interesado publica.
- * PRIVACIDAD: el correo al dueño nunca lleva el nombre del comprador (lo ve recién al abrir el
- * aviso), y el comprador no recibe nada hasta que un dueño interesado publica el equipo.
+ * PRIVACIDAD: el correo al dueño nunca lleva el nombre del comprador (lo ve recién si responde
+ * que le interesa vender), y el comprador no recibe nada hasta que un dueño interesado publica.
  */
 
 const DIA_MS = 24 * 60 * 60 * 1000;
-
-/** Identidad aprobada HOY (el mismo criterio del catálogo), para vendedores y compradores. */
-const VENDEDOR_VERIFICADO = { identityVerification: { is: { status: "APPROVED" } } } as const;
-/** Lo que el catálogo muestra: verificado y sin la cuenta bloqueada. */
-const VENDEDOR_VISIBLE = { ...VENDEDOR_VERIFICADO, ...CUENTA_SIN_BLOQUEO } as const;
 
 type Pedido = {
   id: number;

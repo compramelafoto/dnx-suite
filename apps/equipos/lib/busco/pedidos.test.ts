@@ -296,11 +296,14 @@ describe("listMyRequests", () => {
 });
 
 describe("getNoticeForOwner", () => {
-  const fila = (identidad: { status: string; legalName: string | null } | null) => ({
+  const fila = (
+    identidad: { status: string; legalName: string | null } | null,
+    response: "INTERESTED" | "DECLINED" | null = "INTERESTED",
+  ) => ({
     id: 5,
     gearItemId: 30,
     sentAt: HOY,
-    response: null,
+    response,
     respondedAt: null,
     listingId: null,
     gearItem: { make: "Sony", model: "FE 20mm F1.8 G" },
@@ -325,7 +328,27 @@ describe("getNoticeForOwner", () => {
     expect(await getNoticeForOwner(8, Number.NaN)).toBeNull();
   });
 
-  it("el dueño ve el nombre del DNI y la calificación del comprador", async () => {
+  it("antes de responder: sólo «identidad verificada» y la calificación, nunca el nombre del DNI", async () => {
+    m.noticeFindFirst.mockResolvedValue(fila({ status: "APPROVED", legalName: "Ana María Pérez" }, null));
+    m.rating.mockResolvedValue({ average: 4.5, count: 2 });
+    const n = await getNoticeForOwner(8, 5);
+    expect(n).toMatchObject({
+      buyerName: null,
+      buyerVerified: true,
+      buyerRating: { average: 4.5, count: 2 },
+    });
+    expect(JSON.stringify(n)).not.toMatch(/Pérez|ana/i);
+  });
+
+  it("si respondió «No, gracias», tampoco ve el nombre", async () => {
+    m.noticeFindFirst.mockResolvedValue(fila({ status: "APPROVED", legalName: "Ana María Pérez" }, "DECLINED"));
+    m.rating.mockResolvedValue({ average: null, count: 0 });
+    const n = await getNoticeForOwner(8, 5);
+    expect(n?.buyerName).toBeNull();
+    expect(JSON.stringify(n)).not.toContain("Pérez");
+  });
+
+  it("después de responder «Me interesa vender», el dueño ve el nombre del DNI y la calificación", async () => {
     m.noticeFindFirst.mockResolvedValue(fila({ status: "APPROVED", legalName: " Ana María Pérez " }));
     m.rating.mockResolvedValue({ average: 4.5, count: 2 });
     const n = await getNoticeForOwner(8, 5);
@@ -375,10 +398,17 @@ describe("getRequestMatches", () => {
 });
 
 describe("isNoticeForItem", () => {
-  it("sólo si el aviso es del dueño y del mismo equipo", async () => {
+  it("sólo si el aviso es del dueño y del mismo equipo, respondido «Me interesa», sin enlace mandado y con el pedido abierto", async () => {
     m.noticeFindFirst.mockResolvedValue({ id: 5 });
     expect(await isNoticeForItem(8, 5, 30)).toBe(true);
-    expect(m.noticeFindFirst.mock.calls[0][0].where).toEqual({ id: 5, ownerId: 8, gearItemId: 30 });
+    expect(m.noticeFindFirst.mock.calls[0][0].where).toEqual({
+      id: 5,
+      ownerId: 8,
+      gearItemId: 30,
+      response: "INTERESTED",
+      listingId: null,
+      request: { status: "ACTIVE", expiresAt: { gt: HOY } },
+    });
     m.noticeFindFirst.mockResolvedValue(null);
     expect(await isNoticeForItem(8, 5, 31)).toBe(false);
   });
@@ -397,6 +427,37 @@ describe("setPurchaseRequestOptOut", () => {
 
 describe("respondNotice", () => {
   const ABIERTO = { status: "ACTIVE", expiresAt: new Date(HOY.getTime() + DIA) };
+  const EQUIPO = { ownerId: 8, status: "IN_USE" };
+
+  it.each([
+    ["de otro dueño (ya lo vendió)", { ownerId: 9, status: "IN_USE" }],
+    ["robado", { ownerId: 8, status: "STOLEN" }],
+    ["perdido", { ownerId: 8, status: "LOST" }],
+    ["vendido", { ownerId: 8, status: "SOLD" }],
+  ])("equipo %s -> «ya no está en tu inventario», sin registrar la respuesta", async (_caso, gearItem) => {
+    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null, request: ABIERTO, gearItem });
+    await expect(respondNotice(8, 5, "INTERESTED")).rejects.toMatchObject({
+      code: "DATO_INVALIDO",
+      message: "Este equipo ya no está en tu inventario.",
+    });
+    expect(m.noticeUpdateMany).not.toHaveBeenCalled();
+    expect(m.notify).not.toHaveBeenCalled();
+  });
+
+  it.each(["RECOVERED", "FOR_SALE"])(
+    "un equipo %s del mismo dueño sí puede responder (publicado mientras tanto: es el caso del enlace inmediato)",
+    async (status) => {
+      m.noticeFindFirst.mockResolvedValue({
+        gearItemId: 30,
+        response: null,
+        request: ABIERTO,
+        gearItem: { ownerId: 8, status },
+      });
+      m.noticeUpdateMany.mockResolvedValue({ count: 1 });
+      m.listingFindFirst.mockResolvedValue(null);
+      expect(await respondNotice(8, 5, "INTERESTED")).toEqual({ gearItemId: 30, yaPublicado: false });
+    },
+  );
 
   it("el aviso de otro dueño -> NO_ENCONTRADO", async () => {
     m.noticeFindFirst.mockResolvedValue(null);
@@ -406,15 +467,15 @@ describe("respondNotice", () => {
   });
 
   it("responde una sola vez", async () => {
-    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: "DECLINED", request: ABIERTO });
+    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: "DECLINED", request: ABIERTO, gearItem: EQUIPO });
     await expect(respondNotice(8, 5, "INTERESTED")).rejects.toMatchObject({ code: "DATO_INVALIDO" });
-    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null, request: ABIERTO });
+    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null, request: ABIERTO, gearItem: EQUIPO });
     m.noticeUpdateMany.mockResolvedValue({ count: 0 });
     await expect(respondNotice(8, 5, "INTERESTED")).rejects.toMatchObject({ code: "DATO_INVALIDO" });
   });
 
   it("registra la respuesta y devuelve el equipo", async () => {
-    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null, request: ABIERTO });
+    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null, request: ABIERTO, gearItem: EQUIPO });
     m.noticeUpdateMany.mockResolvedValue({ count: 1 });
     m.listingFindFirst.mockResolvedValue(null);
     expect(await respondNotice(8, 5, "DECLINED")).toEqual({ gearItemId: 30, yaPublicado: false });
@@ -426,7 +487,7 @@ describe("respondNotice", () => {
   });
 
   it("si ya tenía ese equipo publicado, «Me interesa» avisa al comprador enseguida", async () => {
-    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null, request: ABIERTO });
+    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null, request: ABIERTO, gearItem: EQUIPO });
     m.noticeUpdateMany.mockResolvedValue({ count: 1 });
     m.listingFindFirst.mockResolvedValue({ id: 77 });
     m.noticeFindUnique.mockResolvedValue({ listingId: 77 });
@@ -440,7 +501,7 @@ describe("respondNotice", () => {
   });
 
   it("publicado, pero otro dueño cumplió el pedido mientras tanto -> yaPublicado false", async () => {
-    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null, request: ABIERTO });
+    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null, request: ABIERTO, gearItem: EQUIPO });
     m.noticeUpdateMany.mockResolvedValue({ count: 1 });
     m.listingFindFirst.mockResolvedValue({ id: 77 });
     m.noticeFindUnique.mockResolvedValue({ listingId: null });

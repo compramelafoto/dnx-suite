@@ -70,8 +70,8 @@ export default async function VentaPage({
         ) : null}
         {venta.status === "DECLINED" ? (
           <p>
-            {venta.otraParte} indicó que no compró el equipo. La publicación se cerró y el equipo sigue en
-            tu inventario. Si querés, podés volver a publicarlo desde «Mi equipo».
+            La venta no se concretó: la publicación se cerró y el equipo no cambió de dueño. Su estado
+            lo ves en «Mi equipo».
           </p>
         ) : null}
         {venta.status === "CONFIRMED" ? (

@@ -1,6 +1,7 @@
 import { MAX_PHOTOS_PER_ITEM } from "@/lib/archivos";
 import {
   MENSAJE_AVISO_RESPONDIDO,
+  MENSAJE_EQUIPO_FUERA_DE_INVENTARIO,
   MENSAJE_MAXIMO_PEDIDOS,
   MENSAJE_MUCHOS_CANCELADOS,
   MENSAJE_PEDIDO_NO_ACTIVO,
@@ -10,7 +11,7 @@ import {
 import { EquipoError, MENSAJE_IDENTIDAD_CON_PUBLICACION } from "@/lib/inventario/equipos";
 import { MENSAJE_CUENTA_SUSPENDIDA, MENSAJE_MOTIVO } from "@/lib/usuarios/bloqueo";
 import { MENSAJE_REPORTE_PROPIO, MENSAJE_REPORTE_SIN_RELACION } from "@/lib/usuarios/reportes";
-import { VentaError } from "@/lib/ventas/ventas";
+import { MENSAJE_COMPRADOR_BLOQUEADO, VentaError } from "@/lib/ventas/ventas";
 
 /**
  * Avisos que vuelven en la URL (`?ok=` / `?error=`) después de una acción. Por la URL viaja sólo
@@ -151,6 +152,7 @@ export const AVISOS_ERROR = {
   YA_VENDIDA: "Esta publicación ya está marcada como vendida.",
   NO_PENDIENTE: "Esta venta ya no está pendiente de confirmación.",
   VENCIDA: "El plazo para confirmar esta compra venció.",
+  COMPRADOR_BLOQUEADO: MENSAJE_COMPRADOR_BLOQUEADO,
   ELEGI_COMPRADOR: "Elegí a quién le vendiste el equipo.",
   PRECIO_VENTA: "El precio tiene que ser un número entero mayor a cero.",
   ELEGI_ESTRELLAS: "La calificación va de 1 a 5 estrellas.",
@@ -174,6 +176,7 @@ export const AVISOS_ERROR = {
   PEDIDO_NO_RENOVABLE: MENSAJE_PEDIDO_NO_RENOVABLE,
   PEDIDO_NO_ACTIVO: MENSAJE_PEDIDO_NO_ACTIVO,
   AVISO_RESPONDIDO: MENSAJE_AVISO_RESPONDIDO,
+  EQUIPO_FUERA_DE_INVENTARIO: MENSAJE_EQUIPO_FUERA_DE_INVENTARIO,
   MARCA_MODELO_LARGOS: "La marca o el modelo son demasiado largos.",
   PRECIO_MAXIMO: "El precio máximo tiene que ser un número entero de pesos, mayor a cero.",
   ELEGI_RESPUESTA: "Elegí una respuesta.",

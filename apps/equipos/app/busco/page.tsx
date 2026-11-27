@@ -57,7 +57,7 @@ export default async function BuscoPage({
   return (
     <Pagina
       titulo="Busco"
-      bajada="Contanos qué equipo buscás. Si alguien lo tiene en su inventario, le avisamos sin decirle quién sos ni decirte quién es."
+      bajada="Contanos qué equipo buscás. Si alguien lo tiene en su inventario, le avisamos sin decirte quién es. Esa persona ve tu nombre verificado sólo si responde que le interesa vender."
       volver={{ href: "/cuenta", texto: "Mi cuenta" }}
     >
       <div className="pila">

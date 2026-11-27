@@ -14,6 +14,7 @@ const m = vi.hoisted(() => ({
   tx: vi.fn(),
   email: vi.fn(),
   blockFindUnique: vi.fn(),
+  closeListings: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -28,6 +29,7 @@ vi.mock("@repo/db", () => ({
 }));
 vi.mock("@/lib/correo", () => ({ sendPortalEmail: m.email }));
 vi.mock("@/lib/sesion", () => ({ urlBaseDeLaApp: () => "https://e.test" }));
+vi.mock("@/lib/publicaciones/publicar", () => ({ closeListingsForItem: m.closeListings }));
 
 import {
   SALE_DAYS,
@@ -93,6 +95,8 @@ beforeEach(() => {
   m.email.mockResolvedValue({ success: true });
   m.saleFindFirst.mockResolvedValue(sale());
   m.saleFindMany.mockResolvedValue([]);
+  m.closeListings.mockResolvedValue(undefined);
+  m.blockFindUnique.mockResolvedValue(null);
 });
 
 describe("markSold", () => {
@@ -103,6 +107,18 @@ describe("markSold", () => {
       message: "Tu cuenta está suspendida.",
     });
     expect(m.tx).not.toHaveBeenCalled();
+  });
+
+  it("comprador con la cuenta suspendida: no se le puede marcar la venta", async () => {
+    m.blockFindUnique.mockImplementation(async ({ where }: { where: { userId: number } }) =>
+      where.userId === 2 ? { liftedAt: null } : null,
+    );
+    await expect(markSold(1, 70, 2, 1500000)).rejects.toMatchObject({
+      code: "COMPRADOR_BLOQUEADO",
+      message: "Esta persona no puede comprar en este momento.",
+    });
+    expect(m.tx).not.toHaveBeenCalled();
+    expect(m.email).not.toHaveBeenCalled();
   });
 
   it("marca la publicación como vendida, crea la venta con vencimiento a 7 días y avisa al comprador", async () => {
@@ -237,12 +253,25 @@ describe("confirmPurchase", () => {
     expect(m.tx).toHaveBeenCalledTimes(1);
   });
 
-  it("avisa a comprador y vendedor", async () => {
+  it("avisa a comprador y vendedor, cada uno con el enlace a su lado de la operación", async () => {
     await confirmPurchase(2, 500);
     expect(m.email).toHaveBeenCalledTimes(2);
     const aQuien = m.email.mock.calls.map((c) => c[0]).sort();
     expect(aQuien).toEqual(["compra@e.test", "vende@e.test"]);
     expect(m.email.mock.calls.every((c) => c[1] === "venta_confirmada")).toBe(true);
+    const porMail = Object.fromEntries(m.email.mock.calls.map((c) => [c[0], c[2]]));
+    expect(porMail["compra@e.test"]).toMatchObject({ rol: "comprador", url: "https://e.test/compras/500" });
+    expect(porMail["vende@e.test"]).toMatchObject({ rol: "vendedor", url: "https://e.test/ventas/500" });
+  });
+
+  it("cierra las otras publicaciones abiertas del equipo antes del traspaso, en la misma transacción", async () => {
+    await confirmPurchase(2, 500);
+    expect(m.closeListings).toHaveBeenCalledTimes(1);
+    expect(m.closeListings.mock.calls[0][1]).toBe(7);
+    expect(m.closeListings.mock.calls[0][0]).toHaveProperty("gearItem");
+    expect(m.closeListings.mock.invocationCallOrder[0]).toBeLessThan(
+      m.txItemUpdateMany.mock.invocationCallOrder[0],
+    );
   });
 
   it("venta DECLINED → NO_PENDIENTE sin tocar el equipo", async () => {
@@ -305,11 +334,13 @@ describe("declinePurchase", () => {
     expect(m.email).toHaveBeenCalledTimes(1);
     expect(m.email.mock.calls[0][0]).toBe("vende@e.test");
     expect(m.email.mock.calls[0][1]).toBe("venta_no_confirmada");
+    expect(m.email.mock.calls[0][2]).toMatchObject({ enUso: "si" });
   });
 
-  it("no pisa un equipo denunciado: si ya no está FOR_SALE, el equipo no se toca y no falla", async () => {
+  it("no pisa un equipo denunciado: si ya no está FOR_SALE, no se toca, no falla y el correo no dice «En uso»", async () => {
     m.txItemUpdateMany.mockResolvedValue({ count: 0 });
     await expect(declinePurchase(2, 500)).resolves.toBeUndefined();
+    expect(m.email.mock.calls[0][2]).toMatchObject({ enUso: "no" });
   });
 
   it("tercero → NO_ENCONTRADA; ya resuelta → NO_PENDIENTE", async () => {
@@ -359,6 +390,19 @@ describe("expirePendingSales", () => {
     const r = await expirePendingSales(ahora);
     expect(r).toEqual({ expired: 1 });
     expect(m.email).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("expirePendingSales: una venta que falla no frena a las demás", () => {
+  it("registra el error, sigue con la siguiente y cuenta sólo las vencidas", async () => {
+    m.saleFindMany.mockResolvedValueOnce([sale({ id: 501 }), sale({ id: 502 })]);
+    m.txSaleUpdateMany.mockRejectedValueOnce(new Error("se cayó la base")).mockResolvedValueOnce({ count: 1 });
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const r = await expirePendingSales(new Date("2026-12-10T12:00:00Z"));
+    expect(r).toEqual({ expired: 1 });
+    expect(m.email).toHaveBeenCalledTimes(1);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });
 

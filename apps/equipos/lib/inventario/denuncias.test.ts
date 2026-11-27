@@ -12,6 +12,9 @@ const m = vi.hoisted(() => ({
   txReportUpdateMany: vi.fn(),
   txListingUpdateMany: vi.fn(),
   txLock: vi.fn(),
+  txSaleFindMany: vi.fn(),
+  txSaleUpdateMany: vi.fn(),
+  userFindUnique: vi.fn(),
   tx: vi.fn(),
   upload: vi.fn(),
   email: vi.fn(),
@@ -22,7 +25,7 @@ vi.mock("@repo/db", () => ({
     gearItem: { findFirst: m.itemFindFirst, findMany: m.itemFindMany },
     stolenGearReport: { findMany: m.reportFindMany },
     gearItemEvent: { findFirst: m.eventFindFirst, create: m.eventCreate },
-    user: { findUnique: vi.fn().mockResolvedValue({ name: "Ana", email: "ana@test.com" }) },
+    user: { findUnique: m.userFindUnique },
     $transaction: m.tx,
   },
 }));
@@ -60,7 +63,14 @@ beforeEach(() => {
       gearItemEvent: { create: m.txEventCreate },
       stolenGearReport: { create: m.txReportCreate, updateMany: m.txReportUpdateMany },
       gearListing: { updateMany: m.txListingUpdateMany },
+      gearSale: { findMany: m.txSaleFindMany, updateMany: m.txSaleUpdateMany },
     }),
+  );
+  m.txSaleFindMany.mockResolvedValue([]);
+  m.txSaleUpdateMany.mockResolvedValue({ count: 1 });
+  m.txListingUpdateMany.mockResolvedValue({ count: 1 });
+  m.userFindUnique.mockImplementation(async ({ where }: { where: { id: number } }) =>
+    where.id === 2 ? { name: "Beto Gómez", email: "beto@test.com" } : { name: "Ana", email: "ana@test.com" },
   );
   m.txReportCreate.mockResolvedValue({ id: 99 });
   m.txReportUpdateMany.mockResolvedValue({ count: 1 });
@@ -81,6 +91,43 @@ describe("reportIncident", () => {
     const arg = m.txListingUpdateMany.mock.calls[0][0];
     expect(arg.where.gearItemId).toBe(7);
     expect(arg.data.status).toBe("CLOSED");
+  });
+
+  it("con una venta pendiente: la cancela, cierra la publicación vendida y avisa al comprador sin mencionar la denuncia", async () => {
+    m.itemFindFirst.mockResolvedValue(
+      body({ status: "FOR_SALE", purchaseProofKey: "equipos/f.pdf", purchaseProofMime: "application/pdf" }),
+    );
+    m.txSaleFindMany.mockResolvedValue([{ id: 500, listingId: 70, buyerId: 2 }]);
+    await reportIncident(1, 7, { incident: "THEFT", occurredAt: when });
+
+    expect(m.txSaleFindMany.mock.calls[0][0].where).toEqual({ gearItemId: 7, status: "PENDING_BUYER" });
+    const su = m.txSaleUpdateMany.mock.calls[0][0];
+    expect(su.where).toEqual({ id: 500, status: "PENDING_BUYER" });
+    expect(su.data.status).toBe("DECLINED");
+    expect(su.data.resolvedAt).toBeInstanceOf(Date);
+    expect(m.txListingUpdateMany).toHaveBeenCalledWith({
+      where: { id: 70, status: "SOLD" },
+      data: { status: "CLOSED" },
+    });
+
+    const aviso = m.email.mock.calls.find((c) => c[1] === "venta_cancelada");
+    expect(aviso).toBeDefined();
+    expect(aviso![0]).toBe("beto@test.com");
+    expect(aviso![2]).toMatchObject({ nombre: "Beto", equipo: "Canon R5" });
+    expect(String(aviso![2].url)).toMatch(/\/compras\/500$/);
+  });
+
+  it("si la venta ya se resolvió en el medio (updateMany 0), no cierra nada ni avisa al comprador", async () => {
+    m.itemFindFirst.mockResolvedValue(
+      body({ status: "FOR_SALE", purchaseProofKey: "equipos/f.pdf", purchaseProofMime: "application/pdf" }),
+    );
+    m.txSaleFindMany.mockResolvedValue([{ id: 500, listingId: 70, buyerId: 2 }]);
+    m.txSaleUpdateMany.mockResolvedValue({ count: 0 });
+    await reportIncident(1, 7, { incident: "THEFT", occurredAt: when });
+    expect(m.txListingUpdateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 70, status: "SOLD" } }),
+    );
+    expect(m.email.mock.calls.some((c) => c[1] === "venta_cancelada")).toBe(false);
   });
 
   it("robo sin comprobante falla con FALTA_COMPROBANTE", async () => {

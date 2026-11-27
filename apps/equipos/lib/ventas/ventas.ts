@@ -3,6 +3,7 @@ import { formatPesos, sellerFirstName } from "@/lib/catalogo/buscar";
 import { sendPortalEmail, type PortalEmailTemplate } from "@/lib/correo";
 import { fechaAr } from "@/lib/inventario/formato";
 import { EquipoError } from "@/lib/inventario/equipos";
+import { closeListingsForItem } from "@/lib/publicaciones/publicar";
 import { urlBaseDeLaApp } from "@/lib/sesion";
 import { MENSAJE_CUENTA_SUSPENDIDA, isBlocked } from "@/lib/usuarios/bloqueo";
 
@@ -22,7 +23,10 @@ export type VentaErrorCode =
   | "YA_VENDIDA"
   | "NO_PENDIENTE"
   | "VENCIDA"
-  | "CUENTA_SUSPENDIDA";
+  | "CUENTA_SUSPENDIDA"
+  | "COMPRADOR_BLOQUEADO";
+
+export const MENSAJE_COMPRADOR_BLOQUEADO = "Esta persona no puede comprar en este momento.";
 
 const MENSAJES: Record<VentaErrorCode, string> = {
   NO_ENCONTRADA: "No encontramos esa venta.",
@@ -31,6 +35,7 @@ const MENSAJES: Record<VentaErrorCode, string> = {
   NO_PENDIENTE: "Esta venta ya no está pendiente de confirmación.",
   VENCIDA: "El plazo para confirmar esta compra venció.",
   CUENTA_SUSPENDIDA: MENSAJE_CUENTA_SUSPENDIDA,
+  COMPRADOR_BLOQUEADO: MENSAJE_COMPRADOR_BLOQUEADO,
 };
 
 export class VentaError extends Error {
@@ -105,6 +110,8 @@ export async function markSold(
     select: { id: true },
   });
   if (!contact) throw new VentaError("NO_CONSULTO");
+  // Un comprador bloqueado no podría confirmar: la publicación quedaría trabada 7 días.
+  if (await isBlocked(buyerId)) throw new VentaError("COMPRADOR_BLOQUEADO");
 
   const now = new Date();
   const expiresAt = new Date(now.getTime() + SALE_DAYS * DIA_MS);
@@ -178,6 +185,9 @@ export async function confirmPurchase(buyerId: number, saleId: number): Promise<
       data: { status: "CONFIRMED", resolvedAt: now },
     });
     if (r.count === 0) throw new VentaError("NO_PENDIENTE");
+    // Si el vendedor lo volvió a publicar mientras la venta esperaba (por ejemplo, después de
+    // denunciarlo y recuperarlo), esa publicación no puede quedar a su nombre.
+    await closeListingsForItem(tx, sale.gearItemId);
     // Un equipo denunciado (robado/perdido) mientras la venta esperaba nunca se traspasa.
     const moved = await tx.gearItem.updateMany({
       where: { id: sale.gearItemId, status: "FOR_SALE", ownerId: sale.sellerId },
@@ -223,7 +233,7 @@ export async function confirmPurchase(buyerId: number, saleId: number): Promise<
 
 /** Resuelve sin traspaso (rechazo o vencimiento): la publicación se cierra y el equipo vuelve al vendedor. */
 async function resolveWithoutSale(sale: SaleRow, status: "DECLINED" | "EXPIRED", now: Date): Promise<void> {
-  await prisma.$transaction(async (tx: Tx) => {
+  const volvioEnUso = await prisma.$transaction(async (tx: Tx) => {
     const r = await tx.gearSale.updateMany({
       where: { id: sale.id, status: "PENDING_BUYER" },
       data: { status, resolvedAt: now },
@@ -234,7 +244,7 @@ async function resolveWithoutSale(sale: SaleRow, status: "DECLINED" | "EXPIRED",
       data: { status: "CLOSED" },
     });
     // Sólo si sigue a la venta: un equipo denunciado mientras tanto no se pisa.
-    await tx.gearItem.updateMany({
+    const item = await tx.gearItem.updateMany({
       where: { id: sale.gearItemId, status: "FOR_SALE", ownerId: sale.sellerId },
       data: { status: "IN_USE" },
     });
@@ -245,6 +255,7 @@ async function resolveWithoutSale(sale: SaleRow, status: "DECLINED" | "EXPIRED",
         detail: { accion: "venta_no_confirmada", saleId: sale.id },
       },
     });
+    return item.count > 0;
   });
 
   try {
@@ -254,6 +265,8 @@ async function resolveWithoutSale(sale: SaleRow, status: "DECLINED" | "EXPIRED",
       comprador: nombreDePila(buyer?.name) || "El comprador",
       equipo: equipoDe(sale),
       motivo: status === "EXPIRED" ? "vencio" : "rechazo",
+      // Sólo se dice que volvió «En uso» si de verdad volvió (uno denunciado no se toca).
+      enUso: volvioEnUso ? "si" : "no",
       url: `${urlBaseDeLaApp()}/ventas/${sale.id}`,
     });
   } catch (err) {
@@ -303,7 +316,9 @@ export async function expirePendingSales(now: Date = new Date()): Promise<{ expi
       expired += 1;
     } catch (err) {
       // Otra corrida (o el comprador) ya la resolvió: no se cuenta ni se avisa de nuevo.
-      if (!(err instanceof VentaError && err.code === "NO_PENDIENTE")) throw err;
+      if (err instanceof VentaError && err.code === "NO_PENDIENTE") continue;
+      // Cualquier otro error se registra y no frena a las demás ventas.
+      console.error(`[ventas] No se pudo vencer la venta #${sale.id}:`, err);
     }
   }
   return { expired };

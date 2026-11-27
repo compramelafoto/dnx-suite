@@ -115,6 +115,14 @@ describe("codigoDeError", () => {
     expect(avisoDeCodigo(AVISOS_OK, "REPORTE_USUARIO_ENVIADO")).toMatch(/Recibimos tu reporte/);
   });
 
+  it("comprador bloqueado y equipo fuera del inventario tienen su texto fijo", () => {
+    expect(codigoDeError(new VentaError("COMPRADOR_BLOQUEADO"))).toBe("COMPRADOR_BLOQUEADO");
+    expect(AVISOS_ERROR.COMPRADOR_BLOQUEADO).toBe("Esta persona no puede comprar en este momento.");
+    expect(
+      codigoDeError(new EquipoError("DATO_INVALIDO", "Este equipo ya no está en tu inventario.")),
+    ).toBe("EQUIPO_FUERA_DE_INVENTARIO");
+  });
+
   it("un error inesperado se registra y queda como ERROR", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(codigoDeError(new Error("db caída"), { origen: "prueba" })).toBe("ERROR");

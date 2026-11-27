@@ -95,7 +95,7 @@ export default async function CompraPage({
       {venta.status === "DECLINED" ? (
         <section className="seccion">
           <p className="texto-secundario">
-            Indicaste que no compraste este equipo. Le avisamos a {venta.otraParte}.
+            Esta compra no se concretó: no se hizo ningún traspaso.
           </p>
         </section>
       ) : null}

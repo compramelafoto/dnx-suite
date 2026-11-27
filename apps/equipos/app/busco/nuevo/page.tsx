@@ -63,7 +63,7 @@ export default async function NuevoPedidoPage({
   return (
     <Pagina
       titulo="Nuevo pedido"
-      bajada="Contanos qué equipo buscás. Si alguien lo tiene en su inventario, le avisamos sin decirle quién sos ni decirte quién es."
+      bajada="Contanos qué equipo buscás. Si alguien lo tiene en su inventario, le avisamos sin decirte quién es. Esa persona ve tu nombre verificado sólo si responde que le interesa vender."
       volver={{ href: "/busco", texto: "Mis pedidos" }}
     >
       <div className="pila">

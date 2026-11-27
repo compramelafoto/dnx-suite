@@ -19,6 +19,7 @@ const m = vi.hoisted(() => ({
   proof: vi.fn(),
   notifyBuyers: vi.fn(),
   blockFindUnique: vi.fn(),
+  saleFindFirst: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -28,6 +29,7 @@ vi.mock("@repo/db", () => ({
     gearListing: { findFirst: m.listingFindFirst, findMany: m.listingFindMany },
     gearSerialSighting: { findMany: m.sightingFindMany },
     portalAccountBlock: { findUnique: m.blockFindUnique },
+    gearSale: { findFirst: m.saleFindFirst },
     $transaction: m.tx,
   },
 }));
@@ -97,8 +99,10 @@ beforeEach(() => {
       stolenGearReport: { count: m.reportCount },
       gearItem: { findFirst: m.itemFindFirst, update: m.txItemUpdate, updateMany: m.txItemUpdateMany },
       gearItemEvent: { create: m.txEventCreate },
+      gearSale: { findFirst: m.saleFindFirst },
     }),
   );
+  m.saleFindFirst.mockResolvedValue(null);
   m.txListingCreate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
     id: 70,
     ...data,
@@ -420,6 +424,27 @@ describe("carreras", () => {
     expect(m.txLock).toHaveBeenCalledTimes(1);
     expect(m.txListingCreate).not.toHaveBeenCalled();
     expect(m.email).not.toHaveBeenCalled();
+  });
+
+  it("createListing: una venta pendiente de confirmación cuenta como publicación activa", async () => {
+    m.saleFindFirst.mockResolvedValue({ id: 500 });
+    await expect(createListing(1, 7, input, { serialPhoto: img() })).rejects.toMatchObject({
+      code: "DATO_INVALIDO",
+      message: "Este equipo ya tiene una publicación.",
+    });
+    expect(m.saleFindFirst.mock.calls[0][0].where).toEqual({ gearItemId: 7, status: "PENDING_BUYER" });
+    expect(m.txListingCreate).not.toHaveBeenCalled();
+    expect(m.txItemUpdate).not.toHaveBeenCalled();
+  });
+
+  it("createListing: si dentro de la transacción aparece una venta pendiente, falla sin crear", async () => {
+    m.saleFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 500 });
+    await expect(createListing(1, 7, input, { serialPhoto: img() })).rejects.toMatchObject({
+      message: "Este equipo ya tiene una publicación.",
+    });
+    expect(m.txLock).toHaveBeenCalledTimes(1);
+    expect(m.saleFindFirst).toHaveBeenCalledTimes(2);
+    expect(m.txListingCreate).not.toHaveBeenCalled();
   });
 
   it("createListing: si dentro de la transacción aparece una denuncia propia, falla", async () => {

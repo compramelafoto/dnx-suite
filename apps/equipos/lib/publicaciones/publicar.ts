@@ -41,6 +41,26 @@ export async function notifyAdmin(template: PortalEmailTemplate, detalle: string
   });
 }
 
+/**
+ * Publicación abierta o venta pendiente de confirmación (su publicación ya está «vendida»): en
+ * los dos casos el equipo no se puede volver a publicar. Mismo criterio que `updateItem`.
+ */
+async function hasActiveListingOrSale(
+  db: Pick<typeof prisma, "gearListing" | "gearSale">,
+  gearItemId: number,
+): Promise<boolean> {
+  const open = await db.gearListing.findFirst({
+    where: { gearItemId, status: { in: OPEN_STATUSES } },
+    select: { id: true },
+  });
+  if (open) return true;
+  const pendingSale = await db.gearSale.findFirst({
+    where: { gearItemId, status: "PENDING_BUYER" },
+    select: { id: true },
+  });
+  return pendingSale !== null;
+}
+
 async function findOwnListing(sellerId: number, listingId: number) {
   const listing = await prisma.gearListing.findFirst({ where: { id: listingId, sellerId } });
   if (!listing) throw new EquipoError("NO_ENCONTRADO");
@@ -62,11 +82,7 @@ export async function createListing(
     (await prisma.stolenGearReport.count({
       where: { gearItemId, reporterId: sellerId, status: { in: ["PENDING_REVIEW", "ACTIVE"] } },
     })) > 0;
-  const activeListing =
-    (await prisma.gearListing.findFirst({
-      where: { gearItemId, status: { in: OPEN_STATUSES } },
-      select: { id: true },
-    })) !== null;
+  const activeListing = await hasActiveListingOrSale(prisma, gearItemId);
 
   let serialPhotoKey: string | null = null;
   if (files.serialPhoto && files.serialPhoto.size > 0) {
@@ -124,11 +140,7 @@ export async function createListing(
         (await tx.stolenGearReport.count({
           where: { gearItemId, reporterId: sellerId, status: { in: ["PENDING_REVIEW", "ACTIVE"] } },
         })) > 0;
-      const openListing =
-        (await tx.gearListing.findFirst({
-          where: { gearItemId, status: { in: OPEN_STATUSES } },
-          select: { id: true },
-        })) !== null;
+      const openListing = await hasActiveListingOrSale(tx, gearItemId);
       const recheck = listingBlocker(fresh, {
         ownReportOpen: ownOpen,
         activeListing: openListing,
@@ -313,7 +325,10 @@ export async function updateListing(
   );
 }
 
-/** Cierra las publicaciones abiertas del equipo; lo llama `reportIncident` en su transacción. */
+/**
+ * Cierra las publicaciones abiertas del equipo; lo llaman `reportIncident` y `confirmPurchase`
+ * (antes del traspaso) en su transacción.
+ */
 export async function closeListingsForItem(tx: Tx, gearItemId: number): Promise<void> {
   await tx.gearListing.updateMany({
     where: { gearItemId, status: { in: OPEN_STATUSES } },

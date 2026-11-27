@@ -16,8 +16,11 @@ import {
 } from "@/lib/publicaciones/confianza";
 import { findActiveReportForSerial } from "@/lib/publicaciones/denuncia-activa";
 import { maskSerial } from "@/lib/publicaciones/reglas";
-import { CUENTA_SIN_BLOQUEO } from "@/lib/usuarios/bloqueo";
 import { getUserRatings, type UserRating } from "@/lib/ventas/calificaciones";
+import { VENDEDOR_VISIBLE } from "./visibilidad";
+
+// Se re-exporta para no cambiar los imports existentes.
+export { VENDEDOR_VISIBLE };
 
 /**
  * Catálogo público: lo que ve cualquiera, con o sin sesión. Las consultas piden campos uno por
@@ -233,15 +236,6 @@ async function toPublic(
     publishedAt: row.publishedAt ?? row.createdAt,
   };
 }
-
-/**
- * Sólo vendedores con la identidad aprobada HOY y sin la cuenta bloqueada: si se la revocan o los
- * bloquean, sus publicaciones no salen (y vuelven solas si se levanta el bloqueo).
- */
-export const VENDEDOR_VISIBLE = {
-  identityVerification: { is: { status: "APPROVED" } },
-  ...CUENTA_SIN_BLOQUEO,
-} as const;
 
 function whereFor(f: CatalogFilters) {
   const where: Record<string, unknown> = { status: "PUBLISHED", seller: VENDEDOR_VISIBLE };

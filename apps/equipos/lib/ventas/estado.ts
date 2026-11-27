@@ -39,7 +39,8 @@ const ESTADOS: Record<SaleSummary["status"], Record<Rol, string> & { clase: stri
     clase: "estado estado-revision",
   },
   CONFIRMED: { COMPRADOR: "Compra confirmada", VENDEDOR: "Venta confirmada", clase: "estado estado-publicada" },
-  DECLINED: { COMPRADOR: "No la compraste", VENDEDOR: "No se concretó", clase: "estado" },
+  // DECLINED cubre el rechazo del comprador y la cancelación por una denuncia: texto neutro.
+  DECLINED: { COMPRADOR: "No se concretó", VENDEDOR: "No se concretó", clase: "estado" },
   EXPIRED: { COMPRADOR: "Venció sin confirmar", VENDEDOR: "Venció sin confirmar", clase: "estado" },
 };
 

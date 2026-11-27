@@ -40,7 +40,7 @@ const CAMINOS: {
   {
     titulo: "Pedí lo que buscás",
     texto:
-      "¿No está publicado? Contanos qué equipo buscás y le avisamos a quien lo tenga, sin decirle quién sos.",
+      "¿No está publicado? Contanos qué equipo buscás y le avisamos a quien lo tenga. Ve tu nombre verificado sólo si responde que le interesa vender.",
     foto: "lentes",
     enlace: { href: "/busco", texto: "Crear un pedido" },
   },

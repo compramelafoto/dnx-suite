@@ -43,6 +43,10 @@ export const MENSAJE_PEDIDO_NO_ACTIVO = "Este pedido ya no está activo.";
 export const MENSAJE_AVISO_RESPONDIDO = "Ya respondiste este aviso.";
 export const MENSAJE_PEDIDO_SIN_IDENTIDAD =
   "Para crear un pedido necesitás tener tu identidad verificada.";
+export const MENSAJE_EQUIPO_FUERA_DE_INVENTARIO = "Este equipo ya no está en tu inventario.";
+
+/** Estados del equipo con los que el dueño todavía puede responder un aviso. */
+const EQUIPO_RESPONDIBLE: string[] = ["IN_USE", "RECOVERED", "FOR_SALE"];
 
 export type PurchaseRequestInput = {
   kind: GearItemKind;
@@ -314,16 +318,21 @@ export type NoticeForOwner = {
     /** El pedido sigue abierto (activo y sin vencer). */
     abierto: boolean;
   };
-  /** Nombre del DNI si la identidad está aprobada; si no, el nombre de pila. */
-  buyerName: string;
-  /** Identidad aprobada hoy (para el sello). */
+  /**
+   * Sólo si el dueño respondió «Me interesa vender» (spec §16.4): el nombre del DNI si la
+   * identidad está aprobada; si no, el nombre de pila. Antes de eso (o si dijo «No, gracias»),
+   * `null`: el nombre ni siquiera sale de este módulo.
+   */
+  buyerName: string | null;
+  /** Identidad aprobada hoy (para el sello «Comprador con identidad verificada»). */
   buyerVerified: boolean;
   buyerRating: UserRating;
 };
 
 /**
- * El aviso de un pedido, sólo para su dueño (de otro dueño: `null`). Recién acá el dueño ve el
- * nombre verificado y la calificación del comprador.
+ * El aviso de un pedido, sólo para su dueño (de otro dueño: `null`). Antes de responder ve la
+ * identidad verificada y la calificación del comprador; el nombre, recién si responde que le
+ * interesa vender.
  */
 export async function getNoticeForOwner(
   ownerId: number,
@@ -366,6 +375,7 @@ export async function getNoticeForOwner(
   const identidad = r.buyer.identityVerification;
   const aprobada = identidad?.status === "APPROVED";
   const legal = aprobada && identidad.legalName?.trim() ? identidad.legalName.trim() : null;
+  const interesado = n.response === "INTERESTED";
   return {
     id: n.id,
     gearItemId: n.gearItemId,
@@ -383,13 +393,17 @@ export async function getNoticeForOwner(
       province: r.province,
       abierto: r.status === "ACTIVE" && r.expiresAt > new Date(),
     },
-    buyerName: legal ?? sellerFirstName(r.buyer.name),
+    buyerName: interesado ? (legal ?? sellerFirstName(r.buyer.name)) : null,
     buyerVerified: aprobada,
     buyerRating: await getUserRating(r.buyerId),
   };
 }
 
-/** Si el aviso es de este dueño y apunta a este equipo (para la leyenda de «Publicar»). */
+/**
+ * Si el aviso es de este dueño, apunta a este equipo y publicar todavía le manda el enlace al
+ * comprador (para la leyenda de «Publicar»): respondió «Me interesa», el enlace no salió y el
+ * pedido sigue abierto.
+ */
 export async function isNoticeForItem(
   ownerId: number,
   noticeId: number,
@@ -397,7 +411,14 @@ export async function isNoticeForItem(
 ): Promise<boolean> {
   if (!Number.isInteger(noticeId) || noticeId <= 0) return false;
   const n = await prisma.purchaseRequestNotice.findFirst({
-    where: { id: noticeId, ownerId, gearItemId },
+    where: {
+      id: noticeId,
+      ownerId,
+      gearItemId,
+      response: "INTERESTED",
+      listingId: null,
+      request: { status: "ACTIVE", expiresAt: { gt: new Date() } },
+    },
     select: { id: true },
   });
   return n !== null;
@@ -442,6 +463,7 @@ export async function respondNotice(
           gearItemId: true,
           response: true,
           request: { select: { status: true, expiresAt: true } },
+          gearItem: { select: { ownerId: true, status: true } },
         },
       })
     : null;
@@ -450,6 +472,14 @@ export async function respondNotice(
   // Un pedido cancelado, vencido o ya cumplido no se responde: nadie recibiría el enlace.
   if (notice.request.status !== "ACTIVE" || notice.request.expiresAt <= new Date()) {
     throw invalido(MENSAJE_PEDIDO_NO_ACTIVO);
+  }
+  // El equipo tiene que seguir siendo suyo y vendible: ni vendido, ni robado, ni perdido. A la
+  // venta (FOR_SALE) vale: es el caso en que ya lo publicó y el comprador recibe el enlace.
+  if (
+    notice.gearItem.ownerId !== ownerId ||
+    !EQUIPO_RESPONDIBLE.includes(notice.gearItem.status)
+  ) {
+    throw invalido(MENSAJE_EQUIPO_FUERA_DE_INVENTARIO);
   }
 
   const r = await prisma.purchaseRequestNotice.updateMany({

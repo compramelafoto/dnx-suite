@@ -26,6 +26,7 @@ const PLANTILLAS = [
   "confirmar_compra",
   "venta_confirmada",
   "venta_no_confirmada",
+  "venta_cancelada",
   "pedido_dueno",
   "pedido_publicado",
   "reporte_usuario_admin",
@@ -87,6 +88,45 @@ describe("renderPortalEmail", () => {
     const rechazo = renderPortalEmail("venta_no_confirmada", { comprador: "Beto", equipo: "Canon R5", motivo: "rechazo" });
     expect(vencio.text).toContain("el plazo venció");
     expect(rechazo.text).toContain("rechazó la compra");
+  });
+
+  it("venta_no_confirmada dice «En uso» sólo si el equipo de verdad volvió a ese estado", () => {
+    const enUso = renderPortalEmail("venta_no_confirmada", { equipo: "Canon R5", motivo: "rechazo", enUso: "si" });
+    const noVolvio = renderPortalEmail("venta_no_confirmada", { equipo: "Canon R5", motivo: "rechazo", enUso: "no" });
+    expect(enUso.text).toContain("«En uso»");
+    expect(noVolvio.text).not.toContain("En uso");
+    expect(noVolvio.text).toContain("no cambió de dueño");
+  });
+
+  it("venta_confirmada invita a calificar a las dos partes, cada una con su enlace", () => {
+    const comprador = renderPortalEmail("venta_confirmada", {
+      equipo: "Canon R5",
+      rol: "comprador",
+      otraParte: "Ana",
+      url: "https://e.test/compras/5",
+    });
+    const vendedor = renderPortalEmail("venta_confirmada", {
+      equipo: "Canon R5",
+      rol: "vendedor",
+      otraParte: "Beto",
+      url: "https://e.test/ventas/5",
+    });
+    expect(comprador.text).toContain("calificar");
+    expect(comprador.text).toContain("https://e.test/compras/5");
+    expect(vendedor.text).toContain("calificar");
+    expect(vendedor.text).toContain("https://e.test/ventas/5");
+  });
+
+  it("venta_cancelada: texto neutro, sin mencionar la denuncia", () => {
+    const r = renderPortalEmail("venta_cancelada", {
+      nombre: "Beto",
+      equipo: "Canon R5",
+      url: "https://e.test/compras/5",
+    });
+    expect(r.subject).toBe("Se canceló la venta de Canon R5");
+    expect(r.text).toContain("La venta de Canon R5 se canceló. No se hizo ningún traspaso.");
+    expect(r.text).toContain("https://e.test/compras/5");
+    expect(r.text).not.toMatch(/robad|perdid|denuncia|plata/i);
   });
 
   it("la publicación rechazada no lleva motivo interno", () => {

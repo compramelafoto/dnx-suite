@@ -17,7 +17,8 @@ export const metadata: Metadata = { title: `Un comprador busca tu equipo — ${M
 
 /**
  * El aviso de un pedido «Busco», sólo para el dueño que lo recibió (de cualquier otra persona:
- * 404). Recién acá ve el nombre verificado y la calificación del comprador.
+ * 404). Antes de responder ve que el comprador tiene la identidad verificada y su calificación;
+ * el nombre verificado, recién si responde que le interesa vender (spec §16.4).
  */
 export default async function AvisoPedidoPage({
   params,
@@ -64,7 +65,15 @@ export default async function AvisoPedidoPage({
             <dd>{p.province ?? "Sin indicar"}</dd>
             <dt>Comprador</dt>
             <dd>
-              {aviso.buyerName} {aviso.buyerVerified ? <SelloIdentidad /> : null}
+              {aviso.buyerName ? (
+                <>
+                  {aviso.buyerName} {aviso.buyerVerified ? <SelloIdentidad /> : null}
+                </>
+              ) : aviso.buyerVerified ? (
+                "Comprador con identidad verificada"
+              ) : (
+                "Comprador"
+              )}
             </dd>
             <dt>Calificación</dt>
             <dd>
@@ -108,7 +117,7 @@ export default async function AvisoPedidoPage({
           <div className="pila">
             <p className="texto-secundario">
               Si te interesa, te llevamos a publicar este equipo. Si ya está publicado, le mandamos el
-              enlace al comprador.
+              enlace al comprador. Si respondés que te interesa vender, vas a ver su nombre verificado.
             </p>
             <div className="acciones">
               <form action={responderAviso}>

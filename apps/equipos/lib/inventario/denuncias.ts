@@ -2,6 +2,7 @@ import { prisma } from "@repo/db";
 import { uploadPrivateFile, validateFile } from "@/lib/archivos";
 import { sendPortalEmail } from "@/lib/correo";
 import { closeListingsForItem } from "@/lib/publicaciones/publicar";
+import { urlBaseDeLaApp } from "@/lib/sesion";
 import { EquipoError, findOwnItem } from "./equipos";
 
 /** Estados desde los que se puede denunciar (un equipo recuperado puede volver a ser robado). */
@@ -77,6 +78,8 @@ export async function reportIncident(
   }
 
   const newStatus = input.incident === "THEFT" ? "STOLEN" : "LOST";
+  /** Ventas pendientes que la denuncia canceló (para avisarle al comprador después). */
+  const canceladas: Array<{ id: number; buyerId: number }> = [];
   const reportId = await prisma.$transaction(async (tx) => {
     // Misma fila que bloquea createListing: publicar y denunciar se ponen en fila.
     await tx.$queryRaw`SELECT id FROM "GearItem" WHERE id = ${itemId} FOR UPDATE`;
@@ -113,6 +116,25 @@ export async function reportIncident(
       },
     });
     await closeListingsForItem(tx, itemId);
+    // Una venta esperando la confirmación del comprador se cancela: el equipo denunciado nunca
+    // se traspasa, y la publicación «vendida» se cierra. Condicionado por si el comprador la
+    // resolvió en el medio.
+    const pendientes = await tx.gearSale.findMany({
+      where: { gearItemId: itemId, status: "PENDING_BUYER" },
+      select: { id: true, listingId: true, buyerId: true },
+    });
+    for (const s of pendientes) {
+      const r = await tx.gearSale.updateMany({
+        where: { id: s.id, status: "PENDING_BUYER" },
+        data: { status: "DECLINED", resolvedAt: new Date() },
+      });
+      if (r.count === 0) continue;
+      await tx.gearListing.updateMany({
+        where: { id: s.listingId, status: "SOLD" },
+        data: { status: "CLOSED" },
+      });
+      canceladas.push({ id: s.id, buyerId: s.buyerId });
+    }
     await tx.gearItemEvent.create({
       data: {
         gearItemId: itemId,
@@ -137,6 +159,24 @@ export async function reportIncident(
       }
     } catch (err) {
       console.error("[denuncias] No se pudo enviar el correo de denuncia recibida:", err);
+    }
+  }
+  // Al comprador, un texto neutro: nunca se le cuenta que el equipo fue denunciado.
+  for (const s of canceladas) {
+    try {
+      const buyer = await prisma.user.findUnique({
+        where: { id: s.buyerId },
+        select: { name: true, email: true },
+      });
+      if (buyer?.email) {
+        await sendPortalEmail(buyer.email, "venta_cancelada", {
+          nombre: buyer.name?.trim().split(/\s+/)[0] ?? "",
+          equipo: `${item.make} ${item.model}`,
+          url: `${urlBaseDeLaApp()}/compras/${s.id}`,
+        });
+      }
+    } catch (err) {
+      console.error(`[denuncias] No se pudo avisar la cancelación de la venta #${s.id}:`, err);
     }
   }
   return { reportId };
