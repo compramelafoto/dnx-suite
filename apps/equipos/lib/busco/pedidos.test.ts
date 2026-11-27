@@ -15,6 +15,7 @@ const m = vi.hoisted(() => ({
   notify: vi.fn(),
   idFindUnique: vi.fn(),
   noticeFindMany: vi.fn(),
+  noticeFindUnique: vi.fn(),
   settingsUpsert: vi.fn(),
   rating: vi.fn(),
 }));
@@ -31,6 +32,7 @@ vi.mock("@repo/db", () => ({
     purchaseRequestNotice: {
       findFirst: m.noticeFindFirst,
       findMany: m.noticeFindMany,
+      findUnique: m.noticeFindUnique,
       updateMany: m.noticeUpdateMany,
     },
     gearOwnerSettings: { upsert: m.settingsUpsert },
@@ -51,6 +53,7 @@ import {
   MAX_ACTIVE_REQUESTS,
   MENSAJE_MAXIMO_PEDIDOS,
   MENSAJE_MUCHOS_CANCELADOS,
+  MENSAJE_PEDIDO_NO_ACTIVO,
   cancelRequest,
   createPurchaseRequest,
   getNoticeForOwner,
@@ -385,6 +388,8 @@ describe("setPurchaseRequestOptOut", () => {
 });
 
 describe("respondNotice", () => {
+  const ABIERTO = { status: "ACTIVE", expiresAt: new Date(HOY.getTime() + DIA) };
+
   it("el aviso de otro dueño -> NO_ENCONTRADO", async () => {
     m.noticeFindFirst.mockResolvedValue(null);
     await expect(respondNotice(8, 5, "INTERESTED")).rejects.toMatchObject({ code: "NO_ENCONTRADO" });
@@ -393,15 +398,15 @@ describe("respondNotice", () => {
   });
 
   it("responde una sola vez", async () => {
-    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: "DECLINED" });
+    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: "DECLINED", request: ABIERTO });
     await expect(respondNotice(8, 5, "INTERESTED")).rejects.toMatchObject({ code: "DATO_INVALIDO" });
-    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null });
+    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null, request: ABIERTO });
     m.noticeUpdateMany.mockResolvedValue({ count: 0 });
     await expect(respondNotice(8, 5, "INTERESTED")).rejects.toMatchObject({ code: "DATO_INVALIDO" });
   });
 
   it("registra la respuesta y devuelve el equipo", async () => {
-    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null });
+    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null, request: ABIERTO });
     m.noticeUpdateMany.mockResolvedValue({ count: 1 });
     m.listingFindFirst.mockResolvedValue(null);
     expect(await respondNotice(8, 5, "DECLINED")).toEqual({ gearItemId: 30, yaPublicado: false });
@@ -413,9 +418,10 @@ describe("respondNotice", () => {
   });
 
   it("si ya tenía ese equipo publicado, «Me interesa» avisa al comprador enseguida", async () => {
-    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null });
+    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null, request: ABIERTO });
     m.noticeUpdateMany.mockResolvedValue({ count: 1 });
     m.listingFindFirst.mockResolvedValue({ id: 77 });
+    m.noticeFindUnique.mockResolvedValue({ listingId: 77 });
     expect(await respondNotice(8, 5, "INTERESTED")).toEqual({ gearItemId: 30, yaPublicado: true });
     expect(m.listingFindFirst.mock.calls[0][0].where).toEqual({
       gearItemId: 30,
@@ -423,6 +429,34 @@ describe("respondNotice", () => {
       status: "PUBLISHED",
     });
     expect(m.notify).toHaveBeenCalledWith(77);
+  });
+
+  it("publicado, pero otro dueño cumplió el pedido mientras tanto -> yaPublicado false", async () => {
+    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null, request: ABIERTO });
+    m.noticeUpdateMany.mockResolvedValue({ count: 1 });
+    m.listingFindFirst.mockResolvedValue({ id: 77 });
+    m.noticeFindUnique.mockResolvedValue({ listingId: null });
+    expect(await respondNotice(8, 5, "INTERESTED")).toEqual({ gearItemId: 30, yaPublicado: false });
+    expect(m.notify).toHaveBeenCalledWith(77);
+    expect(m.noticeFindUnique).toHaveBeenCalledWith({ where: { id: 5 }, select: { listingId: true } });
+  });
+
+  it.each([
+    ["CANCELLED", 1],
+    ["FULFILLED", 1],
+    ["EXPIRED", 1],
+    ["ACTIVE", -1],
+  ])("un pedido %s (o vencido) no se responde", async (status, dias) => {
+    m.noticeFindFirst.mockResolvedValue({
+      gearItemId: 30,
+      response: null,
+      request: { status, expiresAt: new Date(HOY.getTime() + dias * DIA) },
+    });
+    await expect(respondNotice(8, 5, "INTERESTED")).rejects.toMatchObject({
+      code: "DATO_INVALIDO",
+      message: MENSAJE_PEDIDO_NO_ACTIVO,
+    });
+    expect(m.noticeUpdateMany).not.toHaveBeenCalled();
   });
 
   it("una respuesta desconocida -> DATO_INVALIDO", async () => {

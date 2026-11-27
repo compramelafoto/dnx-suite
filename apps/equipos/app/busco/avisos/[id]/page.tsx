@@ -85,7 +85,9 @@ export default async function AvisoPedidoPage({
               {aviso.respondedAt ? ` (el ${fechaAr(aviso.respondedAt)})` : ""}.{" "}
               {aviso.publicado
                 ? "Ya le mandamos el enlace de tu publicación al comprador."
-                : "Cuando publiques el equipo, le mandamos el enlace al comprador."}
+                : p.abierto
+                  ? "Cuando publiques el equipo, le mandamos el enlace al comprador."
+                  : "Este pedido ya no está activo, así que no le vamos a mandar el enlace al comprador."}
             </Aviso>
             {!aviso.publicado && p.abierto ? (
               <div className="acciones">

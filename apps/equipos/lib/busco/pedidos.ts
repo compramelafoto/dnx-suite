@@ -420,7 +420,8 @@ export async function setPurchaseRequestOptOut(userId: number, optOut: boolean):
 /**
  * El dueño responde el aviso de un pedido, una sola vez. Un aviso de otro dueño no existe
  * (NO_ENCONTRADO). Si dice que le interesa y ese equipo ya está publicado, el comprador recibe
- * el enlace enseguida (`yaPublicado`).
+ * el enlace enseguida (`yaPublicado`, sólo si de verdad quedó atado a la publicación). Un pedido
+ * que ya no está activo no se responde.
  */
 export async function respondNotice(
   ownerId: number,
@@ -434,11 +435,19 @@ export async function respondNotice(
   const notice = valido
     ? await prisma.purchaseRequestNotice.findFirst({
         where: { id: noticeId, ownerId },
-        select: { gearItemId: true, response: true },
+        select: {
+          gearItemId: true,
+          response: true,
+          request: { select: { status: true, expiresAt: true } },
+        },
       })
     : null;
   if (!notice) throw new EquipoError("NO_ENCONTRADO", "No encontramos ese aviso.");
   if (notice.response !== null) throw invalido(MENSAJE_AVISO_RESPONDIDO);
+  // Un pedido cancelado, vencido o ya cumplido no se responde: nadie recibiría el enlace.
+  if (notice.request.status !== "ACTIVE" || notice.request.expiresAt <= new Date()) {
+    throw invalido(MENSAJE_PEDIDO_NO_ACTIVO);
+  }
 
   const r = await prisma.purchaseRequestNotice.updateMany({
     where: { id: noticeId, ownerId, response: null },
@@ -453,7 +462,13 @@ export async function respondNotice(
     });
     if (publicada) {
       await notifyRequestBuyers(publicada.id);
-      return { gearItemId: notice.gearItemId, yaPublicado: true };
+      // Sólo si el aviso quedó atado a la publicación el comprador recibió el enlace (otro dueño
+      // pudo cumplir el pedido mientras tanto).
+      const despues = await prisma.purchaseRequestNotice.findUnique({
+        where: { id: noticeId },
+        select: { listingId: true },
+      });
+      return { gearItemId: notice.gearItemId, yaPublicado: despues?.listingId != null };
     }
   }
   return { gearItemId: notice.gearItemId, yaPublicado: false };
