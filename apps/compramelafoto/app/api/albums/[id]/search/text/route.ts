@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
-import { isAlbumPubliclyAccessible } from "@/lib/album-helpers";
+import { isAlbumOpenByLink } from "@/lib/album-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { Role } from "@prisma/client";
 import { denyIfTestAlbumNotOwnerPreview } from "@/lib/public-album-test-access";
@@ -34,7 +34,7 @@ async function ensureAlbumAccess(albumId: number) {
   if (testDeny) {
     return { ok: false, album: null, testDenyResponse: testDeny };
   }
-  if (!isAlbumPubliclyAccessible(album)) {
+  if (!isAlbumOpenByLink(album)) {
     const isOwner = authUser?.id === album.userId;
     const isAdmin = authUser?.role === Role.ADMIN;
     const hasAccess = authUser
