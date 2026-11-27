@@ -2,7 +2,8 @@ import { prisma } from "@repo/db";
 import { sendPortalEmail } from "@/lib/correo";
 import { urlBaseDeLaApp } from "@/lib/sesion";
 import { EquipoError } from "../inventario/equipos";
-import { findActiveReportForSerial, notifyAdmin } from "./publicar";
+import { findActiveReportForSerial, findActiveReportsForSerial } from "./denuncia-activa";
+import { notifyAdmin } from "./publicar";
 
 /**
  * Moderación de publicaciones: reportes de otras personas, decisión del administrador y retención
@@ -52,11 +53,14 @@ async function loadInReview(listingId: number) {
     select: {
       id: true,
       gearItemId: true,
+      sellerId: true,
       status: true,
       reviewNote: true,
+      publishedAt: true,
       make: true,
       model: true,
       seller: { select: { email: true, name: true } },
+      gearItem: { select: { serialNormalized: true } },
     },
   });
   if (!listing) throw new EquipoError("NO_ENCONTRADO");
@@ -79,20 +83,65 @@ async function avisarAlVendedor(
   }
 }
 
-/** Números de denuncia citados en la nota interna («Denuncia activa #N»). */
-function reportIdsDe(note: string | null): number[] {
-  const ids = [...(note ?? "").matchAll(/Denuncia activa #(\d+)/g)].map((x) => Number(x[1]));
-  return [...new Set(ids)];
+/** Acciones que pasan una publicación a revisión; la última es la que la dejó como está. */
+const ENTRADAS_A_REVISION = ["publicado", "reanudado", "retenido", "revision_por_reporte"];
+
+/**
+ * Estado en el que estaba la publicación antes de pasar a revisión (`detail.previo`, lo guardan
+ * la retención diaria y la revisión por reporte). Sin dato, se publica.
+ */
+async function estadoPrevio(gearItemId: number, listingId: number): Promise<"PUBLISHED" | "PAUSED"> {
+  const evento = await prisma.gearItemEvent.findFirst({
+    where: {
+      gearItemId,
+      AND: [
+        { detail: { path: ["listingId"], equals: listingId } },
+        {
+          OR: ENTRADAS_A_REVISION.map((accion) => ({
+            detail: { path: ["accion"], equals: accion },
+          })),
+        },
+      ],
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { detail: true },
+  });
+  const d = evento?.detail;
+  const previo =
+    d && typeof d === "object" && !Array.isArray(d) ? (d as Record<string, unknown>).previo : null;
+  return previo === "PAUSED" ? "PAUSED" : "PUBLISHED";
 }
 
+export const MENSAJE_DENUNCIA_ACTIVA =
+  "Hay una denuncia activa sobre esta serie: resolvela antes de aprobar.";
+
+/**
+ * Aprueba una publicación en revisión. Nunca con una denuncia activa de otra persona sobre la
+ * serie: la ficha dice «Sin denuncias de robo ni pérdida» y tiene que ser verdad. Si la
+ * publicación estaba pausada antes de la revisión, vuelve a pausada (y el equipo, a «en uso»).
+ */
 export async function approveListing(adminId: number, listingId: number): Promise<void> {
   const listing = await loadInReview(listingId);
+  const serial = listing.gearItem.serialNormalized;
+  if (serial && (await findActiveReportForSerial(serial, listing.sellerId))) {
+    throw new EquipoError("CON_DENUNCIA", MENSAJE_DENUNCIA_ACTIVA);
+  }
+  const destino = await estadoPrevio(listing.gearItemId, listingId);
   await prisma.$transaction(async (tx) => {
     const r = await tx.gearListing.updateMany({
       where: { id: listingId, status: "IN_REVIEW" },
-      data: { status: "PUBLISHED", publishedAt: new Date() },
+      data:
+        destino === "PAUSED"
+          ? { status: "PAUSED" }
+          : { status: "PUBLISHED", publishedAt: listing.publishedAt ?? new Date() },
     });
     if (r.count === 0) throw noEnRevision();
+    if (destino === "PAUSED") {
+      await tx.gearItem.updateMany({
+        where: { id: listing.gearItemId, status: "FOR_SALE" },
+        data: { status: "IN_USE" },
+      });
+    }
     await tx.gearListingFlag.updateMany({
       where: { listingId, resolvedAt: null },
       data: { resolvedAt: new Date() },
@@ -101,21 +150,14 @@ export async function approveListing(adminId: number, listingId: number): Promis
       data: {
         gearItemId: listing.gearItemId,
         type: "STATUS_CHANGED",
-        detail: { listingId, accion: "aprobado", adminId },
+        detail: { listingId, accion: "aprobado", adminId, destino },
       },
     });
-    // El admin vio esa denuncia y aprobó igual: el cruce diario no la retiene de nuevo.
-    for (const reportId of reportIdsDe(listing.reviewNote)) {
-      await tx.gearItemEvent.create({
-        data: {
-          gearItemId: listing.gearItemId,
-          type: "UPDATED",
-          detail: { listingId, accion: "aprobado_con_denuncia", reportId },
-        },
-      });
-    }
   });
-  await avisarAlVendedor(listing.seller, "publicacion_aprobada", listingId);
+  // Una pausada no está «online»: el vendedor la reanuda cuando quiera, sin correo que diga otra cosa.
+  if (destino === "PUBLISHED") {
+    await avisarAlVendedor(listing.seller, "publicacion_aprobada", listingId);
+  }
 }
 
 export async function rejectListing(
@@ -165,6 +207,7 @@ export async function holdListingsWithActiveReports(): Promise<{ held: number }>
       id: true,
       sellerId: true,
       gearItemId: true,
+      status: true,
       gearItem: { select: { serialNormalized: true } },
     },
   });
@@ -172,25 +215,18 @@ export async function holdListingsWithActiveReports(): Promise<{ held: number }>
   for (const c of candidates) {
     const serial = c.gearItem.serialNormalized;
     if (!serial) continue;
-    const report = await findActiveReportForSerial(serial, c.sellerId);
-    if (!report) continue;
-    // Ya aprobada por el admin con esta misma denuncia: no se retiene ni se avisa otra vez.
-    const aprobada = await prisma.gearItemEvent.findFirst({
-      where: {
-        gearItemId: c.gearItemId,
-        type: "UPDATED",
-        AND: [
-          { detail: { path: ["accion"], equals: "aprobado_con_denuncia" } },
-          { detail: { path: ["reportId"], equals: report.id } },
-        ],
-      },
-      select: { id: true },
-    });
-    if (aprobada) continue;
+    // Con al menos una denuncia activa se retiene; la nota cita todas, la más vieja primero.
+    const reports = await findActiveReportsForSerial(serial, c.sellerId);
+    if (reports.length === 0) continue;
+    const previo = c.status as (typeof HELD_FROM)[number];
     const moved = await prisma.$transaction(async (tx) => {
+      // Condicionado al estado leído: así `previo` es exactamente lo que había.
       const r = await tx.gearListing.updateMany({
-        where: { id: c.id, status: { in: [...HELD_FROM] } },
-        data: { status: "IN_REVIEW", reviewNote: `Denuncia activa #${report.id}` },
+        where: { id: c.id, status: previo },
+        data: {
+          status: "IN_REVIEW",
+          reviewNote: reports.map((x) => `Denuncia activa #${x.id}`).join("\n"),
+        },
       });
       if (r.count === 0) return false;
       // Una pausada tenía el equipo en uso; en revisión queda a la venta, como al reanudar.
@@ -202,7 +238,7 @@ export async function holdListingsWithActiveReports(): Promise<{ held: number }>
         data: {
           gearItemId: c.gearItemId,
           type: "STATUS_CHANGED",
-          detail: { listingId: c.id, accion: "retenido", reportId: report.id },
+          detail: { listingId: c.id, accion: "retenido", reportId: reports[0].id, previo },
         },
       });
       return true;
@@ -228,19 +264,21 @@ export async function reviewFlaggedListing(
 ): Promise<void> {
   const listing = await prisma.gearListing.findFirst({
     where: { id: listingId },
-    select: { id: true, gearItemId: true, reviewNote: true },
+    select: { id: true, gearItemId: true, status: true, reviewNote: true },
   });
   if (!listing) throw new EquipoError("NO_ENCONTRADO");
+  const noSePuede = () =>
+    new EquipoError("DATO_INVALIDO", "Esta publicación no se puede pasar a revisión.");
+  if (!(HELD_FROM as readonly string[]).includes(listing.status)) throw noSePuede();
+  const previo = listing.status as (typeof HELD_FROM)[number];
   const linea = flagId ? `Reporte #${flagId}` : "Reporte de usuarios";
   const reviewNote = listing.reviewNote ? `${listing.reviewNote}\n${linea}` : linea;
   await prisma.$transaction(async (tx) => {
     const r = await tx.gearListing.updateMany({
-      where: { id: listingId, status: { in: [...HELD_FROM] } },
+      where: { id: listingId, status: previo },
       data: { status: "IN_REVIEW", reviewNote },
     });
-    if (r.count === 0) {
-      throw new EquipoError("DATO_INVALIDO", "Esta publicación no se puede pasar a revisión.");
-    }
+    if (r.count === 0) throw noSePuede();
     await tx.gearItem.updateMany({
       where: { id: listing.gearItemId, status: "IN_USE" },
       data: { status: "FOR_SALE" },
@@ -249,7 +287,13 @@ export async function reviewFlaggedListing(
       data: {
         gearItemId: listing.gearItemId,
         type: "STATUS_CHANGED",
-        detail: { listingId, accion: "revision_por_reporte", flagId: flagId ?? null, adminId },
+        detail: {
+          listingId,
+          accion: "revision_por_reporte",
+          flagId: flagId ?? null,
+          adminId,
+          previo,
+        },
       },
     });
   });

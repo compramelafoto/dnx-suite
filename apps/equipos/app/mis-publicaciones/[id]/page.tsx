@@ -4,6 +4,7 @@ import { requireLevel } from "@/lib/guards";
 import { fechaHoraAr } from "@/lib/inventario/formato";
 import { getItem, KIND_LABELS } from "@/lib/inventario/equipos";
 import { computeTrust, declaredItems } from "@/lib/publicaciones/confianza";
+import { findActiveReportForSerial } from "@/lib/publicaciones/denuncia-activa";
 import { listSellerListings } from "@/lib/publicaciones/publicar";
 import { maskSerial, requiresSerial } from "@/lib/publicaciones/reglas";
 import { Aviso, Boton, EstadoPublicacion, FichaConfianza, Pagina } from "@/app/_ui";
@@ -35,10 +36,19 @@ export default async function PublicacionPage({
 
   // El equipo puede haber dejado de existir para este usuario: la ficha sigue sin factura ni serie.
   const item = await getItem(user.id, listing.gearItemId).catch(() => null);
+  // «Sin denuncias…» sólo si se revisó de verdad: una retenida (o un equipo que ya no se puede
+  // leer) no muestra esa línea.
+  const serial = item?.serialNormalized ?? null;
+  const noActiveReport = item
+    ? serial
+      ? !(await findActiveReportForSerial(serial, user.id))
+      : true
+    : false;
   const trust = computeTrust({
     usageSeal: listing.usageSeal,
     hasPurchaseProof: !!item?.purchaseProofKey,
     shutterVerified: false,
+    noActiveReport,
   });
 
   const interesados = await listInterested(user.id, id);

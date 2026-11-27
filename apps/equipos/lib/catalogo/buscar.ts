@@ -14,6 +14,7 @@ import {
   usageSealText,
   type TrustLevel,
 } from "@/lib/publicaciones/confianza";
+import { findActiveReportForSerial } from "@/lib/publicaciones/denuncia-activa";
 import { maskSerial } from "@/lib/publicaciones/reglas";
 
 /**
@@ -141,6 +142,7 @@ const SELECT = {
   usagePhotosCount: true,
   publishedAt: true,
   createdAt: true,
+  sellerId: true,
   seller: { select: { name: true } },
   // La clave de la factura sólo se usa para saber si existe; nunca sale en el objeto público.
   gearItem: { select: { photoKeys: true, serialNormalized: true, purchaseProofKey: true } },
@@ -170,6 +172,7 @@ type Row = {
   usagePhotosCount: number | null;
   publishedAt: Date | null;
   createdAt: Date;
+  sellerId: number;
   seller: { name: string | null };
   gearItem: { photoKeys: string[]; serialNormalized: string | null; purchaseProofKey: string | null };
 };
@@ -191,11 +194,15 @@ async function signPhotos(row: Row, max?: number): Promise<string[]> {
   }
 }
 
-async function toPublic(row: Row, maxPhotos?: number): Promise<PublicListing> {
+async function toPublic(
+  row: Row,
+  opts: { maxPhotos?: number; noActiveReport: boolean },
+): Promise<PublicListing> {
   const trust = computeTrust({
     usageSeal: row.usageSeal,
     hasPurchaseProof: row.gearItem.purchaseProofKey != null,
     shutterVerified: false,
+    noActiveReport: opts.noActiveReport,
   });
   return {
     id: row.id,
@@ -218,13 +225,16 @@ async function toPublic(row: Row, maxPhotos?: number): Promise<PublicListing> {
     shutterText: row.kind === "BODY" ? "Cantidad de disparos: no verificada" : null,
     sellerFirstName: sellerFirstName(row.seller.name),
     sellerVerified: true,
-    photoUrls: await signPhotos(row, maxPhotos),
+    photoUrls: await signPhotos(row, opts.maxPhotos),
     publishedAt: row.publishedAt ?? row.createdAt,
   };
 }
 
+/** Sólo vendedores con la identidad aprobada HOY: si se la revocan, sus publicaciones no salen. */
+const VENDEDOR_VERIFICADO = { identityVerification: { is: { status: "APPROVED" } } } as const;
+
 function whereFor(f: CatalogFilters) {
-  const where: Record<string, unknown> = { status: "PUBLISHED" };
+  const where: Record<string, unknown> = { status: "PUBLISHED", seller: VENDEDOR_VERIFICADO };
   if (f.kind) where.kind = f.kind;
   if (f.make) where.make = { contains: f.make, mode: "insensitive" };
   if (f.mount) where.mount = f.mount;
@@ -238,7 +248,11 @@ function whereFor(f: CatalogFilters) {
   return where;
 }
 
-/** Publicadas, 24 por página, las más nuevas primero. En el listado se firma sólo la primera foto. */
+/**
+ * Publicadas, 24 por página, las más nuevas primero. En el listado se firma sólo la primera foto.
+ * No se revisan denuncias fila por fila: el cruce diario retiene las publicaciones con una
+ * denuncia activa, y la ficha (`getPublicListing`) la revisa en vivo antes de mostrarse.
+ */
 export async function searchListings(
   f: CatalogFilters,
 ): Promise<{ items: PublicListing[]; total: number }> {
@@ -253,17 +267,27 @@ export async function searchListings(
     }),
     prisma.gearListing.count({ where }),
   ]);
-  const items = await Promise.all((rows as Row[]).map((r) => toPublic(r, 1)));
+  const items = await Promise.all(
+    (rows as Row[]).map((r) => toPublic(r, { maxPhotos: 1, noActiveReport: true })),
+  );
   return { items, total };
 }
 
-/** `null` si no existe o no está publicada (pausada, en revisión, vendida, cerrada). */
+/**
+ * `null` si no existe, no está publicada (pausada, en revisión, vendida, cerrada), el vendedor
+ * ya no tiene la identidad aprobada o la serie tiene una denuncia activa de otra persona (se
+ * revisa en vivo: entre una corrida del cruce y la siguiente la ficha no puede decir «sin
+ * denuncias» si las hay).
+ */
 export async function getPublicListing(id: number): Promise<PublicListing | null> {
-  const row = await prisma.gearListing.findFirst({
-    where: { id, status: "PUBLISHED" },
+  const row = (await prisma.gearListing.findFirst({
+    where: { id, status: "PUBLISHED", seller: VENDEDOR_VERIFICADO },
     select: SELECT,
-  });
-  return row ? toPublic(row as Row) : null;
+  })) as Row | null;
+  if (!row) return null;
+  const serial = row.gearItem.serialNormalized;
+  if (serial && (await findActiveReportForSerial(serial, row.sellerId))) return null;
+  return toPublic(row, { noActiveReport: true });
 }
 
 /** Cuenta la visita de una persona con sesión. No cuenta al vendedor y nunca tira error. */

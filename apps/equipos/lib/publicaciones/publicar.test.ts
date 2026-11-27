@@ -265,6 +265,12 @@ describe("findActiveReportForSerial", () => {
       reporterId: { not: 1 },
     });
   });
+
+  it("con varias denuncias activas devuelve siempre la más vieja (orden fijo)", async () => {
+    m.reportFindFirst.mockResolvedValue({ id: 5 });
+    await findActiveReportForSerial("AB123", 1);
+    expect(m.reportFindFirst.mock.calls[0][0].orderBy).toEqual([{ createdAt: "asc" }, { id: "asc" }]);
+  });
 });
 
 const listing = (over: Record<string, unknown> = {}) => ({

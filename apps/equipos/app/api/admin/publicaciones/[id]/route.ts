@@ -59,6 +59,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       if (err.code === "NO_ENCONTRADO") {
         return NextResponse.json({ error: "No existe la publicación" }, { status: 404 });
       }
+      if (err.code === "CON_DENUNCIA") {
+        return NextResponse.json({ error: err.message }, { status: 409 });
+      }
       return NextResponse.json(
         {
           error:

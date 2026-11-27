@@ -7,22 +7,27 @@ export function computeTrust(input: {
   usageSeal: GearListingUsageSeal;
   hasPurchaseProof: boolean;
   shutterVerified: boolean;
+  /**
+   * Resultado REAL de la revisión de denuncias (`findActiveReportForSerial`). La línea «Sin
+   * denuncias…» sólo aparece cuando es `true`: nunca se afirma algo que no se revisó.
+   */
+  noActiveReport: boolean;
   /** Fecha de la revisión de denuncias; por defecto, hoy. */
   checkedAt?: Date;
 }): { points: number; level: TrustLevel; verified: string[] } {
   let points = 0;
-  // Una publicación que se muestra siempre tiene al vendedor verificado y sin denuncia activa:
-  // esas dos líneas van primero y no suman puntos.
+  // Una publicación que se muestra siempre tiene al vendedor verificado; esa línea y la de
+  // denuncias (si se revisó y no hay) van primero y no suman puntos.
   const fecha = new Intl.DateTimeFormat("es-AR", {
     timeZone: "America/Argentina/Buenos_Aires",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   }).format(input.checkedAt ?? new Date());
-  const verified: string[] = [
-    "Identidad del vendedor verificada",
-    `Sin denuncias de robo ni pérdida en el portal (revisado el ${fecha})`,
-  ];
+  const verified: string[] = ["Identidad del vendedor verificada"];
+  if (input.noActiveReport) {
+    verified.push(`Sin denuncias de robo ni pérdida en el portal (revisado el ${fecha})`);
+  }
   if (input.usageSeal === "USAGE_VERIFIED") {
     points += 3;
     verified.push("Uso verificado en CompraMeLaFoto");

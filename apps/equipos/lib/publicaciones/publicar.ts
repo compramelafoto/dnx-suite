@@ -5,6 +5,7 @@ import type { PortalEmailTemplate } from "@/lib/correo";
 import { urlBaseDeLaApp } from "@/lib/sesion";
 import { EquipoError } from "../inventario/equipos";
 import type { GearListing } from "./catalogos";
+import { findActiveReportForSerial } from "./denuncia-activa";
 import { fotosOpcionales } from "./fotos-opcionales";
 import { listingBlocker, validateListingInput, type ListingInput } from "./reglas";
 import { computeUsageSeal, proofPhotoMatches } from "./sellos";
@@ -27,16 +28,8 @@ const IN_USE_TO_FOR_SALE = { from: "IN_USE", to: "FOR_SALE" } as const;
 
 const noModificable = () => new EquipoError("DATO_INVALIDO", NO_MODIFICABLE);
 
-/** ¿Hay una denuncia ACTIVE de OTRA persona con esa serie? Lo usan crear, reanudar y el cron. */
-export async function findActiveReportForSerial(
-  serialNormalized: string,
-  sellerId: number,
-): Promise<{ id: number } | null> {
-  return prisma.stolenGearReport.findFirst({
-    where: { serialNormalized, status: "ACTIVE", reporterId: { not: sellerId } },
-    select: { id: true },
-  });
-}
+// Se re-exporta para no cambiar los imports existentes.
+export { findActiveReportForSerial, findActiveReportsForSerial } from "./denuncia-activa";
 
 /** Aviso al admin: se manda después de la transacción y nunca rompe la operación. */
 export async function notifyAdmin(template: PortalEmailTemplate, detalle: string): Promise<void> {

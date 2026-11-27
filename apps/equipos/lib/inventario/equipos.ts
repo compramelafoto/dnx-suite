@@ -22,7 +22,8 @@ export type EquipoErrorCode =
   | "EN_DENUNCIA"
   | "FALTA_VALOR"
   | "NO_ASEGURABLE"
-  | "CON_PUBLICACION";
+  | "CON_PUBLICACION"
+  | "CON_DENUNCIA";
 
 export class EquipoError extends Error {
   constructor(

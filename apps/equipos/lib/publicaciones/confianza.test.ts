@@ -9,7 +9,7 @@ const BASE = [
 
 describe("computeTrust", () => {
   it("uso verificado + factura = 5, Alto", () => {
-    const r = computeTrust({ usageSeal: "USAGE_VERIFIED", hasPurchaseProof: true, shutterVerified: false, checkedAt });
+    const r = computeTrust({ usageSeal: "USAGE_VERIFIED", hasPurchaseProof: true, shutterVerified: false, noActiveReport: true, checkedAt });
     expect(r.points).toBe(5);
     expect(r.level).toBe("ALTO");
     expect(r.verified).toEqual([
@@ -19,31 +19,42 @@ describe("computeTrust", () => {
     ]);
   });
   it("foto de la serie sin factura = 2, Bueno", () => {
-    const r = computeTrust({ usageSeal: "PROOF_PHOTO", hasPurchaseProof: false, shutterVerified: false, checkedAt });
+    const r = computeTrust({ usageSeal: "PROOF_PHOTO", hasPurchaseProof: false, shutterVerified: false, noActiveReport: true, checkedAt });
     expect(r).toMatchObject({ points: 2, level: "BUENO" });
     expect(r.verified).toEqual([...BASE, "Serie comprobada con foto del equipo"]);
   });
   it("nada = 0, Básico", () => {
-    expect(computeTrust({ usageSeal: "NONE", hasPurchaseProof: false, shutterVerified: false, checkedAt })).toEqual({
+    expect(computeTrust({ usageSeal: "NONE", hasPurchaseProof: false, shutterVerified: false, noActiveReport: true, checkedAt })).toEqual({
       points: 0,
       level: "BASICO",
       verified: BASE,
     });
   });
   it("máximo con todo", () => {
-    const r = computeTrust({ usageSeal: "USAGE_VERIFIED", hasPurchaseProof: true, shutterVerified: true });
+    const r = computeTrust({ usageSeal: "USAGE_VERIFIED", hasPurchaseProof: true, shutterVerified: true, noActiveReport: true });
     expect(r.points).toBe(7);
     expect(r.level).toBe("MAXIMO");
     expect(r.verified).toHaveLength(5);
   });
   it("cortes", () => {
     const t = (u: "USAGE_VERIFIED" | "PROOF_PHOTO" | "NONE", f: boolean, s: boolean) =>
-      computeTrust({ usageSeal: u, hasPurchaseProof: f, shutterVerified: s });
+      computeTrust({ usageSeal: u, hasPurchaseProof: f, shutterVerified: s, noActiveReport: true });
     expect(t("NONE", false, false).level).toBe("BASICO");
     expect(t("NONE", true, false).level).toBe("BUENO"); // 2
     expect(t("USAGE_VERIFIED", false, false).level).toBe("BUENO"); // 3
     expect(t("PROOF_PHOTO", true, false).level).toBe("ALTO"); // 4
     expect(t("PROOF_PHOTO", true, true).level).toBe("MAXIMO"); // 6
+  });
+  it("sin la revisión de denuncias en verde no se afirma «Sin denuncias…» ni cambia el puntaje", () => {
+    const r = computeTrust({
+      usageSeal: "PROOF_PHOTO",
+      hasPurchaseProof: false,
+      shutterVerified: false,
+      noActiveReport: false,
+      checkedAt,
+    });
+    expect(r.verified).toEqual(["Identidad del vendedor verificada", "Serie comprobada con foto del equipo"]);
+    expect(r).toMatchObject({ points: 2, level: "BUENO" });
   });
 });
 

@@ -5,6 +5,7 @@ const m = vi.hoisted(() => ({
   listingFindMany: vi.fn(),
   listingCount: vi.fn(),
   viewUpsert: vi.fn(),
+  reportFindFirst: vi.fn(),
   signed: vi.fn(),
 }));
 
@@ -12,6 +13,7 @@ vi.mock("@repo/db", () => ({
   prisma: {
     gearListing: { findFirst: m.listingFindFirst, findMany: m.listingFindMany, count: m.listingCount },
     gearListingView: { upsert: m.viewUpsert },
+    stolenGearReport: { findFirst: m.reportFindFirst },
   },
 }));
 vi.mock("@/lib/archivos", async () => {
@@ -75,6 +77,7 @@ function listingConVendedor(
 beforeEach(() => {
   vi.clearAllMocks();
   m.signed.mockImplementation(async (k: string) => `https://firmada/${k}`);
+  m.reportFindFirst.mockResolvedValue(null);
 });
 
 describe("parseCatalogFilters", () => {
@@ -159,7 +162,29 @@ describe("getPublicListing", () => {
     m.listingFindFirst.mockResolvedValue(null);
     expect(await getPublicListing(5)).toBeNull();
     const args = m.listingFindFirst.mock.calls[0][0];
-    expect(args.where).toEqual({ id: 5, status: "PUBLISHED" });
+    expect(args.where).toEqual({
+      id: 5,
+      status: "PUBLISHED",
+      seller: { identityVerification: { is: { status: "APPROVED" } } },
+    });
+  });
+
+  it("con una denuncia activa de otra persona sobre la serie no se muestra (revisión en vivo)", async () => {
+    m.listingFindFirst.mockResolvedValue(listingConVendedor());
+    m.reportFindFirst.mockResolvedValue({ id: 3 });
+    expect(await getPublicListing(5)).toBeNull();
+    expect(m.reportFindFirst.mock.calls[0][0].where).toEqual({
+      serialNormalized: "ABC123456",
+      status: "ACTIVE",
+      reporterId: { not: 33 },
+    });
+    expect(m.signed).not.toHaveBeenCalled();
+  });
+
+  it("sin denuncia activa muestra la línea «Sin denuncias…»", async () => {
+    m.listingFindFirst.mockResolvedValue(listingConVendedor());
+    const l = await getPublicListing(5);
+    expect(l?.trust.verified[1]).toMatch(/^Sin denuncias de robo ni pérdida en el portal \(revisado el /);
   });
 
   it("del vendedor sólo pide el nombre y del equipo sólo fotos, serie y si hay factura", async () => {
@@ -171,7 +196,8 @@ describe("getPublicListing", () => {
       select: { photoKeys: true, serialNormalized: true, purchaseProofKey: true },
     });
     expect(select.reviewNote).toBeUndefined();
-    expect(select.sellerId).toBeUndefined();
+    // `sellerId` se lee para revisar denuncias de otras personas, pero nunca sale en el objeto
+    // público (lo cubre «el objeto público no trae datos del vendedor»).
   });
 
   it("calcula la confianza con la factura y sin disparos verificados", async () => {
@@ -231,6 +257,7 @@ describe("searchListings", () => {
     const args = m.listingFindMany.mock.calls[0][0];
     expect(args.where).toEqual({
       status: "PUBLISHED",
+      seller: { identityVerification: { is: { status: "APPROVED" } } },
       kind: "BODY",
       make: { contains: "canon", mode: "insensitive" },
       mount: "Canon RF",
@@ -250,7 +277,10 @@ describe("searchListings", () => {
     m.listingFindMany.mockResolvedValue([]);
     m.listingCount.mockResolvedValue(0);
     await searchListings({ page: 1 });
-    expect(m.listingFindMany.mock.calls[0][0].where).toEqual({ status: "PUBLISHED" });
+    expect(m.listingFindMany.mock.calls[0][0].where).toEqual({
+      status: "PUBLISHED",
+      seller: { identityVerification: { is: { status: "APPROVED" } } },
+    });
     expect(m.listingFindMany.mock.calls[0][0].skip).toBe(0);
   });
 });

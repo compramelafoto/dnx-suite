@@ -77,6 +77,17 @@ describe("POST /api/admin/publicaciones/[id]", () => {
     expect((await POST(pedido({ accion: "aprobar" }), ctx)).status).toBe(409);
   });
 
+  it("aprobar con una denuncia activa -> 409 con el mensaje de la denuncia", async () => {
+    m.approve.mockRejectedValue(
+      new EquipoError("CON_DENUNCIA", "Hay una denuncia activa sobre esta serie: resolvela antes de aprobar."),
+    );
+    const res = await POST(pedido({ accion: "aprobar" }), ctx);
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({
+      error: "Hay una denuncia activa sobre esta serie: resolvela antes de aprobar.",
+    });
+  });
+
   it("publicación inexistente -> 404", async () => {
     m.reject.mockRejectedValue(new EquipoError("NO_ENCONTRADO"));
     expect((await POST(pedido({ accion: "rechazar", nota: "x" }), ctx)).status).toBe(404);
