@@ -20,7 +20,8 @@ export type EquipoErrorCode =
   | "NO_DENUNCIABLE"
   | "EN_DENUNCIA"
   | "FALTA_VALOR"
-  | "NO_ASEGURABLE";
+  | "NO_ASEGURABLE"
+  | "CON_PUBLICACION";
 
 export class EquipoError extends Error {
   constructor(
@@ -258,6 +259,20 @@ export async function updateItem(
       throw new EquipoError(
         "EN_DENUNCIA",
         "Este equipo tiene una denuncia: no se pueden cambiar su estado, serie, tipo, marca ni modelo. Si lo recuperaste, usá «Lo recuperé».",
+      );
+    }
+  }
+
+  // Con una publicación abierta el estado lo maneja la publicación (publicar, pausar, cerrar).
+  if (patch.status !== undefined) {
+    const open = await prisma.gearListing.findFirst({
+      where: { gearItemId: itemId, status: { in: ["IN_REVIEW", "PUBLISHED", "PAUSED"] } },
+      select: { id: true },
+    });
+    if (open) {
+      throw new EquipoError(
+        "CON_PUBLICACION",
+        "Este equipo tiene una publicación activa; pausala o cerrala primero.",
       );
     }
   }

@@ -1,0 +1,288 @@
+import { prisma } from "@repo/db";
+import { uploadPrivateFile, validateFile } from "@/lib/archivos";
+import { sendPortalEmail, type PortalEmailTemplate } from "@/lib/correo";
+import { EquipoError } from "../inventario/equipos";
+import type { GearListing } from "./catalogos";
+import { listingBlocker, validateListingInput, type ListingInput } from "./reglas";
+import { computeUsageSeal, proofPhotoMatches } from "./sellos";
+
+/**
+ * Publicaciones de venta: crear, pausar, reanudar, cerrar y editar. Todo filtra por vendedor
+ * (una publicación ajena es una publicación que no existe). El motivo interno de una revisión
+ * (`reviewNote`) nunca vuelve al vendedor.
+ */
+
+type Tx = Pick<typeof prisma, "gearListing" | "gearItem" | "gearItemEvent">;
+
+type ListingStatusValue = "DRAFT" | "IN_REVIEW" | "PUBLISHED" | "PAUSED" | "CLOSED";
+
+const OPEN_STATUSES: ListingStatusValue[] = ["DRAFT", "IN_REVIEW", "PUBLISHED", "PAUSED"];
+const NO_MODIFICABLE = "Esta publicación ya no se puede modificar.";
+
+const noModificable = () => new EquipoError("DATO_INVALIDO", NO_MODIFICABLE);
+
+/** ¿Hay una denuncia ACTIVE de OTRA persona con esa serie? Lo usan crear, reanudar y el cron. */
+export async function findActiveReportForSerial(
+  serialNormalized: string,
+  sellerId: number,
+): Promise<{ id: number } | null> {
+  return prisma.stolenGearReport.findFirst({
+    where: { serialNormalized, status: "ACTIVE", reporterId: { not: sellerId } },
+    select: { id: true },
+  });
+}
+
+/** Aviso al admin: se manda después de la transacción y nunca rompe la operación. */
+async function notifyAdmin(template: PortalEmailTemplate, detalle: string): Promise<void> {
+  try {
+    const to = process.env.ADMIN_EMAIL?.trim();
+    if (!to) {
+      console.warn(`[publicaciones] ADMIN_EMAIL no configurado; no se envía "${template}".`);
+      return;
+    }
+    const base = process.env.CLF_URL?.replace(/\/$/, "");
+    await sendPortalEmail(to, template, { detalle, url: base ? `${base}/admin/equipos-robados` : "" });
+  } catch (err) {
+    console.error(`[publicaciones] No se pudo enviar el aviso "${template}":`, err);
+  }
+}
+
+async function findOwnListing(sellerId: number, listingId: number) {
+  const listing = await prisma.gearListing.findFirst({ where: { id: listingId, sellerId } });
+  if (!listing) throw new EquipoError("NO_ENCONTRADO");
+  return listing;
+}
+
+export async function createListing(
+  sellerId: number,
+  gearItemId: number,
+  input: ListingInput,
+  files: { serialPhoto?: File; proofPhoto?: File },
+): Promise<{ listingId: number; status: "IN_REVIEW" | "PUBLISHED" }> {
+  const item = await prisma.gearItem.findFirst({ where: { id: gearItemId, ownerId: sellerId } });
+  if (!item) throw new EquipoError("NO_ENCONTRADO");
+
+  const ownReportOpen =
+    (await prisma.stolenGearReport.count({
+      where: { gearItemId, reporterId: sellerId, status: { in: ["PENDING_REVIEW", "ACTIVE"] } },
+    })) > 0;
+  const activeListing =
+    (await prisma.gearListing.findFirst({
+      where: { gearItemId, status: { in: OPEN_STATUSES } },
+      select: { id: true },
+    })) !== null;
+
+  let serialPhotoKey: string | null = null;
+  if (files.serialPhoto && files.serialPhoto.size > 0) {
+    const error = validateFile(files.serialPhoto, "photo");
+    if (error) throw new EquipoError("ARCHIVO_INVALIDO", error);
+    serialPhotoKey = (await uploadPrivateFile(files.serialPhoto, "photo")).key;
+  }
+
+  const blocker = listingBlocker(item, { ownReportOpen, activeListing, serialPhotoKey });
+  if (blocker) throw new EquipoError("DATO_INVALIDO", blocker);
+  const data = validateListingInput(input, item.kind);
+
+  // Sello de uso: por avistajes de CLF; si no hay, una foto con la serie en sus metadatos.
+  let seal: "NONE" | "USAGE_VERIFIED" | "PROOF_PHOTO" = "NONE";
+  let usageSince: Date | null = null;
+  let usagePhotosCount: number | null = null;
+  let otherOwner = false;
+  if (item.serialNormalized) {
+    const sightings = await prisma.gearSerialSighting.findMany({
+      where: { serialNormalized: item.serialNormalized },
+      select: { photographerId: true, firstSeenAt: true, photosCount: true },
+    });
+    const result = computeUsageSeal(sightings, sellerId);
+    otherOwner = result.otherOwner;
+    if (result.seal === "USAGE_VERIFIED") {
+      seal = "USAGE_VERIFIED";
+      usageSince = result.since;
+      usagePhotosCount = result.photos;
+    } else if (files.proofPhoto && files.proofPhoto.size > 0) {
+      // La foto de prueba se lee en memoria y nunca se guarda.
+      const buffer = Buffer.from(await files.proofPhoto.arrayBuffer());
+      if (await proofPhotoMatches(buffer, item.serialNormalized)) seal = "PROOF_PHOTO";
+    }
+  }
+
+  const report = item.serialNormalized
+    ? await findActiveReportForSerial(item.serialNormalized, sellerId)
+    : null;
+  const status: "IN_REVIEW" | "PUBLISHED" = report ? "IN_REVIEW" : "PUBLISHED";
+  const now = new Date();
+
+  let listing: { id: number };
+  try {
+    listing = await prisma.$transaction(async (tx) => {
+      const created = await tx.gearListing.create({
+        data: {
+          sellerId,
+          gearItemId,
+          status,
+          kind: item.kind,
+          make: item.make,
+          model: item.model,
+          mount: data.mount ?? null,
+          priceArs: data.priceArs,
+          priceUsdRef: data.priceUsdRef ?? null,
+          condition: data.condition,
+          description: data.description || null,
+          accessories: data.accessories || null,
+          province: data.province,
+          city: data.city,
+          serialPhotoKey,
+          declaredFirstOwner: data.declaredFirstOwner ?? false,
+          includesCharger: data.includesCharger ?? false,
+          batteriesCount: data.batteriesCount ?? null,
+          includesManual: data.includesManual ?? false,
+          includesBox: data.includesBox ?? false,
+          usageSeal: seal,
+          usageSince,
+          usagePhotosCount,
+          socialConsentAt: now,
+          ...(report ? { reviewNote: `Denuncia activa #${report.id}` } : { publishedAt: now }),
+        },
+      });
+      await tx.gearItem.update({ where: { id: gearItemId }, data: { status: "FOR_SALE" } });
+      await tx.gearItemEvent.create({
+        data: {
+          gearItemId,
+          type: "STATUS_CHANGED",
+          detail: { listingId: created.id, accion: "publicado" },
+        },
+      });
+      return created;
+    });
+  } catch (err) {
+    if (serialPhotoKey) {
+      console.error(`[publicaciones] Falló la transacción; archivo huérfano: ${serialPhotoKey}`);
+    }
+    throw err;
+  }
+
+  if (status === "IN_REVIEW") {
+    await notifyAdmin(
+      "publicacion_en_revision_admin",
+      `Publicación #${listing.id} del equipo #${gearItemId} quedó en revisión.`,
+    );
+  }
+  if (otherOwner) {
+    await notifyAdmin(
+      "serie_de_otro_usuario_admin",
+      `Publicación #${listing.id} del equipo #${gearItemId}: la serie apareció en fotos de otro usuario.`,
+    );
+  }
+  return { listingId: listing.id, status };
+}
+
+async function transition(
+  listing: { id: number; gearItemId: number },
+  listingData: Record<string, unknown>,
+  itemStatus: "IN_USE" | "FOR_SALE" | null,
+  accion: string,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    await tx.gearListing.update({ where: { id: listing.id }, data: listingData });
+    if (itemStatus) {
+      await tx.gearItem.update({ where: { id: listing.gearItemId }, data: { status: itemStatus } });
+    }
+    await tx.gearItemEvent.create({
+      data: {
+        gearItemId: listing.gearItemId,
+        type: "STATUS_CHANGED",
+        detail: { listingId: listing.id, accion },
+      },
+    });
+  });
+}
+
+export async function pauseListing(sellerId: number, listingId: number): Promise<void> {
+  const listing = await findOwnListing(sellerId, listingId);
+  if (listing.status !== "PUBLISHED") throw noModificable();
+  await transition(listing, { status: "PAUSED" }, "IN_USE", "pausado");
+}
+
+export async function resumeListing(
+  sellerId: number,
+  listingId: number,
+): Promise<{ status: "IN_REVIEW" | "PUBLISHED" }> {
+  const listing = await findOwnListing(sellerId, listingId);
+  if (listing.status !== "PAUSED") throw noModificable();
+  const item = await prisma.gearItem.findFirst({
+    where: { id: listing.gearItemId, ownerId: sellerId },
+    select: { serialNormalized: true },
+  });
+  const report = item?.serialNormalized
+    ? await findActiveReportForSerial(item.serialNormalized, sellerId)
+    : null;
+  if (report) {
+    await transition(
+      listing,
+      { status: "IN_REVIEW", reviewNote: `Denuncia activa #${report.id}` },
+      "FOR_SALE",
+      "reanudado",
+    );
+    await notifyAdmin(
+      "publicacion_en_revision_admin",
+      `Publicación #${listing.id} del equipo #${listing.gearItemId} quedó en revisión al reanudarse.`,
+    );
+    return { status: "IN_REVIEW" };
+  }
+  await transition(listing, { status: "PUBLISHED", reviewNote: null }, "FOR_SALE", "reanudado");
+  return { status: "PUBLISHED" };
+}
+
+export async function closeListing(sellerId: number, listingId: number): Promise<void> {
+  const listing = await findOwnListing(sellerId, listingId);
+  if (!OPEN_STATUSES.includes(listing.status as ListingStatusValue)) throw noModificable();
+  await transition(listing, { status: "CLOSED", closedAt: new Date() }, "IN_USE", "cerrado");
+}
+
+/** Edita los datos comerciales; el sello de uso no cambia. */
+export async function updateListing(
+  sellerId: number,
+  listingId: number,
+  input: ListingInput,
+): Promise<void> {
+  const listing = await findOwnListing(sellerId, listingId);
+  if (listing.status !== "PUBLISHED" && listing.status !== "PAUSED") throw noModificable();
+  const data = validateListingInput(input, listing.kind);
+  await transition(
+    listing,
+    {
+      mount: data.mount ?? null,
+      priceArs: data.priceArs,
+      priceUsdRef: data.priceUsdRef ?? null,
+      condition: data.condition,
+      description: data.description || null,
+      accessories: data.accessories || null,
+      province: data.province,
+      city: data.city,
+      declaredFirstOwner: data.declaredFirstOwner ?? false,
+      includesCharger: data.includesCharger ?? false,
+      batteriesCount: data.batteriesCount ?? null,
+      includesManual: data.includesManual ?? false,
+      includesBox: data.includesBox ?? false,
+    },
+    null,
+    "editado",
+  );
+}
+
+/** Cierra las publicaciones abiertas del equipo; lo llama `reportIncident` en su transacción. */
+export async function closeListingsForItem(tx: Tx, gearItemId: number): Promise<void> {
+  await tx.gearListing.updateMany({
+    where: { gearItemId, status: { in: OPEN_STATUSES } },
+    data: { status: "CLOSED", closedAt: new Date() },
+  });
+}
+
+export async function listSellerListings(sellerId: number): Promise<GearListing[]> {
+  const rows = await prisma.gearListing.findMany({
+    where: { sellerId },
+    orderBy: { createdAt: "desc" },
+  });
+  // El motivo interno de una revisión nunca llega al vendedor.
+  return rows.map((r) => ({ ...r, reviewNote: null }));
+}

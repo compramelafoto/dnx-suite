@@ -9,6 +9,7 @@ const m = vi.hoisted(() => ({
   itemFindFirst: vi.fn(),
   itemFindMany: vi.fn(),
   itemFindUnique: vi.fn(),
+  listingFindFirst: vi.fn(),
   txItemCreate: vi.fn(),
   txItemUpdate: vi.fn(),
   txEventCreate: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock("@repo/db", () => ({
     gearSightingDismissal: { findMany: m.dismissalFindMany, upsert: m.dismissalUpsert },
     gearItem: { findFirst: m.itemFindFirst, findMany: m.itemFindMany, findUnique: m.itemFindUnique },
     gearItemEvent: { findMany: m.eventFindMany },
+    gearListing: { findFirst: m.listingFindFirst },
     $transaction: m.tx,
   },
 }));
@@ -50,6 +52,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env.ADMIN_EMAIL = "admin@dnx.test";
   process.env.CLF_URL = "https://clf.test/";
+  m.listingFindFirst.mockResolvedValue(null);
   m.tx.mockImplementation(async (cb: (tx: unknown) => unknown) =>
     cb({
       gearItem: { create: m.txItemCreate, update: m.txItemUpdate },
@@ -284,6 +287,16 @@ describe("updateItem", () => {
     await expect(updateItem(1, 7, { status: "STOLEN" })).rejects.toMatchObject({
       code: "DATO_INVALIDO",
     });
+  });
+
+  it("estado manual con publicación activa → CON_PUBLICACION", async () => {
+    m.itemFindFirst.mockResolvedValue({ id: 7, ownerId: 1, status: "FOR_SALE", serialNormalized: null });
+    m.listingFindFirst.mockResolvedValue({ id: 70, status: "PUBLISHED" });
+    await expect(updateItem(1, 7, { status: "IN_USE" })).rejects.toMatchObject({
+      code: "CON_PUBLICACION",
+      message: "Este equipo tiene una publicación activa; pausala o cerrala primero.",
+    });
+    expect(m.tx).not.toHaveBeenCalled();
   });
 
   it("al cambiar la serie la normaliza y revisa conflicto", async () => {

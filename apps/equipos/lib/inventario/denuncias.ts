@@ -1,6 +1,7 @@
 import { prisma } from "@repo/db";
 import { uploadPrivateFile, validateFile } from "@/lib/archivos";
 import { sendPortalEmail } from "@/lib/correo";
+import { closeListingsForItem } from "@/lib/publicaciones/publicar";
 import { EquipoError, findOwnItem } from "./equipos";
 
 /** Estados desde los que se puede denunciar (un equipo recuperado puede volver a ser robado). */
@@ -109,6 +110,7 @@ export async function reportIncident(
         ...(newProof ? { purchaseProofKey: invoiceKey, purchaseProofMime: invoiceMime } : {}),
       },
     });
+    await closeListingsForItem(tx, itemId);
     await tx.gearItemEvent.create({
       data: {
         gearItemId: itemId,

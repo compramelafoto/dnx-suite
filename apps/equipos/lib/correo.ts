@@ -7,7 +7,11 @@ export type PortalEmailTemplate =
   | "denuncia_recibida"
   | "coincidencia_inventario_admin"
   | "conflicto_serie_admin"
-  | "recordatorio_poliza";
+  | "recordatorio_poliza"
+  | "publicacion_en_revision_admin"
+  | "serie_de_otro_usuario_admin"
+  | "publicacion_aprobada"
+  | "publicacion_rechazada";
 
 type Rendered = { subject: string; html: string; text: string };
 
@@ -82,6 +86,37 @@ export function renderPortalEmail(
         "Dos usuarios cargaron el mismo número de serie y hace falta resolverlo.",
         d("detalle") ? `Detalle: ${d("detalle")}` : "",
         url ? `Revisar: ${url}` : "",
+      ];
+      break;
+    case "publicacion_en_revision_admin":
+      subject = "Publicación en revisión";
+      lineas = [
+        "Hay una publicación de un equipo que necesita revisión manual antes de salir.",
+        d("detalle") ? `Detalle: ${d("detalle")}` : "",
+        url ? `Revisar: ${url}` : "",
+      ];
+      break;
+    case "serie_de_otro_usuario_admin":
+      subject = "Serie publicada vista con otro usuario";
+      lineas = [
+        "Se publicó un equipo cuya serie ya apareció en fotos de otro usuario.",
+        d("detalle") ? `Detalle: ${d("detalle")}` : "",
+        url ? `Revisar: ${url}` : "",
+      ];
+      break;
+    case "publicacion_aprobada":
+      subject = "Tu publicación ya está online";
+      lineas = [
+        saludo,
+        "Revisamos tu publicación y ya está visible en el portal.",
+        url ? `Verla: ${url}` : "",
+      ];
+      break;
+    case "publicacion_rechazada":
+      subject = "No pudimos publicar tu artículo";
+      lineas = [
+        saludo,
+        "No pudimos publicar tu artículo. Si tenés dudas, respondé este correo.",
       ];
       break;
     case "recordatorio_poliza":

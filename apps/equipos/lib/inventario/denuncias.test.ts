@@ -10,6 +10,7 @@ const m = vi.hoisted(() => ({
   txEventCreate: vi.fn(),
   txReportCreate: vi.fn(),
   txReportUpdateMany: vi.fn(),
+  txListingUpdateMany: vi.fn(),
   tx: vi.fn(),
   upload: vi.fn(),
   email: vi.fn(),
@@ -56,6 +57,7 @@ beforeEach(() => {
       gearItem: { update: m.txItemUpdate },
       gearItemEvent: { create: m.txEventCreate },
       stolenGearReport: { create: m.txReportCreate, updateMany: m.txReportUpdateMany },
+      gearListing: { updateMany: m.txListingUpdateMany },
     }),
   );
   m.txReportCreate.mockResolvedValue({ id: 99 });
@@ -67,6 +69,17 @@ beforeEach(() => {
 });
 
 describe("reportIncident", () => {
+  it("sobre un equipo publicado cierra la publicación en la misma transacción", async () => {
+    m.itemFindFirst.mockResolvedValue(
+      body({ status: "FOR_SALE", purchaseProofKey: "equipos/f.pdf", purchaseProofMime: "application/pdf" }),
+    );
+    await reportIncident(1, 7, { incident: "THEFT", occurredAt: when });
+    expect(m.txListingUpdateMany).toHaveBeenCalledTimes(1);
+    const arg = m.txListingUpdateMany.mock.calls[0][0];
+    expect(arg.where.gearItemId).toBe(7);
+    expect(arg.data.status).toBe("CLOSED");
+  });
+
   it("robo sin comprobante falla con FALTA_COMPROBANTE", async () => {
     m.itemFindFirst.mockResolvedValue(body());
     await expect(reportIncident(1, 7, { incident: "THEFT", occurredAt: when })).rejects.toMatchObject({
