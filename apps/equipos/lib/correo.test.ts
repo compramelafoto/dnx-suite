@@ -15,6 +15,9 @@ const PLANTILLAS = [
   "publicacion_rechazada",
   "consulta_serie_coincide_admin",
   "cambio_serie_admin",
+  "confirmar_compra",
+  "venta_confirmada",
+  "venta_no_confirmada",
 ] as const;
 
 describe("renderPortalEmail", () => {
@@ -49,6 +52,29 @@ describe("renderPortalEmail", () => {
       expect(r.subject).not.toContain("Ana");
       expect(r.subject).not.toContain("ana@x.com");
     }
+  });
+
+  it("confirmar_compra lleva vendedor, equipo, precio, vencimiento y enlace", () => {
+    const r = renderPortalEmail("confirmar_compra", {
+      nombre: "Beto",
+      vendedor: "Ana",
+      equipo: "Canon R5",
+      precio: "$ 1.500.000",
+      vence: "10/12/26",
+      url: "https://e.test/compras/5",
+    });
+    expect(r.subject).toBe("Ana marcó que te vendió su Canon R5");
+    expect(r.text).toContain("$ 1.500.000");
+    expect(r.text).toContain("10/12/26");
+    expect(r.text).toContain("https://e.test/compras/5");
+    expect(r.text).not.toMatch(/plata/i);
+  });
+
+  it("venta_no_confirmada distingue rechazo de vencimiento", () => {
+    const vencio = renderPortalEmail("venta_no_confirmada", { comprador: "Beto", equipo: "Canon R5", motivo: "vencio" });
+    const rechazo = renderPortalEmail("venta_no_confirmada", { comprador: "Beto", equipo: "Canon R5", motivo: "rechazo" });
+    expect(vencio.text).toContain("el plazo venció");
+    expect(rechazo.text).toContain("rechazó la compra");
   });
 
   it("la publicación rechazada no lleva motivo interno", () => {

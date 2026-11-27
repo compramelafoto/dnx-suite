@@ -15,7 +15,10 @@ export type PortalEmailTemplate =
   | "reporte_publicacion_admin"
   | "nueva_consulta"
   | "consulta_serie_coincide_admin"
-  | "cambio_serie_admin";
+  | "cambio_serie_admin"
+  | "confirmar_compra"
+  | "venta_confirmada"
+  | "venta_no_confirmada";
 
 type Rendered = { subject: string; html: string; text: string };
 
@@ -168,6 +171,40 @@ export function renderPortalEmail(
         "Cambió el número de serie de un equipo que tuvo una publicación retenida por una denuncia.",
         d("detalle") ? `Detalle: ${d("detalle")}` : "",
         url ? `Revisar: ${url}` : "",
+      ];
+      break;
+    case "confirmar_compra":
+      subject = `${d("vendedor", "El vendedor")} marcó que te vendió su ${d("equipo", "equipo")}`;
+      lineas = [
+        saludo,
+        `${d("vendedor", "El vendedor")} marcó que te vendió su ${d("equipo", "equipo")}${d("precio") ? ` por ${d("precio")}` : ""}.`,
+        d("vence")
+          ? `Confirmá la compra para que el equipo pase a tu inventario. Si no la confirmás hasta el ${d("vence")}, la venta se anula y el equipo vuelve a quien lo vendía.`
+          : "Confirmá la compra para que el equipo pase a tu inventario.",
+        "Si la compra no se hizo, podés rechazarla desde el mismo enlace.",
+        url ? `Confirmar o rechazar: ${url}` : "",
+      ];
+      break;
+    case "venta_confirmada":
+      subject = `Venta confirmada: ${d("equipo", "equipo")}`;
+      lineas = [
+        saludo,
+        `Se confirmó la venta de ${d("equipo", "equipo")}${d("precio") ? ` por ${d("precio")}` : ""}.`,
+        d("rol") === "comprador"
+          ? "El equipo ya está en tu inventario."
+          : `El equipo ya pasó al inventario de ${d("otraParte", "quien lo compró")}. Si querés, ahora podés calificar la operación.`,
+        url ? `Ver la operación: ${url}` : "",
+      ];
+      break;
+    case "venta_no_confirmada":
+      subject = `La venta de ${d("equipo", "equipo")} no se confirmó`;
+      lineas = [
+        saludo,
+        d("motivo") === "vencio"
+          ? `${d("comprador", "El comprador")} no confirmó a tiempo la compra de ${d("equipo", "equipo")} y el plazo venció.`
+          : `${d("comprador", "El comprador")} rechazó la compra de ${d("equipo", "equipo")}.`,
+        "Tu equipo volvió a tu inventario como «En uso». Si querés, podés publicarlo de nuevo.",
+        url ? `Ver la operación: ${url}` : "",
       ];
       break;
     case "recordatorio_poliza":

@@ -312,6 +312,17 @@ export async function updateItem(
         "Este equipo tiene una publicación activa; pausala o cerrala primero.",
       );
     }
+    // Una venta pendiente de confirmación (publicación ya «vendida») también congela el equipo.
+    const pendingSale = await prisma.gearSale.findFirst({
+      where: { gearItemId: itemId, status: "PENDING_BUYER" },
+      select: { id: true },
+    });
+    if (pendingSale) {
+      throw new EquipoError(
+        "CON_PUBLICACION",
+        "Este equipo tiene una venta pendiente de confirmación; esperá a que el comprador la confirme o la rechace.",
+      );
+    }
   }
 
   const item = await prisma.$transaction(async (tx) => {

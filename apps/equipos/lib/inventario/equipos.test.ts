@@ -10,6 +10,7 @@ const m = vi.hoisted(() => ({
   itemFindMany: vi.fn(),
   itemFindUnique: vi.fn(),
   listingFindFirst: vi.fn(),
+  saleFindFirst: vi.fn(),
   txItemCreate: vi.fn(),
   txItemUpdate: vi.fn(),
   txEventCreate: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("@repo/db", () => ({
     gearItem: { findFirst: m.itemFindFirst, findMany: m.itemFindMany, findUnique: m.itemFindUnique },
     gearItemEvent: { findMany: m.eventFindMany, findFirst: m.eventFindFirst },
     gearListing: { findFirst: m.listingFindFirst },
+    gearSale: { findFirst: m.saleFindFirst },
     $transaction: m.tx,
   },
 }));
@@ -55,6 +57,7 @@ beforeEach(() => {
   process.env.ADMIN_EMAIL = "admin@dnx.test";
   process.env.CLF_URL = "https://clf.test/";
   m.listingFindFirst.mockResolvedValue(null);
+  m.saleFindFirst.mockResolvedValue(null);
   m.eventFindFirst.mockResolvedValue(null);
   m.tx.mockImplementation(async (cb: (tx: unknown) => unknown) =>
     cb({
@@ -299,6 +302,17 @@ describe("updateItem", () => {
       code: "CON_PUBLICACION",
       message: "Este equipo tiene una publicación activa; pausala o cerrala primero.",
     });
+    expect(m.tx).not.toHaveBeenCalled();
+  });
+
+  it("estado manual con una venta pendiente de confirmación → CON_PUBLICACION", async () => {
+    m.itemFindFirst.mockResolvedValue({ id: 7, ownerId: 1, status: "FOR_SALE", serialNormalized: null });
+    m.listingFindFirst.mockResolvedValue(null);
+    m.saleFindFirst.mockResolvedValue({ id: 500 });
+    await expect(updateItem(1, 7, { status: "IN_USE" })).rejects.toMatchObject({
+      code: "CON_PUBLICACION",
+    });
+    expect(m.saleFindFirst.mock.calls[0][0].where).toEqual({ gearItemId: 7, status: "PENDING_BUYER" });
     expect(m.tx).not.toHaveBeenCalled();
   });
 

@@ -354,6 +354,18 @@ describe("pausar, reanudar, cerrar, editar", () => {
   });
 });
 
+describe("publicación vendida (SOLD)", () => {
+  it("no se pausa, reanuda, cierra ni edita", async () => {
+    m.listingFindFirst.mockResolvedValue(listing({ status: "SOLD" }));
+    await expect(pauseListing(1, 70)).rejects.toMatchObject({ code: "DATO_INVALIDO" });
+    await expect(resumeListing(1, 70)).rejects.toMatchObject({ code: "DATO_INVALIDO" });
+    await expect(closeListing(1, 70)).rejects.toMatchObject({ code: "DATO_INVALIDO" });
+    await expect(updateListing(1, 70, input)).rejects.toMatchObject({ code: "DATO_INVALIDO" });
+    expect(m.txListingUpdateMany).not.toHaveBeenCalled();
+    expect(m.tx).not.toHaveBeenCalled();
+  });
+});
+
 describe("carreras", () => {
   it("createListing: bloquea la fila y, si dentro de la transacción ya hay una publicación abierta, falla sin crear ni avisar", async () => {
     m.reportFindFirst.mockResolvedValue({ id: 33 });
