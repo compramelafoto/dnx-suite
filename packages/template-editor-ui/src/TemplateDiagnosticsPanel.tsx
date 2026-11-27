@@ -80,7 +80,7 @@ export function TemplateDiagnosticsPanel({ blocks, canvas, dispatch, embedded }:
           })}
         </ul>
       ) : (
-        <p className="mt-1.5 text-[11px] text-[color:var(--te-ink-muted)]">Podés publicar o seguir editando con tranquilidad.</p>
+        <p className="mt-1.5 text-[11px] text-[color:var(--te-ink-muted)]">No hay nada para corregir. Podés seguir editando o guardar.</p>
       )}
     </div>
   );

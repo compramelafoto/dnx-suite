@@ -390,8 +390,8 @@ export function TemplateEditorInspector({
               {TEXT_VARIABLE_GROUPS.map((group) => (
                 <optgroup key={group.id} label={group.label}>
                   {group.variables.map((v) => (
-                    <option key={v.key} value={v.key}>
-                      {v.label} · {v.key}
+                    <option key={v.key} value={v.key} title={v.key}>
+                      {v.label}
                     </option>
                   ))}
                 </optgroup>
@@ -427,7 +427,7 @@ export function TemplateEditorInspector({
               </p>
             ) : variableKeyStr ? (
               <p className="mt-1.5 text-[11px] text-amber-300/90">
-                Esta clave no está en el catálogo v1; se guarda igual por compatibilidad.
+                Este dato no está en la lista. Se guarda igual, pero revisá que esté bien escrito.
               </p>
             ) : null}
           </div>
@@ -471,7 +471,9 @@ export function TemplateEditorInspector({
             <p className="mt-1 text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
               {cfg.mode === "FIXED"
                 ? "El mismo código en todas las piezas. Sirve para llevar al sitio de la institución."
-                : "Cambia con cada pieza. Es lo que hace que el carnet verifique a ese socio y no a otro."}
+                : product === "fotoffice"
+                  ? "Cambia con cada pieza. Es lo que hace que el carnet verifique a ese socio y no a otro."
+                  : "Cambia con cada pieza: cada uno lleva su propio código."}
             </p>
           </div>
 
@@ -677,9 +679,9 @@ export function TemplateEditorInspector({
       )}
 
       {selectedBlock.type === "PHOTO" && (
-        <InspectorPanel title="Foto (legacy)">
+        <InspectorPanel title="Foto">
           <p className="text-xs leading-relaxed text-[color:var(--te-ink-muted)]">
-            Este tipo de bloque es heredado. Podés ajustar posición, tamaño y apariencia general arriba.
+            Bloque de foto de una plantilla anterior. Podés ajustar posición, tamaño y apariencia general arriba.
           </p>
         </InspectorPanel>
       )}

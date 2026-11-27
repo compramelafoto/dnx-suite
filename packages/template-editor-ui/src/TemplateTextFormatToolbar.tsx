@@ -244,7 +244,7 @@ export function TemplateTextFormatToolbar({ state, dispatch, shellClassName }: P
         <span className="font-semibold text-[color:var(--te-ink)]">Cómo editar:</span> un clic en el texto selecciona · doble clic
         para escribir · arrastrá el marco para mover ·{" "}
         <span className="whitespace-nowrap">
-          esquinas redimensionan caja y tipografía; el tamaño en px es aquí abajo.
+          esquinas redimensionan caja y tipografía; el tamaño de letra (en pt) está aquí abajo.
         </span>
       </p>
       <div className="flex flex-wrap items-center gap-x-1 gap-y-1.5">

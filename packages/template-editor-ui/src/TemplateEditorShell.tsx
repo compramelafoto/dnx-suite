@@ -339,6 +339,13 @@ type TemplateEditorShellProps = {
   exitHref?: string;
   /** Aviso fijo arriba del lienzo (p. ej. «estás editando sólo este diseño»). */
   notice?: ReactNode;
+  /** Qué dice el globito de «Cerrar». Por defecto, «Volver al listado de plantillas». */
+  exitTitle?: string;
+  /**
+   * Oculta «Guardar como versión nueva» y «Versiones»: cuando se retoca una sola pieza ya armada
+   * (un librito), las versiones de la plantilla no tienen nada que ver con lo que se está haciendo.
+   */
+  hideVersioning?: boolean;
   /** Avisa que los cambios quedaron en una versión nueva (la anterior estaba en uso). */
   onVersionForked?: (info: TemplateEditorVersionForked) => void;
   /** Dónde monta el editor la app que hospeda. Obligatorio: ver `TEMPLATE_V2_BASE_PATHS`. */
@@ -399,6 +406,8 @@ export function TemplateEditorShell({
   basePath,
   exitHref,
   notice,
+  exitTitle,
+  hideVersioning = false,
   onVersionForked,
   guidedTour,
 }: TemplateEditorShellProps) {
@@ -1141,7 +1150,7 @@ export function TemplateEditorShell({
               className="inline-flex items-center gap-1.5 !px-2.5 !py-1 !text-xs font-medium"
               onClick={() => void handleRequestCloseEditor()}
               aria-label="Cerrar editor"
-              title="Volver al listado de plantillas"
+              title={exitTitle ?? "Volver al listado de plantillas"}
             >
               <svg
                 className="h-4 w-4 shrink-0"
@@ -1219,6 +1228,8 @@ export function TemplateEditorShell({
                 >
                   {previewLoading ? <IconToolbarSpinner /> : <IconToolbarPreview />}
                 </ToolButton>
+                {!hideVersioning ? (
+                  <>
                 <ToolButton
                   label="Guardar como versión nueva"
                   onClick={() => void handleSaveAsNewVersion()}
@@ -1235,6 +1246,8 @@ export function TemplateEditorShell({
                 >
                   <IconToolbarVersions />
                 </ToolButton>
+                  </>
+                ) : null}
               </ToolGroup>
 
               {/* Guías: no cambian el diseño, cambian lo que se ve mientras se diseña. */}
@@ -1465,7 +1478,20 @@ export function TemplateEditorShell({
                     sheetToolbarIconClass,
                     "border-[color:var(--te-line)] bg-[color:var(--te-chrome-sunken)] text-[color:var(--te-ink-muted)] disabled:opacity-40 hover:border-[color:var(--te-danger-wash)] hover:bg-[color:var(--te-danger-wash)] hover:text-[color:var(--te-danger)]"
                   )}
-                  onClick={() => dispatch(removeTemplatePage())}
+                  onClick={() => {
+                    // Una hoja con contenido no se borra de un toque: se pierde todo lo que tiene.
+                    const activa = state.activePageIndex ?? 0;
+                    const bloques = state.blocks.filter((b) => (b.pageIndex ?? 0) === activa).length;
+                    if (
+                      bloques > 0 &&
+                      !window.confirm(
+                        `¿Eliminar la hoja ${activa + 1}? Se borran también sus ${bloques} ${bloques === 1 ? "elemento" : "elementos"}. Lo podés deshacer con ⌘/Ctrl + Z.`
+                      )
+                    ) {
+                      return;
+                    }
+                    dispatch(removeTemplatePage());
+                  }}
                   disabled={state.templatePageCount <= 1}
                   title={
                     state.templatePageCount <= 1
@@ -1560,12 +1586,6 @@ export function TemplateEditorShell({
                 <span className="text-[color:var(--te-ink-muted)]">Guardar</span>
                 <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
                   ⌘/Ctrl + S
-                </kbd>
-              </li>
-              <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
-                <span className="text-[color:var(--te-ink-muted)]">Herramienta texto / selección / mano</span>
-                <kbd className="shrink-0 rounded border border-[color:var(--te-line-strong)] bg-[color:var(--te-surface)] px-2 py-0.5 font-mono text-[11px] text-[color:var(--te-ink)] shadow-sm">
-                  T · V · H
                 </kbd>
               </li>
               <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-[color:var(--te-line)] pb-2">
@@ -1784,7 +1804,13 @@ export function TemplateEditorShell({
               {imagenesDeVariable.length > 0 ? (
                 <div className="relative">
                   <EditorToolButton
-                    label="Datos visuales del socio: foto, logo y QR"
+                    label={
+                      producto === "fotoffice"
+                        ? "Datos visuales del socio: foto, logo y QR"
+                        : producto === "school"
+                          ? "Fotos y logos que se llenan solos: foto del alumno, logo del colegio"
+                          : "Imágenes que se llenan solas con los datos de cada uno"
+                    }
                     pressed={imagenMenuOpen}
                     onClick={() => setImagenMenuOpen((v) => !v)}
                   >
@@ -1912,7 +1938,6 @@ export function TemplateEditorShell({
                   </ToolButton>
                   <ToolButton
                     label="Ajustar a la ventana"
-                    shortcut="⇧⌘0"
                     className="!h-7 !w-7"
                     onClick={() => ajustarALaVentana("user")}
                     disabled={!editorReady}
@@ -2066,8 +2091,9 @@ export function TemplateEditorShell({
               ) : null}
             </div>
             <p className="border-t border-[color:var(--te-line)] px-4 py-2 text-center text-[11px] text-[color:var(--te-ink-faint)]">
-              Se dibuja con el mismo motor que produce el archivo para imprenta, con datos
-              reales de tu institución. Guardá los cambios cuando quieras conservarlos.
+              {producto === "fotoffice"
+                ? "Se dibuja con el mismo motor que produce el archivo para imprenta, con datos reales de tu institución. Guardá los cambios cuando quieras conservarlos."
+                : "Se dibuja con el mismo motor que produce el archivo para imprenta, con datos de ejemplo. Guardá los cambios cuando quieras conservarlos."}
             </p>
           </div>
         </div>
