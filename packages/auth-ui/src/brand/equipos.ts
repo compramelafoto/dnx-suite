@@ -2,13 +2,13 @@ import type { DnxAuthBrandConfig } from "../types";
 
 /**
  * Portal de equipos fotográficos usados y verificados.
- * La plataforma se llama MercadoRaw (ver `MARCA` en apps/equipos/app/_ui/marca.ts).
+ * La plataforma se llama MercadoFotoRaw (ver `MARCA` en apps/equipos/app/_ui/marca.ts).
  * Misma Cuenta DNX que el resto de la suite: ingreso con correo y contraseña. Todavía sin Google.
  */
 export const equiposAuthBrand: DnxAuthBrandConfig = {
   applicationId: "equipos",
-  productName: "MercadoRaw",
-  logo: { src: "/brand/equipos-logo.svg", alt: "MercadoRaw", height: "3rem", href: "/" },
+  productName: "MercadoFotoRaw",
+  logo: { src: "/brand/equipos-logo.svg", alt: "MercadoFotoRaw", height: "3rem", href: "/" },
   tokens: { brandKey: "equipos" },
   privacyUrl: "/privacidad",
   termsUrl: "/terminos",

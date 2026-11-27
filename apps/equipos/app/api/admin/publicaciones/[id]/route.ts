@@ -1,7 +1,12 @@
 import { getCurrentUser, isSuperAdmin } from "@repo/auth-guards";
 import { NextResponse } from "next/server";
 import { EquipoError } from "@/lib/inventario/equipos";
-import { approveListing, rejectListing } from "@/lib/publicaciones/moderacion";
+import {
+  approveListing,
+  dismissFlag,
+  rejectListing,
+  reviewFlaggedListing,
+} from "@/lib/publicaciones/moderacion";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,7 +30,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Pedido inválido" }, { status: 400 });
   }
   const accion = body.accion;
-  if (accion !== "aprobar" && accion !== "rechazar") {
+  if (
+    accion !== "aprobar" &&
+    accion !== "rechazar" &&
+    accion !== "revisar" &&
+    accion !== "descartar"
+  ) {
     return NextResponse.json({ error: "Acción inválida" }, { status: 400 });
   }
   const nota = typeof body.nota === "string" ? body.nota.trim() : "";
@@ -33,8 +43,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "Indicá el motivo del rechazo" }, { status: 400 });
   }
 
+  const flagId =
+    Number.isInteger(body.flagId) && Number(body.flagId) > 0 ? Number(body.flagId) : undefined;
+  if (accion === "descartar" && !flagId) {
+    return NextResponse.json({ error: "Reporte inválido" }, { status: 400 });
+  }
+
   try {
-    if (accion === "aprobar") await approveListing(user.id, id);
+    if (accion === "revisar") await reviewFlaggedListing(user.id, id, flagId);
+    else if (accion === "descartar") await dismissFlag(id, flagId!);
+    else if (accion === "aprobar") await approveListing(user.id, id);
     else await rejectListing(user.id, id, nota);
   } catch (err) {
     if (err instanceof EquipoError) {
@@ -42,7 +60,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         return NextResponse.json({ error: "No existe la publicación" }, { status: 404 });
       }
       return NextResponse.json(
-        { error: "Esta publicación ya no está en revisión" },
+        {
+          error:
+            accion === "revisar" || accion === "descartar"
+              ? "El estado cambió: actualizá la pantalla"
+              : "Esta publicación ya no está en revisión",
+        },
         { status: 409 },
       );
     }

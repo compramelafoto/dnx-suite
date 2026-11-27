@@ -47,7 +47,7 @@ export function renderPortalEmail(
       subject = "Tu identidad quedó verificada";
       lineas = [
         saludo,
-        "Verificamos tu identidad. Ya podés usar todas las funciones del portal MercadoRaw.",
+        "Verificamos tu identidad. Ya podés usar todas las funciones del portal MercadoFotoRaw.",
       ];
       break;
     case "verificacion_rechazada":
@@ -135,7 +135,7 @@ export function renderPortalEmail(
       lineas = [
         saludo,
         `${d("comprador", "Una persona")} se interesó en tu ${d("equipo", "equipo")}.`,
-        "Su identidad está verificada en MercadoRaw. Igual seguí la guía de compra segura.",
+        "Su identidad está verificada en MercadoFotoRaw. Igual seguí la guía de compra segura.",
         url ? `Ver tus interesados: ${url}` : "",
       ];
       break;

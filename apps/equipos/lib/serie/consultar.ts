@@ -1,6 +1,7 @@
 import { prisma } from "@repo/db";
 import { normalizeGearSerial } from "@repo/gear/serial";
 import { sendPortalEmail } from "@/lib/correo";
+import { urlBaseDeLaApp } from "@/lib/sesion";
 
 /** Consultas por usuario cada 24 horas (se cuentan en la base, no en memoria). */
 export const MAX_CONSULTAS_POR_DIA = 30;
@@ -47,12 +48,11 @@ async function avisarAlAdmin(userId: number, serial: string, reportId: number): 
       console.warn("[serie] ADMIN_EMAIL no configurado; no se avisa la consulta con denuncia.");
       return;
     }
-    const base = process.env.CLF_URL?.replace(/\/$/, "");
     await sendPortalEmail(to, "consulta_serie_coincide_admin", {
       usuario: String(userId),
       serie: serial,
       denuncia: String(reportId),
-      url: base ? `${base}/admin/equipos-robados` : "",
+      url: `${urlBaseDeLaApp()}/admin/publicaciones`,
     });
   } catch (err) {
     console.error("[serie] No se pudo avisar la consulta con denuncia:", err);

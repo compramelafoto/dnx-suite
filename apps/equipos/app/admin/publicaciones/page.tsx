@@ -3,9 +3,19 @@ import { prisma } from "@repo/db";
 import { notFound } from "next/navigation";
 import { getPortalUser } from "@/lib/guards";
 import { Pagina } from "@/app/_ui";
+import { AccionesReporte } from "./AccionesReporte";
 import { DecisionPublicacionForm } from "./DecisionPublicacionForm";
 
 export const dynamic = "force-dynamic";
+
+const ESTADOS: Record<string, string> = {
+  DRAFT: "Borrador",
+  IN_REVIEW: "En revisión",
+  PUBLISHED: "Publicada",
+  PAUSED: "Pausada",
+  SOLD: "Vendida",
+  CLOSED: "Cerrada",
+};
 
 const DIAS_30 = 30 * 24 * 3600 * 1000;
 
@@ -125,9 +135,16 @@ export default async function PublicacionesAdminPage() {
               </dd>
               <dt>Motivo</dt>
               <dd className="texto-multilinea">{f.reason}</dd>
+              <dt>Estado de la publicación</dt>
+              <dd>{ESTADOS[f.listing.status] ?? f.listing.status}</dd>
               <dt>Fecha</dt>
               <dd>{fecha.format(f.createdAt)}</dd>
             </dl>
+            <AccionesReporte
+              listingId={f.listingId}
+              flagId={f.id}
+              puedeRevisar={f.listing.status === "PUBLISHED" || f.listing.status === "PAUSED"}
+            />
           </section>
         ))}
 

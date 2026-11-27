@@ -79,6 +79,12 @@ async function avisarAlVendedor(
   }
 }
 
+/** Números de denuncia citados en la nota interna («Denuncia activa #N»). */
+function reportIdsDe(note: string | null): number[] {
+  const ids = [...(note ?? "").matchAll(/Denuncia activa #(\d+)/g)].map((x) => Number(x[1]));
+  return [...new Set(ids)];
+}
+
 export async function approveListing(adminId: number, listingId: number): Promise<void> {
   const listing = await loadInReview(listingId);
   await prisma.$transaction(async (tx) => {
@@ -98,6 +104,16 @@ export async function approveListing(adminId: number, listingId: number): Promis
         detail: { listingId, accion: "aprobado", adminId },
       },
     });
+    // El admin vio esa denuncia y aprobó igual: el cruce diario no la retiene de nuevo.
+    for (const reportId of reportIdsDe(listing.reviewNote)) {
+      await tx.gearItemEvent.create({
+        data: {
+          gearItemId: listing.gearItemId,
+          type: "UPDATED",
+          detail: { listingId, accion: "aprobado_con_denuncia", reportId },
+        },
+      });
+    }
   });
   await avisarAlVendedor(listing.seller, "publicacion_aprobada", listingId);
 }
@@ -158,6 +174,19 @@ export async function holdListingsWithActiveReports(): Promise<{ held: number }>
     if (!serial) continue;
     const report = await findActiveReportForSerial(serial, c.sellerId);
     if (!report) continue;
+    // Ya aprobada por el admin con esta misma denuncia: no se retiene ni se avisa otra vez.
+    const aprobada = await prisma.gearItemEvent.findFirst({
+      where: {
+        gearItemId: c.gearItemId,
+        type: "UPDATED",
+        AND: [
+          { detail: { path: ["accion"], equals: "aprobado_con_denuncia" } },
+          { detail: { path: ["reportId"], equals: report.id } },
+        ],
+      },
+      select: { id: true },
+    });
+    if (aprobada) continue;
     const moved = await prisma.$transaction(async (tx) => {
       const r = await tx.gearListing.updateMany({
         where: { id: c.id, status: { in: [...HELD_FROM] } },
@@ -186,4 +215,53 @@ export async function holdListingsWithActiveReports(): Promise<{ held: number }>
     );
   }
   return { held };
+}
+
+/**
+ * Un reporte de otra persona sobre una publicación visible: la pasa a revisión (queda a la venta
+ * y fuera del catálogo hasta que el admin la apruebe o la rechace). Sólo desde PUBLISHED/PAUSED.
+ */
+export async function reviewFlaggedListing(
+  adminId: number,
+  listingId: number,
+  flagId?: number,
+): Promise<void> {
+  const listing = await prisma.gearListing.findFirst({
+    where: { id: listingId },
+    select: { id: true, gearItemId: true, reviewNote: true },
+  });
+  if (!listing) throw new EquipoError("NO_ENCONTRADO");
+  const linea = flagId ? `Reporte #${flagId}` : "Reporte de usuarios";
+  const reviewNote = listing.reviewNote ? `${listing.reviewNote}\n${linea}` : linea;
+  await prisma.$transaction(async (tx) => {
+    const r = await tx.gearListing.updateMany({
+      where: { id: listingId, status: { in: [...HELD_FROM] } },
+      data: { status: "IN_REVIEW", reviewNote },
+    });
+    if (r.count === 0) {
+      throw new EquipoError("DATO_INVALIDO", "Esta publicación no se puede pasar a revisión.");
+    }
+    await tx.gearItem.updateMany({
+      where: { id: listing.gearItemId, status: "IN_USE" },
+      data: { status: "FOR_SALE" },
+    });
+    await tx.gearItemEvent.create({
+      data: {
+        gearItemId: listing.gearItemId,
+        type: "STATUS_CHANGED",
+        detail: { listingId, accion: "revision_por_reporte", flagId: flagId ?? null, adminId },
+      },
+    });
+  });
+}
+
+/** Descarta un reporte (sólo ése): queda resuelto y no vuelve al panel. */
+export async function dismissFlag(listingId: number, flagId: number): Promise<void> {
+  const r = await prisma.gearListingFlag.updateMany({
+    where: { id: flagId, listingId, resolvedAt: null },
+    data: { resolvedAt: new Date() },
+  });
+  if (r.count === 0) {
+    throw new EquipoError("DATO_INVALIDO", "Este reporte ya está resuelto o no existe.");
+  }
 }

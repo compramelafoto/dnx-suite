@@ -4,6 +4,8 @@ const m = vi.hoisted(() => ({
   listingFindFirst: vi.fn(),
   listingFindMany: vi.fn(),
   flagCreateMany: vi.fn(),
+  flagUpdateMany: vi.fn(),
+  eventFindFirst: vi.fn(),
   reportFindFirst: vi.fn(),
   txListingUpdateMany: vi.fn(),
   txItemUpdateMany: vi.fn(),
@@ -16,7 +18,8 @@ const m = vi.hoisted(() => ({
 vi.mock("@repo/db", () => ({
   prisma: {
     gearListing: { findFirst: m.listingFindFirst, findMany: m.listingFindMany },
-    gearListingFlag: { createMany: m.flagCreateMany },
+    gearListingFlag: { createMany: m.flagCreateMany, updateMany: m.flagUpdateMany },
+    gearItemEvent: { findFirst: m.eventFindFirst },
     stolenGearReport: { findFirst: m.reportFindFirst },
     $transaction: m.tx,
   },
@@ -27,8 +30,10 @@ vi.mock("@/lib/sesion", () => ({ urlBaseDeLaApp: () => "https://e.test" }));
 import {
   approveListing,
   flagListing,
+  dismissFlag,
   holdListingsWithActiveReports,
   rejectListing,
+  reviewFlaggedListing,
 } from "./moderacion";
 
 const seller = { email: "v@t.com", name: "Vero" };
@@ -57,6 +62,8 @@ beforeEach(() => {
   );
   m.txListingUpdateMany.mockResolvedValue({ count: 1 });
   m.flagCreateMany.mockResolvedValue({ count: 1 });
+  m.flagUpdateMany.mockResolvedValue({ count: 1 });
+  m.eventFindFirst.mockResolvedValue(null);
   m.email.mockResolvedValue({ success: true });
 });
 
@@ -108,6 +115,23 @@ describe("approveListing", () => {
     expect(arg.data.status).toBe("PUBLISHED");
     expect(arg.data.publishedAt).toBeInstanceOf(Date);
     expect(m.email).toHaveBeenCalledWith("v@t.com", "publicacion_aprobada", expect.anything());
+  });
+
+  it("aprobar con «Denuncia activa #N» deja un evento para que el cruce no la retenga", async () => {
+    m.listingFindFirst.mockResolvedValue(listing());
+    await approveListing(1, 5);
+    const eventos = m.txEventCreate.mock.calls.map((c) => c[0].data);
+    expect(eventos).toContainEqual({
+      gearItemId: 9,
+      type: "UPDATED",
+      detail: { listingId: 5, accion: "aprobado_con_denuncia", reportId: 3 },
+    });
+  });
+
+  it("aprobar sin denuncia en la nota no deja ese evento", async () => {
+    m.listingFindFirst.mockResolvedValue(listing({ reviewNote: "Reporte #2" }));
+    await approveListing(1, 5);
+    expect(m.txEventCreate.mock.calls.map((c) => c[0].data.type)).toEqual(["STATUS_CHANGED"]);
   });
 
   it("otro estado -> error y sin correo", async () => {
@@ -189,5 +213,81 @@ describe("holdListingsWithActiveReports", () => {
     m.txListingUpdateMany.mockResolvedValue({ count: 0 });
     expect(await holdListingsWithActiveReports()).toEqual({ held: 0 });
     expect(m.email).not.toHaveBeenCalled();
+  });
+});
+
+describe("cruce después de aprobar con denuncia", () => {
+  const fila = {
+    id: 5,
+    sellerId: 2,
+    gearItemId: 9,
+    status: "PUBLISHED",
+    gearItem: { serialNormalized: "AB123" },
+  };
+
+  it("con evento de la misma denuncia no la retiene ni avisa", async () => {
+    m.listingFindMany.mockResolvedValue([fila]);
+    m.reportFindFirst.mockResolvedValue({ id: 3 });
+    m.eventFindFirst.mockResolvedValue({ id: 1 });
+    expect(await holdListingsWithActiveReports()).toEqual({ held: 0 });
+    expect(m.eventFindFirst.mock.calls[0][0].where).toMatchObject({
+      gearItemId: 9,
+      type: "UPDATED",
+      AND: [
+        { detail: { path: ["accion"], equals: "aprobado_con_denuncia" } },
+        { detail: { path: ["reportId"], equals: 3 } },
+      ],
+    });
+    expect(m.txListingUpdateMany).not.toHaveBeenCalled();
+    expect(m.email).not.toHaveBeenCalled();
+  });
+
+  it("una denuncia NUEVA sobre la misma serie vuelve a retener", async () => {
+    m.listingFindMany.mockResolvedValue([fila]);
+    m.reportFindFirst.mockResolvedValue({ id: 8 });
+    m.eventFindFirst.mockResolvedValue(null); // no hay evento para la denuncia #8
+    expect(await holdListingsWithActiveReports()).toEqual({ held: 1 });
+    expect(m.email).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("reviewFlaggedListing", () => {
+  it("pasa PUBLISHED/PAUSED a IN_REVIEW con la nota del reporte", async () => {
+    m.listingFindFirst.mockResolvedValue({ id: 5, gearItemId: 9, reviewNote: null });
+    await reviewFlaggedListing(1, 5, 12);
+    const arg = m.txListingUpdateMany.mock.calls[0][0];
+    expect(arg.where).toEqual({ id: 5, status: { in: ["PUBLISHED", "PAUSED"] } });
+    expect(arg.data).toEqual({ status: "IN_REVIEW", reviewNote: "Reporte #12" });
+  });
+
+  it("agrega a la nota existente", async () => {
+    m.listingFindFirst.mockResolvedValue({ id: 5, gearItemId: 9, reviewNote: "Algo" });
+    await reviewFlaggedListing(1, 5, 12);
+    expect(m.txListingUpdateMany.mock.calls[0][0].data.reviewNote).toBe("Algo\nReporte #12");
+  });
+
+  it("si ya no está publicada (count 0) falla", async () => {
+    m.listingFindFirst.mockResolvedValue({ id: 5, gearItemId: 9, reviewNote: null });
+    m.txListingUpdateMany.mockResolvedValue({ count: 0 });
+    await expect(reviewFlaggedListing(1, 5, 12)).rejects.toMatchObject({ code: "DATO_INVALIDO" });
+    expect(m.txEventCreate).not.toHaveBeenCalled();
+  });
+
+  it("publicación inexistente -> NO_ENCONTRADO", async () => {
+    m.listingFindFirst.mockResolvedValue(null);
+    await expect(reviewFlaggedListing(1, 5, 12)).rejects.toMatchObject({ code: "NO_ENCONTRADO" });
+  });
+});
+
+describe("dismissFlag", () => {
+  it("resuelve sólo ese reporte", async () => {
+    await dismissFlag(5, 12);
+    expect(m.flagUpdateMany.mock.calls[0][0].where).toEqual({ id: 12, listingId: 5, resolvedAt: null });
+    expect(m.flagUpdateMany.mock.calls[0][0].data.resolvedAt).toBeInstanceOf(Date);
+  });
+
+  it("reporte ya resuelto -> error", async () => {
+    m.flagUpdateMany.mockResolvedValue({ count: 0 });
+    await expect(dismissFlag(5, 12)).rejects.toMatchObject({ code: "DATO_INVALIDO" });
   });
 });

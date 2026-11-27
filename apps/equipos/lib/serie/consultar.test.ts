@@ -15,6 +15,7 @@ vi.mock("@repo/db", () => ({
   },
 }));
 vi.mock("@/lib/correo", () => ({ sendPortalEmail: m.email }));
+vi.mock("@/lib/sesion", () => ({ urlBaseDeLaApp: () => "https://e.test" }));
 
 import { lookupSerial } from "./consultar";
 
@@ -65,7 +66,7 @@ describe("lookupSerial", () => {
         usuario: "7",
         serie: normalizeGearSerial("ABC-1234"),
         denuncia: "9",
-        url: "https://clf.test/admin/equipos-robados",
+        url: "https://e.test/admin/publicaciones",
       }),
     );
   });
