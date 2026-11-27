@@ -1,6 +1,7 @@
 import { isSuperAdmin } from "@repo/auth-guards";
 import { prisma } from "@repo/db";
 import { getPortalUser } from "@/lib/guards";
+import { Pagina } from "@/app/_ui";
 import { DecisionForm } from "./DecisionForm";
 
 export const dynamic = "force-dynamic";
@@ -9,9 +10,12 @@ export default async function VerificacionesEnRevisionPage() {
   const user = await getPortalUser();
   if (!user || !(await isSuperAdmin(user))) {
     return (
-      <main className="mx-auto max-w-3xl p-6">
-        <h1 className="text-xl font-semibold">No autorizado</h1>
-      </main>
+      <Pagina
+        titulo="No autorizado"
+        bajada="Esta pantalla es sólo para quienes administran el portal."
+      >
+        {null}
+      </Pagina>
     );
   }
 
@@ -36,26 +40,36 @@ export default async function VerificacionesEnRevisionPage() {
   });
 
   return (
-    <main className="mx-auto max-w-3xl space-y-4 p-6">
-      <h1 className="text-xl font-semibold">Verificaciones en revisión</h1>
-      {clfUrl && (
-        <p className="text-sm">
-          <a className="underline" href={`${clfUrl}/admin/equipos-robados`}>
-            Ver denuncias de equipos robados
-          </a>
-        </p>
-      )}
-      {filas.length === 0 && <p className="text-sm">No hay verificaciones pendientes.</p>}
-      {filas.map((f) => (
-        <section key={f.id} className="rounded border border-gray-300 p-4">
-          <p className="font-medium">{f.user.name ?? "(sin nombre)"}</p>
-          <p className="text-sm">{f.user.email}</p>
-          <p className="text-sm text-gray-600">En revisión desde {fecha.format(f.updatedAt)}</p>
-          <p className="text-sm">Motivo del proveedor: {f.rejectionReason ?? "sin detalle"}</p>
-          <p className="text-sm">Sesión del proveedor: {f.providerRef ?? "sin referencia"}</p>
-          <DecisionForm id={f.id} />
-        </section>
-      ))}
-    </main>
+    <Pagina titulo="Verificaciones en revisión" ancho="ancha">
+      <div className="pila">
+        {clfUrl && (
+          <p>
+            <a href={`${clfUrl}/admin/equipos-robados`}>Ver denuncias de equipos robados</a>
+          </p>
+        )}
+        {filas.length === 0 && (
+          <p className="texto-secundario">No hay verificaciones pendientes.</p>
+        )}
+        {filas.map((f) => (
+          <section key={f.id} className="superficie pila" aria-label={f.user.name ?? f.user.email}>
+            <div className="paso-cabecera">
+              <h2 className="ficha-subtitulo">{f.user.name ?? "(sin nombre)"}</h2>
+              <span className="estado estado-revision">En revisión</span>
+            </div>
+            <dl className="documento-datos">
+              <dt>Correo</dt>
+              <dd>{f.user.email}</dd>
+              <dt>En revisión desde</dt>
+              <dd>{fecha.format(f.updatedAt)}</dd>
+              <dt>Motivo del proveedor</dt>
+              <dd>{f.rejectionReason ?? "sin detalle"}</dd>
+              <dt>Sesión del proveedor</dt>
+              <dd>{f.providerRef ?? "sin referencia"}</dd>
+            </dl>
+            <DecisionForm id={f.id} />
+          </section>
+        ))}
+      </div>
+    </Pagina>
   );
 }

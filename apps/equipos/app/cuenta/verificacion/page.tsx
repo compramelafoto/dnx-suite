@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requestEmailVerification } from "@repo/auth";
 import { getPortalUser, type PortalUser } from "@/lib/guards";
 import { urlBaseDeLaApp } from "@/lib/sesion";
+import { Aviso, Boton, BotonEnlace, Pagina } from "@/app/_ui";
 
 export const dynamic = "force-dynamic";
 
@@ -32,20 +33,20 @@ function pasos(user: PortalUser): Paso[] {
   const identidadOk = user.level === "identidad";
 
   const correo: Paso = {
-    titulo: "1. Correo",
+    titulo: "Correo",
     hecho: correoOk,
     detalle: correoOk
       ? `Verificaste ${user.email}.`
       : `Te mandamos un enlace a ${user.email}. Abrilo para confirmar tu correo.`,
     accion: correoOk ? undefined : (
       <form action={reenviarCorreo}>
-        <button type="submit">Reenviar el correo de verificación</button>
+        <Boton variante="secundario">Reenviar el correo de verificación</Boton>
       </form>
     ),
   };
 
   const telefono: Paso = {
-    titulo: "2. Teléfono",
+    titulo: "Teléfono",
     hecho: telefonoOk,
     detalle: telefonoOk
       ? `Verificaste ${user.phone ?? "tu teléfono"}.`
@@ -53,7 +54,7 @@ function pasos(user: PortalUser): Paso[] {
         ? "Confirmá que tu número de WhatsApp es tuyo."
         : "Primero verificá tu correo.",
     accion:
-      !telefonoOk && correoOk ? <a href="/cuenta/telefono">Verificar mi teléfono</a> : undefined,
+      !telefonoOk && correoOk ? <BotonEnlace href="/cuenta/telefono">Verificar mi teléfono</BotonEnlace> : undefined,
   };
 
   let detalleId: string;
@@ -71,20 +72,20 @@ function pasos(user: PortalUser): Paso[] {
     detalleId = "Esta verificación no se puede reiniciar. Escribinos para resolverlo.";
   } else if (id?.status === "PENDING") {
     detalleId = "Tenés una verificación empezada. Podés retomarla.";
-    accionId = <a href="/verificacion">Continuar la verificación</a>;
+    accionId = <BotonEnlace href="/verificacion">Continuar la verificación</BotonEnlace>;
   } else if (id?.status === "APPROVED" && id.reverifyRequiredAt) {
     detalleId =
       "Cambiaste el correo o el teléfono, así que tenés que volver a verificar tu identidad.";
-    accionId = <a href="/verificacion">Verificar de nuevo</a>;
+    accionId = <BotonEnlace href="/verificacion">Verificar mi identidad de nuevo</BotonEnlace>;
   } else if (id?.status === "REJECTED") {
     detalleId = "La verificación no pudo completarse. Podés intentarlo de nuevo.";
-    accionId = <a href="/verificacion">Reintentar</a>;
+    accionId = <BotonEnlace href="/verificacion">Intentar de nuevo</BotonEnlace>;
   } else {
     detalleId = "Con una foto de tu DNI y de tu rostro confirmamos que sos vos.";
-    accionId = <a href="/verificacion">Verificar mi identidad</a>;
+    accionId = <BotonEnlace href="/verificacion">Verificar mi identidad</BotonEnlace>;
   }
   const identidad: Paso = {
-    titulo: "3. Identidad",
+    titulo: "Identidad",
     hecho: identidadOk,
     detalle: detalleId,
     accion: accionId,
@@ -103,33 +104,59 @@ export default async function MiVerificacionPage({
   const { enviado } = await searchParams;
   const identidadAprobada = user.identity?.status === "APPROVED" && !!user.identity.legalName?.trim();
 
+  const enRevision = user.identity?.status === "IN_REVIEW" && user.level !== "identidad";
+
   return (
-    <main style={{ maxWidth: 640, margin: "0 auto", padding: 24 }}>
-      <h1>Mi verificación</h1>
-      <p>
-        Hola, <strong>{user.displayName ?? user.email}</strong>.
-        {identidadAprobada ? " Tu nombre figura tal como está en tu DNI y no se puede editar." : null}
-      </p>
-      {enviado ? <p role="status">Te reenviamos el correo. Revisá también la carpeta de spam.</p> : null}
+    <Pagina
+      titulo="Mi verificación"
+      bajada={
+        <>
+          Hola, <strong>{user.displayName ?? user.email}</strong>.
+          {identidadAprobada
+            ? " Tu nombre figura tal como está en tu DNI y no se puede editar."
+            : " Para vender en el portal tenés que completar los tres pasos, en orden."}
+        </>
+      }
+    >
+      <div className="pila">
+        {enviado ? (
+          <Aviso tipo="exito">Te reenviamos el correo. Revisá también la carpeta de spam.</Aviso>
+        ) : null}
 
-      <ol style={{ listStyle: "none", padding: 0, display: "grid", gap: 16 }}>
-        {pasos(user).map((p) => (
-          <li
-            key={p.titulo}
-            style={{ border: "1px solid #d6e2e9", borderRadius: 8, padding: 16 }}
-          >
-            <h2 style={{ margin: 0, fontSize: "1.1rem" }}>
-              {p.titulo} <span>{p.hecho ? "✓ Listo" : "Pendiente"}</span>
-            </h2>
-            <p>{p.detalle}</p>
-            {p.accion}
-          </li>
-        ))}
-      </ol>
+        <ol className="pasos">
+          {pasos(user).map((p, i) => {
+            const revision = enRevision && p.titulo === "Identidad";
+            return (
+              <li key={p.titulo} className={p.hecho ? "paso paso-hecho" : "paso"}>
+                <span className="paso-numero" aria-hidden="true">
+                  {i + 1}
+                </span>
+                <div className="paso-cuerpo">
+                  <div className="paso-cabecera">
+                    <h2 className="ficha-subtitulo">
+                      <span className="solo-lectores">Paso {i + 1}: </span>
+                      {p.titulo}
+                    </h2>
+                    {p.hecho ? (
+                      <span className="estado estado-publicada">Listo</span>
+                    ) : revision ? (
+                      <span className="estado estado-revision">En revisión</span>
+                    ) : (
+                      <span className="estado">Pendiente</span>
+                    )}
+                  </div>
+                  <p className={p.hecho ? undefined : "texto-secundario"}>{p.detalle}</p>
+                  {p.accion ? <div className="acciones">{p.accion}</div> : null}
+                </div>
+              </li>
+            );
+          })}
+        </ol>
 
-      <form action="/api/auth/logout" method="post">
-        <button type="submit">Cerrar sesión</button>
-      </form>
-    </main>
+        <form action="/api/auth/logout" method="post">
+          <Boton variante="secundario">Cerrar sesión</Boton>
+        </form>
+      </div>
+    </Pagina>
   );
 }

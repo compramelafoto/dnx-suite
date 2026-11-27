@@ -21,23 +21,12 @@ export function RegisterForm({ returnTo }: { returnTo?: string }) {
       hiddenFields={
         <>
           {returnTo ? <input type="hidden" name="returnTo" value={returnTo} /> : null}
-          <fieldset
-            style={{
-              border: "1px solid var(--auth-border)",
-              borderRadius: 8,
-              padding: "0.75rem 1rem",
-              display: "flex",
-              gap: "1.5rem",
-              alignItems: "center",
-              fontFamily: "var(--auth-font)",
-              color: "var(--auth-text-primary)",
-            }}
-          >
-            <legend style={{ padding: "0 0.5rem", fontSize: "0.875rem" }}>¿Sos fotógrafo?</legend>
-            <label>
+          <fieldset className="auth-opciones">
+            <legend className="auth-opciones-titulo">¿Sos fotógrafo?</legend>
+            <label className="opcion">
               <input type="radio" name="esFotografo" value="si" required disabled={pending} /> Sí
             </label>
-            <label>
+            <label className="opcion">
               <input type="radio" name="esFotografo" value="no" required disabled={pending} /> No
             </label>
           </fieldset>

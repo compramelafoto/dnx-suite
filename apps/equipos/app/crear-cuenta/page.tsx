@@ -13,5 +13,9 @@ export default async function CrearCuentaPage({ searchParams }: Props) {
 
   if (await getCurrentUser()) redirect(destino ?? "/cuenta/verificacion");
 
-  return <RegisterForm returnTo={destino} />;
+  return (
+    <main id="contenido">
+      <RegisterForm returnTo={destino} />
+    </main>
+  );
 }

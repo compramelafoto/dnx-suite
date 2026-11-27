@@ -1,5 +1,9 @@
 import { ForgotPasswordForm } from "./ForgotPasswordForm";
 
 export default function RecuperarPage() {
-  return <ForgotPasswordForm />;
+  return (
+    <main id="contenido">
+      <ForgotPasswordForm />
+    </main>
+  );
 }

@@ -5,6 +5,7 @@ import { KIND_LABELS, listItems, STATUS_LABELS } from "@/lib/inventario/equipos"
 import { fechaAr, fechaInput } from "@/lib/inventario/formato";
 import { listOwnReports } from "@/lib/informe/snapshot";
 import { formatMoney } from "@/lib/informe/formato";
+import { Aviso, Boton, Campo, Pagina } from "@/app/_ui";
 import { generarInforme, guardarPoliza } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -34,58 +35,71 @@ export default async function InformePage({
   const excluidos = equipos.filter((e) => !elegibles.includes(e));
 
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: 24 }}>
-      <p>
-        <Link href="/mi-equipo">← Mi equipo</Link>
-      </p>
-      <h1>Informe para aseguradoras</h1>
-      {ok ? <p role="status">{ok}</p> : null}
-      {error ? <p role="alert">{error}</p> : null}
-
-      <section>
-        <h2>Generar un informe nuevo</h2>
-        <p>
-          Elegí los equipos que querés incluir. El informe queda fijo con los datos de hoy y trae un
-          código QR para que la aseguradora lo valide. Sólo se pueden incluir equipos con valor en
-          pesos y en dólares cargados.
-        </p>
+    <Pagina
+      titulo="Informe para aseguradoras"
+      bajada="Un documento con tus equipos y sus valores, con código QR para que la aseguradora lo valide."
+      volver={{ href: "/mi-equipo", texto: "Mi equipo" }}
+    >
+      <section className="seccion seccion-primera" aria-labelledby="nuevo">
+        {ok ? <Aviso tipo="exito">{ok}</Aviso> : null}
+        {error ? <Aviso tipo="error">{error}</Aviso> : null}
+        <div className="seccion-cabecera">
+          <h2 id="nuevo">Generar un informe nuevo</h2>
+          <p className="texto-secundario">
+            Elegí los equipos que querés incluir. El informe queda fijo con los datos de hoy y trae un
+            código QR para que la aseguradora lo valide. Sólo se pueden incluir equipos con valor en
+            pesos y en dólares cargados.
+          </p>
+        </div>
         {elegibles.length === 0 ? (
           <p>
             Todavía no tenés equipos para incluir. Cargá el valor en pesos y en dólares desde la ficha
             de cada equipo.
           </p>
         ) : (
-          <form action={generarInforme}>
-            <ul style={{ listStyle: "none", padding: 0 }}>
-              {elegibles.map((e) => (
-                <li key={e.id} style={{ marginBottom: 6 }}>
-                  <label>
-                    <input type="checkbox" name="itemId" value={e.id} defaultChecked />{" "}
-                    <strong>
-                      {e.make} {e.model}
-                    </strong>{" "}
-                    ({KIND_LABELS[e.kind]}) · $ {formatMoney(e.declaredValueArs!)} / USD{" "}
-                    {formatMoney(e.declaredValueUsd!)}
-                  </label>
-                </li>
-              ))}
-            </ul>
-            <button type="submit">Generar informe</button>
+          <form action={generarInforme} className="superficie formulario">
+            <fieldset className="grupo">
+              <legend className="solo-lectores">Equipos a incluir</legend>
+              <ul className="registro">
+                {elegibles.map((e) => (
+                  <li key={e.id} className="registro-fila">
+                    <label className="opcion">
+                      <input type="checkbox" name="itemId" value={e.id} defaultChecked />
+                      <span className="registro-principal">
+                        <span className="registro-titulo">
+                          {e.make} {e.model}
+                        </span>
+                        <span className="registro-detalle">
+                          {KIND_LABELS[e.kind]}, $ {formatMoney(e.declaredValueArs!)} y USD{" "}
+                          {formatMoney(e.declaredValueUsd!)}
+                        </span>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </fieldset>
+            <div className="acciones">
+              <Boton>Generar informe</Boton>
+            </div>
           </form>
         )}
         {excluidos.length > 0 ? (
-          <details style={{ marginTop: 12 }}>
-            <summary>Equipos que no se pueden incluir ({excluidos.length})</summary>
-            <ul>
+          <details className="desplegable">
+            <summary className="desplegable-titulo">
+              Equipos que no se pueden incluir ({excluidos.length})
+            </summary>
+            <ul className="registro">
               {excluidos.map((e) => (
-                <li key={e.id}>
-                  <Link href={`/mi-equipo/${e.id}`}>
+                <li key={e.id} className="registro-fila">
+                  <Link className="registro-titulo" href={`/mi-equipo/${e.id}`}>
                     {e.make} {e.model}
-                  </Link>{" "}
-                  —{" "}
-                  {NO_ASEGURABLES.includes(e.status)
-                    ? `figura como ${STATUS_LABELS[e.status].toLowerCase()}`
-                    : "falta el valor en pesos o en dólares"}
+                  </Link>
+                  <span className="registro-detalle">
+                    {NO_ASEGURABLES.includes(e.status)
+                      ? `Figura como ${STATUS_LABELS[e.status].toLowerCase()}`
+                      : "Falta el valor en pesos o en dólares"}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -93,40 +107,51 @@ export default async function InformePage({
         ) : null}
       </section>
 
-      <section>
-        <h2>Informes emitidos</h2>
+      <section className="seccion" aria-labelledby="emitidos">
+        <h2 id="emitidos">Informes emitidos</h2>
         {informes.length === 0 ? (
-          <p>Todavía no emitiste ningún informe.</p>
+          <p className="texto-secundario">Todavía no emitiste ningún informe.</p>
         ) : (
-          <ul>
+          <ul className="registro">
             {informes.map((r) => (
-              <li key={r.id} style={{ marginBottom: 6 }}>
-                {fechaAr(r.createdAt)} · $ {formatMoney(r.totalArs)} / USD {formatMoney(r.totalUsd)} ·{" "}
-                <a href={`/api/informe/${r.code}/pdf`}>Descargar PDF</a> ·{" "}
-                <Link href={`/informe/${r.code}`}>Ver validación</Link>
+              <li key={r.id} className="registro-fila">
+                <div className="registro-principal">
+                  <span className="registro-titulo">Emitido el {fechaAr(r.createdAt)}</span>
+                  <span className="registro-detalle">
+                    Total: $ {formatMoney(r.totalArs)} y USD {formatMoney(r.totalUsd)}
+                  </span>
+                </div>
+                <div className="registro-lado">
+                  <a href={`/api/informe/${r.code}/pdf`}>Descargar PDF</a>
+                  <Link href={`/informe/${r.code}`}>Ver validación</Link>
+                </div>
               </li>
             ))}
           </ul>
         )}
       </section>
 
-      <section>
-        <h2>Renovación de la póliza</h2>
-        <p>
-          Guardá la fecha en que vence o se renueva tu póliza y te avisamos por correo 30 días antes.
-        </p>
-        <form action={guardarPoliza}>
-          <label>
-            Fecha de renovación{" "}
+      <section className="seccion" aria-labelledby="poliza">
+        <div className="seccion-cabecera">
+          <h2 id="poliza">Renovación de la póliza</h2>
+          <p className="texto-secundario">
+            Guardá la fecha en que vence o se renueva tu póliza y te avisamos por correo 30 días antes.
+          </p>
+        </div>
+        <form action={guardarPoliza} className="superficie formulario">
+          <Campo etiqueta="Fecha de renovación">
             <input
+              className="control"
               type="date"
               name="policyRenewalDate"
               defaultValue={fechaInput(ajustes?.policyRenewalDate ?? null)}
             />
-          </label>{" "}
-          <button type="submit">Guardar</button>
+          </Campo>
+          <div className="acciones">
+            <Boton variante="secundario">Guardar la fecha</Boton>
+          </div>
         </form>
       </section>
-    </main>
+    </Pagina>
   );
 }

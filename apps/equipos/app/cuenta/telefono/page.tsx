@@ -3,6 +3,7 @@ import { prisma } from "@repo/db";
 import { requireLevel } from "@/lib/guards";
 import { buildWhatsappLink } from "@/lib/telefono/codigo";
 import { startPhoneVerification } from "@/lib/telefono/registrar";
+import { Aviso, Boton, BotonEnlace, Campo, Pagina } from "@/app/_ui";
 
 export const dynamic = "force-dynamic";
 
@@ -33,50 +34,67 @@ export default async function TelefonoPage({
   const vigente = pending && !pending.verifiedAt && pending.codeExpiresAt.getTime() > Date.now();
 
   return (
-    <main style={{ maxWidth: 520, margin: "0 auto", padding: 24 }}>
-      <h1>Verificá tu teléfono</h1>
-      {error ? <p role="alert">{error}</p> : null}
+    <Pagina
+      titulo="Verificá tu teléfono"
+      bajada="Paso 2 de 3. Confirmamos que el número de WhatsApp es tuyo con un código."
+      volver={{ href: "/cuenta/verificacion", texto: "Mi verificación" }}
+    >
+      <div className="pila">
+        {error ? <Aviso tipo="error">{error}</Aviso> : null}
 
-      {pending?.verifiedAt ? (
-        <p>
-          Tu teléfono está verificado ({pending.phone}). Si lo cambiás, vas a tener que verificarlo de nuevo
-          {user.identity?.status === "APPROVED"
-            ? " y también vas a tener que volver a verificar tu identidad (DNI y selfie)."
-            : "."}
-        </p>
-      ) : null}
+        {pending?.verifiedAt ? (
+          <Aviso tipo="exito">
+            Tu teléfono está verificado ({pending.phone}). Si lo cambiás, vas a tener que verificarlo de
+            nuevo
+            {user.identity?.status === "APPROVED"
+              ? " y también vas a tener que volver a verificar tu identidad (DNI y selfie)."
+              : "."}
+          </Aviso>
+        ) : null}
 
-      {vigente && number ? (
-        <section>
-          <p>
-            Para confirmar que el número {pending.phone} es tuyo, mandá desde ese teléfono un mensaje de
-            WhatsApp con el código. El código vence en 15 minutos.
-          </p>
-          <p>
-            <a href={buildWhatsappLink(number, pending.code)} target="_blank" rel="noreferrer">
-              Enviar el código por WhatsApp
-            </a>
-          </p>
-          <form action={recargar}>
-            <button type="submit">Ya lo envié</button>
-          </form>
-        </section>
-      ) : null}
+        {vigente && number ? (
+          <section className="superficie pila" aria-label="Enviar el código">
+            <p>
+              Para confirmar que el número {pending.phone} es tuyo, mandá desde ese teléfono un mensaje de
+              WhatsApp con el código. El código vence en 15 minutos.
+            </p>
+            <div className="acciones">
+              <BotonEnlace href={buildWhatsappLink(number, pending.code)} target="_blank" rel="noreferrer">
+                Enviar el código por WhatsApp
+              </BotonEnlace>
+              <form action={recargar}>
+                <Boton variante="secundario">Ya lo envié</Boton>
+              </form>
+            </div>
+          </section>
+        ) : null}
 
-      {pending && !pending.verifiedAt && !vigente ? (
-        <p>El código venció. Ingresá tu número para recibir uno nuevo.</p>
-      ) : null}
-      {vigente && !number ? <p>La verificación por WhatsApp no está disponible por ahora.</p> : null}
+        {pending && !pending.verifiedAt && !vigente ? (
+          <Aviso tipo="revision">El código venció. Ingresá tu número para recibir uno nuevo.</Aviso>
+        ) : null}
+        {vigente && !number ? (
+          <Aviso tipo="revision">La verificación por WhatsApp no está disponible por ahora.</Aviso>
+        ) : null}
 
-      <form action={guardarTelefono}>
-        <label>
-          Tu teléfono (con código de área){" "}
-          <input name="phone" type="tel" required placeholder="341 555-1234" defaultValue="" />
-        </label>
-        <p>
-          <button type="submit">{pending ? "Cambiar teléfono / nuevo código" : "Continuar"}</button>
-        </p>
-      </form>
-    </main>
+        <form action={guardarTelefono} className="formulario superficie">
+          <Campo etiqueta="Tu teléfono" ayuda="Tu celular con el código de área. Da igual si ponés el 0 o el 15.">
+            <input
+              className="control"
+              name="phone"
+              type="tel"
+              autoComplete="tel-national"
+              required
+              placeholder="341 555-1234"
+              defaultValue=""
+            />
+          </Campo>
+          <div className="acciones">
+            <Boton variante={vigente ? "secundario" : "principal"}>
+              {pending ? "Cambiar el teléfono y pedir otro código" : "Pedir el código"}
+            </Boton>
+          </div>
+        </form>
+      </div>
+    </Pagina>
   );
 }

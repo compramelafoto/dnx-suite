@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { POST as webhook } from "@/app/api/identidad/webhook/route";
 import { signBody, simuladorPermitido } from "@/lib/identidad/proveedor-simulado";
+import { Boton, Campo, Pagina } from "@/app/_ui";
 
 export const dynamic = "force-dynamic";
 
@@ -41,38 +42,33 @@ export default async function SimuladorPage({
   const { ref = "", returnUrl = "/verificacion" } = await searchParams;
 
   return (
-    <main style={{ maxWidth: 520, margin: "0 auto", padding: 24 }}>
-      <h1>Simulador de verificación (sólo desarrollo)</h1>
-      <form action={enviarResultado}>
+    <Pagina
+      titulo="Simulador de verificación"
+      bajada="Sólo en desarrollo: reemplaza al proveedor externo y manda el resultado al mismo webhook."
+    >
+      <form action={enviarResultado} className="superficie formulario">
         <input type="hidden" name="ref" value={ref} />
         <input type="hidden" name="returnUrl" value={returnUrl} />
-        <p>
-          <label>
-            Resultado{" "}
-            <select name="outcome" defaultValue="approved">
-              <option value="approved">Aprobado</option>
-              <option value="rejected">Rechazado</option>
-              <option value="review">En revisión</option>
-            </select>
-          </label>
-        </p>
-        <p>
-          <label>
-            DNI <input name="documentNumber" placeholder="12345678" />
-          </label>
-        </p>
-        <p>
-          <label>
-            Nombre legal <input name="legalName" placeholder="Ana Pérez" />
-          </label>
-        </p>
-        <p>
-          <label>
-            Motivo (si se rechaza) <input name="reason" />
-          </label>
-        </p>
-        <button type="submit">Enviar resultado</button>
+        <Campo etiqueta="Resultado">
+          <select className="control" name="outcome" defaultValue="approved">
+            <option value="approved">Aprobado</option>
+            <option value="rejected">Rechazado</option>
+            <option value="review">En revisión</option>
+          </select>
+        </Campo>
+        <Campo etiqueta="DNI">
+          <input className="control" name="documentNumber" placeholder="12345678" inputMode="numeric" />
+        </Campo>
+        <Campo etiqueta="Nombre legal">
+          <input className="control" name="legalName" placeholder="Ana Pérez" />
+        </Campo>
+        <Campo etiqueta="Motivo" ayuda="Sólo si el resultado es «Rechazado».">
+          <input className="control" name="reason" />
+        </Campo>
+        <div className="acciones">
+          <Boton>Enviar resultado</Boton>
+        </div>
       </form>
-    </main>
+    </Pagina>
   );
 }

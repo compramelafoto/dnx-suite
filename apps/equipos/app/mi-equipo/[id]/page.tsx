@@ -9,6 +9,7 @@ import {
   STATUS_LABELS,
 } from "@/lib/inventario/equipos";
 import { EVENT_LABELS, fechaHoraAr, fechaInput } from "@/lib/inventario/formato";
+import { Aviso, Boton, BotonEnlace, Campo, EstadoEquipo, Pagina, PlacaSerie } from "@/app/_ui";
 import { guardarEquipo, loRecupere, subirComprobante, subirFoto } from "../actions";
 
 export const dynamic = "force-dynamic";
@@ -45,160 +46,221 @@ export default async function EquipoPage({
   const estadoEditable = ESTADOS_CON_SELECTOR.includes(item.status);
 
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: 24 }}>
-      <p>
-        <a href="/mi-equipo">← Mi equipo</a>
-      </p>
-      <h1>
-        {item.make} {item.model}
-      </h1>
-      <p>
-        {KIND_LABELS[item.kind]} · {STATUS_LABELS[item.status]}
-      </p>
-      {ok ? <p role="status">{ok}</p> : null}
-      {error ? <p role="alert">{error}</p> : null}
+    <Pagina
+      titulo={`${item.make} ${item.model}`}
+      bajada={KIND_LABELS[item.kind]}
+      volver={{ href: "/mi-equipo", texto: "Mi equipo" }}
+    >
+      <div className="pila">
+        <div className="acciones">
+          <EstadoEquipo status={item.status} texto={STATUS_LABELS[item.status]} />
+          <PlacaSerie value={item.serialRaw} />
+        </div>
+        {ok ? <Aviso tipo="exito">{ok}</Aviso> : null}
+        {error ? <Aviso tipo="error">{error}</Aviso> : null}
+      </div>
 
-      <section>
-        <h2>Datos</h2>
-        <form action={guardarEquipo} style={{ display: "grid", gap: 8 }}>
+      <section className="seccion" aria-labelledby="datos">
+        <h2 id="datos">Datos</h2>
+        <form action={guardarEquipo} className="superficie formulario">
           <input type="hidden" name="id" value={item.id} />
-          <label>
-            Tipo
-            <select name="kind" defaultValue={item.kind} required>
-              {Object.entries(KIND_LABELS).map(([k, label]) => (
-                <option key={k} value={k}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-          {estadoEditable ? (
-            <label>
-              Estado
-              <select name="status" defaultValue={item.status === "RECOVERED" ? "" : item.status}>
-                {item.status === "RECOVERED" ? (
-                  <option value="">{STATUS_LABELS.RECOVERED} (sin cambios)</option>
-                ) : null}
-                {ESTADOS_EDITABLES.map((s) => (
-                  <option key={s} value={s}>
-                    {STATUS_LABELS[s]}
+          <div className="formulario-dos">
+            <Campo etiqueta="Tipo">
+              <select className="control" name="kind" defaultValue={item.kind} required>
+                {Object.entries(KIND_LABELS).map(([k, label]) => (
+                  <option key={k} value={k}>
+                    {label}
                   </option>
                 ))}
               </select>
-            </label>
-          ) : null}
-          <label>
-            Marca <input name="make" defaultValue={item.make} required maxLength={80} />
-          </label>
-          <label>
-            Modelo <input name="model" defaultValue={item.model} required maxLength={120} />
-          </label>
-          <label>
-            Número de serie{" "}
-            <input name="serialRaw" defaultValue={item.serialRaw ?? ""} maxLength={80} />
-          </label>
-          <label>
-            Fecha de compra{" "}
-            <input name="purchaseDate" type="date" defaultValue={fechaInput(item.purchaseDate)} />
-          </label>
-          <label>
-            Valor declarado en pesos{" "}
+            </Campo>
+            {estadoEditable ? (
+              <Campo etiqueta="Estado">
+                <select
+                  className="control"
+                  name="status"
+                  defaultValue={item.status === "RECOVERED" ? "" : item.status}
+                >
+                  {item.status === "RECOVERED" ? (
+                    <option value="">{STATUS_LABELS.RECOVERED} (sin cambios)</option>
+                  ) : null}
+                  {ESTADOS_EDITABLES.map((s) => (
+                    <option key={s} value={s}>
+                      {STATUS_LABELS[s]}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+            ) : null}
+          </div>
+          <div className="formulario-dos">
+            <Campo etiqueta="Marca">
+              <input className="control" name="make" defaultValue={item.make} required maxLength={80} />
+            </Campo>
+            <Campo etiqueta="Modelo">
+              <input
+                className="control"
+                name="model"
+                defaultValue={item.model}
+                required
+                maxLength={120}
+              />
+            </Campo>
+          </div>
+          <Campo etiqueta="Número de serie">
             <input
-              name="declaredValueArs"
-              inputMode="numeric"
-              defaultValue={item.declaredValueArs ?? ""}
+              className="control"
+              name="serialRaw"
+              defaultValue={item.serialRaw ?? ""}
+              maxLength={80}
+              autoComplete="off"
             />
-          </label>
-          <label>
-            Valor declarado en dólares{" "}
+          </Campo>
+          <Campo etiqueta="Fecha de compra">
             <input
-              name="declaredValueUsd"
-              inputMode="numeric"
-              defaultValue={item.declaredValueUsd ?? ""}
+              className="control"
+              name="purchaseDate"
+              type="date"
+              defaultValue={fechaInput(item.purchaseDate)}
             />
-          </label>
-          <label>
-            Notas <textarea name="notes" defaultValue={item.notes ?? ""} maxLength={1000} />
-          </label>
-          <button type="submit">Guardar cambios</button>
+          </Campo>
+          <div className="formulario-dos">
+            <Campo etiqueta="Valor declarado en pesos">
+              <input
+                className="control"
+                name="declaredValueArs"
+                inputMode="numeric"
+                defaultValue={item.declaredValueArs ?? ""}
+              />
+            </Campo>
+            <Campo etiqueta="Valor declarado en dólares">
+              <input
+                className="control"
+                name="declaredValueUsd"
+                inputMode="numeric"
+                defaultValue={item.declaredValueUsd ?? ""}
+              />
+            </Campo>
+          </div>
+          <Campo etiqueta="Notas">
+            <textarea
+              className="control control-texto"
+              name="notes"
+              defaultValue={item.notes ?? ""}
+              maxLength={1000}
+            />
+          </Campo>
+          <div className="acciones">
+            <Boton>Guardar cambios</Boton>
+          </div>
         </form>
       </section>
 
-      <section>
-        <h2>Fotos del equipo</h2>
-        {fotos.length === 0 ? <p>Todavía no hay fotos.</p> : null}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {fotos.map((url, i) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={i} src={url} alt={`Foto ${i + 1} del equipo`} width={160} height={160} />
-          ))}
-        </div>
+      <section className="seccion" aria-labelledby="fotos">
+        <h2 id="fotos">Fotos del equipo</h2>
+        {fotos.length === 0 ? <p className="texto-secundario">Todavía no hay fotos.</p> : null}
+        {fotos.length > 0 ? (
+          <div className="fotos">
+            {fotos.map((url, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={i}
+                className="foto"
+                src={url}
+                alt={`Foto ${i + 1} del equipo`}
+                width={160}
+                height={160}
+              />
+            ))}
+          </div>
+        ) : null}
         {item.photoKeys.length < 6 ? (
-          <form action={subirFoto}>
+          <form action={subirFoto} className="superficie formulario">
             <input type="hidden" name="id" value={item.id} />
-            <input type="file" name="file" accept="image/jpeg,image/png,image/webp" required />
-            <button type="submit">Agregar foto</button>
-            <p>JPG, PNG o WEBP, hasta 4 MB. Máximo 6 fotos.</p>
+            <Campo etiqueta="Foto" ayuda="JPG, PNG o WEBP, hasta 4 MB. Máximo 6 fotos.">
+              <input
+                className="control-archivo"
+                type="file"
+                name="file"
+                accept="image/jpeg,image/png,image/webp"
+                required
+              />
+            </Campo>
+            <div className="acciones">
+              <Boton variante="secundario">Agregar foto</Boton>
+            </div>
           </form>
         ) : (
-          <p>Llegaste al máximo de 6 fotos.</p>
+          <p className="texto-secundario">Llegaste al máximo de 6 fotos.</p>
         )}
       </section>
 
-      <section>
-        <h2>Comprobante de compra</h2>
+      <section className="seccion" aria-labelledby="comprobante">
+        <h2 id="comprobante">Comprobante de compra</h2>
         {comprobante ? (
           <p>
             <a href={comprobante} target="_blank" rel="noreferrer">
               Ver comprobante
             </a>{" "}
-            (el enlace vence en 15 minutos)
+            <span className="texto-secundario">(el enlace vence en 15 minutos)</span>
           </p>
         ) : (
-          <p>Todavía no cargaste el comprobante.</p>
+          <p className="texto-secundario">Todavía no cargaste el comprobante.</p>
         )}
-        <form action={subirComprobante}>
+        <form action={subirComprobante} className="superficie formulario">
           <input type="hidden" name="id" value={item.id} />
-          <input
-            type="file"
-            name="file"
-            accept="image/jpeg,image/png,image/webp,application/pdf"
-            required
-          />
-          <button type="submit">{comprobante ? "Reemplazar comprobante" : "Subir comprobante"}</button>
-          <p>JPG, PNG, WEBP o PDF, hasta 4 MB.</p>
+          <Campo etiqueta="Archivo del comprobante" ayuda="JPG, PNG, WEBP o PDF, hasta 4 MB.">
+            <input
+              className="control-archivo"
+              type="file"
+              name="file"
+              accept="image/jpeg,image/png,image/webp,application/pdf"
+              required
+            />
+          </Campo>
+          <div className="acciones">
+            <Boton variante="secundario">
+              {comprobante ? "Reemplazar comprobante" : "Subir comprobante"}
+            </Boton>
+          </div>
         </form>
       </section>
 
       {item.status === "IN_USE" || item.status === "FOR_SALE" || item.status === "RECOVERED" ? (
-        <section>
-          <h2>Robo o pérdida</h2>
-          <p>
-            <a href={`/mi-equipo/${item.id}/denunciar`}>Denunciar robo o pérdida</a>
+        <section className="seccion" aria-labelledby="robo">
+          <h2 id="robo">Robo o pérdida</h2>
+          <p className="texto-secundario">
+            Si te lo robaron o lo perdiste, cargá la denuncia desde acá.
           </p>
+          <div className="acciones">
+            <BotonEnlace variante="peligro" href={`/mi-equipo/${item.id}/denunciar`}>
+              Denunciar robo o pérdida
+            </BotonEnlace>
+          </div>
         </section>
       ) : null}
       {item.status === "STOLEN" || item.status === "LOST" ? (
-        <section>
-          <h2>Robo o pérdida</h2>
+        <section className="seccion" aria-labelledby="robo">
+          <h2 id="robo">Robo o pérdida</h2>
           <p>Este equipo figura como {STATUS_LABELS[item.status].toLowerCase()}.</p>
           <form action={loRecupere}>
             <input type="hidden" name="id" value={item.id} />
-            <button type="submit">Lo recuperé</button>
+            <Boton>Lo recuperé</Boton>
           </form>
         </section>
       ) : null}
 
-      <section>
-        <h2>Historial</h2>
-        <ul>
+      <section className="seccion" aria-labelledby="historial">
+        <h2 id="historial">Historial</h2>
+        <ul className="historial">
           {historial.map((e) => (
-            <li key={e.id}>
-              {fechaHoraAr(e.createdAt)} · {EVENT_LABELS[e.type] ?? e.type}
+            <li key={e.id} className="historial-fila">
+              <span className="historial-fecha">{fechaHoraAr(e.createdAt)}</span>
+              <span>{EVENT_LABELS[e.type] ?? e.type}</span>
             </li>
           ))}
         </ul>
       </section>
-    </main>
+    </Pagina>
   );
 }

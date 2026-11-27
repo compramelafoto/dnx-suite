@@ -28,17 +28,19 @@ export default async function VerificarEmailPage({ searchParams }: Props) {
   }
 
   return (
-    <DnxAuthShell brand={equiposAuthBrand}>
-      <DnxAuthHeader
-        logo={equiposAuthBrand.logo}
-        title="Verificación de correo"
-        description="Confirmamos tu correo para activar tu Cuenta DNX."
-      />
-      <DnxVerificationState
-        status={ok ? "success" : "error"}
-        message={message}
-        loginHref={ok ? "/cuenta/verificacion" : "/login"}
-      />
-    </DnxAuthShell>
+    <main id="contenido">
+      <DnxAuthShell brand={equiposAuthBrand}>
+        <DnxAuthHeader
+          logo={equiposAuthBrand.logo}
+          title="Verificación de correo"
+          description="Confirmamos tu correo para activar tu Cuenta DNX."
+        />
+        <DnxVerificationState
+          status={ok ? "success" : "error"}
+          message={message}
+          loginHref={ok ? "/cuenta/verificacion" : "/login"}
+        />
+      </DnxAuthShell>
+    </main>
   );
 }

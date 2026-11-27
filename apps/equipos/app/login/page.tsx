@@ -14,5 +14,9 @@ export default async function LoginPage({ searchParams }: Props) {
   // Quien ya tiene la sesión abierta no tiene nada que hacer acá.
   if (await getCurrentUser()) redirect(destino ?? "/cuenta/verificacion");
 
-  return <LoginForm returnTo={destino} />;
+  return (
+    <main id="contenido">
+      <LoginForm returnTo={destino} />
+    </main>
+  );
 }

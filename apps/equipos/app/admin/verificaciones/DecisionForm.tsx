@@ -2,6 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Aviso } from "@/app/_ui/Aviso";
+import { Boton } from "@/app/_ui/Boton";
+import { Campo } from "@/app/_ui/Campo";
 
 export function DecisionForm({ id }: { id: number }) {
   const router = useRouter();
@@ -33,55 +36,59 @@ export function DecisionForm({ id }: { id: number }) {
     }
   }
 
-  const campo = "w-full rounded border border-gray-300 px-2 py-1 text-sm";
   return (
-    <div className="mt-3 grid gap-4 md:grid-cols-2">
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Aprobar</p>
-        <input
-          className={campo}
-          placeholder="DNI (sólo números)"
-          value={documentNumber}
-          onChange={(e) => setDocumentNumber(e.target.value)}
-        />
-        <input
-          className={campo}
-          placeholder="Nombre completo como figura en el DNI"
-          value={legalName}
-          onChange={(e) => setLegalName(e.target.value)}
-        />
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => enviar({ action: "approve", documentNumber, legalName })}
-          className="rounded bg-green-700 px-3 py-1 text-sm text-white disabled:opacity-50"
-        >
-          Aprobar
-        </button>
+    <div className="pila">
+      <div className="formulario-dos">
+        <div className="formulario">
+          <h3>Aprobar</h3>
+          <Campo etiqueta="DNI" ayuda="Sólo números.">
+            <input
+              className="control"
+              inputMode="numeric"
+              value={documentNumber}
+              onChange={(e) => setDocumentNumber(e.target.value)}
+            />
+          </Campo>
+          <Campo etiqueta="Nombre completo como figura en el DNI">
+            <input
+              className="control"
+              value={legalName}
+              onChange={(e) => setLegalName(e.target.value)}
+            />
+          </Campo>
+          <div className="acciones">
+            <Boton
+              type="button"
+              disabled={busy}
+              onClick={() => enviar({ action: "approve", documentNumber, legalName })}
+            >
+              Aprobar la identidad
+            </Boton>
+          </div>
+        </div>
+        <div className="formulario">
+          <h3>Rechazar</h3>
+          <Campo etiqueta="Motivo" ayuda="Se le muestra a la persona.">
+            <textarea
+              className="control control-texto"
+              rows={3}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </Campo>
+          <div className="acciones">
+            <Boton
+              type="button"
+              variante="peligro"
+              disabled={busy}
+              onClick={() => enviar({ action: "reject", reason })}
+            >
+              Rechazar la identidad
+            </Boton>
+          </div>
+        </div>
       </div>
-      <div className="space-y-2">
-        <p className="text-sm font-medium">Rechazar</p>
-        <textarea
-          className={campo}
-          rows={3}
-          placeholder="Motivo (se le muestra a la persona)"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-        />
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => enviar({ action: "reject", reason })}
-          className="rounded bg-red-700 px-3 py-1 text-sm text-white disabled:opacity-50"
-        >
-          Rechazar
-        </button>
-      </div>
-      {error && (
-        <p role="alert" className="text-sm text-red-700 md:col-span-2">
-          {error}
-        </p>
-      )}
+      {error ? <Aviso tipo="error">{error}</Aviso> : null}
     </div>
   );
 }

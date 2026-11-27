@@ -4,6 +4,7 @@ import { KIND_LABELS, STATUS_LABELS } from "@/lib/inventario/equipos";
 import { fechaHoraAr } from "@/lib/inventario/formato";
 import { formatMoney, maskDni } from "@/lib/informe/formato";
 import { getPublicReport } from "@/lib/informe/snapshot";
+import { Aviso, Pagina } from "@/app/_ui";
 
 export const dynamic = "force-dynamic";
 
@@ -24,56 +25,89 @@ export default async function InformePublicoPage({
   const s = r.snapshot;
 
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: 24 }}>
-      <h1>Informe de equipamiento fotográfico</h1>
-      <p role="status">
-        <strong>
-          {r.holderVerified
-            ? "Titular con identidad verificada"
-            : "El titular ya no está verificado"}
-        </strong>
-      </p>
-      <p>
-        Emitido el {fechaHoraAr(r.issuedAt)}.<br />
-        Titular: {s.holder.legalName} · DNI {maskDni(s.holder.documentLast3)}
-      </p>
+    <Pagina titulo="Informe de equipamiento fotográfico">
+      <article className="superficie documento">
+        <Aviso tipo={r.holderVerified ? "exito" : "revision"}>
+          <strong>
+            {r.holderVerified ? "Titular con identidad verificada" : "El titular ya no está verificado"}
+          </strong>
+        </Aviso>
 
-      <h2>Equipos declarados</h2>
-      <ol>
-        {s.items.map((it, i) => (
-          <li key={i} style={{ marginBottom: 10 }}>
-            <strong>
-              {it.make} {it.model}
-            </strong>{" "}
-            ({KIND_LABELS[it.kind as keyof typeof KIND_LABELS] ?? it.kind}) · Serie:{" "}
-            {it.serialRaw ?? "sin número de serie"}
-            <br />
-            Estado al emitir: {STATUS_LABELS[it.status as keyof typeof STATUS_LABELS] ?? it.status} ·
-            Valor: $ {formatMoney(it.valueArs)} / USD {formatMoney(it.valueUsd)}
-            <br />
-            {it.purchaseDate ? `Compra: ${it.purchaseDate.split("-").reverse().join("/")} · ` : ""}
-            {it.hasPurchaseProof ? "Con comprobante de compra" : "Sin comprobante de compra"}
-            {it.seal
-              ? ` · Sello CompraMeLaFoto: serie vista en ${it.seal.photosCount} ${
-                  it.seal.photosCount === 1 ? "foto" : "fotos"
-                } desde ${it.seal.since.split("-").reverse().join("/")}`
-              : ""}
-          </li>
-        ))}
-      </ol>
-      <p>
-        <strong>
-          Total declarado: $ {formatMoney(s.totalArs)} / USD {formatMoney(s.totalUsd)}
-        </strong>
-      </p>
+        <dl className="documento-datos">
+          <dt>Emitido el</dt>
+          <dd>{fechaHoraAr(r.issuedAt)}</dd>
+          <dt>Titular</dt>
+          <dd>{s.holder.legalName}</dd>
+          <dt>DNI</dt>
+          <dd>
+            <span className="cifra">{maskDni(s.holder.documentLast3)}</span>
+          </dd>
+        </dl>
 
-      <p style={{ fontSize: 13, color: "#555" }}>
-        Huella del contenido (SHA-256): <code style={{ wordBreak: "break-all" }}>{r.contentHash}</code>
-        <br />
-        {r.hashOk
-          ? "La huella coincide con el contenido: el informe no fue alterado."
-          : "Atención: la huella no coincide con el contenido guardado."}
-      </p>
-    </main>
+        <section className="pila" aria-labelledby="equipos-declarados">
+          <h2 id="equipos-declarados">Equipos declarados</h2>
+          <ol className="documento-equipos">
+            {s.items.map((it, i) => (
+              <li key={i} className="documento-equipo">
+                <span className="registro-titulo">
+                  {it.make} {it.model}
+                </span>
+                <dl className="documento-datos">
+                  <dt>Tipo</dt>
+                  <dd>{KIND_LABELS[it.kind as keyof typeof KIND_LABELS] ?? it.kind}</dd>
+                  <dt>Serie</dt>
+                  <dd>
+                    {it.serialRaw ? (
+                      <span className="cifra">{it.serialRaw}</span>
+                    ) : (
+                      "sin número de serie"
+                    )}
+                  </dd>
+                  <dt>Estado al emitir</dt>
+                  <dd>{STATUS_LABELS[it.status as keyof typeof STATUS_LABELS] ?? it.status}</dd>
+                  <dt>Valor</dt>
+                  <dd>
+                    $ {formatMoney(it.valueArs)} / USD {formatMoney(it.valueUsd)}
+                  </dd>
+                  {it.purchaseDate ? (
+                    <>
+                      <dt>Compra</dt>
+                      <dd>{it.purchaseDate.split("-").reverse().join("/")}</dd>
+                    </>
+                  ) : null}
+                  <dt>Comprobante</dt>
+                  <dd>
+                    {it.hasPurchaseProof ? "Con comprobante de compra" : "Sin comprobante de compra"}
+                  </dd>
+                  {it.seal ? (
+                    <>
+                      <dt>Sello CompraMeLaFoto</dt>
+                      <dd>
+                        Serie vista en <span className="cifra">{it.seal.photosCount}</span>{" "}
+                        {it.seal.photosCount === 1 ? "foto" : "fotos"} desde{" "}
+                        {it.seal.since.split("-").reverse().join("/")}
+                      </dd>
+                    </>
+                  ) : null}
+                </dl>
+              </li>
+            ))}
+          </ol>
+          <p className="documento-total">
+            Total declarado: $ {formatMoney(s.totalArs)} / USD {formatMoney(s.totalUsd)}
+          </p>
+        </section>
+
+        <p className="huella">
+          Huella del contenido (SHA-256): <code className="huella-valor">{r.contentHash}</code>
+          <br />
+          <span className={r.hashOk ? undefined : "campo-error"}>
+            {r.hashOk
+              ? "La huella coincide con el contenido: el informe no fue alterado."
+              : "Atención: la huella no coincide con el contenido guardado."}
+          </span>
+        </p>
+      </article>
+    </Pagina>
   );
 }
