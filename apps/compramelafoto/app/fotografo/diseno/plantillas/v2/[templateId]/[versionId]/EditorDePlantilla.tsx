@@ -65,6 +65,8 @@ export default function EditorDePlantilla({
         versionId={versionId}
         basePath={TEMPLATE_V2_BASE_PATHS.compramelafoto}
         exitHref={`/fotografo/disenos/${disenoId}`}
+        exitTitle="Volver a la revisión de este librito"
+        hideVersioning
         notice={
           <span>
             <strong>Estás retocando sólo el diseño de este librito.</strong> La plantilla y los demás diseños no cambian.

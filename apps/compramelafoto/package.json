@@ -72,7 +72,8 @@
     "test:equipos-robados": "pnpm --filter @repo/gear test",
     "test:cambio-email": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/auth/cambio-email.test.ts lib/auth/reverificar-identidad.test.ts",
     "test:sello-verificado": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/fotografo/sello-verificado.test.ts",
-    "test:lab-seguridad": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/lab/session-lab-access.test.ts"
+    "test:lab-seguridad": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/lab/session-lab-access.test.ts",
+    "test:compra-con-link": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/album-helpers.compra-con-link.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.985.0",

@@ -38,7 +38,7 @@ vi.mock("@/lib/preventa-canjeable/pricing-snapshot-v1", () => ({
   buildStandardLinesFromAlbumCheckout: vi.fn(),
   mergeStandardAlbumCheckoutPricingSnapshotV1: vi.fn(),
 }));
-vi.mock("@/lib/album-helpers", () => ({ isAlbumPubliclyAccessible: () => true }));
+vi.mock("@/lib/album-helpers", () => ({ isAlbumOpenByLink: () => true }));
 vi.mock("@/lib/albums/album-sales-readiness-server", () => ({
   albumSalesNotReadyResponse: vi.fn(),
   isAlbumReadyToSellForCheckout: vi.fn(async () => true),
