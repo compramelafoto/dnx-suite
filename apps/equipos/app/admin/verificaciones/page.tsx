@@ -42,6 +42,9 @@ export default async function VerificacionesEnRevisionPage() {
   return (
     <Pagina titulo="Verificaciones en revisión" ancho="ancha">
       <div className="pila">
+        <p>
+          <a href="/admin/publicaciones">Ver publicaciones en revisión</a>
+        </p>
         {clfUrl && (
           <p>
             <a href={`${clfUrl}/admin/equipos-robados`}>Ver denuncias de equipos robados</a>

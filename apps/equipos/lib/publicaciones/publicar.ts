@@ -1,6 +1,7 @@
 import { prisma } from "@repo/db";
 import { uploadPrivateFile, validateFile } from "@/lib/archivos";
 import { sendPortalEmail, type PortalEmailTemplate } from "@/lib/correo";
+import { urlBaseDeLaApp } from "@/lib/sesion";
 import { EquipoError } from "../inventario/equipos";
 import type { GearListing } from "./catalogos";
 import { fotosOpcionales } from "./fotos-opcionales";
@@ -37,15 +38,14 @@ export async function findActiveReportForSerial(
 }
 
 /** Aviso al admin: se manda después de la transacción y nunca rompe la operación. */
-async function notifyAdmin(template: PortalEmailTemplate, detalle: string): Promise<void> {
+export async function notifyAdmin(template: PortalEmailTemplate, detalle: string): Promise<void> {
   try {
     const to = process.env.ADMIN_EMAIL?.trim();
     if (!to) {
       console.warn(`[publicaciones] ADMIN_EMAIL no configurado; no se envía "${template}".`);
       return;
     }
-    const base = process.env.CLF_URL?.replace(/\/$/, "");
-    await sendPortalEmail(to, template, { detalle, url: base ? `${base}/admin/equipos-robados` : "" });
+    await sendPortalEmail(to, template, { detalle, url: `${urlBaseDeLaApp()}/admin/publicaciones` });
   } catch (err) {
     console.error(`[publicaciones] No se pudo enviar el aviso "${template}":`, err);
   }

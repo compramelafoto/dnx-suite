@@ -33,6 +33,7 @@ vi.mock("@/lib/archivos", async () => {
   return { ...actual, uploadPrivateFile: m.upload };
 });
 vi.mock("@/lib/correo", () => ({ sendPortalEmail: m.email }));
+vi.mock("@/lib/sesion", () => ({ urlBaseDeLaApp: () => "https://e.test" }));
 vi.mock("./sellos", async () => {
   const actual = await vi.importActual<typeof import("./sellos")>("./sellos");
   return { ...actual, proofPhotoMatches: m.proof };
@@ -176,6 +177,7 @@ describe("createListing", () => {
     expect(m.email).toHaveBeenCalledTimes(1);
     expect(m.email.mock.calls[0][0]).toBe("admin@dnx.test");
     expect(m.email.mock.calls[0][1]).toBe("publicacion_en_revision_admin");
+    expect(m.email.mock.calls[0][2].url).toBe("https://e.test/admin/publicaciones");
   });
 
   it("un fallo del correo no rompe la operación", async () => {

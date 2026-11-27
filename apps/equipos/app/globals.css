@@ -1397,6 +1397,11 @@
   width: 100%;
 }
 
+.texto-multilinea {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
 .ficha-reportar {
   justify-self: start;
   color: var(--grafito-suave);

@@ -12,6 +12,7 @@ export type PortalEmailTemplate =
   | "serie_de_otro_usuario_admin"
   | "publicacion_aprobada"
   | "publicacion_rechazada"
+  | "reporte_publicacion_admin"
   | "nueva_consulta"
   | "consulta_serie_coincide_admin";
 
@@ -119,6 +120,14 @@ export function renderPortalEmail(
       lineas = [
         saludo,
         "No pudimos publicar tu artículo. Si tenés dudas, respondé este correo.",
+      ];
+      break;
+    case "reporte_publicacion_admin":
+      subject = "Publicación reportada";
+      lineas = [
+        "Alguien reportó una publicación del portal.",
+        d("detalle") ? `Detalle: ${d("detalle")}` : "",
+        url ? `Revisar: ${url}` : "",
       ];
       break;
     case "nueva_consulta":
