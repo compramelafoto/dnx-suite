@@ -76,7 +76,7 @@ export const AVISOS_ERROR = {
   CON_PUBLICACION_IDENTIDAD: MENSAJE_IDENTIDAD_CON_PUBLICACION,
   VALOR_PESOS: "Valor en pesos: usá un número entero, sin decimales.",
   VALOR_DOLARES: "Valor en dólares: usá un número entero, sin decimales.",
-  FALTA_MARCA: "La marca no puede quedar vacío.",
+  FALTA_MARCA: "La marca no puede quedar vacía.",
   FALTA_MODELO: "El modelo no puede quedar vacío.",
   ESTADO_NO_MANUAL: "Ese estado no se puede elegir a mano.",
   FORMATO_COMPROBANTE: "Formato no permitido. Usá JPG, PNG, WEBP o PDF.",

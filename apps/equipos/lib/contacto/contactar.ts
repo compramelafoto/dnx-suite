@@ -1,6 +1,7 @@
 import { prisma } from "@repo/db";
 import { sendPortalEmail } from "@/lib/correo";
 import { EquipoError } from "@/lib/inventario/equipos";
+import { findActiveReportForSerial } from "@/lib/publicaciones/denuncia-activa";
 import { urlBaseDeLaApp } from "@/lib/sesion";
 
 /**
@@ -35,7 +36,10 @@ export type SellerContact = {
 
 async function datosDelVendedor(sellerId: number) {
   const [user, identity, phone] = await Promise.all([
-    prisma.user.findUnique({ where: { id: sellerId }, select: { email: true } }),
+    prisma.user.findUnique({
+      where: { id: sellerId },
+      select: { email: true },
+    }),
     // Sólo el nombre legal de una verificación APROBADA: una rechazada o vencida no vale.
     prisma.identityVerification.findUnique({
       where: { userId: sellerId, status: "APPROVED" },
@@ -60,10 +64,30 @@ export async function contactSeller(
 ): Promise<SellerContact> {
   const listing = await prisma.gearListing.findFirst({
     where: { id: listingId },
-    select: { id: true, sellerId: true, status: true, make: true, model: true },
+    select: {
+      id: true,
+      sellerId: true,
+      status: true,
+      make: true,
+      model: true,
+      gearItem: { select: { serialNormalized: true } },
+      // Mismo criterio que el catálogo: sólo vendedores con la identidad aprobada HOY.
+      seller: {
+        select: { identityVerification: { select: { status: true } } },
+      },
+    },
   });
-  if (!listing || listing.status !== "PUBLISHED") throw new ContactoError("NO_DISPONIBLE");
+  if (!listing || listing.status !== "PUBLISHED")
+    throw new ContactoError("NO_DISPONIBLE");
   if (listing.sellerId === buyer.id) throw new ContactoError("PROPIA");
+  // Antes de revelar nada (también en contactos repetidos): vendedor verificado y sin denuncia activa.
+  if (listing.seller?.identityVerification?.status !== "APPROVED") {
+    throw new ContactoError("NO_DISPONIBLE");
+  }
+  const serial = listing.gearItem?.serialNormalized;
+  if (serial && (await findActiveReportForSerial(serial, listing.sellerId))) {
+    throw new ContactoError("NO_DISPONIBLE");
+  }
 
   const seller = await datosDelVendedor(listing.sellerId);
 
@@ -74,15 +98,21 @@ export async function contactSeller(
   if (existente) return { ...seller, firstTime: false };
 
   const recientes = await prisma.gearListingContact.count({
-    where: { buyerId: buyer.id, createdAt: { gte: new Date(Date.now() - DIA_MS) } },
+    where: {
+      buyerId: buyer.id,
+      createdAt: { gte: new Date(Date.now() - DIA_MS) },
+    },
   });
   if (recientes >= MAX_CONTACTOS_POR_DIA) throw new ContactoError("LIMITE");
 
   try {
-    await prisma.gearListingContact.create({ data: { listingId, buyerId: buyer.id } });
+    await prisma.gearListingContact.create({
+      data: { listingId, buyerId: buyer.id },
+    });
   } catch (err) {
     // Dos pedidos a la vez: el otro ya lo creó y ya avisó al vendedor.
-    if ((err as { code?: string })?.code === "P2002") return { ...seller, firstTime: false };
+    if ((err as { code?: string })?.code === "P2002")
+      return { ...seller, firstTime: false };
     throw err;
   }
 
@@ -99,7 +129,10 @@ export async function contactSeller(
 }
 
 /** ¿Esta persona es la vendedora de la publicación? Sólo del lado del servidor. */
-export async function isSellerOf(userId: number, listingId: number): Promise<boolean> {
+export async function isSellerOf(
+  userId: number,
+  listingId: number,
+): Promise<boolean> {
   const l = await prisma.gearListing.findFirst({
     where: { id: listingId, sellerId: userId },
     select: { id: true },
@@ -107,7 +140,10 @@ export async function isSellerOf(userId: number, listingId: number): Promise<boo
   return l !== null;
 }
 
-export async function contactedBefore(buyerId: number, listingId: number): Promise<boolean> {
+export async function contactedBefore(
+  buyerId: number,
+  listingId: number,
+): Promise<boolean> {
   const c = await prisma.gearListingContact.findUnique({
     where: { listingId_buyerId: { listingId, buyerId } },
     select: { id: true },
@@ -118,7 +154,11 @@ export async function contactedBefore(buyerId: number, listingId: number): Promi
 export async function listInterested(
   sellerId: number,
   listingId: number,
-): Promise<{ views: number; viewers: number; contacts: Array<{ name: string; at: Date }> }> {
+): Promise<{
+  views: number;
+  viewers: number;
+  contacts: Array<{ name: string; at: Date }>;
+}> {
   const listing = await prisma.gearListing.findFirst({
     where: { id: listingId, sellerId },
     select: { id: true },
@@ -134,17 +174,26 @@ export async function listInterested(
     prisma.gearListingContact.findMany({
       where: { listingId },
       orderBy: { createdAt: "desc" },
-      select: { buyerId: true, createdAt: true, buyer: { select: { name: true } } },
+      select: {
+        buyerId: true,
+        createdAt: true,
+        buyer: { select: { name: true } },
+      },
     }),
   ]);
 
   const legales = consultas.length
     ? await prisma.identityVerification.findMany({
-        where: { userId: { in: consultas.map((c) => c.buyerId) }, status: "APPROVED" },
+        where: {
+          userId: { in: consultas.map((c) => c.buyerId) },
+          status: "APPROVED",
+        },
         select: { userId: true, legalName: true },
       })
     : [];
-  const nombrePorId = new Map(legales.map((i) => [i.userId, i.legalName?.trim()]));
+  const nombrePorId = new Map(
+    legales.map((i) => [i.userId, i.legalName?.trim()]),
+  );
 
   return {
     views: vistas._sum.count ?? 0,

@@ -12,6 +12,7 @@ const m = vi.hoisted(() => ({
   phoneFindUnique: vi.fn(),
   viewAggregate: vi.fn(),
   email: vi.fn(),
+  activeReport: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -24,15 +25,26 @@ vi.mock("@repo/db", () => ({
       findMany: m.contactFindMany,
     },
     user: { findUnique: m.userFindUnique },
-    identityVerification: { findUnique: m.identityFindUnique, findMany: m.identityFindMany },
+    identityVerification: {
+      findUnique: m.identityFindUnique,
+      findMany: m.identityFindMany,
+    },
     phoneVerification: { findUnique: m.phoneFindUnique },
     gearListingView: { aggregate: m.viewAggregate },
   },
 }));
+vi.mock("@/lib/publicaciones/denuncia-activa", () => ({
+  findActiveReportForSerial: m.activeReport,
+}));
 vi.mock("@/lib/correo", () => ({ sendPortalEmail: m.email }));
 vi.mock("@/lib/sesion", () => ({ urlBaseDeLaApp: () => "https://e.test" }));
 
-import { contactedBefore, contactSeller, isSellerOf, listInterested } from "./contactar";
+import {
+  contactedBefore,
+  contactSeller,
+  isSellerOf,
+  listInterested,
+} from "./contactar";
 
 const buyer = { id: 2, displayName: "Ana Compradora" };
 const listing = (over: Record<string, unknown> = {}) => ({
@@ -41,6 +53,8 @@ const listing = (over: Record<string, unknown> = {}) => ({
   status: "PUBLISHED",
   make: "Canon",
   model: "R5",
+  gearItem: { serialNormalized: "ABC123" },
+  seller: { identityVerification: { status: "APPROVED" } },
   ...over,
 });
 
@@ -52,13 +66,19 @@ beforeEach(() => {
   m.contactCreate.mockResolvedValue({ id: 1 });
   m.userFindUnique.mockResolvedValue({ email: "vendedor@e.test" });
   m.identityFindUnique.mockResolvedValue({ legalName: "Víctor Vendedor" });
-  m.phoneFindUnique.mockResolvedValue({ phone: "+5493410000000", verifiedAt: new Date() });
+  m.phoneFindUnique.mockResolvedValue({
+    phone: "+5493410000000",
+    verifiedAt: new Date(),
+  });
   m.email.mockResolvedValue({ success: true });
+  m.activeReport.mockResolvedValue(null);
 });
 
 describe("contactSeller", () => {
   it("rechaza contactar la publicación propia", async () => {
-    await expect(contactSeller({ id: 1, displayName: "X" }, 5)).rejects.toMatchObject({
+    await expect(
+      contactSeller({ id: 1, displayName: "X" }, 5),
+    ).rejects.toMatchObject({
       code: "PROPIA",
     });
     expect(m.contactCreate).not.toHaveBeenCalled();
@@ -66,14 +86,56 @@ describe("contactSeller", () => {
 
   it.each(["PAUSED", "IN_REVIEW"])("rechaza si está %s", async (status) => {
     m.listingFindFirst.mockResolvedValue(listing({ status }));
-    await expect(contactSeller(buyer, 5)).rejects.toMatchObject({ code: "NO_DISPONIBLE" });
+    await expect(contactSeller(buyer, 5)).rejects.toMatchObject({
+      code: "NO_DISPONIBLE",
+    });
+  });
+
+  it("denuncia activa sobre la serie: NO_DISPONIBLE, sin contacto ni correo", async () => {
+    m.activeReport.mockResolvedValue({ id: 77 });
+    await expect(contactSeller(buyer, 5)).rejects.toMatchObject({
+      code: "NO_DISPONIBLE",
+    });
+    expect(m.activeReport).toHaveBeenCalledWith("ABC123", 1);
+    expect(m.contactCreate).not.toHaveBeenCalled();
+    expect(m.email).not.toHaveBeenCalled();
+  });
+
+  it.each([null, "PENDING", "REJECTED"])(
+    "vendedor sin identidad aprobada (%s): NO_DISPONIBLE",
+    async (status) => {
+      m.listingFindFirst.mockResolvedValue(
+        listing({
+          seller: { identityVerification: status ? { status } : null },
+        }),
+      );
+      await expect(contactSeller(buyer, 5)).rejects.toMatchObject({
+        code: "NO_DISPONIBLE",
+      });
+      expect(m.contactCreate).not.toHaveBeenCalled();
+      expect(m.email).not.toHaveBeenCalled();
+    },
+  );
+
+  it("contacto repetido con denuncia nueva: NO_DISPONIBLE y no devuelve datos", async () => {
+    m.contactFindUnique.mockResolvedValue({ id: 9 });
+    m.activeReport.mockResolvedValue({ id: 78 });
+    await expect(contactSeller(buyer, 5)).rejects.toMatchObject({
+      code: "NO_DISPONIBLE",
+    });
+    expect(m.userFindUnique).not.toHaveBeenCalled();
   });
 
   it("el nombre del vendedor sale sólo de una verificación APROBADA", async () => {
     await contactSeller(buyer, 5);
-    expect(m.identityFindUnique.mock.calls[0][0].where).toEqual({ userId: 1, status: "APPROVED" });
+    expect(m.identityFindUnique.mock.calls[0][0].where).toEqual({
+      userId: 1,
+      status: "APPROVED",
+    });
     m.identityFindUnique.mockResolvedValue(null); // sin aprobada
-    expect((await contactSeller(buyer, 5)).sellerName).toBe("Vendedor verificado");
+    expect((await contactSeller(buyer, 5)).sellerName).toBe(
+      "Vendedor verificado",
+    );
   });
 
   it("primer contacto: crea, avisa al vendedor y devuelve sus datos", async () => {
@@ -116,7 +178,10 @@ describe("contactSeller", () => {
   });
 
   it("teléfono sin verificar: sellerPhone null", async () => {
-    m.phoneFindUnique.mockResolvedValue({ phone: "+5493410000000", verifiedAt: null });
+    m.phoneFindUnique.mockResolvedValue({
+      phone: "+5493410000000",
+      verifiedAt: null,
+    });
     const r = await contactSeller(buyer, 5);
     expect(r.sellerPhone).toBeNull();
   });
@@ -129,7 +194,9 @@ describe("contactSeller", () => {
 
   it("publicación inexistente: NO_DISPONIBLE", async () => {
     m.listingFindFirst.mockResolvedValue(null);
-    await expect(contactSeller(buyer, 5)).rejects.toMatchObject({ code: "NO_DISPONIBLE" });
+    await expect(contactSeller(buyer, 5)).rejects.toMatchObject({
+      code: "NO_DISPONIBLE",
+    });
   });
 });
 
@@ -169,17 +236,24 @@ describe("contactedBefore", () => {
 describe("listInterested", () => {
   it("publicación ajena: NO_ENCONTRADO", async () => {
     m.listingFindFirst.mockResolvedValue(null);
-    await expect(listInterested(1, 5)).rejects.toMatchObject({ code: "NO_ENCONTRADO" });
+    await expect(listInterested(1, 5)).rejects.toMatchObject({
+      code: "NO_ENCONTRADO",
+    });
   });
 
   it("devuelve visitas, personas y consultas con nombre legal", async () => {
     const at = new Date("2026-11-01T12:00:00Z");
-    m.viewAggregate.mockResolvedValue({ _sum: { count: 7 }, _count: { _all: 3 } });
+    m.viewAggregate.mockResolvedValue({
+      _sum: { count: 7 },
+      _count: { _all: 3 },
+    });
     m.contactFindMany.mockResolvedValue([
       { buyerId: 2, createdAt: at, buyer: { name: "Ana cuenta" } },
       { buyerId: 3, createdAt: at, buyer: { name: "Beto cuenta" } },
     ]);
-    m.identityFindMany.mockResolvedValue([{ userId: 2, legalName: "Ana Legal" }]);
+    m.identityFindMany.mockResolvedValue([
+      { userId: 2, legalName: "Ana Legal" },
+    ]);
     const r = await listInterested(1, 5);
     expect(r.views).toBe(7);
     expect(r.viewers).toBe(3);

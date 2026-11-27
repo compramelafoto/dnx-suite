@@ -80,10 +80,11 @@ function checkMoney(v: number | null | undefined, label: string): void {
   if (!Number.isInteger(v) || v < 0) invalid(`${label}: usá un número entero, sin decimales.`);
 }
 
-function checkText(v: string | undefined, label: string): string | undefined {
+/** `fem` = el rótulo es femenino (por ejemplo "La marca"): el mensaje concuerda en género. */
+function checkText(v: string | undefined, label: string, fem = false): string | undefined {
   if (v === undefined) return undefined;
   const t = v.trim();
-  if (!t) invalid(`${label} no puede quedar vacío.`);
+  if (!t) invalid(`${label} no puede quedar ${fem ? "vacía" : "vacío"}.`);
   return t;
 }
 
@@ -216,7 +217,7 @@ export async function dismissSighting(userId: number, sightingId: number): Promi
 }
 
 export async function createManualItem(userId: number, input: ManualItemInput): Promise<GearItem> {
-  const make = checkText(input.make, "La marca");
+  const make = checkText(input.make, "La marca", true);
   const model = checkText(input.model, "El modelo");
   checkMoney(input.declaredValueArs, "Valor en pesos");
   checkMoney(input.declaredValueUsd, "Valor en dólares");
@@ -253,7 +254,7 @@ export async function updateItem(
 
   const data: Record<string, unknown> = {};
   if (patch.kind !== undefined) data.kind = patch.kind;
-  const make = checkText(patch.make, "La marca");
+  const make = checkText(patch.make, "La marca", true);
   if (make !== undefined) data.make = make;
   const model = checkText(patch.model, "El modelo");
   if (model !== undefined) data.model = model;
