@@ -1,5 +1,13 @@
-import { describe, expect, it } from "vitest";
-import { renderPortalEmail } from "./correo";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const send = vi.hoisted(() => vi.fn());
+vi.mock("resend", () => ({
+  Resend: class {
+    emails = { send };
+  },
+}));
+
+import { renderPortalEmail, sendPortalEmail } from "./correo";
 
 const PLANTILLAS = [
   "verificacion_aprobada",
@@ -188,8 +196,18 @@ describe("renderPortalEmail", () => {
     expect(r.text).toContain("https://e.test/admin/usuarios");
   });
 
+  it("cuenta_bloqueada sin casilla que lea respuestas: no promete respuesta", () => {
+    const r = renderPortalEmail("cuenta_bloqueada", { nombre: "Juan" });
+    expect(r.text).toContain("Tu cuenta de MercadoFotoRaw fue suspendida.");
+    expect(r.text).not.toContain("respondé este correo");
+  });
+
   it("cuenta_bloqueada: el texto fijo, nunca el motivo interno", () => {
-    const r = renderPortalEmail("cuenta_bloqueada", { nombre: "Juan", motivo: "vendió robado" });
+    const r = renderPortalEmail("cuenta_bloqueada", {
+      nombre: "Juan",
+      motivo: "vendió robado",
+      conRespuesta: "1",
+    });
     expect(r.subject).toBe("Tu cuenta de MercadoFotoRaw fue suspendida");
     expect(r.text).toContain("Hola Juan,");
     expect(r.text).toContain(
@@ -216,5 +234,18 @@ describe("renderPortalEmail", () => {
   it("escapa HTML en los datos", () => {
     const r = renderPortalEmail("verificacion_aprobada", { nombre: "<script>x</script>" });
     expect(r.html).not.toContain("<script>");
+  });
+});
+
+describe("sendPortalEmail", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("pasa replyTo a Resend sólo cuando se lo dan", async () => {
+    vi.stubEnv("RESEND_API_KEY", "re_test");
+    send.mockResolvedValue({ data: { id: "1" }, error: null });
+    await sendPortalEmail("a@e.test", "cuenta_bloqueada", { conRespuesta: "1" }, { replyTo: "ayuda@e.test" });
+    expect(send.mock.calls[0][0]).toMatchObject({ to: "a@e.test", replyTo: "ayuda@e.test" });
+    await sendPortalEmail("a@e.test", "verificacion_aprobada", {});
+    expect(send.mock.calls[1][0]).not.toHaveProperty("replyTo");
   });
 });

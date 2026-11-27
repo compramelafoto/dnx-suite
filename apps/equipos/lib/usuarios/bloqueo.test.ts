@@ -87,6 +87,24 @@ describe("blockAccount", () => {
     expect(JSON.stringify(data)).not.toContain("robado");
   });
 
+  it("con CONTACTO_EMAIL: responde a esa casilla y el texto invita a responder", async () => {
+    vi.stubEnv("CONTACTO_EMAIL", "ayuda@mercadofotoraw.test");
+    await blockAccount(1, 9, MOTIVO);
+    const [, , data, opciones] = m.email.mock.calls[0];
+    expect(data.conRespuesta).toBe("1");
+    expect(opciones).toEqual({ replyTo: "ayuda@mercadofotoraw.test" });
+    vi.unstubAllEnvs();
+  });
+
+  it("sin CONTACTO_EMAIL: sin replyTo y sin invitar a responder", async () => {
+    vi.stubEnv("CONTACTO_EMAIL", "");
+    await blockAccount(1, 9, MOTIVO);
+    const [, , data, opciones] = m.email.mock.calls[0];
+    expect(data.conRespuesta).toBe("");
+    expect(opciones).toBeUndefined();
+    vi.unstubAllEnvs();
+  });
+
   it("motivo corto o largo -> error y no bloquea", async () => {
     await expect(blockAccount(1, 9, "corto")).rejects.toThrow(
       "El motivo tiene que tener entre 10 y 500 caracteres.",

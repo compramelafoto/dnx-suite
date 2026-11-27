@@ -294,11 +294,14 @@ export function renderPortalEmail(
       ];
       break;
     case "cuenta_bloqueada":
-      // Nunca el motivo interno del bloqueo.
+      // Nunca el motivo interno del bloqueo. Invita a responder sólo si el correo sale con un
+      // `replyTo` que alguien lee (`conRespuesta`); si no, no promete nada.
       subject = "Tu cuenta de MercadoFotoRaw fue suspendida";
       lineas = [
         saludo,
-        "Tu cuenta de MercadoFotoRaw fue suspendida. Si creés que es un error, respondé este correo.",
+        d("conRespuesta")
+          ? "Tu cuenta de MercadoFotoRaw fue suspendida. Si creés que es un error, respondé este correo."
+          : "Tu cuenta de MercadoFotoRaw fue suspendida.",
       ];
       break;
     case "recordatorio_poliza":
@@ -332,6 +335,7 @@ export async function sendPortalEmail(
   to: string,
   template: PortalEmailTemplate,
   data: Record<string, string>,
+  opciones?: { replyTo?: string },
 ): Promise<{ success: boolean }> {
   const { subject, html, text } = renderPortalEmail(template, data);
   const apiKey = process.env.RESEND_API_KEY;
@@ -347,6 +351,7 @@ export async function sendPortalEmail(
       subject,
       html,
       text,
+      ...(opciones?.replyTo ? { replyTo: opciones.replyTo } : {}),
     });
     if (res.error) {
       console.error("[correo] Resend devolvió error:", res.error);

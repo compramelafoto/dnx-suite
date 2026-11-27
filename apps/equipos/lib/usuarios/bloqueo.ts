@@ -1,4 +1,5 @@
 import { prisma } from "@repo/db";
+import { contactoEmail } from "@/lib/contacto-publico";
 import { sendPortalEmail } from "@/lib/correo";
 import { EquipoError } from "@/lib/inventario/equipos";
 
@@ -92,9 +93,15 @@ export async function blockAccount(adminId: number, userId: number, reason: stri
   }
 
   try {
-    const r = await sendPortalEmail(user.email, "cuenta_bloqueada", {
-      nombre: user.name?.trim().split(/\s+/)[0] ?? "",
-    });
+    // Las respuestas van a la casilla de contacto (el remitente suele ser noreply). Sin ella, el
+    // correo no invita a responder.
+    const replyTo = contactoEmail();
+    const r = await sendPortalEmail(
+      user.email,
+      "cuenta_bloqueada",
+      { nombre: user.name?.trim().split(/\s+/)[0] ?? "", conRespuesta: replyTo ? "1" : "" },
+      replyTo ? { replyTo } : undefined,
+    );
     if (!r.success) console.error("[bloqueo] No salió el correo de cuenta bloqueada", userId);
   } catch (err) {
     console.error("[bloqueo] No se pudo enviar el correo de cuenta bloqueada", userId, err);
