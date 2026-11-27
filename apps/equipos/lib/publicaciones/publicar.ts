@@ -1,6 +1,7 @@
 import { prisma } from "@repo/db";
 import { uploadPrivateFile, validateFile } from "@/lib/archivos";
-import { sendPortalEmail, type PortalEmailTemplate } from "@/lib/correo";
+import { avisarAlAdmin } from "@/lib/aviso-admin";
+import type { PortalEmailTemplate } from "@/lib/correo";
 import { urlBaseDeLaApp } from "@/lib/sesion";
 import { EquipoError } from "../inventario/equipos";
 import type { GearListing } from "./catalogos";
@@ -39,16 +40,10 @@ export async function findActiveReportForSerial(
 
 /** Aviso al admin: se manda después de la transacción y nunca rompe la operación. */
 export async function notifyAdmin(template: PortalEmailTemplate, detalle: string): Promise<void> {
-  try {
-    const to = process.env.ADMIN_EMAIL?.trim();
-    if (!to) {
-      console.warn(`[publicaciones] ADMIN_EMAIL no configurado; no se envía "${template}".`);
-      return;
-    }
-    await sendPortalEmail(to, template, { detalle, url: `${urlBaseDeLaApp()}/admin/publicaciones` });
-  } catch (err) {
-    console.error(`[publicaciones] No se pudo enviar el aviso "${template}":`, err);
-  }
+  await avisarAlAdmin("publicaciones", template, {
+    detalle,
+    url: `${urlBaseDeLaApp()}/admin/publicaciones`,
+  });
 }
 
 async function findOwnListing(sellerId: number, listingId: number) {

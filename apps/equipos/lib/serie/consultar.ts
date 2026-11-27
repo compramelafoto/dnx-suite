@@ -1,6 +1,6 @@
 import { prisma } from "@repo/db";
 import { normalizeGearSerial } from "@repo/gear/serial";
-import { sendPortalEmail } from "@/lib/correo";
+import { avisarAlAdmin } from "@/lib/aviso-admin";
 import { urlBaseDeLaApp } from "@/lib/sesion";
 
 /** Consultas por usuario cada 24 horas (se cuentan en la base, no en memoria). */
@@ -36,25 +36,16 @@ export async function lookupSerial(userId: number, raw: string): Promise<SerialL
 
   if (!denuncia) return { result: "SIN_DENUNCIA", serial };
 
-  await avisarAlAdmin(userId, serial, denuncia.id);
+  await avisarConsulta(userId, serial, denuncia.id);
   return { result: "CON_DENUNCIA", serial };
 }
 
 /** El aviso nunca rompe la consulta: si falla, se registra y se sigue. */
-async function avisarAlAdmin(userId: number, serial: string, reportId: number): Promise<void> {
-  try {
-    const to = process.env.ADMIN_EMAIL?.trim();
-    if (!to) {
-      console.warn("[serie] ADMIN_EMAIL no configurado; no se avisa la consulta con denuncia.");
-      return;
-    }
-    await sendPortalEmail(to, "consulta_serie_coincide_admin", {
-      usuario: String(userId),
-      serie: serial,
-      denuncia: String(reportId),
-      url: `${urlBaseDeLaApp()}/admin/publicaciones`,
-    });
-  } catch (err) {
-    console.error("[serie] No se pudo avisar la consulta con denuncia:", err);
-  }
+async function avisarConsulta(userId: number, serial: string, reportId: number): Promise<void> {
+  await avisarAlAdmin("serie", "consulta_serie_coincide_admin", {
+    usuario: String(userId),
+    serie: serial,
+    denuncia: String(reportId),
+    url: `${urlBaseDeLaApp()}/admin/publicaciones`,
+  });
 }

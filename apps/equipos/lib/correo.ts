@@ -14,7 +14,8 @@ export type PortalEmailTemplate =
   | "publicacion_rechazada"
   | "reporte_publicacion_admin"
   | "nueva_consulta"
-  | "consulta_serie_coincide_admin";
+  | "consulta_serie_coincide_admin"
+  | "cambio_serie_admin";
 
 type Rendered = { subject: string; html: string; text: string };
 
@@ -146,6 +147,14 @@ export function renderPortalEmail(
         d("usuario") ? `Usuario: ${d("usuario")}` : "",
         d("serie") ? `Serie: ${d("serie")}` : "",
         d("denuncia") ? `Denuncia: #${d("denuncia")}` : "",
+        url ? `Revisar: ${url}` : "",
+      ];
+      break;
+    case "cambio_serie_admin":
+      subject = "Cambio de serie en un equipo con antecedentes";
+      lineas = [
+        "Cambió el número de serie de un equipo que tuvo una publicación retenida por una denuncia.",
+        d("detalle") ? `Detalle: ${d("detalle")}` : "",
         url ? `Revisar: ${url}` : "",
       ];
       break;

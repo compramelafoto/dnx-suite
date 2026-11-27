@@ -14,6 +14,7 @@ const m = vi.hoisted(() => ({
   txItemUpdate: vi.fn(),
   txEventCreate: vi.fn(),
   eventFindMany: vi.fn(),
+  eventFindFirst: vi.fn(),
   tx: vi.fn(),
   upload: vi.fn(),
   email: vi.fn(),
@@ -24,7 +25,7 @@ vi.mock("@repo/db", () => ({
     gearSerialSighting: { findMany: m.sightingFindMany, findFirst: m.sightingFindFirst },
     gearSightingDismissal: { findMany: m.dismissalFindMany, upsert: m.dismissalUpsert },
     gearItem: { findFirst: m.itemFindFirst, findMany: m.itemFindMany, findUnique: m.itemFindUnique },
-    gearItemEvent: { findMany: m.eventFindMany },
+    gearItemEvent: { findMany: m.eventFindMany, findFirst: m.eventFindFirst },
     gearListing: { findFirst: m.listingFindFirst },
     $transaction: m.tx,
   },
@@ -34,6 +35,7 @@ vi.mock("@/lib/archivos", async () => {
   return { ...actual, uploadPrivateFile: m.upload };
 });
 vi.mock("@/lib/correo", () => ({ sendPortalEmail: m.email }));
+vi.mock("@/lib/sesion", () => ({ urlBaseDeLaApp: () => "https://e.test" }));
 
 import {
   attachItemPhoto,
@@ -53,6 +55,7 @@ beforeEach(() => {
   process.env.ADMIN_EMAIL = "admin@dnx.test";
   process.env.CLF_URL = "https://clf.test/";
   m.listingFindFirst.mockResolvedValue(null);
+  m.eventFindFirst.mockResolvedValue(null);
   m.tx.mockImplementation(async (cb: (tx: unknown) => unknown) =>
     cb({
       gearItem: { create: m.txItemCreate, update: m.txItemUpdate },
@@ -297,6 +300,88 @@ describe("updateItem", () => {
       message: "Este equipo tiene una publicación activa; pausala o cerrala primero.",
     });
     expect(m.tx).not.toHaveBeenCalled();
+  });
+
+  const conPublicacion = {
+    id: 7,
+    ownerId: 1,
+    status: "FOR_SALE",
+    kind: "BODY",
+    make: "Canon",
+    model: "R5",
+    serialRaw: "AB123",
+    serialNormalized: "AB123",
+  };
+
+  it("con publicación abierta, reenviar el mismo estado y cambiar notas o valor se guarda", async () => {
+    m.itemFindFirst.mockResolvedValue(conPublicacion);
+    m.listingFindFirst.mockResolvedValue({ id: 70 });
+    await updateItem(1, 7, {
+      status: "FOR_SALE",
+      kind: "BODY",
+      make: "Canon",
+      model: "R5",
+      serialRaw: "AB123",
+      notes: "Con funda",
+      declaredValueArs: 2000000,
+    });
+    expect(m.txItemUpdate.mock.calls[0][0].data).toMatchObject({
+      notes: "Con funda",
+      declaredValueArs: 2000000,
+    });
+    expect(m.txEventCreate.mock.calls[0][0].data.type).toBe("UPDATED");
+  });
+
+  it.each([
+    ["serie", { serialRaw: "ZZ999" }],
+    ["tipo", { kind: "LENS" as const }],
+    ["marca", { make: "Nikon" }],
+    ["modelo", { model: "R6" }],
+  ])("con publicación abierta, cambiar %s → CON_PUBLICACION", async (_n, patch) => {
+    m.itemFindFirst.mockResolvedValue(conPublicacion);
+    m.listingFindFirst.mockResolvedValue({ id: 70 });
+    await expect(updateItem(1, 7, { status: "FOR_SALE", ...patch })).rejects.toMatchObject({
+      code: "CON_PUBLICACION",
+      message: "Este equipo tiene una publicación abierta: cerrala antes de cambiar sus datos de identidad.",
+    });
+    expect(m.listingFindFirst.mock.calls[0][0].where).toEqual({
+      gearItemId: 7,
+      status: { in: ["IN_REVIEW", "PUBLISHED", "PAUSED"] },
+    });
+    expect(m.tx).not.toHaveBeenCalled();
+  });
+
+  it("cambiar la serie de un equipo que tuvo una publicación retenida avisa al admin", async () => {
+    m.itemFindFirst.mockResolvedValue({ ...conPublicacion, status: "IN_USE" });
+    m.listingFindFirst.mockResolvedValue(null); // ninguna abierta
+    m.eventFindFirst.mockResolvedValue({ id: 3 }); // evento «retenido»
+    await updateItem(1, 7, { serialRaw: "ZZ999" });
+    expect(m.eventFindFirst.mock.calls[0][0].where).toEqual({
+      gearItemId: 7,
+      detail: { path: ["accion"], equals: "retenido" },
+    });
+    const avisos = m.email.mock.calls.filter((c) => c[1] === "cambio_serie_admin");
+    expect(avisos).toHaveLength(1);
+    expect(avisos[0][0]).toBe("admin@dnx.test");
+    expect(avisos[0][2].detalle).toContain("AB123");
+    expect(avisos[0][2].detalle).toContain("ZZ999");
+  });
+
+  it("también avisa si la retención quedó sólo en la nota «Denuncia activa»", async () => {
+    m.itemFindFirst.mockResolvedValue({ ...conPublicacion, status: "IN_USE" });
+    m.listingFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 70 });
+    await updateItem(1, 7, { serialRaw: "ZZ999" });
+    expect(m.listingFindFirst.mock.calls[1][0].where).toEqual({
+      gearItemId: 7,
+      reviewNote: { contains: "Denuncia activa" },
+    });
+    expect(m.email.mock.calls.map((c) => c[1])).toContain("cambio_serie_admin");
+  });
+
+  it("cambiar la serie sin retenciones previas no manda ese aviso", async () => {
+    m.itemFindFirst.mockResolvedValue({ ...conPublicacion, status: "IN_USE" });
+    await updateItem(1, 7, { serialRaw: "ZZ999" });
+    expect(m.email.mock.calls.map((c) => c[1])).not.toContain("cambio_serie_admin");
   });
 
   it("al cambiar la serie la normaliza y revisa conflicto", async () => {

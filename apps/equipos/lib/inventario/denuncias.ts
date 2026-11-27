@@ -205,7 +205,10 @@ export async function notifyNewInventoryMatches(): Promise<{ found: number; noti
       detalle: `Denuncia #${mt.reportId} coincide con el equipo #${mt.gearItemId} del portal.`,
       url: base ? `${base}/admin/equipos-robados` : "",
     });
-    if (!res.success) continue; // se reintenta mañana
+    if (!res.success) {
+      console.error(`[cruce-inventario] No se pudo enviar "coincidencia_inventario_admin" (denuncia #${mt.reportId}); se reintenta mañana.`);
+      continue;
+    }
     await prisma.gearItemEvent.create({
       data: {
         gearItemId: mt.gearItemId,

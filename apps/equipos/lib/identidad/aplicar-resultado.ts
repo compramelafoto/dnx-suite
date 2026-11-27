@@ -58,9 +58,12 @@ export async function applyProviderResult(result: ProviderResult): Promise<Apply
   if (decision.status === "IN_REVIEW") {
     const admin = process.env.ADMIN_EMAIL;
     if (admin) {
-      await sendPortalEmail(admin, "verificacion_en_revision_admin", {
+      const res = await sendPortalEmail(admin, "verificacion_en_revision_admin", {
         url: `${process.env.APP_URL ?? ""}/admin/verificaciones`,
       });
+      if (!res?.success) {
+        console.error('[identidad] No se pudo enviar el aviso "verificacion_en_revision_admin" al admin.');
+      }
     }
   } else {
     const user = await prisma.user.findUnique({

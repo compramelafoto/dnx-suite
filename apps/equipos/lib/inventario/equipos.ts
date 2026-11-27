@@ -2,7 +2,8 @@ import { prisma } from "@repo/db";
 import type { GearItem, GearItemEvent, GearItemKind, GearItemStatus } from "./tipos";
 import { normalizeGearSerial } from "@repo/gear/serial";
 import { MAX_PHOTOS_PER_ITEM, uploadPrivateFile, validateFile } from "@/lib/archivos";
-import { sendPortalEmail } from "@/lib/correo";
+import { avisarAlAdmin } from "@/lib/aviso-admin";
+import { urlBaseDeLaApp } from "@/lib/sesion";
 
 /**
  * Inventario «Mi equipo». Toda consulta filtra por dueño: un equipo ajeno es, a todos los
@@ -107,18 +108,48 @@ async function alertSerialConflict(
       select: { id: true },
     });
     if (!other) return;
-    const to = process.env.ADMIN_EMAIL?.trim();
-    if (!to) {
-      console.warn("[equipos] ADMIN_EMAIL no configurado; no se avisa el conflicto de serie.");
-      return;
-    }
     const base = process.env.CLF_URL?.replace(/\/$/, "");
-    await sendPortalEmail(to, "conflicto_serie_admin", {
+    await avisarAlAdmin("equipos", "conflicto_serie_admin", {
       detalle: `Serie ${serialNormalized}: equipo #${itemId} (usuario ${ownerId}) y equipo #${other.id} de otro usuario.`,
       url: base ? `${base}/admin/equipos-robados` : "",
     });
   } catch (err) {
     console.error("[equipos] No se pudo avisar el conflicto de serie:", err);
+  }
+}
+
+export const MENSAJE_IDENTIDAD_CON_PUBLICACION =
+  "Este equipo tiene una publicación abierta: cerrala antes de cambiar sus datos de identidad.";
+
+/**
+ * Cambiar la serie de un equipo que alguna vez tuvo una publicación retenida por una denuncia
+ * (evento «retenido» o nota «Denuncia activa») es una señal para el admin: podría estar
+ * «lavando» la serie para volver a publicar limpio. Nunca frena ni rompe la operación.
+ */
+async function alertSerialChangeAfterHold(
+  ownerId: number,
+  itemId: number,
+  before: string | null,
+  after: string | null,
+): Promise<void> {
+  try {
+    const [evento, retenida] = await Promise.all([
+      prisma.gearItemEvent.findFirst({
+        where: { gearItemId: itemId, detail: { path: ["accion"], equals: "retenido" } },
+        select: { id: true },
+      }),
+      prisma.gearListing.findFirst({
+        where: { gearItemId: itemId, reviewNote: { contains: "Denuncia activa" } },
+        select: { id: true },
+      }),
+    ]);
+    if (!evento && !retenida) return;
+    await avisarAlAdmin("equipos", "cambio_serie_admin", {
+      detalle: `Equipo #${itemId} (usuario ${ownerId}): la serie pasó de ${before ?? "(sin serie)"} a ${after ?? "(sin serie)"}.`,
+      url: `${urlBaseDeLaApp()}/admin/publicaciones`,
+    });
+  } catch (err) {
+    console.error("[equipos] No se pudo revisar el cambio de serie:", err);
   }
 }
 
@@ -246,29 +277,33 @@ export async function updateItem(
     serialChanged = serial.serialNormalized !== current.serialNormalized;
   }
 
+  const statusChanged = patch.status !== undefined && patch.status !== current.status;
+  const identityChanged =
+    (patch.kind !== undefined && patch.kind !== current.kind) ||
+    (data.make !== undefined && data.make !== current.make) ||
+    (data.model !== undefined && data.model !== current.model) ||
+    serialChanged;
+
   // Con una denuncia en curso, la identidad del equipo y su estado no se tocan: la única salida
   // de STOLEN/LOST es «Lo recuperé» (markRecovered).
-  if (current.status === "STOLEN" || current.status === "LOST") {
-    const changesIdentity =
-      (patch.status !== undefined && patch.status !== current.status) ||
-      (patch.kind !== undefined && patch.kind !== current.kind) ||
-      (data.make !== undefined && data.make !== current.make) ||
-      (data.model !== undefined && data.model !== current.model) ||
-      (patch.serialRaw !== undefined && serialChanged);
-    if (changesIdentity) {
-      throw new EquipoError(
-        "EN_DENUNCIA",
-        "Este equipo tiene una denuncia: no se pueden cambiar su estado, serie, tipo, marca ni modelo. Si lo recuperaste, usá «Lo recuperé».",
-      );
-    }
+  if ((current.status === "STOLEN" || current.status === "LOST") && (statusChanged || identityChanged)) {
+    throw new EquipoError(
+      "EN_DENUNCIA",
+      "Este equipo tiene una denuncia: no se pueden cambiar su estado, serie, tipo, marca ni modelo. Si lo recuperaste, usá «Lo recuperé».",
+    );
   }
 
-  // Con una publicación abierta el estado lo maneja la publicación (publicar, pausar, cerrar).
-  if (patch.status !== undefined) {
+  // Con una publicación abierta, el estado lo maneja la publicación (publicar, pausar, cerrar) y
+  // la identidad queda fija: el sello y la serie que ve el comprador salieron de esos datos.
+  // Reenviar los mismos valores (el formulario siempre manda todo) no cuenta como cambio.
+  if (statusChanged || identityChanged) {
     const open = await prisma.gearListing.findFirst({
       where: { gearItemId: itemId, status: { in: ["IN_REVIEW", "PUBLISHED", "PAUSED"] } },
       select: { id: true },
     });
+    if (open && identityChanged) {
+      throw new EquipoError("CON_PUBLICACION", MENSAJE_IDENTIDAD_CON_PUBLICACION);
+    }
     if (open) {
       throw new EquipoError(
         "CON_PUBLICACION",
@@ -277,7 +312,6 @@ export async function updateItem(
     }
   }
 
-  const statusChanged = patch.status !== undefined && patch.status !== current.status;
   const item = await prisma.$transaction(async (tx) => {
     const updated = await tx.gearItem.update({ where: { id: itemId }, data });
     await tx.gearItemEvent.create({
@@ -291,7 +325,10 @@ export async function updateItem(
     });
     return updated;
   });
-  if (serialChanged) await alertSerialConflict(userId, itemId, item.serialNormalized);
+  if (serialChanged) {
+    await alertSerialConflict(userId, itemId, item.serialNormalized);
+    await alertSerialChangeAfterHold(userId, itemId, current.serialNormalized, item.serialNormalized);
+  }
   return item;
 }
 
