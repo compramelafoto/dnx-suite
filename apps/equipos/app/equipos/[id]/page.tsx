@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import { AVISOS_ERROR, AVISOS_OK, avisoDeCodigo } from "@/lib/avisos";
+import { isFavorite } from "@/lib/catalogo/favoritos";
 import { contactoMailto } from "@/lib/contacto-publico";
 import { contactedBefore, isSellerOf } from "@/lib/contacto/contactar";
 import { getPortalUser } from "@/lib/guards";
@@ -9,6 +11,8 @@ import { KIND_LABELS } from "@/lib/inventario/equipos";
 import { fechaAr } from "@/lib/inventario/formato";
 import { CONDITION_LABELS } from "@/lib/publicaciones/catalogos";
 import {
+  Aviso,
+  Boton,
   BotonEnlace,
   Estrellas,
   FichaConfianza,
@@ -18,6 +22,7 @@ import {
   SinFoto,
 } from "@/app/_ui";
 import { MARCA } from "@/app/_ui/marca";
+import { alternarFavorito } from "./favorito/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +33,10 @@ const cargar = cache(async (raw: string) => {
   return getPublicListing(id);
 });
 
-type Props = { params: Promise<{ id: string }> };
+type Props = {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ ok?: string; error?: string }>;
+};
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const l = await cargar((await params).id);
@@ -39,15 +47,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function FichaEquipoPage({ params }: Props) {
+export default async function FichaEquipoPage({ params, searchParams }: Props) {
   const l = await cargar((await params).id);
   if (!l) notFound();
 
   const usuario = await getPortalUser();
   if (usuario) await recordView(l.id, usuario.id);
-  const [esVendedor, yaContacto] = usuario
-    ? await Promise.all([isSellerOf(usuario.id, l.id), contactedBefore(usuario.id, l.id)])
-    : [false, false];
+  const [esVendedor, yaContacto, guardada] = usuario
+    ? await Promise.all([
+        isSellerOf(usuario.id, l.id),
+        contactedBefore(usuario.id, l.id),
+        isFavorite(usuario.id, l.id),
+      ])
+    : [false, false, false];
+  // Por la URL viajan códigos; el texto sale siempre del mapa fijo.
+  const sp = await searchParams;
+  const ok = avisoDeCodigo(AVISOS_OK, sp.ok);
+  const error = avisoDeCodigo(AVISOS_ERROR, sp.error);
 
   const titulo = `${l.make} ${l.model}`;
   const [principal, ...resto] = l.photoUrls;
@@ -59,6 +75,12 @@ export default async function FichaEquipoPage({ params }: Props) {
       ancho="ancha"
       volver={{ href: "/equipos", texto: "Equipos en venta" }}
     >
+      {ok || error ? (
+        <div className="pila">
+          {ok ? <Aviso tipo="exito">{ok}</Aviso> : null}
+          {error ? <Aviso tipo="error">{error}</Aviso> : null}
+        </div>
+      ) : null}
       <div className="ficha-equipo">
         <div className="ficha-equipo-fotos">
           {principal ? (
@@ -128,6 +150,22 @@ export default async function FichaEquipoPage({ params }: Props) {
             ) : (
               <BotonEnlace href={`/equipos/${l.id}/contactar`} className="boton-ancho">
                 {yaContacto ? "Ver datos del vendedor" : "Contactar al vendedor"}
+              </BotonEnlace>
+            )}
+            {esVendedor ? null : usuario ? (
+              <form action={alternarFavorito} className="ficha-favorito">
+                <input type="hidden" name="listingId" value={l.id} />
+                <Boton variante="secundario" className="boton-ancho" aria-pressed={guardada}>
+                  {guardada ? "Quitar de favoritos" : "Guardar en favoritos"}
+                </Boton>
+              </form>
+            ) : (
+              <BotonEnlace
+                variante="secundario"
+                className="boton-ancho"
+                href={`/login?returnTo=${encodeURIComponent(`/equipos/${l.id}`)}`}
+              >
+                Guardar en favoritos
               </BotonEnlace>
             )}
             <GuiaCompraSegura contacto={contactoMailto("Consulta sobre una compra")} />

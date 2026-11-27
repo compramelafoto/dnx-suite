@@ -48,6 +48,10 @@ export const AVISOS_OK = {
   COMPRA_CONFIRMADA: "Confirmaste la compra. El equipo ya figura en «Mi equipo», con su historial.",
   COMPRA_RECHAZADA: "Listo. Le avisamos al vendedor que no compraste el equipo.",
   CALIFICACION_GUARDADA: "Gracias por calificar. Tu opinión ayuda a que todos compren y vendan tranquilos.",
+  FAVORITO_GUARDADO: "Listo, la guardaste en tus favoritos.",
+  FAVORITO_QUITADO: "La quitaste de tus favoritos.",
+  ALERTA_CREADA: "Alerta creada. Te avisamos por correo cuando se publique un equipo así.",
+  ALERTA_BORRADA: "Alerta borrada. Ya no te avisamos por esa búsqueda.",
 } as const satisfies MapaAvisos;
 
 export type CodigoOk = keyof typeof AVISOS_OK;
@@ -135,6 +139,12 @@ export const AVISOS_ERROR = {
   YA_CALIFICASTE: "Ya calificaste esta operación.",
   PLAZO_CALIFICAR: "El plazo para calificar esta operación venció.",
   CALIFICAR_SIN_CONFIRMAR: "Sólo se puede calificar una compra confirmada.",
+
+  // Favoritos y alertas (los textos de `toggleFavorite` y `createAlert`).
+  FAVORITO_PROPIO: "No podés guardar tu propia publicación.",
+  ALERTA_SIN_FILTROS: "Elegí al menos un filtro para crear la alerta.",
+  MAXIMO_ALERTAS: "Llegaste al máximo de 10 alertas activas.",
+  NO_ENCONTRADA_ALERTA: "No encontramos esa alerta.",
 
   // Cuenta.
   TELEFONO_INVALIDO:

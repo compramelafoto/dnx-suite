@@ -1549,6 +1549,26 @@
   color: var(--grafito-suave);
 }
 
+/* «Avisarme cuando aparezca»: entre la cantidad y la lista de resultados. */
+.alerta-busqueda {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  margin: 12px 0 16px;
+}
+
+.alerta-busqueda p {
+  flex: 1 1 280px;
+  margin: 0;
+}
+
+/* Botón de favorito en la ficha: secundario y del ancho de la columna. */
+.ficha-favorito {
+  display: grid;
+}
+
 /* Filas anchas separadas por una línea, como un registro: no tarjetas iguales. */
 .resultados-lista {
   list-style: none;

@@ -123,6 +123,31 @@ describe("renderPortalEmail", () => {
     expect(r.text).toContain("https://clf.test/admin/equipos-robados");
   });
 
+  it("alerta_busqueda lista cada equipo con precio, zona y enlace, y escapa el título", () => {
+    const r = renderPortalEmail("alerta_busqueda", {
+      nombre: "Juan",
+      cantidad: "2",
+      url: "https://e.test/alertas",
+      item1_titulo: "Sony <b>A7</b>",
+      item1_precio: "$ 800.000",
+      item1_zona: "Rosario, Santa Fe",
+      item1_url: "https://e.test/equipos/10",
+      item2_titulo: "Canon R6",
+      item2_precio: "$ 1.850.000",
+      item2_zona: "Córdoba, Córdoba",
+      item2_url: "https://e.test/equipos/11",
+    });
+    expect(r.subject).toBe("Se publicaron 2 equipos que estás buscando");
+    expect(r.text).toContain("Sony <b>A7</b> — $ 800.000, Rosario, Santa Fe: https://e.test/equipos/10");
+    expect(r.text).toContain("Canon R6 — $ 1.850.000, Córdoba, Córdoba: https://e.test/equipos/11");
+    expect(r.html).toContain('<a href="https://e.test/equipos/11">Canon R6</a>');
+    expect(r.html).not.toContain("<b>A7</b>");
+    expect(r.text).toContain("https://e.test/alertas");
+    expect(renderPortalEmail("alerta_busqueda", { item1_titulo: "X", item1_url: "u" }).subject).toBe(
+      "Se publicó un equipo que estás buscando",
+    );
+  });
+
   it("escapa HTML en los datos", () => {
     const r = renderPortalEmail("verificacion_aprobada", { nombre: "<script>x</script>" });
     expect(r.html).not.toContain("<script>");

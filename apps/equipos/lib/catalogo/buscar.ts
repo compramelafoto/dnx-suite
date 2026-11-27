@@ -285,6 +285,30 @@ export async function searchListings(
 }
 
 /**
+ * Las publicaciones de esos `ids` que siguen visibles en el catálogo, en el mismo orden que los
+ * `ids` (las que se pausaron, vendieron o cerraron no salen). Como en el listado, una sola foto.
+ */
+export async function getPublicListingsByIds(ids: number[]): Promise<PublicListing[]> {
+  if (ids.length === 0) return [];
+  const rows = (await prisma.gearListing.findMany({
+    where: { id: { in: ids }, status: "PUBLISHED", seller: VENDEDOR_VERIFICADO },
+    select: SELECT,
+  })) as Row[];
+  const porId = new Map(rows.map((r) => [r.id, r]));
+  const ordenadas = ids.map((id) => porId.get(id)).filter((r): r is Row => r !== undefined);
+  const ratings = await getUserRatings(ordenadas.map((r) => r.sellerId));
+  return Promise.all(
+    ordenadas.map((r) =>
+      toPublic(r, {
+        maxPhotos: 1,
+        noActiveReport: true,
+        sellerRating: ratings.get(r.sellerId) ?? { average: null, count: 0 },
+      }),
+    ),
+  );
+}
+
+/**
  * `null` si no existe, no está publicada (pausada, en revisión, vendida, cerrada), el vendedor
  * ya no tiene la identidad aprobada o la serie tiene una denuncia activa de otra persona (se
  * revisa en vivo: entre una corrida del cruce y la siguiente la ficha no puede decir «sin

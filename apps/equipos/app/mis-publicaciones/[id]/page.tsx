@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { AVISOS_ERROR, AVISOS_OK, avisoDeCodigo } from "@/lib/avisos";
+import { countFavorites } from "@/lib/catalogo/favoritos";
 import { listInterested } from "@/lib/contacto/contactar";
 import { requireLevel } from "@/lib/guards";
 import { fechaHoraAr } from "@/lib/inventario/formato";
@@ -55,7 +56,7 @@ export default async function PublicacionPage({
     noActiveReport,
   });
 
-  const interesados = await listInterested(user.id, id);
+  const [interesados, favoritos] = await Promise.all([listInterested(user.id, id), countFavorites(id)]);
 
   const abierta = listing.status !== "CLOSED" && listing.status !== "SOLD";
   const editable = listing.status === "PUBLISHED" || listing.status === "PAUSED";
@@ -99,6 +100,11 @@ export default async function PublicacionPage({
           <dt>Consultas</dt>
           <dd className="cifra">{interesados.contacts.length}</dd>
         </dl>
+        <p>
+          {favoritos === 1
+            ? "1 persona la guardó en favoritos"
+            : `${favoritos.toLocaleString("es-AR")} personas la guardaron en favoritos`}
+        </p>
         {interesados.contacts.length > 0 ? (
           <ul className="lista-texto">
             {interesados.contacts.map((c) => (

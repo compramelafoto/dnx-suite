@@ -18,7 +18,8 @@ export type PortalEmailTemplate =
   | "cambio_serie_admin"
   | "confirmar_compra"
   | "venta_confirmada"
-  | "venta_no_confirmada";
+  | "venta_no_confirmada"
+  | "alerta_busqueda";
 
 type Rendered = { subject: string; html: string; text: string };
 
@@ -208,6 +209,37 @@ export function renderPortalEmail(
         url ? `Ver la operación: ${url}` : "",
       ];
       break;
+    case "alerta_busqueda": {
+      // Hasta 10 equipos: `itemN_titulo`, `itemN_precio`, `itemN_zona` e `itemN_url` (N desde 1).
+      const equipos: Linea[] = [];
+      for (let n = 1; n <= 10; n++) {
+        const titulo = d(`item${n}_titulo`);
+        const href = d(`item${n}_url`);
+        if (!titulo || !href) break;
+        const resto = [d(`item${n}_precio`), d(`item${n}_zona`)].filter(Boolean).join(", ");
+        const despues = resto ? ` — ${resto}` : "";
+        equipos.push({
+          antes: "",
+          enlace: { texto: titulo, href },
+          despues,
+          plano: `${titulo}${despues}: ${href}`,
+        });
+      }
+      subject =
+        equipos.length === 1
+          ? "Se publicó un equipo que estás buscando"
+          : `Se publicaron ${equipos.length} equipos que estás buscando`;
+      lineas = [
+        saludo,
+        equipos.length === 1
+          ? "Se publicó un equipo que coincide con una de tus alertas:"
+          : "Se publicaron equipos que coinciden con tus alertas:",
+        ...equipos,
+        "Todos los vendedores verificaron su identidad. Igual seguí la guía de compra segura.",
+        url ? `Administrar tus alertas: ${url}` : "",
+      ];
+      break;
+    }
     case "recordatorio_poliza":
       subject = "Tu póliza de seguro está por vencer";
       lineas = [

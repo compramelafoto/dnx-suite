@@ -1,17 +1,23 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
-  formatPesos,
+  alertFiltersOf,
+  describeAlert,
+  hasAlertFilters,
+  type AlertFilters,
+} from "@/lib/catalogo/alertas";
+import {
   PAGE_SIZE,
   parseCatalogFilters,
   searchListings,
   type CatalogFilters,
-  type PublicListing,
 } from "@/lib/catalogo/buscar";
 import { KIND_LABELS } from "@/lib/inventario/equipos";
-import { CONDITION_LABELS, MONTURAS, PROVINCIAS } from "@/lib/publicaciones/catalogos";
-import { Boton, Campo, MedidorConfianza, Pagina, SelloIdentidad, SinFoto } from "@/app/_ui";
+import { MONTURAS, PROVINCIAS } from "@/lib/publicaciones/catalogos";
+import { Boton, Campo, Pagina } from "@/app/_ui";
 import { MARCA } from "@/app/_ui/marca";
+import { crearAlerta } from "@/app/alertas/actions";
+import { TarjetaEquipo } from "./TarjetaEquipo";
 
 export const dynamic = "force-dynamic";
 
@@ -118,43 +124,41 @@ function Filtros({ f }: { f: CatalogFilters }) {
   );
 }
 
-function Resultado({ l }: { l: PublicListing }) {
-  const href = `/equipos/${l.id}`;
+/**
+ * «Avisarme cuando aparezca»: guarda los filtros actuales como alerta. Sin filtros (o sólo con
+ * «precio desde», que la alerta no guarda) invita a filtrar primero.
+ */
+function AvisoAlerta({ a }: { a: AlertFilters }) {
+  if (!hasAlertFilters(a)) {
+    return (
+      <p className="texto-secundario alerta-busqueda">
+        ¿Buscás algo puntual? Elegí un tipo, una marca, una montura, un precio máximo o una
+        provincia y te avisamos por correo cuando se publique.
+      </p>
+    );
+  }
   return (
-    <li className="resultado">
-      <Link className="resultado-imagen" href={href} tabIndex={-1} aria-hidden="true">
-        {l.photoUrls[0] ? (
-          // Las URL firmadas vencen: no pasan por el optimizador de imágenes.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img className="resultado-foto" src={l.photoUrls[0]} alt="" loading="lazy" />
-        ) : (
-          <SinFoto
-            tipo={KIND_LABELS[l.kind]}
-            titulo={`${l.make} ${l.model}`}
-            className="resultado-foto"
-          />
-        )}
-      </Link>
-      <div className="resultado-cuerpo">
-        <h2 className="resultado-titulo">
-          <Link href={href}>
-            {l.make} {l.model}
-          </Link>
-        </h2>
-        <p className="resultado-detalle">
-          {KIND_LABELS[l.kind]} · {CONDITION_LABELS[l.condition]}
-          {l.mount ? ` · ${l.mount}` : ""}
-        </p>
-        <p className="resultado-zona">
-          {l.city}, {l.province}
-        </p>
-      </div>
-      <div className="resultado-lado">
-        <p className="resultado-precio">{formatPesos(l.priceArs)}</p>
-        <MedidorConfianza level={l.trust.level} size="chico" />
-        <SelloIdentidad />
-      </div>
-    </li>
+    <form action={crearAlerta} className="superficie alerta-busqueda">
+      {a.kind ? <input type="hidden" name="kind" value={a.kind} /> : null}
+      {a.make ? <input type="hidden" name="make" value={a.make} /> : null}
+      {a.mount ? <input type="hidden" name="mount" value={a.mount} /> : null}
+      {a.maxPrice !== undefined ? <input type="hidden" name="maxPrice" value={a.maxPrice} /> : null}
+      {a.province ? <input type="hidden" name="province" value={a.province} /> : null}
+      <p>
+        ¿No encontrás lo que buscás? Te avisamos por correo cuando se publique:{" "}
+        <strong>
+          {describeAlert({
+            kind: a.kind ?? null,
+            make: a.make ?? null,
+            mount: a.mount ?? null,
+            maxPriceArs: a.maxPrice ?? null,
+            province: a.province ?? null,
+          })}
+        </strong>
+        .
+      </p>
+      <Boton variante="secundario">Avisarme cuando aparezca</Boton>
+    </form>
   );
 }
 
@@ -188,6 +192,8 @@ export default async function CatalogoPage({
                 : `${total.toLocaleString("es-AR")} equipos publicados`}
           </h2>
 
+          <AvisoAlerta a={alertFiltersOf(f)} />
+
           {fueraDeRango ? (
             <p className="texto-secundario">
               Esta página no existe.{" "}
@@ -204,7 +210,7 @@ export default async function CatalogoPage({
           ) : (
             <ul className="resultados-lista">
               {items.map((l) => (
-                <Resultado key={l.id} l={l} />
+                <TarjetaEquipo key={l.id} l={l} />
               ))}
             </ul>
           )}

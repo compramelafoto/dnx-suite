@@ -28,6 +28,7 @@ import {
   formatDolares,
   formatPesos,
   getPublicListing,
+  getPublicListingsByIds,
   parseCatalogFilters,
   recordView,
   searchListings,
@@ -302,6 +303,25 @@ describe("searchListings", () => {
       seller: { identityVerification: { is: { status: "APPROVED" } } },
     });
     expect(m.listingFindMany.mock.calls[0][0].skip).toBe(0);
+  });
+});
+
+describe("getPublicListingsByIds", () => {
+  it("sólo publicadas de vendedores verificados, en el orden pedido", async () => {
+    m.listingFindMany.mockResolvedValue([listingConVendedor({ name: "Ana" }, { id: 5 }), listingConVendedor({ name: "Bea" }, { id: 9 })]);
+    const r = await getPublicListingsByIds([9, 4, 5]);
+    expect(r.map((l) => l.id)).toEqual([9, 5]);
+    expect(m.listingFindMany.mock.calls[0][0].where).toMatchObject({
+      id: { in: [9, 4, 5] },
+      status: "PUBLISHED",
+      seller: { identityVerification: { is: { status: "APPROVED" } } },
+    });
+    expect(r[0].photoUrls).toHaveLength(1);
+  });
+
+  it("sin ids no consulta", async () => {
+    expect(await getPublicListingsByIds([])).toEqual([]);
+    expect(m.listingFindMany).not.toHaveBeenCalled();
   });
 });
 
