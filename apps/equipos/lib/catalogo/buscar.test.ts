@@ -112,6 +112,18 @@ describe("parseCatalogFilters", () => {
     ).toEqual({ page: 1 });
   });
 
+  it("precios fuera del rango de la base se ignoran", () => {
+    expect(parseCatalogFilters({ minPrice: "99999999999" })).toEqual({ page: 1 });
+    expect(parseCatalogFilters({ maxPrice: "2147483648" })).toEqual({ page: 1 });
+    expect(parseCatalogFilters({ maxPrice: "2147483647" })).toEqual({ maxPrice: 2147483647, page: 1 });
+  });
+
+  it("una página mayor a 1000 se ignora y queda la primera", () => {
+    expect(parseCatalogFilters({ page: "99999999" })).toEqual({ page: 1 });
+    expect(parseCatalogFilters({ page: "1001" })).toEqual({ page: 1 });
+    expect(parseCatalogFilters({ page: "1000" })).toEqual({ page: 1000 });
+  });
+
   it("si llega un valor repetido usa el primero", () => {
     expect(parseCatalogFilters({ kind: ["BODY", "LENS"] })).toEqual({ kind: "BODY", page: 1 });
   });

@@ -166,6 +166,8 @@ export default async function CatalogoPage({
   const f = parseCatalogFilters(await searchParams);
   const { items, total } = await searchListings(f);
   const paginas = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Un enlace armado a mano puede pedir una página que no existe.
+  const fueraDeRango = f.page > paginas;
 
   return (
     <Pagina
@@ -185,7 +187,14 @@ export default async function CatalogoPage({
                 : `${total.toLocaleString("es-AR")} equipos publicados`}
           </h2>
 
-          {items.length === 0 ? (
+          {fueraDeRango ? (
+            <p className="texto-secundario">
+              Esta página no existe.{" "}
+              <Link href={hrefPagina(f, paginas)}>
+                {paginas === 1 ? "Ir a la primera página" : `Ir a la última página (${paginas})`}
+              </Link>
+            </p>
+          ) : items.length === 0 ? (
             <p className="texto-secundario">
               {hayFiltros(f)
                 ? "Ningún equipo coincide con estos filtros. Probá quitando alguno."
@@ -199,7 +208,7 @@ export default async function CatalogoPage({
             </ul>
           )}
 
-          {paginas > 1 ? (
+          {paginas > 1 && !fueraDeRango ? (
             <nav className="paginacion" aria-label="Páginas de resultados">
               {f.page > 1 ? (
                 <Link href={hrefPagina(f, f.page - 1)} rel="prev">

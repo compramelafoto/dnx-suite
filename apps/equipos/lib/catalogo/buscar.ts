@@ -77,11 +77,17 @@ function primero(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
 
-/** Entero de pesos sin signo ni decimales; cualquier otra cosa se ignora. */
-function enteroPositivo(v: string | undefined): number | undefined {
+/** `priceArs` es `Int` de 32 bits: un valor mayor rompería la consulta. */
+const MAX_INT4 = 2_147_483_647;
+/** Más allá no hay nada que mirar, y `skip` crecería sin límite. */
+export const MAX_PAGE = 1000;
+
+/** Entero sin signo ni decimales dentro de `max`; cualquier otra cosa se ignora. */
+function enteroPositivo(v: string | undefined, max = MAX_INT4): number | undefined {
   const t = v?.trim();
-  if (!t || !/^\d{1,12}$/.test(t)) return undefined;
-  return Number(t);
+  if (!t || !/^\d{1,10}$/.test(t)) return undefined;
+  const n = Number(t);
+  return n <= max ? n : undefined;
 }
 
 export function parseCatalogFilters(sp: Params): CatalogFilters {
@@ -104,7 +110,7 @@ export function parseCatalogFilters(sp: Params): CatalogFilters {
   const maxPrice = enteroPositivo(primero(sp.maxPrice));
   if (maxPrice !== undefined) f.maxPrice = maxPrice;
 
-  const page = enteroPositivo(primero(sp.page));
+  const page = enteroPositivo(primero(sp.page), MAX_PAGE);
   if (page !== undefined && page >= 1) f.page = page;
 
   return f;
