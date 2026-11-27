@@ -19,7 +19,9 @@ export type PortalEmailTemplate =
   | "confirmar_compra"
   | "venta_confirmada"
   | "venta_no_confirmada"
-  | "alerta_busqueda";
+  | "alerta_busqueda"
+  | "pedido_dueno"
+  | "pedido_publicado";
 
 type Rendered = { subject: string; html: string; text: string };
 
@@ -237,6 +239,47 @@ export function renderPortalEmail(
         ...equipos,
         "Todos los vendedores verificaron su identidad. Igual seguí la guía de compra segura.",
         url ? `Administrar tus alertas: ${url}` : "",
+      ];
+      break;
+    }
+    case "pedido_dueno": {
+      // Al dueño. PRIVACIDAD: nunca el nombre del comprador (lo ve recién al abrir el aviso).
+      const equipo = d("equipo", "equipo");
+      subject = `Un comprador busca un ${equipo} como el tuyo`;
+      lineas = [
+        saludo,
+        `Un comprador con identidad verificada busca un ${equipo}, como el que tenés en tu inventario.`,
+        d("precio") ? `Ofrece hasta ${d("precio")}.` : "",
+        d("zona") ? `Lo busca en ${d("zona")}.` : "",
+        d("estado") ? `Estado mínimo que acepta: ${d("estado")}.` : "",
+        "No le dijimos quién sos ni que tenés este equipo. Si te interesa venderlo, respondé el aviso y te ayudamos a publicarlo.",
+        url
+          ? {
+              antes: "",
+              enlace: { texto: "Ver el pedido y responder", href: url },
+              despues: "",
+              plano: `Ver el pedido y responder: ${url}`,
+            }
+          : "",
+        "Si no querés recibir estos avisos, podés apagarlos desde «Mi cuenta».",
+      ];
+      break;
+    }
+    case "pedido_publicado": {
+      const equipo = d("equipo", "equipo");
+      subject = "Se publicó el equipo que buscabas";
+      lineas = [
+        saludo,
+        `Se publicó un ${equipo}${d("precio") ? ` a ${d("precio")}` : ""}, como el de tu pedido «Busco».`,
+        "El vendedor verificó su identidad. Igual seguí la guía de compra segura.",
+        url
+          ? {
+              antes: "",
+              enlace: { texto: "Ver la publicación", href: url },
+              despues: "",
+              plano: `Ver la publicación: ${url}`,
+            }
+          : "",
       ];
       break;
     }

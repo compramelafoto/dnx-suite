@@ -1,6 +1,7 @@
 import { prisma } from "@repo/db";
 import { uploadPrivateFile, validateFile } from "@/lib/archivos";
 import { avisarAlAdmin } from "@/lib/aviso-admin";
+import { notifyRequestBuyers } from "@/lib/busco/cruce";
 import type { PortalEmailTemplate } from "@/lib/correo";
 import { urlBaseDeLaApp } from "@/lib/sesion";
 import { EquipoError } from "../inventario/equipos";
@@ -190,6 +191,8 @@ export async function createListing(
       `Publicación #${listing.id} del equipo #${gearItemId}: la serie apareció en fotos de otro usuario.`,
     );
   }
+  // Pedidos «Busco»: si el dueño respondió «Me interesa vender», el comprador recibe el enlace.
+  if (status === "PUBLISHED") await notifyRequestBuyers(listing.id);
   return { listingId: listing.id, status };
 }
 
@@ -263,6 +266,7 @@ export async function resumeListing(
     return { status: "IN_REVIEW" };
   }
   await transition(listing, sellerId, ["PAUSED"], { status: "PUBLISHED", reviewNote: null }, IN_USE_TO_FOR_SALE, "reanudado");
+  await notifyRequestBuyers(listing.id);
   return { status: "PUBLISHED" };
 }
 

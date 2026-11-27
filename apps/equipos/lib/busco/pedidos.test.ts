@@ -1,0 +1,280 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const m = vi.hoisted(() => ({
+  reqCount: vi.fn(),
+  reqCreate: vi.fn(),
+  reqFindFirst: vi.fn(),
+  reqFindMany: vi.fn(),
+  reqUpdateMany: vi.fn(),
+  noticeFindFirst: vi.fn(),
+  noticeUpdateMany: vi.fn(),
+  listingFindMany: vi.fn(),
+  listingFindFirst: vi.fn(),
+  itemFindMany: vi.fn(),
+  byIds: vi.fn(),
+  notify: vi.fn(),
+}));
+
+vi.mock("@repo/db", () => ({
+  prisma: {
+    purchaseRequest: {
+      count: m.reqCount,
+      create: m.reqCreate,
+      findFirst: m.reqFindFirst,
+      findMany: m.reqFindMany,
+      updateMany: m.reqUpdateMany,
+    },
+    purchaseRequestNotice: { findFirst: m.noticeFindFirst, updateMany: m.noticeUpdateMany },
+    gearListing: { findMany: m.listingFindMany, findFirst: m.listingFindFirst },
+    gearItem: { findMany: m.itemFindMany },
+  },
+}));
+vi.mock("@/lib/catalogo/buscar", () => ({ getPublicListingsByIds: m.byIds }));
+vi.mock("./cruce", () => ({ notifyRequestBuyers: m.notify }));
+
+import {
+  CANCEL_LIMIT,
+  MAX_ACTIVE_REQUESTS,
+  MENSAJE_MAXIMO_PEDIDOS,
+  MENSAJE_MUCHOS_CANCELADOS,
+  cancelRequest,
+  createPurchaseRequest,
+  listMyRequests,
+  renewRequest,
+  respondNotice,
+} from "./pedidos";
+
+const HOY = new Date("2026-11-27T12:00:00Z");
+const DIA = 24 * 60 * 60 * 1000;
+const input = { kind: "LENS" as const, make: "Sony", model: "FE 20mm F1.8 G" };
+
+/** Cuántos activos y cuántos cancelados en 30 días devuelven los dos `count`. */
+function conteos(activos: number, cancelados: number) {
+  m.reqCount.mockImplementation(async ({ where }) =>
+    where.status === "ACTIVE" ? activos : cancelados,
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.useFakeTimers();
+  vi.setSystemTime(HOY);
+  conteos(0, 0);
+  m.reqCreate.mockResolvedValue({ id: 41 });
+  m.listingFindMany.mockResolvedValue([]);
+  m.byIds.mockResolvedValue([]);
+  m.notify.mockResolvedValue(undefined);
+});
+
+describe("createPurchaseRequest", () => {
+  it("guarda el pedido con su clave de modelo y vence a los 30 días", async () => {
+    expect(
+      await createPurchaseRequest(7, {
+        ...input,
+        maxPriceArs: 900000,
+        minCondition: "VERY_GOOD",
+        province: "Córdoba",
+      }),
+    ).toEqual({ requestId: 41, matches: [] });
+    expect(m.reqCreate).toHaveBeenCalledWith({
+      data: {
+        buyerId: 7,
+        kind: "LENS",
+        make: "Sony",
+        model: "FE 20mm F1.8 G",
+        modelKey: "sony:fe20mmf18g",
+        maxPriceArs: 900000,
+        minCondition: "VERY_GOOD",
+        province: "Córdoba",
+        status: "ACTIVE",
+        expiresAt: new Date(HOY.getTime() + 30 * DIA),
+      },
+      select: { id: true },
+    });
+  });
+
+  it.each([
+    [{ ...input, kind: "AUTO" }],
+    [{ ...input, make: "  " }],
+    [{ ...input, model: "" }],
+    [{ ...input, model: "x".repeat(121) }],
+    [{ ...input, maxPriceArs: 0 }],
+    [{ ...input, maxPriceArs: 10.5 }],
+    [{ ...input, minCondition: "ROTO" }],
+    [{ ...input, province: "Narnia" }],
+  ])("datos inválidos -> DATO_INVALIDO (%#)", async (bad) => {
+    await expect(createPurchaseRequest(7, bad as never)).rejects.toMatchObject({
+      code: "DATO_INVALIDO",
+    });
+    expect(m.reqCreate).not.toHaveBeenCalled();
+  });
+
+  it("el sexto pedido activo -> error", async () => {
+    conteos(MAX_ACTIVE_REQUESTS, 0);
+    await expect(createPurchaseRequest(7, input)).rejects.toMatchObject({
+      code: "DATO_INVALIDO",
+      message: MENSAJE_MAXIMO_PEDIDOS,
+    });
+    expect(m.reqCount).toHaveBeenCalledWith({
+      where: { buyerId: 7, status: "ACTIVE", expiresAt: { gt: HOY } },
+    });
+    expect(m.reqCreate).not.toHaveBeenCalled();
+  });
+
+  it("con 5 cancelados en 30 días -> error con el texto del encargo", async () => {
+    conteos(0, CANCEL_LIMIT);
+    await expect(createPurchaseRequest(7, input)).rejects.toMatchObject({
+      code: "DATO_INVALIDO",
+      message: "Cancelaste muchos pedidos en poco tiempo. Vas a poder crear otro en unos días.",
+    });
+    expect(MENSAJE_MUCHOS_CANCELADOS).toBe(
+      "Cancelaste muchos pedidos en poco tiempo. Vas a poder crear otro en unos días.",
+    );
+    expect(m.reqCount).toHaveBeenCalledWith({
+      where: { buyerId: 7, status: "CANCELLED", cancelledAt: { gte: new Date(HOY.getTime() - 30 * DIA) } },
+    });
+    expect(m.reqCreate).not.toHaveBeenCalled();
+  });
+
+  it("con 4 cancelados todavía puede", async () => {
+    conteos(4, CANCEL_LIMIT - 1);
+    await expect(createPurchaseRequest(7, input)).resolves.toMatchObject({ requestId: 41 });
+  });
+
+  it("matches: sólo publicaciones del mismo modelo, nunca las propias, con el armado del catálogo", async () => {
+    m.listingFindMany.mockResolvedValue([
+      { id: 10, make: "SONY", model: "Sony FE 20mm f/1.8 G" },
+      { id: 11, make: "Sony", model: "FE 24mm F1.4 GM" },
+      { id: 12, make: "Sony Corporation", model: "FE 20mm F1.8 G" },
+    ]);
+    const publica = { id: 10, make: "SONY", sellerFirstName: "Ana" };
+    m.byIds.mockResolvedValue([publica]);
+    const r = await createPurchaseRequest(7, input);
+    expect(m.byIds).toHaveBeenCalledWith([10, 12]);
+    expect(r.matches).toEqual([publica]);
+    const where = m.listingFindMany.mock.calls[0][0].where;
+    expect(where).toMatchObject({ status: "PUBLISHED", kind: "LENS", sellerId: { not: 7 } });
+  });
+
+  it("no trae nada de inventarios ni de dueños", async () => {
+    m.listingFindMany.mockResolvedValue([{ id: 10, make: "Sony", model: "FE 20mm F1.8 G" }]);
+    m.byIds.mockResolvedValue([{ id: 10 }]);
+    const r = await createPurchaseRequest(7, input);
+    expect(Object.keys(r).sort()).toEqual(["matches", "requestId"]);
+    expect(m.itemFindMany).not.toHaveBeenCalled();
+    const select = m.listingFindMany.mock.calls[0][0].select;
+    expect(select).toEqual({ id: true, make: true, model: true });
+  });
+});
+
+describe("renewRequest", () => {
+  it("activo o vencido: +30 días desde hoy y vuelve a activo", async () => {
+    m.reqFindFirst.mockResolvedValue({ id: 3, status: "EXPIRED" });
+    m.reqUpdateMany.mockResolvedValue({ count: 1 });
+    await renewRequest(7, 3);
+    expect(m.reqFindFirst).toHaveBeenCalledWith({
+      where: { id: 3, buyerId: 7 },
+      select: { id: true, status: true },
+    });
+    expect(m.reqUpdateMany).toHaveBeenCalledWith({
+      where: { id: 3, buyerId: 7, status: { in: ["ACTIVE", "EXPIRED"] } },
+      data: { status: "ACTIVE", expiresAt: new Date(HOY.getTime() + 30 * DIA) },
+    });
+  });
+
+  it("renovar uno vencido respeta el tope de activos", async () => {
+    m.reqFindFirst.mockResolvedValue({ id: 3, status: "EXPIRED" });
+    conteos(MAX_ACTIVE_REQUESTS, 0);
+    await expect(renewRequest(7, 3)).rejects.toMatchObject({ message: MENSAJE_MAXIMO_PEDIDOS });
+    expect(m.reqUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("ajeno -> NO_ENCONTRADO; cancelado o cumplido -> DATO_INVALIDO", async () => {
+    m.reqFindFirst.mockResolvedValue(null);
+    await expect(renewRequest(7, 3)).rejects.toMatchObject({ code: "NO_ENCONTRADO" });
+    m.reqFindFirst.mockResolvedValue({ id: 3, status: "CANCELLED" });
+    await expect(renewRequest(7, 3)).rejects.toMatchObject({ code: "DATO_INVALIDO" });
+    expect(m.reqUpdateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("cancelRequest", () => {
+  it("cancela sólo un pedido propio y activo", async () => {
+    m.reqUpdateMany.mockResolvedValue({ count: 1 });
+    await cancelRequest(7, 3);
+    expect(m.reqUpdateMany).toHaveBeenCalledWith({
+      where: { id: 3, buyerId: 7, status: "ACTIVE" },
+      data: { status: "CANCELLED", cancelledAt: HOY },
+    });
+  });
+
+  it("ajeno -> NO_ENCONTRADO; ya no activo -> DATO_INVALIDO", async () => {
+    m.reqUpdateMany.mockResolvedValue({ count: 0 });
+    m.reqFindFirst.mockResolvedValue(null);
+    await expect(cancelRequest(7, 3)).rejects.toMatchObject({ code: "NO_ENCONTRADO" });
+    m.reqFindFirst.mockResolvedValue({ id: 3 });
+    await expect(cancelRequest(7, 3)).rejects.toMatchObject({ code: "DATO_INVALIDO" });
+  });
+});
+
+describe("listMyRequests", () => {
+  it("sus pedidos sin conteos de avisos; un activo ya vencido se muestra vencido", async () => {
+    m.reqFindMany.mockResolvedValue([
+      { id: 1, status: "ACTIVE", expiresAt: new Date(HOY.getTime() + DIA) },
+      { id: 2, status: "ACTIVE", expiresAt: new Date(HOY.getTime() - DIA) },
+    ]);
+    const r = await listMyRequests(7);
+    expect(r.map((p) => p.status)).toEqual(["ACTIVE", "EXPIRED"]);
+    const q = m.reqFindMany.mock.calls[0][0];
+    expect(q.where).toEqual({ buyerId: 7 });
+    expect(JSON.stringify(q.select)).not.toMatch(/notice|_count/i);
+  });
+});
+
+describe("respondNotice", () => {
+  it("el aviso de otro dueño -> NO_ENCONTRADO", async () => {
+    m.noticeFindFirst.mockResolvedValue(null);
+    await expect(respondNotice(8, 5, "INTERESTED")).rejects.toMatchObject({ code: "NO_ENCONTRADO" });
+    expect(m.noticeFindFirst.mock.calls[0][0].where).toEqual({ id: 5, ownerId: 8 });
+    expect(m.noticeUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("responde una sola vez", async () => {
+    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: "DECLINED" });
+    await expect(respondNotice(8, 5, "INTERESTED")).rejects.toMatchObject({ code: "DATO_INVALIDO" });
+    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null });
+    m.noticeUpdateMany.mockResolvedValue({ count: 0 });
+    await expect(respondNotice(8, 5, "INTERESTED")).rejects.toMatchObject({ code: "DATO_INVALIDO" });
+  });
+
+  it("registra la respuesta y devuelve el equipo", async () => {
+    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null });
+    m.noticeUpdateMany.mockResolvedValue({ count: 1 });
+    m.listingFindFirst.mockResolvedValue(null);
+    expect(await respondNotice(8, 5, "DECLINED")).toEqual({ gearItemId: 30 });
+    expect(m.noticeUpdateMany).toHaveBeenCalledWith({
+      where: { id: 5, ownerId: 8, response: null },
+      data: { response: "DECLINED", respondedAt: HOY },
+    });
+    expect(m.notify).not.toHaveBeenCalled();
+  });
+
+  it("si ya tenía ese equipo publicado, «Me interesa» avisa al comprador enseguida", async () => {
+    m.noticeFindFirst.mockResolvedValue({ gearItemId: 30, response: null });
+    m.noticeUpdateMany.mockResolvedValue({ count: 1 });
+    m.listingFindFirst.mockResolvedValue({ id: 77 });
+    await respondNotice(8, 5, "INTERESTED");
+    expect(m.listingFindFirst.mock.calls[0][0].where).toEqual({
+      gearItemId: 30,
+      sellerId: 8,
+      status: "PUBLISHED",
+    });
+    expect(m.notify).toHaveBeenCalledWith(77);
+  });
+
+  it("una respuesta desconocida -> DATO_INVALIDO", async () => {
+    await expect(respondNotice(8, 5, "QUIZAS" as never)).rejects.toMatchObject({
+      code: "DATO_INVALIDO",
+    });
+  });
+});

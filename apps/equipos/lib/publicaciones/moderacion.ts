@@ -1,4 +1,5 @@
 import { prisma } from "@repo/db";
+import { notifyRequestBuyers } from "@/lib/busco/cruce";
 import { contactoEmail, contactoMailto } from "@/lib/contacto-publico";
 import { sendPortalEmail } from "@/lib/correo";
 import { urlBaseDeLaApp } from "@/lib/sesion";
@@ -161,6 +162,8 @@ export async function approveListing(adminId: number, listingId: number): Promis
   // Una pausada no está «online»: el vendedor la reanuda cuando quiera, sin correo que diga otra cosa.
   if (destino === "PUBLISHED") {
     await avisarAlVendedor(listing.seller, "publicacion_aprobada", listingId);
+    // Pedidos «Busco»: si el dueño respondió «Me interesa vender», el comprador recibe el enlace.
+    await notifyRequestBuyers(listingId);
   }
 }
 

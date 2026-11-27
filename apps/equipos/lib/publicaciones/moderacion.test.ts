@@ -14,6 +14,7 @@ const m = vi.hoisted(() => ({
   txFlagUpdateMany: vi.fn(),
   tx: vi.fn(),
   email: vi.fn(),
+  notifyBuyers: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -27,6 +28,7 @@ vi.mock("@repo/db", () => ({
 }));
 vi.mock("@/lib/correo", () => ({ sendPortalEmail: m.email }));
 vi.mock("@/lib/sesion", () => ({ urlBaseDeLaApp: () => "https://e.test" }));
+vi.mock("@/lib/busco/cruce", () => ({ notifyRequestBuyers: m.notifyBuyers }));
 
 import {
   approveListing,
@@ -177,11 +179,27 @@ describe("approveListing", () => {
     expect(m.email).toHaveBeenCalledWith("v@t.com", "publicacion_aprobada", expect.anything());
   });
 
+  it("aprobada a PUBLISHED avisa a los compradores con pedido «Busco»", async () => {
+    m.listingFindFirst.mockResolvedValue(listing());
+    await approveListing(1, 5);
+    expect(m.notifyBuyers).toHaveBeenCalledWith(5);
+  });
+
+  it("aprobada que vuelve a PAUSED no avisa a los compradores", async () => {
+    m.listingFindFirst.mockResolvedValue(listing());
+    m.eventFindFirst.mockResolvedValue({
+      detail: { listingId: 5, accion: "retenido", reportId: 3, previo: "PAUSED" },
+    });
+    await approveListing(1, 5);
+    expect(m.notifyBuyers).not.toHaveBeenCalled();
+  });
+
   it("otro estado -> error y sin correo", async () => {
     m.listingFindFirst.mockResolvedValue(listing());
     m.txListingUpdateMany.mockResolvedValue({ count: 0 });
     await expect(approveListing(1, 5)).rejects.toMatchObject({ code: "DATO_INVALIDO" });
     expect(m.email).not.toHaveBeenCalled();
+    expect(m.notifyBuyers).not.toHaveBeenCalled();
   });
 });
 

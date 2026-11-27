@@ -17,6 +17,7 @@ const m = vi.hoisted(() => ({
   upload: vi.fn(),
   email: vi.fn(),
   proof: vi.fn(),
+  notifyBuyers: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -34,6 +35,7 @@ vi.mock("@/lib/archivos", async () => {
 });
 vi.mock("@/lib/correo", () => ({ sendPortalEmail: m.email }));
 vi.mock("@/lib/sesion", () => ({ urlBaseDeLaApp: () => "https://e.test" }));
+vi.mock("@/lib/busco/cruce", () => ({ notifyRequestBuyers: m.notifyBuyers }));
 vi.mock("./sellos", async () => {
   const actual = await vi.importActual<typeof import("./sellos")>("./sellos");
   return { ...actual, proofPhotoMatches: m.proof };
@@ -112,6 +114,7 @@ beforeEach(() => {
   m.upload.mockResolvedValue({ key: "equipos/serie.jpg", mime: "image/jpeg" });
   m.email.mockResolvedValue({ success: true });
   m.proof.mockResolvedValue(false);
+  m.notifyBuyers.mockResolvedValue(undefined);
 });
 
 describe("createListing", () => {
@@ -252,6 +255,35 @@ describe("createListing", () => {
       createListing(1, 7, { ...input, priceArs: 0 }, { serialPhoto: img() }),
     ).rejects.toMatchObject({ code: "DATO_INVALIDO" });
     expect(m.tx).not.toHaveBeenCalled();
+  });
+});
+
+describe("pedidos «Busco» al quedar PUBLISHED", () => {
+  it("createListing publicada avisa a los compradores con pedido", async () => {
+    await createListing(1, 7, input, { serialPhoto: img() });
+    expect(m.notifyBuyers).toHaveBeenCalledWith(70);
+  });
+
+  it("createListing en revisión no avisa", async () => {
+    m.reportFindFirst.mockResolvedValue({ id: 33 });
+    await createListing(1, 7, input, { serialPhoto: img() });
+    expect(m.notifyBuyers).not.toHaveBeenCalled();
+  });
+
+  it("resumeListing a PUBLISHED avisa; a IN_REVIEW no", async () => {
+    m.listingFindFirst.mockResolvedValue(listing({ status: "PAUSED" }));
+    await resumeListing(1, 70);
+    expect(m.notifyBuyers).toHaveBeenCalledWith(70);
+    m.notifyBuyers.mockClear();
+    m.reportFindFirst.mockResolvedValue({ id: 44 });
+    await resumeListing(1, 70);
+    expect(m.notifyBuyers).not.toHaveBeenCalled();
+  });
+
+  it("si la transacción falla, no avisa", async () => {
+    m.txListingCreate.mockRejectedValue(new Error("caído"));
+    await expect(createListing(1, 7, input, { serialPhoto: img() })).rejects.toThrow("caído");
+    expect(m.notifyBuyers).not.toHaveBeenCalled();
   });
 });
 

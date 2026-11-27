@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { runPurchaseRequests } from "@/lib/busco/cruce";
 import { runSearchAlerts } from "@/lib/catalogo/alertas";
 import { expirePendingSales } from "@/lib/ventas/ventas";
 
@@ -7,8 +8,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 /**
- * Cron diario del mercado: vence las ventas que el comprador no confirmó a tiempo y manda los
- * avisos de las alertas de búsqueda. Cada trabajo por separado: si falla uno, los otros corren.
+ * Cron diario del mercado: vence las ventas que el comprador no confirmó a tiempo, manda los
+ * avisos de las alertas de búsqueda y cruza los pedidos «Busco» con los inventarios. Cada trabajo
+ * por separado: si falla uno, los otros corren.
  */
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET?.trim();
@@ -36,7 +38,14 @@ export async function GET(req: NextRequest) {
     fallo = true;
     console.error("[mercado-diario] fallaron las alertas de búsqueda", err);
   }
-  // Task 6 (pedidos «Busco»): sumar acá `runPurchaseRequests` con su propio try/catch.
+  try {
+    const r = await runPurchaseRequests();
+    conteos.requestNotices = r.notices;
+    conteos.requestsExpired = r.expired;
+  } catch (err) {
+    fallo = true;
+    console.error("[mercado-diario] falló el cruce de pedidos «Busco»", err);
+  }
 
   if (fallo) {
     return NextResponse.json({ ok: false, error: "mercado_failed", ...conteos }, { status: 500 });

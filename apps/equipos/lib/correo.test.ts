@@ -18,6 +18,8 @@ const PLANTILLAS = [
   "confirmar_compra",
   "venta_confirmada",
   "venta_no_confirmada",
+  "pedido_dueno",
+  "pedido_publicado",
 ] as const;
 
 describe("renderPortalEmail", () => {
@@ -146,6 +148,47 @@ describe("renderPortalEmail", () => {
     expect(renderPortalEmail("alerta_busqueda", { item1_titulo: "X", item1_url: "u" }).subject).toBe(
       "Se publicó un equipo que estás buscando",
     );
+  });
+
+  it("pedido_dueno: modelo, precio, zona y enlace al aviso; nunca el comprador", () => {
+    const r = renderPortalEmail("pedido_dueno", {
+      nombre: "Pedro",
+      equipo: "Sony FE 20mm F1.8 G",
+      precio: "$ 900.000",
+      zona: "Córdoba",
+      estado: "Muy bueno",
+      url: "https://e.test/busco/avisos/500",
+      // Aunque llegara, el nombre del comprador no se usa.
+      comprador: "Juan Gómez",
+    });
+    expect(r.subject).toBe("Un comprador busca un Sony FE 20mm F1.8 G como el tuyo");
+    expect(r.text).toContain(
+      "Un comprador con identidad verificada busca un Sony FE 20mm F1.8 G, como el que tenés en tu inventario.",
+    );
+    expect(r.text).toContain("Ofrece hasta $ 900.000.");
+    expect(r.text).toContain("Lo busca en Córdoba.");
+    expect(r.text).toContain("Estado mínimo que acepta: Muy bueno.");
+    expect(r.text).toContain("https://e.test/busco/avisos/500");
+    expect(r.html).toContain('<a href="https://e.test/busco/avisos/500">');
+    for (const s of [r.subject, r.html, r.text]) expect(s).not.toContain("Juan");
+    const sinDatos = renderPortalEmail("pedido_dueno", { equipo: "Canon R6", url: "u" });
+    expect(sinDatos.text).not.toContain("Ofrece");
+    expect(sinDatos.text).not.toContain("Lo busca en");
+  });
+
+  it("pedido_publicado: enlace a la ficha", () => {
+    const r = renderPortalEmail("pedido_publicado", {
+      nombre: "Juan",
+      equipo: "Sony <b>FE</b> 20mm",
+      precio: "$ 850.000",
+      url: "https://e.test/equipos/77",
+    });
+    expect(r.subject).toBe("Se publicó el equipo que buscabas");
+    expect(r.text).toContain("Hola Juan,");
+    expect(r.text).toContain("Sony <b>FE</b> 20mm");
+    expect(r.text).toContain("$ 850.000");
+    expect(r.html).not.toContain("<b>FE</b>");
+    expect(r.html).toContain('<a href="https://e.test/equipos/77">');
   });
 
   it("escapa HTML en los datos", () => {
