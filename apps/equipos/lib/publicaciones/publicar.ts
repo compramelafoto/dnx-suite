@@ -4,6 +4,7 @@ import { avisarAlAdmin } from "@/lib/aviso-admin";
 import { notifyRequestBuyers } from "@/lib/busco/cruce";
 import type { PortalEmailTemplate } from "@/lib/correo";
 import { urlBaseDeLaApp } from "@/lib/sesion";
+import { MENSAJE_CUENTA_SUSPENDIDA, isBlocked } from "@/lib/usuarios/bloqueo";
 import { EquipoError } from "../inventario/equipos";
 import type { GearListing } from "./catalogos";
 import { findActiveReportForSerial } from "./denuncia-activa";
@@ -52,6 +53,8 @@ export async function createListing(
   input: ListingInput,
   files: { serialPhoto?: File; proofPhoto?: File },
 ): Promise<{ listingId: number; status: "IN_REVIEW" | "PUBLISHED" }> {
+  // En vivo, además del guard de la página (que redirige a /cuenta/bloqueada).
+  if (await isBlocked(sellerId)) throw new EquipoError("DATO_INVALIDO", MENSAJE_CUENTA_SUSPENDIDA);
   const item = await prisma.gearItem.findFirst({ where: { id: gearItemId, ownerId: sellerId } });
   if (!item) throw new EquipoError("NO_ENCONTRADO");
 

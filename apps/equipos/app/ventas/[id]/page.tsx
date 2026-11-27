@@ -7,6 +7,7 @@ import { estadoCalificacion } from "@/lib/ventas/estado";
 import { getSaleForParty } from "@/lib/ventas/ventas";
 import { Aviso, BotonEnlace, Pagina } from "@/app/_ui";
 import { DatosVenta, EstadoVenta, SeccionCalificacion } from "@/app/compras/PartesVenta";
+import { ReportarPersona } from "@/app/reportar-usuario/ReportarPersona";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,10 @@ export default async function VentaPage({
       </section>
 
       <SeccionCalificacion venta={venta} estado={estado} />
+      <section className="seccion" aria-labelledby="algo-mal">
+        <h2 id="algo-mal">¿Algo salió mal?</h2>
+        <ReportarPersona origen="venta" refId={venta.id} nombre={venta.otraParte} />
+      </section>
     </Pagina>
   );
 }

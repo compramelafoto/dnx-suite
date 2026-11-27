@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const user = await getPortalUser();
   if (!user) return NextResponse.json({ error: "Necesitás iniciar sesión" }, { status: 401 });
+  if (user.blocked) return NextResponse.json({ error: "Tu cuenta está suspendida." }, { status: 403 });
 
   const { level, identity } = user;
   if (level !== "telefono" && level !== "identidad") {

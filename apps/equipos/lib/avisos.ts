@@ -8,6 +8,8 @@ import {
   MENSAJE_PEDIDO_SIN_IDENTIDAD,
 } from "@/lib/busco/pedidos";
 import { EquipoError, MENSAJE_IDENTIDAD_CON_PUBLICACION } from "@/lib/inventario/equipos";
+import { MENSAJE_CUENTA_SUSPENDIDA, MENSAJE_MOTIVO } from "@/lib/usuarios/bloqueo";
+import { MENSAJE_REPORTE_PROPIO, MENSAJE_REPORTE_SIN_RELACION } from "@/lib/usuarios/reportes";
 import { VentaError } from "@/lib/ventas/ventas";
 
 /**
@@ -67,6 +69,8 @@ export const AVISOS_OK = {
   AVISO_RECHAZADO: "Listo, no le vamos a decir nada al comprador.",
   AVISO_YA_PUBLICADO: "Listo. Tu equipo ya está publicado: le mandamos el enlace al comprador.",
   PREFERENCIAS_GUARDADAS: "Preferencias guardadas.",
+  REPORTE_USUARIO_ENVIADO:
+    "Recibimos tu reporte. Lo revisamos y, si hace falta, tomamos medidas. La otra persona no se entera de que la reportaste.",
 } as const satisfies MapaAvisos;
 
 export type CodigoOk = keyof typeof AVISOS_OK;
@@ -173,6 +177,12 @@ export const AVISOS_ERROR = {
   MARCA_MODELO_LARGOS: "La marca o el modelo son demasiado largos.",
   PRECIO_MAXIMO: "El precio máximo tiene que ser un número entero de pesos, mayor a cero.",
   ELEGI_RESPUESTA: "Elegí una respuesta.",
+
+  // Cuenta bloqueada y reportes de usuario (los textos de `bloqueo.ts` y `reportes.ts`).
+  CUENTA_SUSPENDIDA: MENSAJE_CUENTA_SUSPENDIDA,
+  MOTIVO_REPORTE: MENSAJE_MOTIVO,
+  REPORTE_PROPIO: MENSAJE_REPORTE_PROPIO,
+  REPORTE_SIN_RELACION: MENSAJE_REPORTE_SIN_RELACION,
 
   // Cuenta.
   TELEFONO_INVALIDO:

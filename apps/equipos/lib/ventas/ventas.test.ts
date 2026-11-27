@@ -13,6 +13,7 @@ const m = vi.hoisted(() => ({
   txEventCreate: vi.fn(),
   tx: vi.fn(),
   email: vi.fn(),
+  blockFindUnique: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -21,6 +22,7 @@ vi.mock("@repo/db", () => ({
     gearListingContact: { findUnique: m.contactFindUnique },
     gearSale: { findFirst: m.saleFindFirst, findMany: m.saleFindMany },
     user: { findMany: m.userFindMany },
+    portalAccountBlock: { findUnique: m.blockFindUnique },
     $transaction: m.tx,
   },
 }));
@@ -94,6 +96,15 @@ beforeEach(() => {
 });
 
 describe("markSold", () => {
+  it("vendedor con la cuenta suspendida: rechaza aunque se llame directo", async () => {
+    m.blockFindUnique.mockResolvedValueOnce({ liftedAt: null });
+    await expect(markSold(1, 70, 2, 1500000)).rejects.toMatchObject({
+      code: "CUENTA_SUSPENDIDA",
+      message: "Tu cuenta está suspendida.",
+    });
+    expect(m.tx).not.toHaveBeenCalled();
+  });
+
   it("marca la publicación como vendida, crea la venta con vencimiento a 7 días y avisa al comprador", async () => {
     expect(SALE_DAYS).toBe(7);
     const antes = Date.now();
@@ -194,6 +205,12 @@ describe("markSold", () => {
 });
 
 describe("confirmPurchase", () => {
+  it("comprador con la cuenta suspendida: rechaza y el equipo no cambia de dueño", async () => {
+    m.blockFindUnique.mockResolvedValueOnce({ liftedAt: null });
+    await expect(confirmPurchase(2, 500)).rejects.toMatchObject({ code: "CUENTA_SUSPENDIDA" });
+    expect(m.tx).not.toHaveBeenCalled();
+  });
+
   it("pasa el equipo al comprador y borra notas y valores en la misma transacción", async () => {
     await confirmPurchase(2, 500);
 

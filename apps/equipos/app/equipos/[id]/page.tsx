@@ -22,6 +22,7 @@ import {
   SinFoto,
 } from "@/app/_ui";
 import { MARCA } from "@/app/_ui/marca";
+import { ReportarPersona } from "@/app/reportar-usuario/ReportarPersona";
 import { alternarFavorito } from "./favorito/actions";
 
 export const dynamic = "force-dynamic";
@@ -172,6 +173,10 @@ export default async function FichaEquipoPage({ params, searchParams }: Props) {
             <a className="ficha-reportar" href={`/equipos/${l.id}/reportar`}>
               Reportar publicación
             </a>
+            {/* Sólo quien ya consultó puede reportar al vendedor (reportUser lo exige igual). */}
+            {usuario && yaContacto && !esVendedor ? (
+              <ReportarPersona origen="publicacion" refId={l.id} nombre={l.sellerFirstName} />
+            ) : null}
           </div>
         </div>
 

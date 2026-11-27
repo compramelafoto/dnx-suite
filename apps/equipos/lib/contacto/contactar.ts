@@ -3,6 +3,7 @@ import { sendPortalEmail } from "@/lib/correo";
 import { EquipoError } from "@/lib/inventario/equipos";
 import { findActiveReportForSerial } from "@/lib/publicaciones/denuncia-activa";
 import { urlBaseDeLaApp } from "@/lib/sesion";
+import { MENSAJE_CUENTA_SUSPENDIDA, isBlocked } from "@/lib/usuarios/bloqueo";
 import { formatRating, getUserRating } from "@/lib/ventas/calificaciones";
 
 /**
@@ -10,12 +11,13 @@ import { formatRating, getUserRating } from "@/lib/ventas/calificaciones";
  * quien tiene identidad verificada (la server action lo exige antes de llamar).
  */
 
-export type ContactErrorCode = "PROPIA" | "NO_DISPONIBLE" | "LIMITE";
+export type ContactErrorCode = "PROPIA" | "NO_DISPONIBLE" | "LIMITE" | "SUSPENDIDA";
 
 const MENSAJES: Record<ContactErrorCode, string> = {
   PROPIA: "Esta publicación es tuya.",
   NO_DISPONIBLE: "Esta publicación ya no está disponible.",
   LIMITE: "Llegaste al máximo de contactos por hoy. Probá mañana.",
+  SUSPENDIDA: MENSAJE_CUENTA_SUSPENDIDA,
 };
 
 export class ContactoError extends Error {
@@ -63,6 +65,8 @@ export async function contactSeller(
   buyer: { id: number; displayName: string | null },
   listingId: number,
 ): Promise<SellerContact> {
+  // En vivo, además del guard de la página: una cuenta suspendida no ve datos de nadie.
+  if (await isBlocked(buyer.id)) throw new ContactoError("SUSPENDIDA");
   const listing = await prisma.gearListing.findFirst({
     where: { id: listingId },
     select: {
@@ -74,7 +78,10 @@ export async function contactSeller(
       gearItem: { select: { serialNormalized: true } },
       // Mismo criterio que el catálogo: sólo vendedores con la identidad aprobada HOY.
       seller: {
-        select: { identityVerification: { select: { status: true } } },
+        select: {
+          identityVerification: { select: { status: true } },
+          portalAccountBlock: { select: { liftedAt: true } },
+        },
       },
     },
   });
@@ -85,6 +92,9 @@ export async function contactSeller(
   if (listing.seller?.identityVerification?.status !== "APPROVED") {
     throw new ContactoError("NO_DISPONIBLE");
   }
+  // Vendedor bloqueado: su publicación no se ve en el catálogo y sus datos tampoco salen.
+  const bloqueoVendedor = listing.seller?.portalAccountBlock;
+  if (bloqueoVendedor && bloqueoVendedor.liftedAt == null) throw new ContactoError("NO_DISPONIBLE");
   const serial = listing.gearItem?.serialNormalized;
   if (serial && (await findActiveReportForSerial(serial, listing.sellerId))) {
     throw new ContactoError("NO_DISPONIBLE");

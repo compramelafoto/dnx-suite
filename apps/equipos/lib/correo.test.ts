@@ -20,6 +20,8 @@ const PLANTILLAS = [
   "venta_no_confirmada",
   "pedido_dueno",
   "pedido_publicado",
+  "reporte_usuario_admin",
+  "cuenta_bloqueada",
 ] as const;
 
 describe("renderPortalEmail", () => {
@@ -174,6 +176,26 @@ describe("renderPortalEmail", () => {
     const sinDatos = renderPortalEmail("pedido_dueno", { equipo: "Canon R6", url: "u" });
     expect(sinDatos.text).not.toContain("Ofrece");
     expect(sinDatos.text).not.toContain("Lo busca en");
+  });
+
+  it("reporte_usuario_admin: asunto sin datos personales", () => {
+    const r = renderPortalEmail("reporte_usuario_admin", {
+      detalle: "Reporte #30 · Venta #5",
+      url: "https://e.test/admin/usuarios",
+    });
+    expect(r.subject).toBe("Usuario reportado");
+    expect(r.text).toContain("Reporte #30 · Venta #5");
+    expect(r.text).toContain("https://e.test/admin/usuarios");
+  });
+
+  it("cuenta_bloqueada: el texto fijo, nunca el motivo interno", () => {
+    const r = renderPortalEmail("cuenta_bloqueada", { nombre: "Juan", motivo: "vendió robado" });
+    expect(r.subject).toBe("Tu cuenta de MercadoFotoRaw fue suspendida");
+    expect(r.text).toContain("Hola Juan,");
+    expect(r.text).toContain(
+      "Tu cuenta de MercadoFotoRaw fue suspendida. Si creés que es un error, respondé este correo.",
+    );
+    expect(r.text + r.html + r.subject).not.toContain("robado");
   });
 
   it("pedido_publicado: enlace a la ficha", () => {

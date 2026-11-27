@@ -18,6 +18,7 @@ const m = vi.hoisted(() => ({
   email: vi.fn(),
   proof: vi.fn(),
   notifyBuyers: vi.fn(),
+  blockFindUnique: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -26,6 +27,7 @@ vi.mock("@repo/db", () => ({
     stolenGearReport: { count: m.reportCount, findFirst: m.reportFindFirst },
     gearListing: { findFirst: m.listingFindFirst, findMany: m.listingFindMany },
     gearSerialSighting: { findMany: m.sightingFindMany },
+    portalAccountBlock: { findUnique: m.blockFindUnique },
     $transaction: m.tx,
   },
 }));
@@ -118,6 +120,15 @@ beforeEach(() => {
 });
 
 describe("createListing", () => {
+  it("cuenta suspendida: rechaza aunque se llame directo, sin subir nada", async () => {
+    m.blockFindUnique.mockResolvedValueOnce({ liftedAt: null });
+    await expect(createListing(1, 7, input, { serialPhoto: img() })).rejects.toThrow(
+      "Tu cuenta está suspendida.",
+    );
+    expect(m.upload).not.toHaveBeenCalled();
+    expect(m.txListingCreate).not.toHaveBeenCalled();
+  });
+
   it("equipo de otro dueño → NO_ENCONTRADO", async () => {
     m.itemFindFirst.mockResolvedValue(null);
     await expect(createListing(1, 7, input, { serialPhoto: img() })).rejects.toMatchObject({

@@ -8,6 +8,7 @@ import {
   type GearListingCondition,
 } from "@/lib/publicaciones/catalogos";
 import { getUserRating, type UserRating } from "@/lib/ventas/calificaciones";
+import { MENSAJE_CUENTA_SUSPENDIDA, isBlocked } from "@/lib/usuarios/bloqueo";
 import { notifyRequestBuyers } from "./cruce";
 import {
   CANCEL_LIMIT,
@@ -123,6 +124,8 @@ export async function createPurchaseRequest(
 ): Promise<{ requestId: number; matches: PublicListing[] }> {
   const data = validar(input);
   const now = new Date();
+  // En vivo, además del guard de la página (que redirige a /cuenta/bloqueada).
+  if (await isBlocked(buyerId)) throw invalido(MENSAJE_CUENTA_SUSPENDIDA);
 
   // El dueño recibe «un comprador con identidad verificada»: se exige acá y otra vez en el cron.
   const identidad = await prisma.identityVerification.findUnique({

@@ -10,6 +10,7 @@ import { findActiveReportForSerial } from "@/lib/publicaciones/denuncia-activa";
 import { listSellerListings } from "@/lib/publicaciones/publicar";
 import { maskSerial, requiresSerial } from "@/lib/publicaciones/reglas";
 import { Aviso, Boton, BotonEnlace, EstadoPublicacion, FichaConfianza, Pagina } from "@/app/_ui";
+import { ReportarPersona } from "@/app/reportar-usuario/ReportarPersona";
 import { CamposPublicacion } from "../CamposPublicacion";
 import {
   cerrarPublicacion,
@@ -108,8 +109,9 @@ export default async function PublicacionPage({
         {interesados.contacts.length > 0 ? (
           <ul className="lista-texto">
             {interesados.contacts.map((c) => (
-              <li key={`${c.name}-${c.at.getTime()}`}>
+              <li key={`${c.buyerId}-${c.at.getTime()}`}>
                 {c.name} — {fechaHoraAr(c.at)}
+                <ReportarPersona origen="interesado" refId={listing.id} persona={c.buyerId} />
               </li>
             ))}
           </ul>

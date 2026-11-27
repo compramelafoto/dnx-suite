@@ -6,11 +6,13 @@ const m = vi.hoisted(() => ({
   ratingGroupBy: vi.fn(),
   ratingFindUnique: vi.fn(),
   getSale: vi.fn(),
+  blockFindUnique: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
   prisma: {
     gearSaleRating: { create: m.ratingCreate, findMany: m.ratingFindMany, groupBy: m.ratingGroupBy, findUnique: m.ratingFindUnique },
+    portalAccountBlock: { findUnique: m.blockFindUnique },
   },
 }));
 vi.mock("./ventas", async () => {
@@ -46,6 +48,12 @@ beforeEach(() => {
 });
 
 describe("rateSale", () => {
+  it("cuenta suspendida: no califica", async () => {
+    m.blockFindUnique.mockResolvedValueOnce({ liftedAt: null });
+    await expect(rateSale(2, 500, 5)).rejects.toThrow("Tu cuenta está suspendida.");
+    expect(m.ratingCreate).not.toHaveBeenCalled();
+  });
+
   it("el comprador califica al vendedor y el vendedor al comprador", async () => {
     await rateSale(2, 500, 5, "  Todo bien  ");
     expect(m.ratingCreate.mock.calls[0][0].data).toEqual({

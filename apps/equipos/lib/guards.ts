@@ -35,6 +35,8 @@ export type PortalUser = CurrentUser & {
   phoneVerifiedAt: Date | null;
   emailVerifiedAt: Date | null;
   identity: PortalIdentity | null;
+  /** Bloqueo del portal sin levantar (`PortalAccountBlock`). Nunca se mira `User.isBlocked` de CLF. */
+  blocked: boolean;
 };
 
 /**
@@ -47,7 +49,7 @@ async function cargarPortalUser(): Promise<PortalUser | null> {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const [dbUser, phone, identity] = await Promise.all([
+  const [dbUser, phone, identity, bloqueo] = await Promise.all([
     prisma.user.findUnique({ where: { id: user.id }, select: { emailVerifiedAt: true } }),
     prisma.phoneVerification.findUnique({
       where: { userId: user.id },
@@ -63,6 +65,7 @@ async function cargarPortalUser(): Promise<PortalUser | null> {
         rejectionReason: true,
       },
     }),
+    prisma.portalAccountBlock.findUnique({ where: { userId: user.id }, select: { liftedAt: true } }),
   ]);
 
   const level = computeLevel({
@@ -84,12 +87,14 @@ async function cargarPortalUser(): Promise<PortalUser | null> {
     phoneVerifiedAt: phone?.verifiedAt ?? null,
     emailVerifiedAt: dbUser?.emailVerifiedAt ?? null,
     identity: identity ?? null,
+    blocked: bloqueo != null && bloqueo.liftedAt == null,
   };
 }
 
 /**
- * Exige sesión y un nivel mínimo. Sin sesión va a /login (con returnTo); con un nivel menor va
- * a «Mi verificación», que muestra el paso que falta.
+ * Exige sesión y un nivel mínimo. Sin sesión va a /login (con returnTo); con la cuenta bloqueada
+ * va a /cuenta/bloqueada (esa página no usa `requireLevel`, así no hay vuelta en redondo); con un
+ * nivel menor va a «Mi verificación», que muestra el paso que falta.
  */
 export async function requireLevel(
   minimo: VerificationLevel,
@@ -99,6 +104,7 @@ export async function requireLevel(
   if (!user) {
     redirect(`/login?returnTo=${encodeURIComponent(sanitizeReturnTo(returnTo, { fallback: "/" }))}`);
   }
+  if (user.blocked) redirect("/cuenta/bloqueada");
   if (ORDEN[user.level] < ORDEN[minimo]) redirect("/cuenta/verificacion");
   return user;
 }

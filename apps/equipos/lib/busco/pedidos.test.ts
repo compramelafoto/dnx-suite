@@ -18,6 +18,7 @@ const m = vi.hoisted(() => ({
   noticeFindUnique: vi.fn(),
   settingsUpsert: vi.fn(),
   rating: vi.fn(),
+  blockFindUnique: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -39,6 +40,7 @@ vi.mock("@repo/db", () => ({
     gearListing: { findMany: m.listingFindMany, findFirst: m.listingFindFirst },
     gearItem: { findMany: m.itemFindMany },
     identityVerification: { findUnique: m.idFindUnique },
+    portalAccountBlock: { findUnique: m.blockFindUnique },
   },
 }));
 vi.mock("@/lib/catalogo/buscar", () => ({
@@ -89,6 +91,12 @@ beforeEach(() => {
 });
 
 describe("createPurchaseRequest", () => {
+  it("cuenta suspendida: rechaza aunque se llame directo y no guarda", async () => {
+    m.blockFindUnique.mockResolvedValueOnce({ liftedAt: null });
+    await expect(createPurchaseRequest(7, input)).rejects.toThrow("Tu cuenta está suspendida.");
+    expect(m.reqCreate).not.toHaveBeenCalled();
+  });
+
   it("guarda el pedido con su clave de modelo y vence a los 30 días", async () => {
     expect(
       await createPurchaseRequest(7, {

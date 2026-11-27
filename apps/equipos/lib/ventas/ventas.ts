@@ -4,6 +4,7 @@ import { sendPortalEmail, type PortalEmailTemplate } from "@/lib/correo";
 import { fechaAr } from "@/lib/inventario/formato";
 import { EquipoError } from "@/lib/inventario/equipos";
 import { urlBaseDeLaApp } from "@/lib/sesion";
+import { MENSAJE_CUENTA_SUSPENDIDA, isBlocked } from "@/lib/usuarios/bloqueo";
 
 /**
  * Cierre de una venta: el vendedor marca al comprador (la publicación pasa a «vendida» y queda
@@ -15,7 +16,13 @@ import { urlBaseDeLaApp } from "@/lib/sesion";
 export const SALE_DAYS = 7;
 const DIA_MS = 24 * 60 * 60 * 1000;
 
-export type VentaErrorCode = "NO_ENCONTRADA" | "NO_CONSULTO" | "YA_VENDIDA" | "NO_PENDIENTE" | "VENCIDA";
+export type VentaErrorCode =
+  | "NO_ENCONTRADA"
+  | "NO_CONSULTO"
+  | "YA_VENDIDA"
+  | "NO_PENDIENTE"
+  | "VENCIDA"
+  | "CUENTA_SUSPENDIDA";
 
 const MENSAJES: Record<VentaErrorCode, string> = {
   NO_ENCONTRADA: "No encontramos esa venta.",
@@ -23,6 +30,7 @@ const MENSAJES: Record<VentaErrorCode, string> = {
   YA_VENDIDA: "Esta publicación ya está marcada como vendida.",
   NO_PENDIENTE: "Esta venta ya no está pendiente de confirmación.",
   VENCIDA: "El plazo para confirmar esta compra venció.",
+  CUENTA_SUSPENDIDA: MENSAJE_CUENTA_SUSPENDIDA,
 };
 
 export class VentaError extends Error {
@@ -83,6 +91,7 @@ export async function markSold(
   if (!Number.isInteger(priceArs) || priceArs <= 0) {
     throw new EquipoError("DATO_INVALIDO", "El precio tiene que ser un número entero mayor a cero.");
   }
+  if (await isBlocked(sellerId)) throw new VentaError("CUENTA_SUSPENDIDA");
   const listing = await prisma.gearListing.findFirst({
     where: { id: listingId, sellerId },
     select: { id: true, gearItemId: true, status: true, make: true, model: true },
@@ -143,6 +152,7 @@ export async function markSold(
 }
 
 export async function confirmPurchase(buyerId: number, saleId: number): Promise<void> {
+  if (await isBlocked(buyerId)) throw new VentaError("CUENTA_SUSPENDIDA");
   const sale = (await prisma.gearSale.findFirst({
     where: { id: saleId, buyerId },
     select: {

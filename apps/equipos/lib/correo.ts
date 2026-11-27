@@ -21,7 +21,9 @@ export type PortalEmailTemplate =
   | "venta_no_confirmada"
   | "alerta_busqueda"
   | "pedido_dueno"
-  | "pedido_publicado";
+  | "pedido_publicado"
+  | "reporte_usuario_admin"
+  | "cuenta_bloqueada";
 
 type Rendered = { subject: string; html: string; text: string };
 
@@ -283,6 +285,22 @@ export function renderPortalEmail(
       ];
       break;
     }
+    case "reporte_usuario_admin":
+      subject = "Usuario reportado";
+      lineas = [
+        "Alguien reportó a otra persona del portal.",
+        d("detalle") ? `Detalle: ${d("detalle")}` : "",
+        url ? `Revisar: ${url}` : "",
+      ];
+      break;
+    case "cuenta_bloqueada":
+      // Nunca el motivo interno del bloqueo.
+      subject = "Tu cuenta de MercadoFotoRaw fue suspendida";
+      lineas = [
+        saludo,
+        "Tu cuenta de MercadoFotoRaw fue suspendida. Si creés que es un error, respondé este correo.",
+      ];
+      break;
     case "recordatorio_poliza":
       subject = "Tu póliza de seguro está por vencer";
       lineas = [

@@ -93,6 +93,28 @@ describe("codigoDeError", () => {
     );
   });
 
+  it("cuenta suspendida y reportes de usuario viajan como su código", () => {
+    const sus = "Tu cuenta está suspendida.";
+    expect(codigoDeError(new VentaError("CUENTA_SUSPENDIDA"))).toBe("CUENTA_SUSPENDIDA");
+    expect(codigoDeError(new EquipoError("DATO_INVALIDO", sus))).toBe("CUENTA_SUSPENDIDA");
+    expect(AVISOS_ERROR.CUENTA_SUSPENDIDA).toBe(sus);
+    expect(
+      codigoDeError(new EquipoError("DATO_INVALIDO", "El motivo tiene que tener entre 10 y 500 caracteres.")),
+    ).toBe("MOTIVO_REPORTE");
+    expect(codigoDeError(new EquipoError("DATO_INVALIDO", "No podés reportarte a vos mismo."))).toBe(
+      "REPORTE_PROPIO",
+    );
+    expect(
+      codigoDeError(
+        new EquipoError(
+          "DATO_INVALIDO",
+          "Sólo podés reportar a alguien con quien tuviste una consulta o una venta.",
+        ),
+      ),
+    ).toBe("REPORTE_SIN_RELACION");
+    expect(avisoDeCodigo(AVISOS_OK, "REPORTE_USUARIO_ENVIADO")).toMatch(/Recibimos tu reporte/);
+  });
+
   it("un error inesperado se registra y queda como ERROR", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(codigoDeError(new Error("db caída"), { origen: "prueba" })).toBe("ERROR");

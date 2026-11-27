@@ -169,7 +169,10 @@ describe("getPublicListing", () => {
     expect(args.where).toEqual({
       id: 5,
       status: "PUBLISHED",
-      seller: { identityVerification: { is: { status: "APPROVED" } } },
+      seller: {
+        identityVerification: { is: { status: "APPROVED" } },
+        NOT: { portalAccountBlock: { is: { liftedAt: null } } },
+      },
     });
   });
 
@@ -261,7 +264,10 @@ describe("searchListings", () => {
     const args = m.listingFindMany.mock.calls[0][0];
     expect(args.where).toEqual({
       status: "PUBLISHED",
-      seller: { identityVerification: { is: { status: "APPROVED" } } },
+      seller: {
+        identityVerification: { is: { status: "APPROVED" } },
+        NOT: { portalAccountBlock: { is: { liftedAt: null } } },
+      },
       kind: "BODY",
       make: { contains: "canon", mode: "insensitive" },
       mount: "Canon RF",
@@ -300,7 +306,10 @@ describe("searchListings", () => {
     await searchListings({ page: 1 });
     expect(m.listingFindMany.mock.calls[0][0].where).toEqual({
       status: "PUBLISHED",
-      seller: { identityVerification: { is: { status: "APPROVED" } } },
+      seller: {
+        identityVerification: { is: { status: "APPROVED" } },
+        NOT: { portalAccountBlock: { is: { liftedAt: null } } },
+      },
     });
     expect(m.listingFindMany.mock.calls[0][0].skip).toBe(0);
   });
@@ -314,7 +323,10 @@ describe("getPublicListingsByIds", () => {
     expect(m.listingFindMany.mock.calls[0][0].where).toMatchObject({
       id: { in: [9, 4, 5] },
       status: "PUBLISHED",
-      seller: { identityVerification: { is: { status: "APPROVED" } } },
+      seller: {
+        identityVerification: { is: { status: "APPROVED" } },
+        NOT: { portalAccountBlock: { is: { liftedAt: null } } },
+      },
     });
     expect(r[0].photoUrls).toHaveLength(1);
   });

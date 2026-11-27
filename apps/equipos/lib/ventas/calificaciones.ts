@@ -1,5 +1,6 @@
 import { prisma } from "@repo/db";
 import { EquipoError } from "@/lib/inventario/equipos";
+import { MENSAJE_CUENTA_SUSPENDIDA, isBlocked } from "@/lib/usuarios/bloqueo";
 import { VentaError, getSaleForParty } from "./ventas";
 import type { UserRating } from "./formato-calificacion";
 
@@ -57,6 +58,7 @@ export async function rateSale(
     throw new EquipoError("DATO_INVALIDO", `El comentario puede tener hasta ${MAX_COMENTARIO} caracteres.`);
   }
 
+  if (await isBlocked(raterId)) throw new EquipoError("DATO_INVALIDO", MENSAJE_CUENTA_SUSPENDIDA);
   const sale = await getSaleForParty(raterId, saleId);
   if (!sale) throw new VentaError("NO_ENCONTRADA");
   if (sale.status !== "CONFIRMED" || !sale.resolvedAt) throw new VentaError("NO_PENDIENTE");

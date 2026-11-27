@@ -14,6 +14,7 @@ const m = vi.hoisted(() => ({
   email: vi.fn(),
   activeReport: vi.fn(),
   ratingGroupBy: vi.fn(),
+  blockFindUnique: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -33,6 +34,7 @@ vi.mock("@repo/db", () => ({
     phoneVerification: { findUnique: m.phoneFindUnique },
     gearListingView: { aggregate: m.viewAggregate },
     gearSaleRating: { groupBy: m.ratingGroupBy },
+    portalAccountBlock: { findUnique: m.blockFindUnique },
   },
 }));
 vi.mock("@/lib/publicaciones/denuncia-activa", () => ({
@@ -78,6 +80,39 @@ beforeEach(() => {
 });
 
 describe("contactSeller", () => {
+  it("comprador con la cuenta suspendida: rechaza aunque se llame directo, sin revelar nada", async () => {
+    m.blockFindUnique.mockResolvedValue({ liftedAt: null });
+    await expect(contactSeller(buyer, 5)).rejects.toMatchObject({
+      code: "SUSPENDIDA",
+      message: "Tu cuenta está suspendida.",
+    });
+    expect(m.blockFindUnique.mock.calls[0][0].where).toEqual({ userId: 2 });
+    expect(m.userFindUnique).not.toHaveBeenCalled();
+    expect(m.contactCreate).not.toHaveBeenCalled();
+  });
+
+  it("vendedor con la cuenta suspendida: la publicación ya no está disponible", async () => {
+    m.listingFindFirst.mockResolvedValue(
+      listing({
+        seller: { identityVerification: { status: "APPROVED" }, portalAccountBlock: { liftedAt: null } },
+      }),
+    );
+    await expect(contactSeller(buyer, 5)).rejects.toMatchObject({ code: "NO_DISPONIBLE" });
+    expect(m.userFindUnique).not.toHaveBeenCalled();
+  });
+
+  it("vendedor con un bloqueo ya levantado: se puede contactar", async () => {
+    m.listingFindFirst.mockResolvedValue(
+      listing({
+        seller: {
+          identityVerification: { status: "APPROVED" },
+          portalAccountBlock: { liftedAt: new Date("2026-10-01") },
+        },
+      }),
+    );
+    expect((await contactSeller(buyer, 5)).firstTime).toBe(true);
+  });
+
   it("rechaza contactar la publicación propia", async () => {
     await expect(
       contactSeller({ id: 1, displayName: "X" }, 5),

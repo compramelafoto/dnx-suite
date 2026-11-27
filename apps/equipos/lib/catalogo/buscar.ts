@@ -16,6 +16,7 @@ import {
 } from "@/lib/publicaciones/confianza";
 import { findActiveReportForSerial } from "@/lib/publicaciones/denuncia-activa";
 import { maskSerial } from "@/lib/publicaciones/reglas";
+import { CUENTA_SIN_BLOQUEO } from "@/lib/usuarios/bloqueo";
 import { getUserRatings, type UserRating } from "@/lib/ventas/calificaciones";
 
 /**
@@ -233,11 +234,17 @@ async function toPublic(
   };
 }
 
-/** Sólo vendedores con la identidad aprobada HOY: si se la revocan, sus publicaciones no salen. */
-const VENDEDOR_VERIFICADO = { identityVerification: { is: { status: "APPROVED" } } } as const;
+/**
+ * Sólo vendedores con la identidad aprobada HOY y sin la cuenta bloqueada: si se la revocan o los
+ * bloquean, sus publicaciones no salen (y vuelven solas si se levanta el bloqueo).
+ */
+export const VENDEDOR_VISIBLE = {
+  identityVerification: { is: { status: "APPROVED" } },
+  ...CUENTA_SIN_BLOQUEO,
+} as const;
 
 function whereFor(f: CatalogFilters) {
-  const where: Record<string, unknown> = { status: "PUBLISHED", seller: VENDEDOR_VERIFICADO };
+  const where: Record<string, unknown> = { status: "PUBLISHED", seller: VENDEDOR_VISIBLE };
   if (f.kind) where.kind = f.kind;
   if (f.make) where.make = { contains: f.make, mode: "insensitive" };
   if (f.mount) where.mount = f.mount;
@@ -291,7 +298,7 @@ export async function searchListings(
 export async function getPublicListingsByIds(ids: number[]): Promise<PublicListing[]> {
   if (ids.length === 0) return [];
   const rows = (await prisma.gearListing.findMany({
-    where: { id: { in: ids }, status: "PUBLISHED", seller: VENDEDOR_VERIFICADO },
+    where: { id: { in: ids }, status: "PUBLISHED", seller: VENDEDOR_VISIBLE },
     select: SELECT,
   })) as Row[];
   const porId = new Map(rows.map((r) => [r.id, r]));
@@ -310,13 +317,13 @@ export async function getPublicListingsByIds(ids: number[]): Promise<PublicListi
 
 /**
  * `null` si no existe, no está publicada (pausada, en revisión, vendida, cerrada), el vendedor
- * ya no tiene la identidad aprobada o la serie tiene una denuncia activa de otra persona (se
+ * ya no tiene la identidad aprobada o está bloqueado, o la serie tiene una denuncia activa de otra persona (se
  * revisa en vivo: entre una corrida del cruce y la siguiente la ficha no puede decir «sin
  * denuncias» si las hay).
  */
 export async function getPublicListing(id: number): Promise<PublicListing | null> {
   const row = (await prisma.gearListing.findFirst({
-    where: { id, status: "PUBLISHED", seller: VENDEDOR_VERIFICADO },
+    where: { id, status: "PUBLISHED", seller: VENDEDOR_VISIBLE },
     select: SELECT,
   })) as Row | null;
   if (!row) return null;

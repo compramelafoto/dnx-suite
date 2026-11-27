@@ -6,6 +6,7 @@ const m = vi.hoisted(() => ({
   phoneFind: vi.fn(),
   idFind: vi.fn(),
   upsert: vi.fn(),
+  blockFind: vi.fn(),
 }));
 vi.mock("@repo/auth-guards", () => ({ getCurrentUser: m.getCurrentUser }));
 vi.mock("@repo/db", () => ({
@@ -13,6 +14,7 @@ vi.mock("@repo/db", () => ({
     user: { findUnique: m.userFind },
     phoneVerification: { findUnique: m.phoneFind },
     identityVerification: { findUnique: m.idFind, upsert: m.upsert },
+    portalAccountBlock: { findUnique: m.blockFind },
   },
 }));
 
@@ -32,12 +34,19 @@ beforeEach(() => {
   m.phoneFind.mockResolvedValue({ verifiedAt: new Date() });
   m.idFind.mockResolvedValue(null);
   m.upsert.mockResolvedValue({});
+  m.blockFind.mockResolvedValue(null);
 });
 
 describe("POST /api/identidad/iniciar", () => {
   it("sin sesión -> 401", async () => {
     m.getCurrentUser.mockResolvedValue(null);
     expect((await POST(pedido())).status).toBe(401);
+  });
+
+  it("cuenta bloqueada -> 403 sin escrituras", async () => {
+    m.blockFind.mockResolvedValue({ liftedAt: null });
+    expect((await POST(pedido())).status).toBe(403);
+    expect(m.upsert).not.toHaveBeenCalled();
   });
 
   it("sin celular verificado -> 403", async () => {
