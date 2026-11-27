@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { sanitizeReturnTo } from "@repo/auth";
 import { getCurrentUser, type CurrentUser } from "@repo/auth-guards";
@@ -36,7 +37,13 @@ export type PortalUser = CurrentUser & {
   identity: PortalIdentity | null;
 };
 
-export async function getPortalUser(): Promise<PortalUser | null> {
+/**
+ * Memoizada por pedido (`React.cache`): el layout, `requireLevel` y la página comparten un solo
+ * resultado en vez de repetir la sesión y las tres consultas.
+ */
+export const getPortalUser = cache(cargarPortalUser);
+
+async function cargarPortalUser(): Promise<PortalUser | null> {
   const user = await getCurrentUser();
   if (!user) return null;
 
