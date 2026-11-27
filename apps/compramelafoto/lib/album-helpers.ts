@@ -36,6 +36,15 @@ export function isAlbumUnlistedWithDirectLink(album: AlbumAccessData): boolean {
   return album.isHidden !== true && album.isPublic === false;
 }
 
+/**
+ * El cliente con el link puede usar el álbum (buscarse y comprar): público o privado con link
+ * directo, nunca oculto. Es la misma regla con la que la galería deja ver las fotos
+ * (`canOpenAlbumGallery`), así el cliente que ve las fotos también puede buscarse y comprarlas.
+ */
+export function isAlbumOpenByLink(album: AlbumAccessData): boolean {
+  return isAlbumPubliclyAccessible(album) || isAlbumUnlistedWithDirectLink(album);
+}
+
 export type AlbumGalleryAccessContext = {
   isOwner?: boolean;
   isAdmin?: boolean;

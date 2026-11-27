@@ -6,7 +6,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { resolvePlatformCommissionPercent } from "@/lib/services/commissionService";
 import { getAppConfig } from "@/lib/services/settingsService";
-import { isAlbumPubliclyAccessible } from "@/lib/album-helpers";
+import { isAlbumOpenByLink } from "@/lib/album-helpers";
 import {
   albumSalesNotReadyResponse,
   isAlbumReadyToSellForCheckout,
@@ -215,7 +215,7 @@ async function buildOrderPhotosResponse(albumId: number, photoIds: number[], deb
     }
   }
 
-  if (!isAlbumPubliclyAccessible(album)) {
+  if (!isAlbumOpenByLink(album)) {
     const authUser = await getAuthUser();
     const isOwner = authUser?.id === album.userId;
     const hasAccess = authUser

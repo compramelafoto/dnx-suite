@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { isAlbumPubliclyAccessible } from "@/lib/album-helpers";
+import { isAlbumOpenByLink } from "@/lib/album-helpers";
 import { resolveClientMarketplaceFeePercent } from "@/lib/pricing/client-price";
 import { isVideoMvpEnabled } from "@/lib/videos/video-feature-flag";
 import { loadCartVideos } from "@/lib/videos/create-video-order";
@@ -58,7 +58,7 @@ export async function POST(
         selectedLabId: true,
       },
     });
-    if (!album || !isAlbumPubliclyAccessible(album)) {
+    if (!album || !isAlbumOpenByLink(album)) {
       return NextResponse.json({ error: "Álbum no disponible" }, { status: 403 });
     }
 

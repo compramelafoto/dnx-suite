@@ -11,7 +11,7 @@ import {
   buildStandardLinesFromAlbumCheckout,
   mergeStandardAlbumCheckoutPricingSnapshotV1,
 } from "@/lib/preventa-canjeable/pricing-snapshot-v1";
-import { isAlbumPubliclyAccessible } from "@/lib/album-helpers";
+import { isAlbumOpenByLink } from "@/lib/album-helpers";
 import {
   albumSalesNotReadyResponse,
   isAlbumReadyToSellForCheckout,
@@ -291,7 +291,7 @@ export async function POST(
       canjeVoucher = lookup.voucher;
     }
 
-    if (!isAlbumPubliclyAccessible(album) && !canjeVoucher) {
+    if (!isAlbumOpenByLink(album) && !canjeVoucher) {
       const isOwner = authUser?.id === album.userId;
       const hasAccess = authUser
         ? await prisma.albumAccess.findUnique({

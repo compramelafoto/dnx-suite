@@ -71,7 +71,8 @@
     "test:fotoffice-vinculo": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/public-album/resumen.test.ts",
     "test:equipos-robados": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/stolen-gear/serial.test.ts",
     "test:cambio-email": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/auth/cambio-email.test.ts",
-    "test:lab-seguridad": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/lab/session-lab-access.test.ts"
+    "test:lab-seguridad": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/lab/session-lab-access.test.ts",
+    "test:compra-con-link": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.json --test lib/album-helpers.compra-con-link.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-rekognition": "^3.985.0",
