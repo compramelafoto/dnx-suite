@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
+import { listInterested } from "@/lib/contacto/contactar";
 import { requireLevel } from "@/lib/guards";
+import { fechaHoraAr } from "@/lib/inventario/formato";
 import { getItem, KIND_LABELS } from "@/lib/inventario/equipos";
 import { computeTrust, declaredItems } from "@/lib/publicaciones/confianza";
 import { listSellerListings } from "@/lib/publicaciones/publicar";
@@ -39,7 +41,9 @@ export default async function PublicacionPage({
     shutterVerified: false,
   });
 
-  const abierta = listing.status !== "CLOSED" && listing.status !== "SOLD";
+  const interesados = await listInterested(user.id, id);
+
+  const abierta =listing.status !== "CLOSED" && listing.status !== "SOLD";
   const editable = listing.status === "PUBLISHED" || listing.status === "PAUSED";
 
   return (
@@ -66,6 +70,29 @@ export default async function PublicacionPage({
           shutterText={null}
           serialMasked={maskSerial(item?.serialNormalized ?? null)}
         />
+      </section>
+
+      <section className="seccion" aria-labelledby="interesados">
+        <h2 id="interesados">Interesados</h2>
+        <dl className="documento-datos">
+          <dt>Visitas</dt>
+          <dd className="cifra">{interesados.views}</dd>
+          <dt>Personas distintas</dt>
+          <dd className="cifra">{interesados.viewers}</dd>
+          <dt>Consultas</dt>
+          <dd className="cifra">{interesados.contacts.length}</dd>
+        </dl>
+        {interesados.contacts.length > 0 ? (
+          <ul className="lista-texto">
+            {interesados.contacts.map((c) => (
+              <li key={`${c.name}-${c.at.getTime()}`}>
+                {c.name} — {fechaHoraAr(c.at)}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="texto-secundario">Todavía nadie pidió tu contacto.</p>
+        )}
       </section>
 
       {editable ? (

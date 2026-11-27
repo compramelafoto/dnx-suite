@@ -11,7 +11,8 @@ export type PortalEmailTemplate =
   | "publicacion_en_revision_admin"
   | "serie_de_otro_usuario_admin"
   | "publicacion_aprobada"
-  | "publicacion_rechazada";
+  | "publicacion_rechazada"
+  | "nueva_consulta";
 
 type Rendered = { subject: string; html: string; text: string };
 
@@ -117,6 +118,15 @@ export function renderPortalEmail(
       lineas = [
         saludo,
         "No pudimos publicar tu artículo. Si tenés dudas, respondé este correo.",
+      ];
+      break;
+    case "nueva_consulta":
+      subject = `Alguien quiere tu ${d("equipo", "equipo")}`;
+      lineas = [
+        saludo,
+        `${d("comprador", "Una persona")} se interesó en tu ${d("equipo", "equipo")}.`,
+        "Su identidad está verificada en MercadoRaw. Igual seguí la guía de compra segura.",
+        url ? `Ver tus interesados: ${url}` : "",
       ];
       break;
     case "recordatorio_poliza":

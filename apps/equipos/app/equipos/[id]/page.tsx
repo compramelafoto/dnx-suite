@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import { contactedBefore } from "@/lib/contacto/contactar";
 import { getPortalUser } from "@/lib/guards";
 import { formatDolares, formatPesos, getPublicListing, recordView } from "@/lib/catalogo/buscar";
 import { KIND_LABELS } from "@/lib/inventario/equipos";
@@ -42,6 +43,7 @@ export default async function FichaEquipoPage({ params }: Props) {
 
   const usuario = await getPortalUser();
   if (usuario) await recordView(l.id, usuario.id);
+  const yaContacto = usuario ? await contactedBefore(usuario.id, l.id) : false;
 
   const titulo = `${l.make} ${l.model}`;
   const [principal, ...resto] = l.photoUrls;
@@ -115,7 +117,7 @@ export default async function FichaEquipoPage({ params }: Props) {
               serialMasked={l.serialMasked}
             />
             <BotonEnlace href={`/equipos/${l.id}/contactar`} className="boton-ancho">
-              Contactar al vendedor
+              {yaContacto ? "Ver datos del vendedor" : "Contactar al vendedor"}
             </BotonEnlace>
             <GuiaCompraSegura />
             <a className="ficha-reportar" href={`/equipos/${l.id}/reportar`}>
