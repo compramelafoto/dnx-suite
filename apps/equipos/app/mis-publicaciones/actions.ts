@@ -11,6 +11,7 @@ import {
   updateListing,
 } from "@/lib/publicaciones/publicar";
 import { CONDITION_LABELS, type GearListingCondition } from "@/lib/publicaciones/catalogos";
+import { parseEnteroPesos } from "@/lib/publicaciones/numeros";
 import type { ListingInput } from "@/lib/publicaciones/reglas";
 
 import { TEXTO_EN_REVISION } from "./textos";
@@ -22,11 +23,8 @@ function text(fd: FormData, k: string): string {
   return typeof v === "string" ? v.trim() : "";
 }
 
-/** Vacío → null; entero (pesos o dólares) → number; otra cosa → NaN (la rechaza el dominio). */
 function entero(fd: FormData, k: string): number | null {
-  const v = text(fd, k).replace(/[.\s]/g, "");
-  if (!v) return null;
-  return /^\d+$/.test(v) ? Number(v) : Number.NaN;
+  return parseEnteroPesos(fd.get(k));
 }
 
 function checked(fd: FormData, k: string): boolean {
