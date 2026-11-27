@@ -1,33 +1,40 @@
 import { describe, expect, it } from "vitest";
 import { computeTrust, declaredItems, usageSealText } from "./confianza";
 
+const checkedAt = new Date("2026-11-27T15:00:00Z");
+const BASE = [
+  "Identidad del vendedor verificada",
+  "Sin denuncias de robo ni pérdida en el portal (revisado el 27/11/2026)",
+];
+
 describe("computeTrust", () => {
   it("uso verificado + factura = 5, Alto", () => {
-    const r = computeTrust({ usageSeal: "USAGE_VERIFIED", hasPurchaseProof: true, shutterVerified: false });
+    const r = computeTrust({ usageSeal: "USAGE_VERIFIED", hasPurchaseProof: true, shutterVerified: false, checkedAt });
     expect(r.points).toBe(5);
     expect(r.level).toBe("ALTO");
     expect(r.verified).toEqual([
+      ...BASE,
       "Uso verificado en CompraMeLaFoto",
       "Factura de compra presentada",
     ]);
   });
   it("foto de la serie sin factura = 2, Bueno", () => {
-    const r = computeTrust({ usageSeal: "PROOF_PHOTO", hasPurchaseProof: false, shutterVerified: false });
+    const r = computeTrust({ usageSeal: "PROOF_PHOTO", hasPurchaseProof: false, shutterVerified: false, checkedAt });
     expect(r).toMatchObject({ points: 2, level: "BUENO" });
-    expect(r.verified).toEqual(["Serie comprobada con foto del equipo"]);
+    expect(r.verified).toEqual([...BASE, "Serie comprobada con foto del equipo"]);
   });
   it("nada = 0, Básico", () => {
-    expect(computeTrust({ usageSeal: "NONE", hasPurchaseProof: false, shutterVerified: false })).toEqual({
+    expect(computeTrust({ usageSeal: "NONE", hasPurchaseProof: false, shutterVerified: false, checkedAt })).toEqual({
       points: 0,
       level: "BASICO",
-      verified: [],
+      verified: BASE,
     });
   });
   it("máximo con todo", () => {
     const r = computeTrust({ usageSeal: "USAGE_VERIFIED", hasPurchaseProof: true, shutterVerified: true });
     expect(r.points).toBe(7);
     expect(r.level).toBe("MAXIMO");
-    expect(r.verified).toHaveLength(3);
+    expect(r.verified).toHaveLength(5);
   });
   it("cortes", () => {
     const t = (u: "USAGE_VERIFIED" | "PROOF_PHOTO" | "NONE", f: boolean, s: boolean) =>
