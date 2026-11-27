@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { MARCA } from "@/app/_ui/marca";
 import {
   passwordResetNeutralMessage,
   requestPasswordReset,
@@ -20,7 +21,7 @@ export async function requestPasswordResetAction(
   await requestPasswordReset({
     email,
     appBaseUrl: urlBaseDeLaApp(),
-    appLabel: "Equipos verificados",
+    appLabel: MARCA,
     resetPath: "/recuperar",
   });
 

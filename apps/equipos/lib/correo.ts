@@ -44,7 +44,7 @@ export function renderPortalEmail(
       subject = "Tu identidad quedó verificada";
       lineas = [
         saludo,
-        "Verificamos tu identidad. Ya podés usar todas las funciones del portal de equipos verificados.",
+        "Verificamos tu identidad. Ya podés usar todas las funciones del portal MercadoRaw.",
       ];
       break;
     case "verificacion_rechazada":

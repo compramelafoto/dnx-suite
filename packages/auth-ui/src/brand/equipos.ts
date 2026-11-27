@@ -2,13 +2,13 @@ import type { DnxAuthBrandConfig } from "../types";
 
 /**
  * Portal de equipos fotográficos usados y verificados.
- * El nombre «Equipos verificados» es provisorio: la marca final todavía no está decidida.
+ * La plataforma se llama MercadoRaw (ver `MARCA` en apps/equipos/app/_ui/marca.ts).
  * Misma Cuenta DNX que el resto de la suite: ingreso con correo y contraseña. Todavía sin Google.
  */
 export const equiposAuthBrand: DnxAuthBrandConfig = {
   applicationId: "equipos",
-  productName: "Equipos verificados",
-  logo: { src: "/brand/equipos-logo.svg", alt: "Equipos verificados", height: "3rem", href: "/" },
+  productName: "MercadoRaw",
+  logo: { src: "/brand/equipos-logo.svg", alt: "MercadoRaw", height: "3rem", href: "/" },
   tokens: { brandKey: "equipos" },
   privacyUrl: "/privacidad",
   termsUrl: "/terminos",

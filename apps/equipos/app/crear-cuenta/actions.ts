@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { MARCA } from "@/app/_ui/marca";
 import { registerDnxAccount, sanitizeReturnTo } from "@repo/auth";
 import { rolSegunRespuesta } from "@/lib/rol-al-registrarse";
 import { abrirSesion, urlBaseDeLaApp } from "@/lib/sesion";
@@ -27,7 +28,7 @@ export async function registerAction(
     lastName: formData.get("lastName")?.toString() ?? "",
     sourceApplication: "equipos",
     appBaseUrl: urlBaseDeLaApp(),
-    appLabel: "Equipos verificados",
+    appLabel: MARCA,
     verifyPath: "/verificar-email",
     createRole: rol,
     acceptedTerms: aceptado,

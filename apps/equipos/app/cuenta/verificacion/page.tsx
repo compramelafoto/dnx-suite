@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { MARCA } from "@/app/_ui/marca";
 import { requestEmailVerification } from "@repo/auth";
 import { getPortalUser, type PortalUser } from "@/lib/guards";
 import { urlBaseDeLaApp } from "@/lib/sesion";
@@ -16,7 +17,7 @@ async function reenviarCorreo() {
     await requestEmailVerification({
       email: user.email,
       appBaseUrl: urlBaseDeLaApp(),
-      appLabel: "Equipos verificados",
+      appLabel: MARCA,
       verifyPath: "/verificar-email",
       sourceApplication: "equipos",
     });

@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import { getPortalUser } from "@/lib/guards";
 import { fuenteSerie, fuenteTexto } from "./_fonts";
 import { Encabezado } from "./_ui";
+import { MARCA } from "./_ui/marca";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Equipos verificados",
+  title: MARCA,
   description: "Equipos fotográficos usados de fotógrafos con identidad verificada.",
 };
 

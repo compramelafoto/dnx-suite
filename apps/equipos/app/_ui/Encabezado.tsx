@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { PortalUser } from "@/lib/guards";
 import { EnlaceNav } from "./EnlaceNav";
+import { MARCA } from "./marca";
 
 const ENLACES = [
   { href: "/equipos", texto: "Ver equipos" },
@@ -9,14 +10,14 @@ const ENLACES = [
   { href: "/consultar-serie", texto: "Consultar serie" },
 ];
 
-/** Marca provisoria, menú y cuenta. El usuario llega desde el layout (`getPortalUser()`). */
+/** Marca, menú y cuenta. El usuario llega desde el layout (`getPortalUser()`). */
 export function Encabezado({ usuario }: { usuario: PortalUser | null }) {
   return (
     <header className="encabezado">
       <div className="encabezado-interior">
         <Link className="marca" href="/">
           <span className="marca-carta" aria-hidden="true" />
-          Equipos verificados
+          {MARCA}
         </Link>
 
         <nav className="nav" aria-label="Principal">
