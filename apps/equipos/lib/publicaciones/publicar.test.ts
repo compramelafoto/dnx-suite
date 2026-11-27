@@ -225,6 +225,20 @@ describe("createListing", () => {
     await expect(createListing(1, 7, input, {})).rejects.toMatchObject({ code: "DATO_INVALIDO" });
   });
 
+  it("sin fotos: con EQUIPOS_FOTOS_OPCIONALES=1 se publica; sin la variable, error", async () => {
+    m.itemFindFirst.mockResolvedValue(item({ photoKeys: [] }));
+    await expect(createListing(1, 7, input, {})).rejects.toMatchObject({ code: "DATO_INVALIDO" });
+    vi.stubEnv("EQUIPOS_FOTOS_OPCIONALES", "1");
+    vi.stubEnv("NODE_ENV", "development");
+    try {
+      const r = await createListing(1, 7, input, {});
+      expect(r.status).toBe("PUBLISHED");
+      expect(m.txListingCreate.mock.calls[0][0].data.serialPhotoKey).toBeNull();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it("foto de serie con formato inválido → ARCHIVO_INVALIDO", async () => {
     await expect(
       createListing(1, 7, input, { serialPhoto: img("application/pdf") }),

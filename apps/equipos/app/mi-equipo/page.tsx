@@ -28,6 +28,9 @@ export default async function MiEquipoPage({
         {ok ? <Aviso tipo="exito">{ok}</Aviso> : null}
         {error ? <Aviso tipo="error">{error}</Aviso> : null}
         <div className="acciones">
+          <BotonEnlace variante="secundario" href="/mis-publicaciones">
+            Mis publicaciones
+          </BotonEnlace>
           <BotonEnlace variante="secundario" href="/mi-equipo/informe">
             Generar un informe para la aseguradora
           </BotonEnlace>

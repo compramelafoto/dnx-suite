@@ -71,17 +71,23 @@ export function listingBlocker(
     serialNormalized: string | null;
     photoKeys: string[];
   },
-  ctx: { ownReportOpen: boolean; activeListing: boolean; serialPhotoKey: string | null },
+  ctx: {
+    ownReportOpen: boolean;
+    activeListing: boolean;
+    serialPhotoKey: string | null;
+    /** Vista privada sin almacenamiento: las fotos no se exigen. */
+    fotosOpcionales?: boolean;
+  },
 ): string | null {
   if (item.status === "STOLEN" || item.status === "LOST" || item.status === "SOLD") {
     return NO_PUBLICABLE;
   }
   if (ctx.ownReportOpen) return NO_PUBLICABLE;
   if (ctx.activeListing) return "Este equipo ya tiene una publicación.";
-  if (item.photoKeys.length === 0) return "Subí al menos una foto del equipo.";
+  if (item.photoKeys.length === 0 && !ctx.fotosOpcionales) return "Subí al menos una foto del equipo.";
   if (requiresSerial(item.kind)) {
     if (!item.serialNormalized) return "Para cámaras y lentes el número de serie es obligatorio.";
-    if (!ctx.serialPhotoKey) return "Subí una foto del número de serie grabado en el equipo.";
+    if (!ctx.serialPhotoKey && !ctx.fotosOpcionales) return "Subí una foto del número de serie grabado en el equipo.";
   }
   return null;
 }

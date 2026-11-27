@@ -3,6 +3,7 @@ import { uploadPrivateFile, validateFile } from "@/lib/archivos";
 import { sendPortalEmail, type PortalEmailTemplate } from "@/lib/correo";
 import { EquipoError } from "../inventario/equipos";
 import type { GearListing } from "./catalogos";
+import { fotosOpcionales } from "./fotos-opcionales";
 import { listingBlocker, validateListingInput, type ListingInput } from "./reglas";
 import { computeUsageSeal, proofPhotoMatches } from "./sellos";
 
@@ -82,7 +83,12 @@ export async function createListing(
     serialPhotoKey = (await uploadPrivateFile(files.serialPhoto, "photo")).key;
   }
 
-  const blocker = listingBlocker(item, { ownReportOpen, activeListing, serialPhotoKey });
+  const blocker = listingBlocker(item, {
+    ownReportOpen,
+    activeListing,
+    serialPhotoKey,
+    fotosOpcionales: fotosOpcionales(),
+  });
   if (blocker) throw new EquipoError("DATO_INVALIDO", blocker);
   const data = validateListingInput(input, item.kind);
 
@@ -135,6 +141,7 @@ export async function createListing(
         ownReportOpen: ownOpen,
         activeListing: openListing,
         serialPhotoKey,
+        fotosOpcionales: fotosOpcionales(),
       });
       if (recheck) throw new EquipoError("DATO_INVALIDO", recheck);
       const created = await tx.gearListing.create({

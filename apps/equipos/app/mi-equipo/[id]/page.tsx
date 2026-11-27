@@ -226,6 +226,29 @@ export default async function EquipoPage({
         </form>
       </section>
 
+      {item.status === "IN_USE" || item.status === "RECOVERED" ? (
+        <section className="seccion" aria-labelledby="venta">
+          <h2 id="venta">Venta</h2>
+          <p className="texto-secundario">
+            Publicá el equipo a la venta con su ficha de confianza.
+          </p>
+          <div className="acciones">
+            <BotonEnlace href={`/mi-equipo/${item.id}/publicar`}>Publicar a la venta</BotonEnlace>
+          </div>
+        </section>
+      ) : null}
+      {item.status === "FOR_SALE" ? (
+        <section className="seccion" aria-labelledby="venta">
+          <h2 id="venta">Venta</h2>
+          <p className="texto-secundario">Este equipo está a la venta.</p>
+          <div className="acciones">
+            <BotonEnlace variante="secundario" href="/mis-publicaciones">
+              Ver mis publicaciones
+            </BotonEnlace>
+          </div>
+        </section>
+      ) : null}
+
       {item.status === "IN_USE" || item.status === "FOR_SALE" || item.status === "RECOVERED" ? (
         <section className="seccion" aria-labelledby="robo">
           <h2 id="robo">Robo o pérdida</h2>
