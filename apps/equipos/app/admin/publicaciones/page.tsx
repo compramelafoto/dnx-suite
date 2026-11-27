@@ -112,7 +112,7 @@ export default async function PublicacionesAdminPage() {
               <dd>{fecha.format(l.updatedAt)}</dd>
             </dl>
             <p>
-              <a href={`/equipos/${l.id}`}>Ver la publicación</a>
+              <a href={`/admin/publicaciones/${l.id}`}>Ver la publicación</a>
             </p>
             <DecisionPublicacionForm id={l.id} />
           </section>
@@ -125,7 +125,7 @@ export default async function PublicacionesAdminPage() {
             <dl className="documento-datos">
               <dt>Publicación</dt>
               <dd>
-                <a href={`/equipos/${f.listingId}`}>
+                <a href={`/admin/publicaciones/${f.listingId}`}>
                   #{f.listingId} · {f.listing.make} {f.listing.model}
                 </a>
               </dd>
