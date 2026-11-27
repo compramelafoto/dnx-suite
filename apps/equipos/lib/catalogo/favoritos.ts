@@ -1,11 +1,19 @@
 import { prisma } from "@repo/db";
 import { getPublicListingsByIds, type PublicListing } from "@/lib/catalogo/buscar";
 import { EquipoError } from "@/lib/inventario/equipos";
+import { CUENTA_SIN_BLOQUEO } from "@/lib/usuarios/bloqueo";
 
 /**
  * Favoritos: publicaciones que una persona guarda para mirar después. Sólo se guardan
- * publicaciones publicadas y ajenas; quitar una se puede siempre (aunque ya no esté publicada).
+ * publicaciones visibles en el catálogo (publicadas, de un vendedor con la identidad aprobada y
+ * sin la cuenta bloqueada) y ajenas; quitar una se puede siempre (aunque ya no esté visible).
  */
+
+/** El mismo criterio de vendedor que el catálogo (`VENDEDOR_VISIBLE` en buscar.ts). */
+const VENDEDOR_VISIBLE = {
+  identityVerification: { is: { status: "APPROVED" } },
+  ...CUENTA_SIN_BLOQUEO,
+} as const;
 
 export const MENSAJE_FAVORITO_PROPIO = "No podés guardar tu propia publicación.";
 
@@ -24,7 +32,7 @@ export async function toggleFavorite(
   }
 
   const listing = await prisma.gearListing.findFirst({
-    where: { id: listingId, status: "PUBLISHED" },
+    where: { id: listingId, status: "PUBLISHED", seller: VENDEDOR_VISIBLE },
     select: { sellerId: true },
   });
   if (!listing) throw new EquipoError("NO_ENCONTRADO", "No encontramos esa publicación.");

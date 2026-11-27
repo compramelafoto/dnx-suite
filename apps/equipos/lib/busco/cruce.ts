@@ -3,6 +3,7 @@ import { formatPesos, sellerFirstName } from "@/lib/catalogo/buscar";
 import { sendPortalEmail } from "@/lib/correo";
 import { CONDITION_LABELS, type GearListingCondition } from "@/lib/publicaciones/catalogos";
 import { urlBaseDeLaApp } from "@/lib/sesion";
+import { CUENTA_SIN_BLOQUEO, blockedUserIds } from "@/lib/usuarios/bloqueo";
 import { NOTICES_PER_WEEK, makeKey, makeVariants, modelKey } from "./modelo";
 
 /**
@@ -15,6 +16,8 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 
 /** Identidad aprobada HOY (el mismo criterio del catálogo), para vendedores y compradores. */
 const VENDEDOR_VERIFICADO = { identityVerification: { is: { status: "APPROVED" } } } as const;
+/** Lo que el catálogo muestra: verificado y sin la cuenta bloqueada. */
+const VENDEDOR_VISIBLE = { ...VENDEDOR_VERIFICADO, ...CUENTA_SIN_BLOQUEO } as const;
 
 type Pedido = {
   id: number;
@@ -58,9 +61,7 @@ export async function runPurchaseRequests(
     })
   ).count;
 
-  const bloqueados = (
-    await prisma.portalAccountBlock.findMany({ where: { liftedAt: null }, select: { userId: true } })
-  ).map((b) => b.userId);
+  const bloqueados = await blockedUserIds();
 
   const pedidos = (await prisma.purchaseRequest.findMany({
     where: {
@@ -219,7 +220,8 @@ export async function runPurchaseRequests(
 export async function notifyRequestBuyers(listingId: number): Promise<void> {
   try {
     const listing = await prisma.gearListing.findFirst({
-      where: { id: listingId, status: "PUBLISHED" },
+      // El enlace que recibe el comprador tiene que abrir: misma visibilidad que el catálogo.
+      where: { id: listingId, status: "PUBLISHED", seller: VENDEDOR_VISIBLE },
       select: { id: true, gearItemId: true, sellerId: true, make: true, model: true, priceArs: true },
     });
     if (!listing) return;
@@ -240,9 +242,13 @@ export async function notifyRequestBuyers(listingId: number): Promise<void> {
       },
     });
 
+    if (avisos.length === 0) return;
+    // Un comprador bloqueado no recibe el aviso y su pedido no se da por cumplido.
+    const bloqueados = new Set(await blockedUserIds());
     const base = urlBaseDeLaApp();
     for (const aviso of avisos) {
       if (aviso.request.buyerId === listing.sellerId) continue;
+      if (bloqueados.has(aviso.request.buyerId)) continue;
       const cumplido = await prisma.$transaction(async (tx) => {
         const r = await tx.purchaseRequest.updateMany({
           where: { id: aviso.requestId, status: "ACTIVE" },

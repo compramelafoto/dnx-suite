@@ -326,7 +326,15 @@ describe("notifyRequestBuyers", () => {
 
   it("con un aviso «me interesa» de un pedido activo: guarda la publicación, cumple el pedido y avisa", async () => {
     await notifyRequestBuyers(77);
-    expect(m.listingFindFirst.mock.calls[0][0].where).toEqual({ id: 77, status: "PUBLISHED" });
+    expect(m.listingFindFirst.mock.calls[0][0].where).toEqual({
+      id: 77,
+      status: "PUBLISHED",
+      // El enlace que recibe el comprador tiene que abrir: vendedor verificado y no bloqueado.
+      seller: {
+        identityVerification: { is: { status: "APPROVED" } },
+        NOT: { portalAccountBlock: { is: { liftedAt: null } } },
+      },
+    });
     const where = m.noticeFindMany.mock.calls[0][0].where;
     expect(where).toMatchObject({
       gearItemId: 30,
@@ -349,6 +357,14 @@ describe("notifyRequestBuyers", () => {
       precio: "$ 850.000",
       url: "https://e.test/equipos/77",
     });
+  });
+
+  it("comprador con la cuenta bloqueada: ni cumple el pedido ni le avisa", async () => {
+    bloqueados = [7];
+    await notifyRequestBuyers(77);
+    expect(tx.purchaseRequest.updateMany).not.toHaveBeenCalled();
+    expect(tx.purchaseRequestNotice.update).not.toHaveBeenCalled();
+    expect(m.email).not.toHaveBeenCalled();
   });
 
   it("si el pedido ya no está activo, no hace nada más", async () => {

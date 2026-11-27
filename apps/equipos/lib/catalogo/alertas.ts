@@ -4,6 +4,7 @@ import { sendPortalEmail } from "@/lib/correo";
 import { EquipoError } from "@/lib/inventario/equipos";
 import type { GearItemKind } from "@/lib/inventario/tipos";
 import { urlBaseDeLaApp } from "@/lib/sesion";
+import { blockedUserIds } from "@/lib/usuarios/bloqueo";
 
 /**
  * Alertas de búsqueda: la persona guarda los filtros del catálogo y el cron diario le avisa por
@@ -129,9 +130,7 @@ type Match = { id: number; make: string; model: string; priceArs: number; city: 
  * una persona, se registra y siguen las demás.
  */
 export async function runSearchAlerts(now: Date = new Date()): Promise<{ emails: number }> {
-  const bloqueados = (
-    await prisma.portalAccountBlock.findMany({ where: { liftedAt: null }, select: { userId: true } })
-  ).map((b) => b.userId);
+  const bloqueados = await blockedUserIds();
 
   const alerts = (await prisma.gearSearchAlert.findMany({
     where: { active: true, userId: { notIn: bloqueados } },

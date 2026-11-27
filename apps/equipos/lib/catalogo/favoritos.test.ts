@@ -49,6 +49,30 @@ beforeEach(() => {
 });
 
 describe("toggleFavorite", () => {
+  it("sólo guarda publicaciones visibles: vendedor verificado y sin cuenta bloqueada", async () => {
+    await toggleFavorite(7, 5);
+    expect(m.listingFindFirst.mock.calls[0][0].where).toEqual({
+      id: 5,
+      status: "PUBLISHED",
+      seller: {
+        identityVerification: { is: { status: "APPROVED" } },
+        NOT: { portalAccountBlock: { is: { liftedAt: null } } },
+      },
+    });
+  });
+
+  it("vendedor bloqueado (la publicación ya no es visible) -> no la guarda", async () => {
+    m.listingFindFirst.mockResolvedValue(null);
+    await expect(toggleFavorite(7, 5)).rejects.toMatchObject({ code: "NO_ENCONTRADO" });
+    expect(m.favCreate).not.toHaveBeenCalled();
+  });
+
+  it("quitar se puede siempre, aunque ya no sea visible", async () => {
+    guardados.add(clave(7, 5));
+    m.listingFindFirst.mockResolvedValue(null);
+    expect(await toggleFavorite(7, 5)).toEqual({ favorite: false });
+  });
+
   it("la primera vez la guarda y la segunda la quita", async () => {
     expect(await toggleFavorite(7, 5)).toEqual({ favorite: true });
     expect(await toggleFavorite(7, 5)).toEqual({ favorite: false });
