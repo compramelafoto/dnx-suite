@@ -1,3 +1,2 @@
-/** Lo único que el vendedor ve de una revisión: nunca el motivo. */
-export const TEXTO_EN_REVISION =
-  "Tu publicación está en revisión. Te avisamos por correo cuando esté publicada.";
+// El texto vive en `lib/avisos.ts`, junto al resto de los avisos con código fijo.
+export { TEXTO_EN_REVISION } from "@/lib/avisos";

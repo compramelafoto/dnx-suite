@@ -1,3 +1,4 @@
+import { AVISOS_ERROR, AVISOS_OK, avisoDeCodigo } from "@/lib/avisos";
 import { requireLevel } from "@/lib/guards";
 import { KIND_LABELS } from "@/lib/inventario/equipos";
 import { fechaAr } from "@/lib/inventario/formato";
@@ -15,7 +16,10 @@ export default async function MisPublicacionesPage({
   searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
   const user = await requireLevel("identidad", "/mis-publicaciones");
-  const { ok, error } = await searchParams;
+  // Por la URL viajan códigos; el texto sale siempre del mapa fijo (texto libre: sin aviso).
+  const sp = await searchParams;
+  const ok = avisoDeCodigo(AVISOS_OK, sp.ok);
+  const error = avisoDeCodigo(AVISOS_ERROR, sp.error);
   const publicaciones = await listSellerListings(user.id);
 
   return (

@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { AVISOS_ERROR, AVISOS_OK, avisoDeCodigo } from "@/lib/avisos";
 import { getSignedFileUrl } from "@/lib/archivos";
 import { requireLevel } from "@/lib/guards";
 import {
@@ -29,7 +30,10 @@ export default async function EquipoPage({
   const id = Number(rawId);
   if (!Number.isInteger(id)) notFound();
   const user = await requireLevel("identidad", `/mi-equipo/${id}`);
-  const { ok, error } = await searchParams;
+  // Por la URL viajan códigos; el texto sale siempre del mapa fijo (texto libre: sin aviso).
+  const sp = await searchParams;
+  const ok = avisoDeCodigo(AVISOS_OK, sp.ok);
+  const error = avisoDeCodigo(AVISOS_ERROR, sp.error);
 
   let item;
   try {

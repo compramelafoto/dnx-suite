@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@repo/db";
+import { AVISOS_ERROR, AVISOS_OK, avisoDeCodigo } from "@/lib/avisos";
 import { requireLevel } from "@/lib/guards";
 import { KIND_LABELS, listItems, STATUS_LABELS } from "@/lib/inventario/equipos";
 import { fechaAr, fechaInput } from "@/lib/inventario/formato";
@@ -18,7 +19,10 @@ export default async function InformePage({
   searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
   const user = await requireLevel("identidad", "/mi-equipo/informe");
-  const { ok, error } = await searchParams;
+  // Por la URL viajan códigos; el texto sale siempre del mapa fijo (texto libre: sin aviso).
+  const sp = await searchParams;
+  const ok = avisoDeCodigo(AVISOS_OK, sp.ok);
+  const error = avisoDeCodigo(AVISOS_ERROR, sp.error);
   const [equipos, informes, ajustes] = await Promise.all([
     listItems(user.id),
     listOwnReports(user.id),

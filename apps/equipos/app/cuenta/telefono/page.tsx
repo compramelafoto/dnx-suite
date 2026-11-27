@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@repo/db";
+import { AVISOS_ERROR, avisoDeCodigo, codigoDeMensaje } from "@/lib/avisos";
 import { requireLevel } from "@/lib/guards";
 import { buildWhatsappLink } from "@/lib/telefono/codigo";
 import { startPhoneVerification } from "@/lib/telefono/registrar";
@@ -12,7 +13,8 @@ async function guardarTelefono(formData: FormData) {
   const user = await requireLevel("registrado", "/cuenta/telefono");
 
   const r = await startPhoneVerification(user.id, String(formData.get("phone") ?? ""), new Date());
-  redirect(r.ok ? "/cuenta/telefono" : `/cuenta/telefono?error=${encodeURIComponent(r.error)}`);
+  // Por la URL viaja sólo el código; la página lo traduce con el mapa fijo.
+  redirect(r.ok ? "/cuenta/telefono" : `/cuenta/telefono?error=${codigoDeMensaje(r.error) ?? "ERROR"}`);
 }
 
 async function recargar() {
@@ -26,7 +28,7 @@ export default async function TelefonoPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const user = await requireLevel("registrado", "/cuenta/telefono");
-  const { error } = await searchParams;
+  const error = avisoDeCodigo(AVISOS_ERROR, (await searchParams).error);
 
   const pending = await prisma.phoneVerification.findUnique({ where: { userId: user.id } });
 

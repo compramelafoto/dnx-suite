@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { AVISOS_ERROR, AVISOS_OK, avisoDeCodigo } from "@/lib/avisos";
 import { listInterested } from "@/lib/contacto/contactar";
 import { requireLevel } from "@/lib/guards";
 import { fechaHoraAr } from "@/lib/inventario/formato";
@@ -29,7 +30,10 @@ export default async function PublicacionPage({
   const id = Number((await params).id);
   if (!Number.isInteger(id)) notFound();
   const user = await requireLevel("identidad", `/mis-publicaciones/${id}`);
-  const { ok, error } = await searchParams;
+  // Por la URL viajan códigos; el texto sale siempre del mapa fijo (texto libre: sin aviso).
+  const sp = await searchParams;
+  const ok = avisoDeCodigo(AVISOS_OK, sp.ok);
+  const error = avisoDeCodigo(AVISOS_ERROR, sp.error);
 
   const listing = (await listSellerListings(user.id)).find((l) => l.id === id);
   if (!listing) notFound();
@@ -66,7 +70,10 @@ export default async function PublicacionPage({
         <div className="acciones">
           <EstadoPublicacion status={listing.status} />
         </div>
-        {ok ? <Aviso tipo="exito">{ok}</Aviso> : null}
+        {/* «En revisión» sale una sola vez: el recuadro del estado ya lo dice. */}
+        {ok && !(listing.status === "IN_REVIEW" && ok === TEXTO_EN_REVISION) ? (
+          <Aviso tipo="exito">{ok}</Aviso>
+        ) : null}
         {error ? <Aviso tipo="error">{error}</Aviso> : null}
         {listing.status === "IN_REVIEW" ? <Aviso tipo="revision">{TEXTO_EN_REVISION}</Aviso> : null}
       </div>

@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { AVISOS_ERROR, avisoDeCodigo } from "@/lib/avisos";
 import { requireLevel } from "@/lib/guards";
 import { EquipoError, getItem, KIND_LABELS } from "@/lib/inventario/equipos";
 import { fotosOpcionales } from "@/lib/publicaciones/fotos-opcionales";
@@ -19,7 +20,8 @@ export default async function PublicarPage({
   const id = Number((await params).id);
   if (!Number.isInteger(id)) notFound();
   const user = await requireLevel("identidad", `/mi-equipo/${id}/publicar`);
-  const { error } = await searchParams;
+  // Por la URL viaja un código; el texto sale siempre del mapa fijo (texto libre: sin aviso).
+  const error = avisoDeCodigo(AVISOS_ERROR, (await searchParams).error);
 
   let item;
   try {

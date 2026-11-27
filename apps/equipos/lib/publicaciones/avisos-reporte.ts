@@ -1,3 +1,5 @@
+import { avisoDeCodigo } from "@/lib/avisos";
+
 /**
  * Códigos que viajan en `?error=` al reportar una publicación y su texto fijo. La página nunca
  * muestra el valor de la URL: cualquiera puede armar un enlace con un texto inventado.
@@ -12,6 +14,5 @@ const TEXTOS: Record<CodigoAvisoReporte, string> = {
 };
 
 export function textoDeAvisoReporte(codigo: string | undefined): string | null {
-  if (!codigo || !Object.prototype.hasOwnProperty.call(TEXTOS, codigo)) return null;
-  return TEXTOS[codigo as CodigoAvisoReporte];
+  return avisoDeCodigo(TEXTOS, codigo);
 }

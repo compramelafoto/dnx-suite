@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { codigoDeError, type CodigoError, type CodigoOk } from "@/lib/avisos";
 import { requireLevel } from "@/lib/guards";
 import { EquipoError } from "@/lib/inventario/equipos";
 import {
@@ -13,8 +14,6 @@ import {
 import { CONDITION_LABELS, type GearListingCondition } from "@/lib/publicaciones/catalogos";
 import { parseEnteroPesos } from "@/lib/publicaciones/numeros";
 import type { ListingInput } from "@/lib/publicaciones/reglas";
-
-import { TEXTO_EN_REVISION } from "./textos";
 
 const LISTA = "/mis-publicaciones";
 
@@ -36,12 +35,8 @@ function optionalFile(fd: FormData, k: string): File | undefined {
   return f instanceof File && f.size > 0 ? f : undefined;
 }
 
-function messageOf(err: unknown): string {
-  if (err instanceof EquipoError) {
-    return err.code === "NO_ENCONTRADO" ? "No encontramos esa publicación." : err.message;
-  }
-  console.error("[mis-publicaciones] Error inesperado:", err);
-  return "No pudimos completar la operación. Probá de nuevo.";
+function errorDe(err: unknown, noEncontrado: CodigoError = "NO_ENCONTRADA_PUBLICACION"): CodigoError {
+  return codigoDeError(err, { noEncontrado, origen: "mis-publicaciones" });
 }
 
 function inputOf(fd: FormData, socialConsent: boolean): ListingInput {
@@ -68,14 +63,17 @@ function inputOf(fd: FormData, socialConsent: boolean): ListingInput {
   };
 }
 
-/** Ejecuta y vuelve a `volver` con `?ok=` o `?error=`. `redirect` se llama fuera del try. */
-async function run(volver: string, fn: () => Promise<string | void>): Promise<never> {
+/**
+ * Ejecuta y vuelve a `volver` con `?ok=CODIGO` o `?error=CODIGO`: por la URL nunca viaja texto,
+ * la página lo traduce con `lib/avisos.ts`. `redirect` se llama fuera del try.
+ */
+async function run(volver: string, fn: () => Promise<CodigoOk | void>): Promise<never> {
   let query: string;
   try {
     const ok = await fn();
-    query = ok ? `ok=${encodeURIComponent(ok)}` : "";
+    query = ok ? `ok=${ok}` : "";
   } catch (err) {
-    query = `error=${encodeURIComponent(messageOf(err))}`;
+    query = `error=${errorDe(err)}`;
   }
   redirect(query ? `${volver}?${query}` : volver);
 }
@@ -95,10 +93,11 @@ export async function publicarEquipo(formData: FormData) {
         proofPhoto: optionalFile(formData, "proofPhoto"),
       },
     );
-    const ok = status === "PUBLISHED" ? "Tu equipo ya está publicado." : TEXTO_EN_REVISION;
-    destino = `${LISTA}/${listingId}?ok=${encodeURIComponent(ok)}`;
+    const ok: CodigoOk = status === "PUBLISHED" ? "PUBLICADO" : "EN_REVISION";
+    destino = `${LISTA}/${listingId}?ok=${ok}`;
   } catch (err) {
-    destino = `${formPage}?error=${encodeURIComponent(messageOf(err))}`;
+    // Al publicar, lo que no se encuentra es el equipo.
+    destino = `${formPage}?error=${errorDe(err, "NO_ENCONTRADO_EQUIPO")}`;
   }
   redirect(destino);
 }
@@ -110,7 +109,7 @@ export async function guardarPublicacion(formData: FormData) {
   await run(volver, async () => {
     // El consentimiento ya se dio al publicar; editar no lo vuelve a pedir.
     await updateListing(user.id, id, inputOf(formData, true));
-    return "Cambios guardados.";
+    return "CAMBIOS_GUARDADOS";
   });
 }
 
@@ -120,7 +119,7 @@ export async function pausarPublicacion(formData: FormData) {
   const user = await requireLevel("identidad", volver);
   await run(volver, async () => {
     await pauseListing(user.id, id);
-    return "Publicación pausada. Nadie la ve hasta que la reanudes.";
+    return "PAUSADA";
   });
 }
 
@@ -130,7 +129,7 @@ export async function reanudarPublicacion(formData: FormData) {
   const user = await requireLevel("identidad", volver);
   await run(volver, async () => {
     const { status } = await resumeListing(user.id, id);
-    return status === "PUBLISHED" ? "Publicación reanudada." : TEXTO_EN_REVISION;
+    return status === "PUBLISHED" ? "REANUDADA" : "EN_REVISION";
   });
 }
 
@@ -140,6 +139,6 @@ export async function cerrarPublicacion(formData: FormData) {
   const user = await requireLevel("identidad", volver);
   await run(volver, async () => {
     await closeListing(user.id, id);
-    return "Publicación cerrada.";
+    return "CERRADA";
   });
 }

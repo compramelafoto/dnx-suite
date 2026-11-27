@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import type { GearItemKind, GearItemStatus } from "@/lib/inventario/tipos";
+import { codigoDeError, type CodigoError, type CodigoOk } from "@/lib/avisos";
 import { requireLevel } from "@/lib/guards";
 import { markRecovered, reportIncident } from "@/lib/inventario/denuncias";
 import {
@@ -43,22 +44,21 @@ function kindOf(fd: FormData): GearItemKind {
   return k as GearItemKind;
 }
 
-function messageOf(err: unknown): string {
-  if (err instanceof EquipoError) {
-    return err.code === "NO_ENCONTRADO" ? "No encontramos ese equipo." : err.message;
-  }
-  console.error("[mi-equipo] Error inesperado:", err);
-  return "No pudimos completar la operación. Probá de nuevo.";
+function errorDe(err: unknown): CodigoError {
+  return codigoDeError(err, { noEncontrado: "NO_ENCONTRADO_EQUIPO", origen: "mi-equipo" });
 }
 
-/** Ejecuta y vuelve a `volver` con `?ok=` o `?error=`. `redirect` se llama fuera del try. */
-async function run(volver: string, fn: () => Promise<string | void>): Promise<never> {
+/**
+ * Ejecuta y vuelve a `volver` con `?ok=CODIGO` o `?error=CODIGO`: por la URL nunca viaja texto,
+ * la página lo traduce con `lib/avisos.ts`. `redirect` se llama fuera del try.
+ */
+async function run(volver: string, fn: () => Promise<CodigoOk | void>): Promise<never> {
   let query: string;
   try {
     const ok = await fn();
-    query = ok ? `ok=${encodeURIComponent(ok)}` : "";
+    query = ok ? `ok=${ok}` : "";
   } catch (err) {
-    query = `error=${encodeURIComponent(messageOf(err))}`;
+    query = `error=${errorDe(err)}`;
   }
   redirect(query ? `${volver}?${query}` : volver);
 }
@@ -68,7 +68,7 @@ export async function esMio(formData: FormData) {
   const id = Number(text(formData, "sightingId"));
   await run(LISTA, async () => {
     await confirmSighting(user.id, id);
-    return "Equipo agregado a tu inventario.";
+    return "SUGERENCIA_CONFIRMADA";
   });
 }
 
@@ -77,7 +77,7 @@ export async function noEsMio(formData: FormData) {
   const id = Number(text(formData, "sightingId"));
   await run(LISTA, async () => {
     await dismissSighting(user.id, id);
-    return "Listo, no te lo volvemos a sugerir.";
+    return "SUGERENCIA_DESCARTADA";
   });
 }
 
@@ -94,7 +94,7 @@ export async function agregarEquipo(formData: FormData) {
       declaredValueUsd: money(formData, "declaredValueUsd"),
       notes: text(formData, "notes"),
     });
-    return "Equipo agregado.";
+    return "EQUIPO_AGREGADO";
   });
 }
 
@@ -116,7 +116,7 @@ export async function guardarEquipo(formData: FormData) {
       // El formulario sólo ofrece el estado cuando es editable a mano (no robado/perdido/recuperado).
       ...(status && status in STATUS_LABELS ? { status: status as GearItemStatus } : {}),
     });
-    return "Cambios guardados.";
+    return "CAMBIOS_GUARDADOS";
   });
 }
 
@@ -134,7 +134,7 @@ export async function subirFoto(formData: FormData) {
   const user = await requireLevel("identidad", volver);
   await run(volver, async () => {
     await attachItemPhoto(user.id, id, fileOf(formData, "file"));
-    return "Foto agregada.";
+    return "FOTO_AGREGADA";
   });
 }
 
@@ -144,7 +144,7 @@ export async function subirComprobante(formData: FormData) {
   const user = await requireLevel("identidad", volver);
   await run(volver, async () => {
     await attachPurchaseProof(user.id, id, fileOf(formData, "file"));
-    return "Comprobante guardado.";
+    return "COMPROBANTE_GUARDADO";
   });
 }
 
@@ -174,9 +174,9 @@ export async function denunciarEquipo(formData: FormData) {
       invoice: optionalFile(formData, "invoice"),
       policeReport: optionalFile(formData, "policeReport"),
     });
-    destino = `${LISTA}/${id}?ok=${encodeURIComponent("Recibimos tu denuncia. La vamos a revisar.")}`;
+    destino = `${LISTA}/${id}?ok=DENUNCIA_RECIBIDA`;
   } catch (err) {
-    destino = `${formPage}?error=${encodeURIComponent(messageOf(err))}`;
+    destino = `${formPage}?error=${errorDe(err)}`;
   }
   redirect(destino);
 }
@@ -187,6 +187,6 @@ export async function loRecupere(formData: FormData) {
   const user = await requireLevel("identidad", volver);
   await run(volver, async () => {
     await markRecovered(user.id, id);
-    return "Listo, marcamos el equipo como recuperado.";
+    return "RECUPERADO";
   });
 }

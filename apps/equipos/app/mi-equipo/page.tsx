@@ -1,3 +1,4 @@
+import { AVISOS_ERROR, AVISOS_OK, avisoDeCodigo } from "@/lib/avisos";
 import { requireLevel } from "@/lib/guards";
 import { KIND_LABELS, listItems, STATUS_LABELS } from "@/lib/inventario/equipos";
 import { listSightingSuggestions } from "@/lib/inventario/sugerencias";
@@ -13,7 +14,10 @@ export default async function MiEquipoPage({
   searchParams: Promise<{ ok?: string; error?: string }>;
 }) {
   const user = await requireLevel("identidad", "/mi-equipo");
-  const { ok, error } = await searchParams;
+  // Por la URL viajan códigos; el texto sale siempre del mapa fijo (texto libre: sin aviso).
+  const sp = await searchParams;
+  const ok = avisoDeCodigo(AVISOS_OK, sp.ok);
+  const error = avisoDeCodigo(AVISOS_ERROR, sp.error);
   const [sugerencias, equipos] = await Promise.all([
     listSightingSuggestions(user.id),
     listItems(user.id),
