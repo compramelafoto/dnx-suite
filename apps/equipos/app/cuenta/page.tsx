@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { AVISOS_ERROR, AVISOS_OK, avisoDeCodigo } from "@/lib/avisos";
+import { getPurchaseRequestOptOut } from "@/lib/busco/pedidos";
 import { requireLevel } from "@/lib/guards";
 import { fechaAr } from "@/lib/inventario/formato";
 import { getUserRating, listRatingsAbout } from "@/lib/ventas/calificaciones";
-import { Estrellas, Pagina, SelloIdentidad } from "@/app/_ui";
+import { Aviso, Boton, Estrellas, Pagina, SelloIdentidad } from "@/app/_ui";
+import { guardarAvisosBusco } from "../busco/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -26,11 +29,19 @@ const ENLACES = [
   },
 ] as const;
 
-export default async function CuentaPage() {
+export default async function CuentaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ok?: string; error?: string }>;
+}) {
   const user = await requireLevel("registrado", "/cuenta");
-  const [calificacion, comentarios] = await Promise.all([
+  const sp = await searchParams;
+  const ok = avisoDeCodigo(AVISOS_OK, sp.ok);
+  const error = avisoDeCodigo(AVISOS_ERROR, sp.error);
+  const [calificacion, comentarios, sinAvisosBusco] = await Promise.all([
     getUserRating(user.id),
     listRatingsAbout(user.id),
+    getPurchaseRequestOptOut(user.id),
   ]);
 
   return (
@@ -55,6 +66,27 @@ export default async function CuentaPage() {
           ))}
         </ul>
       </nav>
+
+      <section className="seccion pila" id="avisos-busco" aria-labelledby="avisos-titulo">
+        <h2 id="avisos-titulo">Avisos</h2>
+        {ok ? <Aviso tipo="exito">{ok}</Aviso> : null}
+        {error ? <Aviso tipo="error">{error}</Aviso> : null}
+        <form action={guardarAvisosBusco} className="pila">
+          <label className="opcion">
+            <input type="checkbox" name="avisarme" defaultChecked={!sinAvisosBusco} />
+            <span className="opcion-texto">
+              Avisarme cuando alguien busque un equipo como los míos
+            </span>
+          </label>
+          <p className="texto-secundario texto-chico">
+            Te escribimos como mucho dos veces por semana. El comprador no sabe quién sos ni que tenés
+            el equipo.
+          </p>
+          <div className="acciones">
+            <Boton variante="secundario">Guardar</Boton>
+          </div>
+        </form>
+      </section>
 
       <section className="seccion" aria-labelledby="calificaciones">
         <h2 id="calificaciones">Tu calificación</h2>

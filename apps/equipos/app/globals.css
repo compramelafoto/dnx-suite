@@ -1220,7 +1220,8 @@
   line-height: 1.25;
 }
 
-/* Tres caminos, cada uno con su foto arriba, separados por líneas como columnas de un diario. */
+/* Cuatro caminos, cada uno con su foto arriba, separados por líneas como columnas de un diario:
+   uno abajo del otro en el celular, de a dos en pantallas medianas y los cuatro en fila en las anchas. */
 .caminos {
   display: grid;
   gap: 40px;
@@ -1229,21 +1230,40 @@
   max-width: none;
 }
 
-@media (min-width: 800px) {
-  .caminos {
-    grid-template-columns: repeat(3, 1fr);
-    gap: 0;
-  }
-}
-
 .camino {
   display: grid;
   align-content: start;
   gap: 8px;
 }
 
-@media (min-width: 800px) {
+@media (min-width: 640px) {
+  .caminos {
+    grid-template-columns: repeat(2, 1fr);
+    column-gap: 0;
+  }
+
   .camino {
+    padding: 0 24px;
+    border-left: 1px solid var(--linea);
+  }
+
+  .camino:nth-child(2n + 1) {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .camino:nth-child(2n) {
+    padding-right: 0;
+  }
+}
+
+@media (min-width: 1100px) {
+  .caminos {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+  }
+
+  .camino:nth-child(n) {
     padding: 0 24px;
     border-left: 1px solid var(--linea);
   }

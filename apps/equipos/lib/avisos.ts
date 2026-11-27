@@ -1,4 +1,12 @@
 import { MAX_PHOTOS_PER_ITEM } from "@/lib/archivos";
+import {
+  MENSAJE_AVISO_RESPONDIDO,
+  MENSAJE_MAXIMO_PEDIDOS,
+  MENSAJE_MUCHOS_CANCELADOS,
+  MENSAJE_PEDIDO_NO_ACTIVO,
+  MENSAJE_PEDIDO_NO_RENOVABLE,
+  MENSAJE_PEDIDO_SIN_IDENTIDAD,
+} from "@/lib/busco/pedidos";
 import { EquipoError, MENSAJE_IDENTIDAD_CON_PUBLICACION } from "@/lib/inventario/equipos";
 import { VentaError } from "@/lib/ventas/ventas";
 
@@ -52,6 +60,13 @@ export const AVISOS_OK = {
   FAVORITO_QUITADO: "La quitaste de tus favoritos.",
   ALERTA_CREADA: "Alerta creada. Te avisamos por correo cuando se publique un equipo así.",
   ALERTA_BORRADA: "Alerta borrada. Ya no te avisamos por esa búsqueda.",
+  PEDIDO_CREADO:
+    "Pedido guardado. Si alguien tiene ese equipo, le avisamos; cuando lo publique, te mandamos el enlace por correo.",
+  PEDIDO_RENOVADO: "Pedido renovado por 30 días más.",
+  PEDIDO_CANCELADO: "Pedido cancelado.",
+  AVISO_RECHAZADO: "Listo, no le vamos a decir nada al comprador.",
+  AVISO_YA_PUBLICADO: "Listo. Tu equipo ya está publicado: le mandamos el enlace al comprador.",
+  PREFERENCIAS_GUARDADAS: "Preferencias guardadas.",
 } as const satisfies MapaAvisos;
 
 export type CodigoOk = keyof typeof AVISOS_OK;
@@ -145,6 +160,19 @@ export const AVISOS_ERROR = {
   ALERTA_SIN_FILTROS: "Elegí al menos un filtro para crear la alerta.",
   MAXIMO_ALERTAS: "Llegaste al máximo de 10 alertas activas.",
   NO_ENCONTRADA_ALERTA: "No encontramos esa alerta.",
+
+  // «Busco» (los textos de `pedidos.ts`).
+  NO_ENCONTRADO_PEDIDO: "No encontramos ese pedido.",
+  NO_ENCONTRADO_AVISO: "No encontramos ese aviso.",
+  PEDIDO_SIN_IDENTIDAD: MENSAJE_PEDIDO_SIN_IDENTIDAD,
+  MAXIMO_PEDIDOS: MENSAJE_MAXIMO_PEDIDOS,
+  MUCHOS_CANCELADOS: MENSAJE_MUCHOS_CANCELADOS,
+  PEDIDO_NO_RENOVABLE: MENSAJE_PEDIDO_NO_RENOVABLE,
+  PEDIDO_NO_ACTIVO: MENSAJE_PEDIDO_NO_ACTIVO,
+  AVISO_RESPONDIDO: MENSAJE_AVISO_RESPONDIDO,
+  MARCA_MODELO_LARGOS: "La marca o el modelo son demasiado largos.",
+  PRECIO_MAXIMO: "El precio máximo tiene que ser un número entero de pesos, mayor a cero.",
+  ELEGI_RESPUESTA: "Elegí una respuesta.",
 
   // Cuenta.
   TELEFONO_INVALIDO:

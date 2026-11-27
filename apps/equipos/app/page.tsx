@@ -37,6 +37,13 @@ const CAMINOS: {
     foto: "feria",
     enlace: { href: "/consultar-serie", texto: "Consultar una serie" },
   },
+  {
+    titulo: "Pedí lo que buscás",
+    texto:
+      "¿No está publicado? Contanos qué equipo buscás y le avisamos a quien lo tenga, sin decirle quién sos.",
+    foto: "lentes",
+    enlace: { href: "/busco", texto: "Crear un pedido" },
+  },
 ];
 
 /** Mosaico de «Hecho por fotógrafos»: las altas ocupan dos filas y la ancha dos columnas. */
@@ -180,7 +187,7 @@ export default async function Home() {
                   src={srcFoto(c.foto, true)}
                   alt={FOTOS[c.foto].alt}
                   fill
-                  sizes="(min-width: 800px) 33vw, 100vw"
+                  sizes="(min-width: 1100px) 25vw, (min-width: 640px) 50vw, 100vw"
                   className="foto-cubre"
                 />
               </div>

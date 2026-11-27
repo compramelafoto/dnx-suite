@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { AVISOS_ERROR, avisoDeCodigo } from "@/lib/avisos";
+import { isNoticeForItem } from "@/lib/busco/pedidos";
 import { requireLevel } from "@/lib/guards";
 import { EquipoError, getItem, KIND_LABELS } from "@/lib/inventario/equipos";
 import { fotosOpcionales } from "@/lib/publicaciones/fotos-opcionales";
@@ -15,13 +16,14 @@ export default async function PublicarPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; pedido?: string }>;
 }) {
   const id = Number((await params).id);
   if (!Number.isInteger(id)) notFound();
   const user = await requireLevel("identidad", `/mi-equipo/${id}/publicar`);
   // Por la URL viaja un código; el texto sale siempre del mapa fijo (texto libre: sin aviso).
-  const error = avisoDeCodigo(AVISOS_ERROR, (await searchParams).error);
+  const sp = await searchParams;
+  const error = avisoDeCodigo(AVISOS_ERROR, sp.error);
 
   let item;
   try {
@@ -32,6 +34,8 @@ export default async function PublicarPage({
   }
   if (item.status !== "IN_USE" && item.status !== "RECOVERED") redirect(`/mi-equipo/${id}`);
 
+  // Viene de un aviso «Busco»: la leyenda sale sólo si el aviso es suyo y de este equipo.
+  const conPedido = sp.pedido ? await isNoticeForItem(user.id, Number(sp.pedido), item.id) : false;
   const conSerie = requiresSerial(item.kind);
   const opcionales = fotosOpcionales();
 
@@ -43,6 +47,11 @@ export default async function PublicarPage({
     >
       <div className="pila">
         {error ? <Aviso tipo="error">{error}</Aviso> : null}
+        {conPedido ? (
+          <Aviso tipo="exito">
+            Un comprador verificado busca este equipo. Cuando lo publiques, le mandamos el enlace.
+          </Aviso>
+        ) : null}
         {opcionales ? (
           <Aviso tipo="revision">
             Vista de prueba: las fotos son opcionales porque el almacenamiento no está configurado.

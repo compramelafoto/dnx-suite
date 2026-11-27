@@ -1,5 +1,5 @@
 import { prisma } from "@repo/db";
-import { getPublicListingsByIds, type PublicListing } from "@/lib/catalogo/buscar";
+import { getPublicListingsByIds, sellerFirstName, type PublicListing } from "@/lib/catalogo/buscar";
 import { EquipoError, KIND_LABELS } from "@/lib/inventario/equipos";
 import type { GearItemKind } from "@/lib/inventario/tipos";
 import {
@@ -7,6 +7,7 @@ import {
   PROVINCIAS,
   type GearListingCondition,
 } from "@/lib/publicaciones/catalogos";
+import { getUserRating, type UserRating } from "@/lib/ventas/calificaciones";
 import { notifyRequestBuyers } from "./cruce";
 import {
   CANCEL_LIMIT,
@@ -65,6 +66,8 @@ export type MyPurchaseRequest = {
   expiresAt: Date;
   createdAt: Date;
   cancelledAt: Date | null;
+  /** Sólo en un pedido cumplido: la publicación que lo cumplió, para mandar al comprador. */
+  listingId: number | null;
 };
 
 function invalido(mensaje: string): EquipoError {
@@ -152,12 +155,22 @@ export async function createPurchaseRequest(
     select: { id: true },
   });
 
+  return { requestId: created.id, matches: await coincidencias(buyerId, data.kind, data.make, key) };
+}
+
+/** Publicaciones del catálogo con ese modelo, sin las del propio comprador. */
+async function coincidencias(
+  buyerId: number,
+  kind: GearItemKind,
+  make: string,
+  key: string,
+): Promise<PublicListing[]> {
   const candidatas = await prisma.gearListing.findMany({
     where: {
       status: "PUBLISHED",
-      kind: data.kind,
+      kind,
       sellerId: { not: buyerId },
-      OR: makeVariants(data.make).map((v) => ({
+      OR: makeVariants(make).map((v) => ({
         make: { startsWith: v, mode: "insensitive" as const },
       })),
     },
@@ -170,8 +183,25 @@ export async function createPurchaseRequest(
     .slice(0, MAX_COINCIDENCIAS)
     .map((l) => l.id);
   // El armado público del catálogo (vendedor verificado, nombre de pila, una foto).
-  const matches = await getPublicListingsByIds(ids);
-  return { requestId: created.id, matches };
+  return getPublicListingsByIds(ids);
+}
+
+/**
+ * Las publicaciones que hoy coinciden con un pedido propio (para mostrarlas después de crearlo).
+ * Un pedido de otra persona no existe: `null`.
+ */
+export async function getRequestMatches(
+  buyerId: number,
+  requestId: number,
+): Promise<{ make: string; model: string; matches: PublicListing[] } | null> {
+  if (!Number.isInteger(requestId) || requestId <= 0) return null;
+  const p = await prisma.purchaseRequest.findFirst({
+    where: { id: requestId, buyerId },
+    select: { kind: true, make: true, model: true, modelKey: true },
+  });
+  if (!p) return null;
+  const matches = await coincidencias(buyerId, p.kind as GearItemKind, p.make, p.modelKey);
+  return { make: p.make, model: p.model, matches };
 }
 
 async function pedidoPropio(buyerId: number, requestId: number) {
@@ -217,7 +247,10 @@ export async function cancelRequest(buyerId: number, requestId: number): Promise
   }
 }
 
-/** Los pedidos del comprador, los más nuevos primero. Sin nada sobre los avisos enviados. */
+/**
+ * Los pedidos del comprador, los más nuevos primero. De los avisos sólo sale, en un pedido
+ * cumplido, la publicación que lo cumplió (ya es pública): nunca quién ni cuántos recibieron aviso.
+ */
 export async function listMyRequests(buyerId: number): Promise<MyPurchaseRequest[]> {
   const rows = (await prisma.purchaseRequest.findMany({
     where: { buyerId },
@@ -235,24 +268,165 @@ export async function listMyRequests(buyerId: number): Promise<MyPurchaseRequest
       createdAt: true,
       cancelledAt: true,
     },
-  })) as MyPurchaseRequest[];
+  })) as Omit<MyPurchaseRequest, "listingId">[];
+
+  const cumplidos = rows.filter((r) => r.status === "FULFILLED").map((r) => r.id);
+  const publicacion = new Map<number, number>();
+  if (cumplidos.length > 0) {
+    const avisos = await prisma.purchaseRequestNotice.findMany({
+      where: { requestId: { in: cumplidos }, listingId: { not: null } },
+      orderBy: { id: "asc" },
+      select: { requestId: true, listingId: true },
+    });
+    for (const a of avisos) {
+      if (a.listingId != null && !publicacion.has(a.requestId)) publicacion.set(a.requestId, a.listingId);
+    }
+  }
+
   const now = new Date();
   // Hasta que corra el cron, un activo pasado de fecha ya está vencido.
-  return rows.map((r) =>
-    r.status === "ACTIVE" && r.expiresAt <= now ? { ...r, status: "EXPIRED" } : r,
-  );
+  return rows.map((r) => ({
+    ...r,
+    status: r.status === "ACTIVE" && r.expiresAt <= now ? "EXPIRED" : r.status,
+    listingId: r.status === "FULFILLED" ? (publicacion.get(r.id) ?? null) : null,
+  }));
+}
+
+export type NoticeForOwner = {
+  id: number;
+  gearItemId: number;
+  gearItem: { make: string; model: string };
+  sentAt: Date;
+  response: "INTERESTED" | "DECLINED" | null;
+  respondedAt: Date | null;
+  /** El comprador ya recibió el enlace a la publicación de este equipo. */
+  publicado: boolean;
+  request: {
+    kind: GearItemKind;
+    make: string;
+    model: string;
+    maxPriceArs: number | null;
+    minCondition: GearListingCondition | null;
+    province: string | null;
+    /** El pedido sigue abierto (activo y sin vencer). */
+    abierto: boolean;
+  };
+  /** Nombre del DNI si la identidad está aprobada; si no, el nombre de pila. */
+  buyerName: string;
+  /** Identidad aprobada hoy (para el sello). */
+  buyerVerified: boolean;
+  buyerRating: UserRating;
+};
+
+/**
+ * El aviso de un pedido, sólo para su dueño (de otro dueño: `null`). Recién acá el dueño ve el
+ * nombre verificado y la calificación del comprador.
+ */
+export async function getNoticeForOwner(
+  ownerId: number,
+  noticeId: number,
+): Promise<NoticeForOwner | null> {
+  if (!Number.isInteger(noticeId) || noticeId <= 0) return null;
+  const n = await prisma.purchaseRequestNotice.findFirst({
+    where: { id: noticeId, ownerId },
+    select: {
+      id: true,
+      gearItemId: true,
+      sentAt: true,
+      response: true,
+      respondedAt: true,
+      listingId: true,
+      gearItem: { select: { make: true, model: true } },
+      request: {
+        select: {
+          buyerId: true,
+          kind: true,
+          make: true,
+          model: true,
+          maxPriceArs: true,
+          minCondition: true,
+          province: true,
+          status: true,
+          expiresAt: true,
+          buyer: {
+            select: {
+              name: true,
+              identityVerification: { select: { status: true, legalName: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+  if (!n) return null;
+  const r = n.request;
+  const identidad = r.buyer.identityVerification;
+  const aprobada = identidad?.status === "APPROVED";
+  const legal = aprobada && identidad.legalName?.trim() ? identidad.legalName.trim() : null;
+  return {
+    id: n.id,
+    gearItemId: n.gearItemId,
+    gearItem: n.gearItem,
+    sentAt: n.sentAt,
+    response: n.response,
+    respondedAt: n.respondedAt,
+    publicado: n.listingId != null,
+    request: {
+      kind: r.kind as GearItemKind,
+      make: r.make,
+      model: r.model,
+      maxPriceArs: r.maxPriceArs,
+      minCondition: r.minCondition as GearListingCondition | null,
+      province: r.province,
+      abierto: r.status === "ACTIVE" && r.expiresAt > new Date(),
+    },
+    buyerName: legal ?? sellerFirstName(r.buyer.name),
+    buyerVerified: aprobada,
+    buyerRating: await getUserRating(r.buyerId),
+  };
+}
+
+/** Si el aviso es de este dueño y apunta a este equipo (para la leyenda de «Publicar»). */
+export async function isNoticeForItem(
+  ownerId: number,
+  noticeId: number,
+  gearItemId: number,
+): Promise<boolean> {
+  if (!Number.isInteger(noticeId) || noticeId <= 0) return false;
+  const n = await prisma.purchaseRequestNotice.findFirst({
+    where: { id: noticeId, ownerId, gearItemId },
+    select: { id: true },
+  });
+  return n !== null;
+}
+
+/** `true` si la persona apagó los avisos de pedidos «Busco». */
+export async function getPurchaseRequestOptOut(userId: number): Promise<boolean> {
+  const s = await prisma.gearOwnerSettings.findUnique({
+    where: { userId },
+    select: { purchaseRequestOptOut: true },
+  });
+  return s?.purchaseRequestOptOut ?? false;
+}
+
+export async function setPurchaseRequestOptOut(userId: number, optOut: boolean): Promise<void> {
+  await prisma.gearOwnerSettings.upsert({
+    where: { userId },
+    create: { userId, purchaseRequestOptOut: optOut },
+    update: { purchaseRequestOptOut: optOut },
+  });
 }
 
 /**
  * El dueño responde el aviso de un pedido, una sola vez. Un aviso de otro dueño no existe
  * (NO_ENCONTRADO). Si dice que le interesa y ese equipo ya está publicado, el comprador recibe
- * el enlace enseguida.
+ * el enlace enseguida (`yaPublicado`).
  */
 export async function respondNotice(
   ownerId: number,
   noticeId: number,
   response: "INTERESTED" | "DECLINED",
-): Promise<{ gearItemId: number }> {
+): Promise<{ gearItemId: number; yaPublicado: boolean }> {
   if (response !== "INTERESTED" && response !== "DECLINED") {
     throw invalido("Elegí una respuesta.");
   }
@@ -277,7 +451,10 @@ export async function respondNotice(
       where: { gearItemId: notice.gearItemId, sellerId: ownerId, status: "PUBLISHED" },
       select: { id: true },
     });
-    if (publicada) await notifyRequestBuyers(publicada.id);
+    if (publicada) {
+      await notifyRequestBuyers(publicada.id);
+      return { gearItemId: notice.gearItemId, yaPublicado: true };
+    }
   }
-  return { gearItemId: notice.gearItemId };
+  return { gearItemId: notice.gearItemId, yaPublicado: false };
 }
