@@ -64,7 +64,12 @@ describe("listingBlocker", () => {
 
 describe("maskSerial", () => {
   it("enmascara la serie", () => expect(maskSerial("ABC123456")).toBe("••••3456"));
-  it("sin serie devuelve null", () => expect(maskSerial(null)).toBeNull());
+  it("series cortas muestran sólo los últimos 2", () => {
+    expect(maskSerial("ABCD")).toBe("••••CD");
+    expect(maskSerial("ABC")).toBe("••••BC");
+    expect(maskSerial("ABCDE")).toBe("••••BCDE");
+  });
+  it("sin serie devuelve null",() => expect(maskSerial(null)).toBeNull());
 });
 
 describe("validateListingInput", () => {

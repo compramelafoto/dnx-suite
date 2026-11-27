@@ -88,5 +88,7 @@ export function listingBlocker(
 
 export function maskSerial(serialNormalized: string | null): string | null {
   if (!serialNormalized) return null;
-  return "••••" + serialNormalized.slice(-4);
+  // Nunca la serie completa: con 4 caracteres o menos sólo se ven los últimos 2.
+  const visibles = serialNormalized.length <= 4 ? 2 : 4;
+  return "••••" + serialNormalized.slice(-visibles);
 }
