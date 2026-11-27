@@ -224,14 +224,6 @@
   white-space: nowrap;
 }
 
-/* Logo completo en la portada. */
-.portada-logo {
-  display: block;
-  width: min(360px, 80vw);
-  height: auto;
-  margin-bottom: 24px;
-}
-
 /* Isotipo de MercadoFotoRaw: diafragma verde con la etiqueta naranja. */
 .marca-icono {
   width: 32px;
@@ -995,24 +987,94 @@
   gap: 6px 12px;
 }
 
+/* ───────────── Fotos ───────────── */
+
+/* Foto que llena su recuadro (next/image con `fill`): el recuadro define la forma. */
+.foto-cubre {
+  object-fit: cover;
+}
+
 /* ───────────── Inicio ───────────── */
 
+/*
+ * La portada va de borde a borde; el resto de los bloques usa el ancho de 1080 px. Las fotos son
+ * la textura nueva: sin sombras ni degradés, separadas por el gris de la carta.
+ */
+.inicio {
+  width: 100%;
+  padding-bottom: 72px;
+}
+
+@media (min-width: 720px) {
+  .inicio {
+    padding-bottom: 96px;
+  }
+}
+
 .portada {
+  position: relative;
   display: grid;
-  gap: 18px;
-  padding-bottom: 40px;
-  border-bottom: 1px solid var(--linea);
+  background: var(--grafito);
+}
+
+.portada-foto {
+  position: relative;
+  aspect-ratio: 3 / 2;
+  max-height: 72vh;
+  width: 100%;
+}
+
+/* En pantallas anchas el texto va encima de la foto, en un panel grafito casi opaco. */
+.portada-panel {
+  display: grid;
+  gap: 14px;
+  padding: 24px 16px 28px;
+  background: var(--grafito);
+  color: var(--papel);
+}
+
+@media (min-width: 900px) {
+  .portada-foto {
+    aspect-ratio: auto;
+    height: min(640px, 78vh);
+    max-height: none;
+  }
+
+  .portada-panel {
+    position: absolute;
+    left: max(24px, calc((100% - 1080px) / 2));
+    bottom: 40px;
+    width: min(560px, calc(100% - 48px));
+    padding: 32px 32px 36px;
+    border-radius: var(--radio-ficha);
+    background: rgba(30, 42, 48, 0.9);
+  }
 }
 
 .portada-titulo {
   max-width: 20ch;
+  color: var(--papel);
+}
+
+.portada-bajada {
+  color: #dce2e0;
+  font-size: 17px;
+}
+
+.portada-panel :focus-visible {
+  outline-color: var(--papel);
 }
 
 .buscador {
   display: grid;
   gap: 8px;
   max-width: 560px;
-  margin-top: 8px;
+  margin-top: 6px;
+}
+
+.buscador-etiqueta {
+  font-weight: 600;
+  font-size: 15px;
 }
 
 .buscador-fila {
@@ -1027,14 +1089,150 @@
   }
 }
 
+.inicio-bloque {
+  max-width: 1128px;
+  margin: 0 auto;
+  padding: 48px 16px 0;
+}
+
+@media (min-width: 720px) {
+  .inicio-bloque {
+    padding: 64px 24px 0;
+  }
+}
+
+.bloque-cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--grafito);
+}
+
+.bloque-enlace {
+  font-weight: 600;
+}
+
+/* Últimos equipos: foto grande, modelo y precio. Sin caja ni sombra: la foto es la ficha. */
+.ultimos {
+  display: grid;
+  gap: 32px 24px;
+  padding: 24px 0 0;
+  list-style: none;
+  max-width: none;
+}
+
+@media (min-width: 560px) {
+  .ultimos {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 900px) {
+  .ultimos {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.ultimo {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ultimo-imagen {
+  display: block;
+  margin-bottom: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.ultimo-foto {
+  display: grid;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border-radius: var(--radio-control);
+  background: var(--papel);
+}
+
+.ultimo-titulo {
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+.ultimo-titulo a {
+  color: var(--grafito);
+  text-decoration: none;
+}
+
+.ultimo-titulo a:hover {
+  text-decoration: underline;
+}
+
+.ultimo-precio {
+  font-size: 19px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.ultimo-zona {
+  color: var(--grafito-suave);
+  font-size: 15px;
+}
+
+/* Sin equipos todavía: foto de una mesa con equipo y la invitación a publicar. */
+.vacio {
+  display: grid;
+  gap: 20px;
+  padding-top: 24px;
+}
+
+@media (min-width: 800px) {
+  .vacio {
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 40px;
+  }
+}
+
+.vacio-foto {
+  position: relative;
+  aspect-ratio: 3 / 2;
+  border-radius: var(--radio-ficha);
+  overflow: hidden;
+}
+
+.vacio-texto {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+
+.vacio-titulo {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+/* Tres caminos, cada uno con su foto arriba, separados por líneas como columnas de un diario. */
 .caminos {
   display: grid;
+  gap: 40px;
+  padding: 0;
   list-style: none;
+  max-width: none;
 }
 
 @media (min-width: 800px) {
   .caminos {
     grid-template-columns: repeat(3, 1fr);
+    gap: 0;
   }
 }
 
@@ -1042,14 +1240,11 @@
   display: grid;
   align-content: start;
   gap: 8px;
-  padding: 28px 0;
-  border-bottom: 1px solid var(--linea);
 }
 
 @media (min-width: 800px) {
   .camino {
-    padding: 32px 28px 8px;
-    border-bottom: 0;
+    padding: 0 24px;
     border-left: 1px solid var(--linea);
   }
 
@@ -1057,11 +1252,200 @@
     padding-left: 0;
     border-left: 0;
   }
+
+  .camino:last-child {
+    padding-right: 0;
+  }
+}
+
+.camino-foto {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  margin-bottom: 8px;
+  border-radius: var(--radio-control);
+  overflow: hidden;
+}
+
+.camino-titulo {
+  font-size: 22px;
 }
 
 .camino-enlace {
   font-weight: 600;
   margin-top: 4px;
+}
+
+/* Franja grafito de borde a borde con el mosaico del oficio. */
+.oficio {
+  margin-top: 64px;
+  background: var(--grafito);
+  color: var(--papel);
+}
+
+.oficio-interior {
+  display: grid;
+  gap: 24px;
+  max-width: 1128px;
+  margin: 0 auto;
+  padding: 48px 16px;
+}
+
+@media (min-width: 720px) {
+  .oficio-interior {
+    padding: 64px 24px;
+  }
+}
+
+.oficio-texto {
+  display: grid;
+  gap: 10px;
+}
+
+.oficio-bajada {
+  color: #dce2e0;
+  font-size: 17px;
+  max-width: 60ch;
+}
+
+.mosaico {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-auto-rows: 150px;
+  grid-auto-flow: dense;
+  gap: 8px;
+  padding: 0;
+  list-style: none;
+  max-width: none;
+}
+
+@media (min-width: 800px) {
+  .mosaico {
+    grid-template-columns: repeat(4, 1fr);
+    grid-auto-rows: 200px;
+    gap: 10px;
+  }
+}
+
+.mosaico-foto,
+.mosaico-alta,
+.mosaico-ancha {
+  position: relative;
+  border-radius: var(--radio-control);
+  overflow: hidden;
+}
+
+.mosaico-ancha {
+  grid-column: span 2;
+}
+
+@media (min-width: 800px) {
+  .mosaico-alta {
+    grid-row: span 2;
+  }
+}
+
+/* Cómo funciona: tres pasos reales, numerados, con la foto al lado. */
+.como {
+  display: grid;
+  gap: 28px;
+}
+
+@media (min-width: 800px) {
+  .como {
+    grid-template-columns: 1fr 1fr;
+    align-items: center;
+    gap: 48px;
+  }
+}
+
+.como-texto {
+  display: grid;
+  gap: 20px;
+}
+
+.como-pasos {
+  display: grid;
+  gap: 20px;
+  padding: 0;
+  list-style: none;
+  counter-reset: como-paso;
+}
+
+.como-paso {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  padding-left: 48px;
+  counter-increment: como-paso;
+}
+
+.como-paso::before {
+  content: counter(como-paso);
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--comprobado);
+  border-radius: var(--radio-pildora);
+  color: var(--comprobado);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.como-paso-titulo {
+  padding-top: 4px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.como-foto {
+  position: relative;
+  aspect-ratio: 3 / 2;
+  border-radius: var(--radio-ficha);
+  overflow: hidden;
+}
+
+/* Cabecera con foto (catálogo): franja baja, la foto oscurecida con una capa grafito pareja. */
+.cabecera-foto {
+  position: relative;
+  display: grid;
+  align-content: end;
+  min-height: 180px;
+  margin-bottom: 28px;
+  padding: 24px 20px;
+  border-radius: var(--radio-ficha);
+  overflow: hidden;
+  background: var(--grafito);
+  color: var(--papel);
+}
+
+.cabecera-foto::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(30, 42, 48, 0.68);
+}
+
+@media (min-width: 720px) {
+  .cabecera-foto {
+    min-height: 220px;
+    padding: 32px;
+  }
+}
+
+.cabecera-foto-texto {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 10px;
+}
+
+.cabecera-foto-bajada {
+  color: #e3e8e6;
+  font-size: 17px;
 }
 
 /* ───────────── Informe (documento) ───────────── */

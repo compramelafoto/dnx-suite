@@ -174,6 +174,7 @@ export default async function CatalogoPage({
       titulo="Equipos en venta"
       bajada="Todos los vendedores verificaron su identidad. Cada publicación separa lo que comprobó el portal de lo que declara el vendedor."
       ancho="ancha"
+      foto="lentes"
     >
       <div className="catalogo">
         <Filtros f={f} />
