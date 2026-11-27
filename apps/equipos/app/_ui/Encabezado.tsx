@@ -15,9 +15,12 @@ export function Encabezado({ usuario }: { usuario: PortalUser | null }) {
   return (
     <header className="encabezado">
       <div className="encabezado-interior">
-        <Link className="marca" href="/">
-          <span className="marca-carta" aria-hidden="true" />
-          {MARCA}
+        <Link className="marca" href="/" aria-label={MARCA}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- SVG estático chico; next/image no aporta nada acá */}
+          <img className="marca-icono" src="/brand/mercadofotoraw/icono.svg" alt="" width={32} height={32} />
+          <span aria-hidden="true">
+            MercadoFoto<span className="marca-raw">Raw</span>
+          </span>
         </Link>
 
         <nav className="nav" aria-label="Principal">

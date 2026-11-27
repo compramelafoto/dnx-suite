@@ -17,6 +17,8 @@
   --revision: #a86412;
   --alerta: #b42318;
   --linea: #c9d0ce;
+  /* Naranja de la familia CompraMeLaFoto: color secundario de la marca (logo y acentos). */
+  --naranja: #d2843f;
 
   /* Derivados para estados de interacción (no son colores nuevos de la paleta). */
   --comprobado-hondo: #0b5446;
@@ -222,13 +224,24 @@
   white-space: nowrap;
 }
 
-/* Un cuadradito gris: la carta del 18 %. */
-.marca-carta {
-  width: 14px;
-  height: 14px;
-  background: var(--grafito-suave);
-  border-radius: 2px;
+/* Logo completo en la portada. */
+.portada-logo {
+  display: block;
+  width: min(360px, 80vw);
+  height: auto;
+  margin-bottom: 24px;
+}
+
+/* Isotipo de MercadoFotoRaw: diafragma verde con la etiqueta naranja. */
+.marca-icono {
+  width: 32px;
+  height: 32px;
   flex: none;
+}
+
+/* «Raw» va en el verde de lo comprobado, como en el logo. */
+.marca-raw {
+  color: var(--comprobado);
 }
 
 .nav {

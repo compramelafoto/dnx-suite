@@ -25,6 +25,8 @@ export default function Home() {
   return (
     <main id="contenido" className="pagina pagina-ancha">
       <section className="portada" aria-labelledby="promesa">
+        {/* eslint-disable-next-line @next/next/no-img-element -- SVG estático; next/image no aporta nada acá */}
+        <img className="portada-logo" src="/brand/mercadofotoraw/logo.svg" alt="MercadoFotoRaw" width={360} height={72} />
         <h1 id="promesa" className="portada-titulo">
           Equipos usados de fotógrafos con identidad verificada
         </h1>
