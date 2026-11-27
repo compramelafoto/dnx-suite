@@ -15,6 +15,16 @@ export function verifySignature(rawBody: string, signature: string | null, secre
   return timingSafeEqual(expected, received);
 }
 
+/**
+ * El simulador aprueba identidades sin documento: sólo en desarrollo local o en una vista
+ * privada de Vercel (`VERCEL_ENV=preview`, protegida con login). Nunca en producción.
+ */
+export function simuladorPermitido(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.IDENTITY_PROVIDER !== "simulado") return false;
+  if (env.VERCEL_ENV === "production") return false;
+  return env.NODE_ENV !== "production" || env.VERCEL_ENV === "preview";
+}
+
 const OUTCOMES = ["approved", "rejected", "review"] as const;
 
 export class SimulatedProvider implements IdentityProvider {

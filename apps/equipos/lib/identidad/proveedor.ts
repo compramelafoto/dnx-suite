@@ -1,5 +1,5 @@
 import type { ProviderResult } from "./resultado";
-import { SimulatedProvider } from "./proveedor-simulado";
+import { SimulatedProvider, simuladorPermitido } from "./proveedor-simulado";
 
 export interface IdentityProvider {
   name: string;
@@ -14,7 +14,7 @@ export interface IdentityProvider {
 export function getIdentityProvider(): IdentityProvider {
   const name = process.env.IDENTITY_PROVIDER;
   if (name === "simulado") {
-    if (process.env.NODE_ENV === "production") {
+    if (!simuladorPermitido()) {
       throw new Error("El proveedor de identidad simulado no puede usarse en producción.");
     }
     return new SimulatedProvider();

@@ -1,11 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { POST as webhook } from "@/app/api/identidad/webhook/route";
-import { signBody } from "@/lib/identidad/proveedor-simulado";
+import { signBody, simuladorPermitido } from "@/lib/identidad/proveedor-simulado";
 
 export const dynamic = "force-dynamic";
 
 function habilitado(): boolean {
-  return process.env.IDENTITY_PROVIDER === "simulado" && process.env.NODE_ENV !== "production";
+  return simuladorPermitido();
 }
 
 async function enviarResultado(formData: FormData) {
