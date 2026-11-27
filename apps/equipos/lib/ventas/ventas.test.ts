@@ -136,6 +136,22 @@ describe("markSold", () => {
     expect(m.txListingUpdateMany.mock.calls[0][0].where.status).toBe("PAUSED");
   });
 
+  it("desde una publicación pausada el equipo vuelve a FOR_SALE para poder traspasarse", async () => {
+    m.listingFindFirst.mockResolvedValue(listing({ status: "PAUSED" }));
+    await markSold(1, 70, 2, 1000);
+    expect(m.txItemUpdateMany.mock.calls[0][0]).toEqual({
+      where: { id: 7, ownerId: 1, status: { in: ["FOR_SALE", "IN_USE"] } },
+      data: { status: "FOR_SALE" },
+    });
+  });
+
+  it("si el equipo no está en estado vendible (updateMany 0) → NO_ENCONTRADA, sin venta ni correo", async () => {
+    m.txItemUpdateMany.mockResolvedValue({ count: 0 });
+    await expect(markSold(1, 70, 2, 1000)).rejects.toMatchObject({ code: "NO_ENCONTRADA" });
+    expect(m.txSaleCreate).not.toHaveBeenCalled();
+    expect(m.email).not.toHaveBeenCalled();
+  });
+
   it("publicación ajena o inexistente → NO_ENCONTRADA", async () => {
     m.listingFindFirst.mockResolvedValue(null);
     await expect(markSold(9, 70, 2, 1000)).rejects.toMatchObject({ code: "NO_ENCONTRADA" });

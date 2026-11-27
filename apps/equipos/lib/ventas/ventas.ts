@@ -107,6 +107,12 @@ export async function markSold(
       data: { status: "SOLD", closedAt: now },
     });
     if (r.count === 0) throw new VentaError("YA_VENDIDA");
+    // Una publicación pausada dejó el equipo en IN_USE: vuelve a FOR_SALE para poder traspasarlo al confirmar.
+    const item = await tx.gearItem.updateMany({
+      where: { id: listing.gearItemId, ownerId: sellerId, status: { in: ["FOR_SALE", "IN_USE"] } },
+      data: { status: "FOR_SALE" },
+    });
+    if (item.count === 0) throw new VentaError("NO_ENCONTRADA");
     const sale = await tx.gearSale.create({
       data: { listingId, gearItemId: listing.gearItemId, sellerId, buyerId, priceArs, expiresAt },
     });
