@@ -3,6 +3,7 @@ import { sendPortalEmail } from "@/lib/correo";
 import { EquipoError } from "@/lib/inventario/equipos";
 import { findActiveReportForSerial } from "@/lib/publicaciones/denuncia-activa";
 import { urlBaseDeLaApp } from "@/lib/sesion";
+import { formatRating, getUserRating } from "@/lib/ventas/calificaciones";
 
 /**
  * Contacto entre comprador y vendedor. Los datos del vendedor sólo salen por acá, y sólo a
@@ -117,9 +118,11 @@ export async function contactSeller(
   }
 
   try {
+    const calificacion = formatRating(await getUserRating(buyer.id));
     await sendPortalEmail(seller.sellerEmail, "nueva_consulta", {
       comprador: buyer.displayName?.trim() || "Una persona verificada",
       equipo: `${listing.make} ${listing.model}`,
+      calificacion,
       url: `${urlBaseDeLaApp()}/mis-publicaciones/${listingId}`,
     });
   } catch (err) {

@@ -13,6 +13,7 @@ const m = vi.hoisted(() => ({
   viewAggregate: vi.fn(),
   email: vi.fn(),
   activeReport: vi.fn(),
+  ratingGroupBy: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -31,6 +32,7 @@ vi.mock("@repo/db", () => ({
     },
     phoneVerification: { findUnique: m.phoneFindUnique },
     gearListingView: { aggregate: m.viewAggregate },
+    gearSaleRating: { groupBy: m.ratingGroupBy },
   },
 }));
 vi.mock("@/lib/publicaciones/denuncia-activa", () => ({
@@ -61,6 +63,7 @@ const listing = (over: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   vi.resetAllMocks();
   m.listingFindFirst.mockResolvedValue(listing());
+  m.ratingGroupBy.mockResolvedValue([{ ratedId: 2, _avg: { score: 4.5 }, _count: { _all: 12 } }]);
   m.contactFindUnique.mockResolvedValue(null);
   m.contactCount.mockResolvedValue(0);
   m.contactCreate.mockResolvedValue({ id: 1 });
@@ -155,6 +158,7 @@ describe("contactSeller", () => {
       comprador: "Ana Compradora",
       equipo: "Canon R5",
       url: "https://e.test/mis-publicaciones/5",
+      calificacion: "4,5 ★ (12 calificaciones)",
     });
     expect(JSON.stringify(data)).not.toContain("@");
   });

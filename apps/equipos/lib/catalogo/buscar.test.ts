@@ -7,6 +7,7 @@ const m = vi.hoisted(() => ({
   viewUpsert: vi.fn(),
   reportFindFirst: vi.fn(),
   signed: vi.fn(),
+  ratingGroupBy: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -14,6 +15,7 @@ vi.mock("@repo/db", () => ({
     gearListing: { findFirst: m.listingFindFirst, findMany: m.listingFindMany, count: m.listingCount },
     gearListingView: { upsert: m.viewUpsert },
     stolenGearReport: { findFirst: m.reportFindFirst },
+    gearSaleRating: { groupBy: m.ratingGroupBy },
   },
 }));
 vi.mock("@/lib/archivos", async () => {
@@ -78,6 +80,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   m.signed.mockImplementation(async (k: string) => `https://firmada/${k}`);
   m.reportFindFirst.mockResolvedValue(null);
+  m.ratingGroupBy.mockResolvedValue([]);
 });
 
 describe("parseCatalogFilters", () => {
@@ -271,6 +274,23 @@ describe("searchListings", () => {
     expect(r.total).toBe(30);
     expect(r.items).toHaveLength(1);
     expect(JSON.stringify(r.items)).not.toContain("ABC123456");
+  });
+
+  it("trae sellerRating con UNA sola consulta de calificaciones para toda la página", async () => {
+    m.listingFindMany.mockResolvedValue([
+      listingConVendedor(),
+      { ...listingConVendedor(), id: 6 },
+      { ...listingConVendedor(), id: 7, sellerId: 34 },
+    ]);
+    m.listingCount.mockResolvedValue(3);
+    m.ratingGroupBy.mockResolvedValue([{ ratedId: 33, _avg: { score: 4.5 }, _count: { _all: 12 } }]);
+    const r = await searchListings({ page: 1 });
+    expect(m.ratingGroupBy).toHaveBeenCalledOnce();
+    expect(r.items.map((i) => i.sellerRating)).toEqual([
+      { average: 4.5, count: 12 },
+      { average: 4.5, count: 12 },
+      { average: null, count: 0 },
+    ]);
   });
 
   it("sin filtros sólo pide las publicadas", async () => {

@@ -152,6 +152,7 @@ export function renderPortalEmail(
         saludo,
         `${d("comprador", "Una persona")} se interesó en tu ${d("equipo", "equipo")}.`,
         "Su identidad está verificada en MercadoFotoRaw. Igual seguí la guía de compra segura.",
+        d("calificacion") ? `Calificación como comprador: ${d("calificacion")}` : "",
         url ? `Ver tus interesados: ${url}` : "",
       ];
       break;

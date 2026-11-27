@@ -16,6 +16,7 @@ import {
 } from "@/lib/publicaciones/confianza";
 import { findActiveReportForSerial } from "@/lib/publicaciones/denuncia-activa";
 import { maskSerial } from "@/lib/publicaciones/reglas";
+import { getUserRatings, type UserRating } from "@/lib/ventas/calificaciones";
 
 /**
  * Catálogo público: lo que ve cualquiera, con o sin sesión. Las consultas piden campos uno por
@@ -56,6 +57,7 @@ export type PublicListing = {
   shutterText: string | null;
   sellerFirstName: string;
   sellerVerified: true;
+  sellerRating: UserRating;
   photoUrls: string[];
   publishedAt: Date;
 };
@@ -196,7 +198,7 @@ async function signPhotos(row: Row, max?: number): Promise<string[]> {
 
 async function toPublic(
   row: Row,
-  opts: { maxPhotos?: number; noActiveReport: boolean },
+  opts: { maxPhotos?: number; noActiveReport: boolean; sellerRating: UserRating },
 ): Promise<PublicListing> {
   const trust = computeTrust({
     usageSeal: row.usageSeal,
@@ -225,6 +227,7 @@ async function toPublic(
     shutterText: row.kind === "BODY" ? "Cantidad de disparos: no verificada" : null,
     sellerFirstName: sellerFirstName(row.seller.name),
     sellerVerified: true,
+    sellerRating: opts.sellerRating,
     photoUrls: await signPhotos(row, opts.maxPhotos),
     publishedAt: row.publishedAt ?? row.createdAt,
   };
@@ -267,8 +270,16 @@ export async function searchListings(
     }),
     prisma.gearListing.count({ where }),
   ]);
+  // Una sola consulta para todos los vendedores de la página.
+  const ratings = await getUserRatings((rows as Row[]).map((r) => r.sellerId));
   const items = await Promise.all(
-    (rows as Row[]).map((r) => toPublic(r, { maxPhotos: 1, noActiveReport: true })),
+    (rows as Row[]).map((r) =>
+      toPublic(r, {
+        maxPhotos: 1,
+        noActiveReport: true,
+        sellerRating: ratings.get(r.sellerId) ?? { average: null, count: 0 },
+      }),
+    ),
   );
   return { items, total };
 }
@@ -287,7 +298,8 @@ export async function getPublicListing(id: number): Promise<PublicListing | null
   if (!row) return null;
   const serial = row.gearItem.serialNormalized;
   if (serial && (await findActiveReportForSerial(serial, row.sellerId))) return null;
-  return toPublic(row, { noActiveReport: true });
+  const sellerRating = (await getUserRatings([row.sellerId])).get(row.sellerId) ?? { average: null, count: 0 };
+  return toPublic(row, { noActiveReport: true, sellerRating });
 }
 
 /** Cuenta la visita de una persona con sesión. No cuenta al vendedor y nunca tira error. */
