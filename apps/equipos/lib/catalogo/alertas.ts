@@ -123,7 +123,10 @@ type Match = { id: number; make: string; model: string; priceArs: number; city: 
  * Corre todas las alertas activas: busca lo publicado desde que se creó cada alerta que cumple
  * sus filtros y todavía no se avisó, sin las publicaciones del dueño de la alerta ni las de
  * cuentas bloqueadas (las alertas de una cuenta bloqueada tampoco corren). Registra el aviso
- * ANTES de mandar el correo: si el correo falla no se reintenta (mejor uno de menos que repetir).
+ * ANTES de mandar el correo (dos corridas en paralelo no repiten); si el correo no sale, borra
+ * lo que registró esta corrida para esa persona y la próxima lo reintenta. Las publicaciones más
+ * viejas van primero, así el tope de 10 por correo no posterga ninguna para siempre. Si falla
+ * una persona, se registra y siguen las demás.
  */
 export async function runSearchAlerts(now: Date = new Date()): Promise<{ emails: number }> {
   const bloqueados = (
@@ -146,14 +149,35 @@ export async function runSearchAlerts(now: Date = new Date()): Promise<{ emails:
     },
   })) as AlertRow[];
 
-  // Por persona: los equipos a avisar (sin repetir) y a qué alertas corresponde cada uno.
-  type Grupo = { user: AlertRow["user"]; equipos: Map<number, Match>; pares: Array<[number, number]> };
-  const porUsuario = new Map<number, Grupo>();
+  const porUsuario = new Map<number, AlertRow[]>();
+  for (const a of alerts) porUsuario.set(a.userId, [...(porUsuario.get(a.userId) ?? []), a]);
 
-  for (const a of alerts) {
-    const grupo: Grupo = porUsuario.get(a.userId) ?? { user: a.user, equipos: new Map(), pares: [] };
-    porUsuario.set(a.userId, grupo);
-    const lugar = MAX_POR_CORREO - grupo.equipos.size;
+  const base = urlBaseDeLaApp();
+  let emails = 0;
+  for (const [userId, suyas] of porUsuario) {
+    try {
+      if (await avisarAUnaPersona(suyas, bloqueados, now, base)) emails += 1;
+    } catch (err) {
+      console.error("[alertas] Falló el aviso de una persona", userId, err);
+    }
+  }
+  return { emails };
+}
+
+/** Las alertas de UNA persona: a lo sumo un correo. Devuelve si el correo salió. */
+async function avisarAUnaPersona(
+  suyas: AlertRow[],
+  bloqueados: number[],
+  now: Date,
+  base: string,
+): Promise<boolean> {
+  const user = suyas[0].user;
+  // Los equipos a avisar (sin repetir) y a qué alertas corresponde cada uno.
+  const equipos = new Map<number, Match>();
+  const pares: Array<[number, number]> = [];
+
+  for (const a of suyas) {
+    const lugar = MAX_POR_CORREO - equipos.size;
     const where: Record<string, unknown> = {
       status: "PUBLISHED",
       seller: VENDEDOR_VERIFICADO,
@@ -169,55 +193,60 @@ export async function runSearchAlerts(now: Date = new Date()): Promise<{ emails:
 
     const found = (await prisma.gearListing.findMany({
       where,
-      orderBy: [{ publishedAt: "desc" }, { id: "desc" }],
+      orderBy: [{ publishedAt: "asc" }, { id: "asc" }],
       take: MAX_POR_CORREO,
       select: { id: true, make: true, model: true, priceArs: true, city: true, province: true },
     })) as Match[];
 
     let nuevos = 0;
     for (const l of found) {
-      if (grupo.equipos.has(l.id)) {
+      if (equipos.has(l.id)) {
         // Ya va en el correo por otra alerta: se marca también para ésta.
-        grupo.pares.push([a.id, l.id]);
+        pares.push([a.id, l.id]);
       } else if (nuevos < lugar) {
-        grupo.equipos.set(l.id, l);
-        grupo.pares.push([a.id, l.id]);
+        equipos.set(l.id, l);
+        pares.push([a.id, l.id]);
         nuevos += 1;
       }
     }
   }
+  if (equipos.size === 0) return false;
 
-  const base = urlBaseDeLaApp();
-  let emails = 0;
-  for (const grupo of porUsuario.values()) {
-    if (grupo.equipos.size === 0) continue;
-    // Una corrida en paralelo pudo avisar alguno: sólo van los que esta corrida registró.
-    const registrados = new Set<number>();
-    for (const [alertId, listingId] of grupo.pares) {
-      try {
-        await prisma.gearSearchAlertHit.create({ data: { alertId, listingId }, select: { id: true } });
-        registrados.add(listingId);
-      } catch (err) {
-        if ((err as { code?: string })?.code !== "P2002") throw err;
-      }
+  // Una corrida en paralelo pudo avisar alguno: sólo van los que esta corrida registró.
+  const registrados = new Set<number>();
+  const hitIds: number[] = [];
+  for (const [alertId, listingId] of pares) {
+    try {
+      const hit = await prisma.gearSearchAlertHit.create({
+        data: { alertId, listingId },
+        select: { id: true },
+      });
+      hitIds.push(hit.id);
+      registrados.add(listingId);
+    } catch (err) {
+      if ((err as { code?: string })?.code !== "P2002") throw err;
     }
-    const equipos = [...grupo.equipos.values()].filter((l) => registrados.has(l.id));
-    if (equipos.length === 0) continue;
-
-    const data: Record<string, string> = {
-      nombre: grupo.user.name ? sellerFirstName(grupo.user.name) : "",
-      cantidad: String(equipos.length),
-      url: `${base}/alertas`,
-    };
-    equipos.forEach((l, i) => {
-      const n = i + 1;
-      data[`item${n}_titulo`] = `${l.make} ${l.model}`;
-      data[`item${n}_precio`] = formatPesos(l.priceArs);
-      data[`item${n}_zona`] = `${l.city}, ${l.province}`;
-      data[`item${n}_url`] = `${base}/equipos/${l.id}`;
-    });
-    const r = await sendPortalEmail(grupo.user.email, "alerta_busqueda", data);
-    if (r.success) emails += 1;
   }
-  return { emails };
+  const aAvisar = [...equipos.values()].filter((l) => registrados.has(l.id));
+  if (aAvisar.length === 0) return false;
+
+  const data: Record<string, string> = {
+    nombre: user.name ? sellerFirstName(user.name) : "",
+    cantidad: String(aAvisar.length),
+    url: `${base}/alertas`,
+  };
+  aAvisar.forEach((l, i) => {
+    const n = i + 1;
+    data[`item${n}_titulo`] = `${l.make} ${l.model}`;
+    data[`item${n}_precio`] = formatPesos(l.priceArs);
+    data[`item${n}_zona`] = `${l.city}, ${l.province}`;
+    data[`item${n}_url`] = `${base}/equipos/${l.id}`;
+  });
+  const r = await sendPortalEmail(user.email, "alerta_busqueda", data);
+  if (!r.success) {
+    // Sólo lo que registró esta corrida: lo de otra corrida ya salió y no se repite.
+    await prisma.gearSearchAlertHit.deleteMany({ where: { id: { in: hitIds } } });
+    return false;
+  }
+  return true;
 }

@@ -7,6 +7,7 @@ const m = vi.hoisted(() => ({
   alertFindMany: vi.fn(),
   listingFindMany: vi.fn(),
   hitCreate: vi.fn(),
+  hitDeleteMany: vi.fn(),
   blockFindMany: vi.fn(),
   email: vi.fn(),
 }));
@@ -20,7 +21,7 @@ vi.mock("@repo/db", () => ({
       findMany: m.alertFindMany,
     },
     gearListing: { findMany: m.listingFindMany },
-    gearSearchAlertHit: { create: m.hitCreate },
+    gearSearchAlertHit: { create: m.hitCreate, deleteMany: m.hitDeleteMany },
     portalAccountBlock: { findMany: m.blockFindMany },
   },
 }));
@@ -55,7 +56,9 @@ type FakeListing = {
 
 let listings: FakeListing[];
 let alerts: Array<Record<string, unknown>>;
-let hits: Set<string>;
+let hits: Map<number, string>;
+let nextHitId: number;
+const hitKeys = () => new Set(hits.values());
 let bloqueados: number[];
 
 const pub = (over: Partial<FakeListing>): FakeListing => ({
@@ -84,14 +87,15 @@ function cumple(l: FakeListing, w: Record<string, any>): boolean {
   if (w.province && l.province !== w.province) return false;
   if (w.priceArs?.lte !== undefined && l.priceArs > w.priceArs.lte) return false;
   const alertId = w.alertHits?.none?.alertId;
-  if (alertId !== undefined && hits.has(`${alertId}:${l.id}`)) return false;
+  if (alertId !== undefined && hitKeys().has(`${alertId}:${l.id}`)) return false;
   return true;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   listings = [];
-  hits = new Set();
+  hits = new Map();
+  nextHitId = 1;
   bloqueados = [];
   alerts = [
     {
@@ -110,14 +114,23 @@ beforeEach(() => {
   m.alertFindMany.mockImplementation(async ({ where }) =>
     alerts.filter((a) => !where?.userId?.notIn?.includes(a.userId)),
   );
-  m.listingFindMany.mockImplementation(async ({ where, take }) =>
-    listings.filter((l) => cumple(l, where)).slice(0, take),
-  );
+  m.listingFindMany.mockImplementation(async ({ where, take, orderBy }) => {
+    const found = listings.filter((l) => cumple(l, where));
+    const asc = orderBy?.[0]?.publishedAt === "asc";
+    found.sort((a, b) => (asc ? 1 : -1) * (a.publishedAt.getTime() - b.publishedAt.getTime() || a.id - b.id));
+    return found.slice(0, take);
+  });
   m.hitCreate.mockImplementation(async ({ data }) => {
     const k = `${data.alertId}:${data.listingId}`;
-    if (hits.has(k)) throw { code: "P2002" };
-    hits.add(k);
-    return { id: hits.size };
+    if (hitKeys().has(k)) throw { code: "P2002" };
+    const id = nextHitId++;
+    hits.set(id, k);
+    return { id };
+  });
+  m.hitDeleteMany.mockImplementation(async ({ where }) => {
+    let count = 0;
+    for (const id of where.id.in) if (hits.delete(id)) count += 1;
+    return { count };
   });
   m.email.mockResolvedValue({ success: true });
 });
@@ -290,5 +303,50 @@ describe("runSearchAlerts", () => {
     listings = [pub({ id: 10 })];
     m.email.mockResolvedValue({ success: false });
     expect(await runSearchAlerts(HOY)).toEqual({ emails: 0 });
+  });
+
+  it("si el correo no sale, borra los avisos de esta corrida y la próxima reintenta", async () => {
+    listings = [pub({ id: 10 }), pub({ id: 11 })];
+    // Uno ya avisado en otra corrida: ése no se borra ni se repite.
+    hits.set(99, "1:11");
+    m.email.mockResolvedValueOnce({ success: false });
+    expect(await runSearchAlerts(HOY)).toEqual({ emails: 0 });
+    expect([...hits.values()]).toEqual(["1:11"]);
+    expect(await runSearchAlerts(HOY)).toEqual({ emails: 1 });
+    expect(m.email.mock.calls[1][2]).toMatchObject({ cantidad: "1", item1_url: "https://e.test/equipos/10" });
+    expect(await runSearchAlerts(HOY)).toEqual({ emails: 0 });
+  });
+
+  it("con más de 10 coincidencias van primero las más viejas, así ninguna queda postergada", async () => {
+    listings = Array.from({ length: 12 }, (_, i) =>
+      pub({ id: 100 + i, publishedAt: new Date(AYER.getTime() + (i + 1) * 60_000) }),
+    );
+    await runSearchAlerts(HOY);
+    expect(m.listingFindMany.mock.calls[0][0].orderBy).toEqual([{ publishedAt: "asc" }, { id: "asc" }]);
+    expect(m.email.mock.calls[0][2].item1_url).toBe("https://e.test/equipos/100");
+    await runSearchAlerts(HOY);
+    const segundo = m.email.mock.calls[1][2];
+    expect(segundo.cantidad).toBe("2");
+    expect(segundo.item1_url).toBe("https://e.test/equipos/110");
+  });
+
+  it("si falla una persona, las demás reciben su correo", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    alerts.push({
+      id: 2,
+      userId: 9,
+      kind: "LENS",
+      make: "Sony",
+      mount: null,
+      maxPriceArs: null,
+      province: null,
+      createdAt: AYER,
+      user: { email: "otra@e.test", name: "Ana" },
+    });
+    listings = [pub({ id: 10 })];
+    m.listingFindMany.mockRejectedValueOnce(new Error("caído"));
+    expect(await runSearchAlerts(HOY)).toEqual({ emails: 1 });
+    expect(m.email.mock.calls[0][0]).toBe("otra@e.test");
+    expect(error).toHaveBeenCalled();
   });
 });
