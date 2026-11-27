@@ -8,9 +8,10 @@ const m = vi.hoisted(() => ({
   listingFindMany: vi.fn(),
   sightingFindMany: vi.fn(),
   txListingCreate: vi.fn(),
-  txListingUpdate: vi.fn(),
   txListingUpdateMany: vi.fn(),
   txItemUpdate: vi.fn(),
+  txItemUpdateMany: vi.fn(),
+  txLock: vi.fn(),
   txEventCreate: vi.fn(),
   tx: vi.fn(),
   upload: vi.fn(),
@@ -84,10 +85,12 @@ beforeEach(() => {
     cb({
       gearListing: {
         create: m.txListingCreate,
-        update: m.txListingUpdate,
+        findFirst: m.listingFindFirst,
         updateMany: m.txListingUpdateMany,
       },
-      gearItem: { update: m.txItemUpdate },
+      $queryRaw: m.txLock,
+      stolenGearReport: { count: m.reportCount },
+      gearItem: { findFirst: m.itemFindFirst, update: m.txItemUpdate, updateMany: m.txItemUpdateMany },
       gearItemEvent: { create: m.txEventCreate },
     }),
   );
@@ -95,9 +98,10 @@ beforeEach(() => {
     id: 70,
     ...data,
   }));
-  m.txListingUpdate.mockResolvedValue({});
   m.txListingUpdateMany.mockResolvedValue({ count: 1 });
   m.txItemUpdate.mockResolvedValue({});
+  m.txItemUpdateMany.mockResolvedValue({ count: 1 });
+  m.txLock.mockResolvedValue([]);
   m.txEventCreate.mockResolvedValue({});
   m.itemFindFirst.mockResolvedValue(item());
   m.reportCount.mockResolvedValue(0);
@@ -261,8 +265,8 @@ describe("pausar, reanudar, cerrar, editar", () => {
     m.listingFindFirst.mockResolvedValue(listing());
     await pauseListing(1, 70);
     expect(m.listingFindFirst.mock.calls[0][0].where).toEqual({ id: 70, sellerId: 1 });
-    expect(m.txListingUpdate.mock.calls[0][0].data).toMatchObject({ status: "PAUSED" });
-    expect(m.txItemUpdate.mock.calls[0][0].data).toEqual({ status: "IN_USE" });
+    expect(m.txListingUpdateMany.mock.calls[0][0].data).toMatchObject({ status: "PAUSED" });
+    expect(m.txItemUpdateMany.mock.calls[0][0]).toEqual({ where: { id: 7, status: "FOR_SALE" }, data: { status: "IN_USE" } });
     expect(m.txEventCreate.mock.calls[0][0].data.detail).toEqual({ listingId: 70, accion: "pausado" });
   });
 
@@ -284,8 +288,8 @@ describe("pausar, reanudar, cerrar, editar", () => {
     m.itemFindFirst.mockResolvedValue(item());
     const r = await resumeListing(1, 70);
     expect(r.status).toBe("PUBLISHED");
-    expect(m.txListingUpdate.mock.calls[0][0].data.status).toBe("PUBLISHED");
-    expect(m.txItemUpdate.mock.calls[0][0].data).toEqual({ status: "FOR_SALE" });
+    expect(m.txListingUpdateMany.mock.calls[0][0].data.status).toBe("PUBLISHED");
+    expect(m.txItemUpdateMany.mock.calls[0][0]).toEqual({ where: { id: 7, status: "IN_USE" }, data: { status: "FOR_SALE" } });
   });
 
   it("resumeListing con denuncia aprobada mientras estaba pausada → IN_REVIEW", async () => {
@@ -293,7 +297,7 @@ describe("pausar, reanudar, cerrar, editar", () => {
     m.reportFindFirst.mockResolvedValue({ id: 44 });
     const r = await resumeListing(1, 70);
     expect(r.status).toBe("IN_REVIEW");
-    expect(m.txListingUpdate.mock.calls[0][0].data).toMatchObject({
+    expect(m.txListingUpdateMany.mock.calls[0][0].data).toMatchObject({
       status: "IN_REVIEW",
       reviewNote: "Denuncia activa #44",
     });
@@ -308,10 +312,10 @@ describe("pausar, reanudar, cerrar, editar", () => {
   it("closeListing: IN_REVIEW → CLOSED con closedAt y equipo a IN_USE", async () => {
     m.listingFindFirst.mockResolvedValue(listing({ status: "IN_REVIEW" }));
     await closeListing(1, 70);
-    const data = m.txListingUpdate.mock.calls[0][0].data;
+    const data = m.txListingUpdateMany.mock.calls[0][0].data;
     expect(data.status).toBe("CLOSED");
     expect(data.closedAt).toBeInstanceOf(Date);
-    expect(m.txItemUpdate.mock.calls[0][0].data).toEqual({ status: "IN_USE" });
+    expect(m.txItemUpdateMany.mock.calls[0][0]).toEqual({ where: { id: 7, status: "FOR_SALE" }, data: { status: "IN_USE" } });
   });
 
   it("updateListing sólo en PUBLISHED/PAUSED y no toca el sello", async () => {
@@ -319,11 +323,56 @@ describe("pausar, reanudar, cerrar, editar", () => {
     await expect(updateListing(1, 70, input)).rejects.toMatchObject({ code: "DATO_INVALIDO" });
     m.listingFindFirst.mockResolvedValue(listing({ status: "PAUSED" }));
     await updateListing(1, 70, { ...input, priceArs: 1400000 });
-    const data = m.txListingUpdate.mock.calls[0][0].data;
+    const data = m.txListingUpdateMany.mock.calls[0][0].data;
     expect(data.priceArs).toBe(1400000);
     expect(data).not.toHaveProperty("usageSeal");
     expect(data).not.toHaveProperty("status");
     expect(m.txEventCreate.mock.calls[0][0].data.detail).toEqual({ listingId: 70, accion: "editado" });
+    expect(m.txEventCreate.mock.calls[0][0].data.type).toBe("UPDATED");
+  });
+});
+
+describe("carreras", () => {
+  it("createListing: bloquea la fila y, si dentro de la transacción ya hay una publicación abierta, falla sin crear ni avisar", async () => {
+    m.reportFindFirst.mockResolvedValue({ id: 33 });
+    m.listingFindFirst.mockResolvedValueOnce(null).mockResolvedValueOnce({ id: 69 });
+    await expect(createListing(1, 7, input, { serialPhoto: img() })).rejects.toMatchObject({
+      code: "DATO_INVALIDO",
+      message: "Este equipo ya tiene una publicación.",
+    });
+    expect(m.txLock).toHaveBeenCalledTimes(1);
+    expect(m.txListingCreate).not.toHaveBeenCalled();
+    expect(m.email).not.toHaveBeenCalled();
+  });
+
+  it("createListing: si dentro de la transacción aparece una denuncia propia, falla", async () => {
+    m.reportCount.mockResolvedValueOnce(0).mockResolvedValueOnce(1);
+    await expect(createListing(1, 7, input, { serialPhoto: img() })).rejects.toMatchObject({
+      message: "Este equipo no se puede publicar en su estado actual.",
+    });
+    expect(m.txListingCreate).not.toHaveBeenCalled();
+  });
+
+  it("pausar con updateMany en 0 (otro cambio ganó) → error y el equipo no se toca", async () => {
+    m.listingFindFirst.mockResolvedValue(listing());
+    m.txListingUpdateMany.mockResolvedValue({ count: 0 });
+    await expect(pauseListing(1, 70)).rejects.toMatchObject({
+      message: "Esta publicación ya no se puede modificar.",
+    });
+    expect(m.txItemUpdateMany).not.toHaveBeenCalled();
+    expect(m.txEventCreate).not.toHaveBeenCalled();
+    expect(m.txListingUpdateMany.mock.calls[0][0].where).toEqual({
+      id: 70,
+      sellerId: 1,
+      status: { in: ["PUBLISHED"] },
+    });
+  });
+
+  it("cerrar con updateMany en 0 → error sin tocar el equipo", async () => {
+    m.listingFindFirst.mockResolvedValue(listing());
+    m.txListingUpdateMany.mockResolvedValue({ count: 0 });
+    await expect(closeListing(1, 70)).rejects.toMatchObject({ code: "DATO_INVALIDO" });
+    expect(m.txItemUpdateMany).not.toHaveBeenCalled();
   });
 });
 

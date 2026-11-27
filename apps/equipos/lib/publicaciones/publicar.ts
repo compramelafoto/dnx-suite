@@ -19,6 +19,9 @@ type ListingStatusValue = "DRAFT" | "IN_REVIEW" | "PUBLISHED" | "PAUSED" | "CLOS
 const OPEN_STATUSES: ListingStatusValue[] = ["DRAFT", "IN_REVIEW", "PUBLISHED", "PAUSED"];
 const NO_MODIFICABLE = "Esta publicación ya no se puede modificar.";
 
+const FOR_SALE_TO_IN_USE = { from: "FOR_SALE", to: "IN_USE" } as const;
+const IN_USE_TO_FOR_SALE = { from: "IN_USE", to: "FOR_SALE" } as const;
+
 const noModificable = () => new EquipoError("DATO_INVALIDO", NO_MODIFICABLE);
 
 /** ¿Hay una denuncia ACTIVE de OTRA persona con esa serie? Lo usan crear, reanudar y el cron. */
@@ -115,6 +118,25 @@ export async function createListing(
   let listing: { id: number };
   try {
     listing = await prisma.$transaction(async (tx) => {
+      // Se bloquea la fila del equipo: dos envíos simultáneos (o una denuncia) se ponen en fila.
+      await tx.$queryRaw`SELECT id FROM "GearItem" WHERE id = ${gearItemId} FOR UPDATE`;
+      const fresh = await tx.gearItem.findFirst({ where: { id: gearItemId, ownerId: sellerId } });
+      if (!fresh) throw new EquipoError("NO_ENCONTRADO");
+      const ownOpen =
+        (await tx.stolenGearReport.count({
+          where: { gearItemId, reporterId: sellerId, status: { in: ["PENDING_REVIEW", "ACTIVE"] } },
+        })) > 0;
+      const openListing =
+        (await tx.gearListing.findFirst({
+          where: { gearItemId, status: { in: OPEN_STATUSES } },
+          select: { id: true },
+        })) !== null;
+      const recheck = listingBlocker(fresh, {
+        ownReportOpen: ownOpen,
+        activeListing: openListing,
+        serialPhotoKey,
+      });
+      if (recheck) throw new EquipoError("DATO_INVALIDO", recheck);
       const created = await tx.gearListing.create({
         data: {
           sellerId,
@@ -176,21 +198,35 @@ export async function createListing(
   return { listingId: listing.id, status };
 }
 
+/**
+ * Cambia la publicación sólo si sigue en uno de los estados de partida (si no, otro cambio —por
+ * ejemplo una denuncia— ganó) y recién después toca el equipo, también condicionado.
+ */
 async function transition(
   listing: { id: number; gearItemId: number },
+  sellerId: number,
+  from: ListingStatusValue[],
   listingData: Record<string, unknown>,
-  itemStatus: "IN_USE" | "FOR_SALE" | null,
+  itemChange: { from: "FOR_SALE" | "IN_USE"; to: "FOR_SALE" | "IN_USE" } | null,
   accion: string,
+  eventType: "STATUS_CHANGED" | "UPDATED" = "STATUS_CHANGED",
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    await tx.gearListing.update({ where: { id: listing.id }, data: listingData });
-    if (itemStatus) {
-      await tx.gearItem.update({ where: { id: listing.gearItemId }, data: { status: itemStatus } });
+    const r = await tx.gearListing.updateMany({
+      where: { id: listing.id, sellerId, status: { in: from } },
+      data: listingData,
+    });
+    if (r.count === 0) throw noModificable();
+    if (itemChange) {
+      await tx.gearItem.updateMany({
+        where: { id: listing.gearItemId, status: itemChange.from },
+        data: { status: itemChange.to },
+      });
     }
     await tx.gearItemEvent.create({
       data: {
         gearItemId: listing.gearItemId,
-        type: "STATUS_CHANGED",
+        type: eventType,
         detail: { listingId: listing.id, accion },
       },
     });
@@ -200,7 +236,7 @@ async function transition(
 export async function pauseListing(sellerId: number, listingId: number): Promise<void> {
   const listing = await findOwnListing(sellerId, listingId);
   if (listing.status !== "PUBLISHED") throw noModificable();
-  await transition(listing, { status: "PAUSED" }, "IN_USE", "pausado");
+  await transition(listing, sellerId, ["PUBLISHED"], { status: "PAUSED" }, FOR_SALE_TO_IN_USE, "pausado");
 }
 
 export async function resumeListing(
@@ -219,8 +255,10 @@ export async function resumeListing(
   if (report) {
     await transition(
       listing,
+      sellerId,
+      ["PAUSED"],
       { status: "IN_REVIEW", reviewNote: `Denuncia activa #${report.id}` },
-      "FOR_SALE",
+      IN_USE_TO_FOR_SALE,
       "reanudado",
     );
     await notifyAdmin(
@@ -229,14 +267,14 @@ export async function resumeListing(
     );
     return { status: "IN_REVIEW" };
   }
-  await transition(listing, { status: "PUBLISHED", reviewNote: null }, "FOR_SALE", "reanudado");
+  await transition(listing, sellerId, ["PAUSED"], { status: "PUBLISHED", reviewNote: null }, IN_USE_TO_FOR_SALE, "reanudado");
   return { status: "PUBLISHED" };
 }
 
 export async function closeListing(sellerId: number, listingId: number): Promise<void> {
   const listing = await findOwnListing(sellerId, listingId);
   if (!OPEN_STATUSES.includes(listing.status as ListingStatusValue)) throw noModificable();
-  await transition(listing, { status: "CLOSED", closedAt: new Date() }, "IN_USE", "cerrado");
+  await transition(listing, sellerId, OPEN_STATUSES, { status: "CLOSED", closedAt: new Date() }, FOR_SALE_TO_IN_USE, "cerrado");
 }
 
 /** Edita los datos comerciales; el sello de uso no cambia. */
@@ -250,6 +288,8 @@ export async function updateListing(
   const data = validateListingInput(input, listing.kind);
   await transition(
     listing,
+    sellerId,
+    ["PUBLISHED", "PAUSED"],
     {
       mount: data.mount ?? null,
       priceArs: data.priceArs,
@@ -267,6 +307,7 @@ export async function updateListing(
     },
     null,
     "editado",
+    "UPDATED",
   );
 }
 

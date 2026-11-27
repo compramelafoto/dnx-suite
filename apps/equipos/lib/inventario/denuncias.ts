@@ -78,6 +78,8 @@ export async function reportIncident(
 
   const newStatus = input.incident === "THEFT" ? "STOLEN" : "LOST";
   const reportId = await prisma.$transaction(async (tx) => {
+    // Misma fila que bloquea createListing: publicar y denunciar se ponen en fila.
+    await tx.$queryRaw`SELECT id FROM "GearItem" WHERE id = ${itemId} FOR UPDATE`;
     let id: number | null = null;
     if (hasSerial) {
       const report = await tx.stolenGearReport.create({
