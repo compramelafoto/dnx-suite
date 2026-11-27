@@ -1,0 +1,277 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const m = vi.hoisted(() => ({
+  listingFindFirst: vi.fn(),
+  listingFindMany: vi.fn(),
+  listingCount: vi.fn(),
+  viewUpsert: vi.fn(),
+  signed: vi.fn(),
+}));
+
+vi.mock("@repo/db", () => ({
+  prisma: {
+    gearListing: { findFirst: m.listingFindFirst, findMany: m.listingFindMany, count: m.listingCount },
+    gearListingView: { upsert: m.viewUpsert },
+  },
+}));
+vi.mock("@/lib/archivos", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/archivos")>("@/lib/archivos");
+  return { ...actual, getSignedFileUrl: m.signed };
+});
+vi.mock("@/lib/correo", () => ({ sendPortalEmail: vi.fn() }));
+
+import {
+  formatDolares,
+  formatPesos,
+  getPublicListing,
+  parseCatalogFilters,
+  recordView,
+  searchListings,
+} from "./buscar";
+
+function listingConVendedor(
+  seller: Record<string, unknown> = { name: "Ana Pérez" },
+  over: Record<string, unknown> = {},
+) {
+  return {
+    id: 5,
+    sellerId: 33,
+    gearItemId: 77,
+    status: "PUBLISHED",
+    kind: "BODY",
+    make: "Canon",
+    model: "EOS R6",
+    mount: "Canon RF",
+    priceArs: 1850000,
+    priceUsdRef: 1500,
+    condition: "VERY_GOOD",
+    description: "Poco uso",
+    accessories: "Correa",
+    province: "Santa Fe",
+    city: "Rafaela",
+    serialPhotoKey: "equipos/1/serie.jpg",
+    declaredFirstOwner: true,
+    includesCharger: true,
+    batteriesCount: 2,
+    includesManual: false,
+    includesBox: false,
+    usageSeal: "NONE",
+    usageSince: null,
+    usagePhotosCount: null,
+    reviewNote: "nota interna",
+    publishedAt: new Date("2026-11-20T12:00:00Z"),
+    createdAt: new Date("2026-11-19T12:00:00Z"),
+    seller,
+    gearItem: {
+      ownerId: 33,
+      photoKeys: ["equipos/1/a.jpg", "equipos/1/serie.jpg", "equipos/1/b.jpg"],
+      serialNormalized: "ABC123456",
+      purchaseProofKey: "equipos/1/factura.pdf",
+    },
+    ...over,
+  };
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  m.signed.mockImplementation(async (k: string) => `https://firmada/${k}`);
+});
+
+describe("parseCatalogFilters", () => {
+  it("filtros inválidos se ignoran", () => {
+    expect(
+      parseCatalogFilters({ kind: "AVION", minPrice: "-3", province: "Narnia", page: "0" }),
+    ).toEqual({ page: 1 });
+  });
+
+  it("toma los filtros válidos", () => {
+    expect(
+      parseCatalogFilters({
+        kind: "LENS",
+        make: "  canon ",
+        mount: "Canon RF",
+        minPrice: "100000",
+        maxPrice: "2000000",
+        province: "Santa Fe",
+        page: "3",
+      }),
+    ).toEqual({
+      kind: "LENS",
+      make: "canon",
+      mount: "Canon RF",
+      minPrice: 100000,
+      maxPrice: 2000000,
+      province: "Santa Fe",
+      page: 3,
+    });
+  });
+
+  it("precios con decimales, montura fuera de la lista y página no numérica se ignoran", () => {
+    expect(
+      parseCatalogFilters({ minPrice: "10.5", maxPrice: "abc", mount: "Leica M", page: "x", make: "" }),
+    ).toEqual({ page: 1 });
+  });
+
+  it("si llega un valor repetido usa el primero", () => {
+    expect(parseCatalogFilters({ kind: ["BODY", "LENS"] })).toEqual({ kind: "BODY", page: 1 });
+  });
+});
+
+describe("getPublicListing", () => {
+  it("el objeto público no trae datos del vendedor ni la serie completa", async () => {
+    m.listingFindFirst.mockResolvedValue(
+      listingConVendedor({ email: "v@x.com", phone: "+5493415550000", name: "Ana Pérez" }),
+    );
+    const l = await getPublicListing(5);
+    const json = JSON.stringify(l);
+    for (const filtrado of [
+      "v@x.com",
+      "5550000",
+      "Pérez",
+      "ABC123456",
+      "sellerId",
+      "ownerId",
+      "factura.pdf",
+      "nota interna",
+      "purchaseProofKey",
+      "reviewNote",
+    ]) {
+      expect(json).not.toContain(filtrado);
+    }
+    expect(l?.sellerFirstName).toBe("Ana");
+    expect(l?.serialMasked).toBe("••••3456");
+    expect(l?.sellerVerified).toBe(true);
+  });
+
+  it("una publicación pausada o en revisión no se muestra", async () => {
+    m.listingFindFirst.mockResolvedValue(null);
+    expect(await getPublicListing(5)).toBeNull();
+    const args = m.listingFindFirst.mock.calls[0][0];
+    expect(args.where).toEqual({ id: 5, status: "PUBLISHED" });
+  });
+
+  it("del vendedor sólo pide el nombre y del equipo sólo fotos, serie y si hay factura", async () => {
+    m.listingFindFirst.mockResolvedValue(listingConVendedor());
+    await getPublicListing(5);
+    const { select } = m.listingFindFirst.mock.calls[0][0];
+    expect(select.seller).toEqual({ select: { name: true } });
+    expect(select.gearItem).toEqual({
+      select: { photoKeys: true, serialNormalized: true, purchaseProofKey: true },
+    });
+    expect(select.reviewNote).toBeUndefined();
+    expect(select.sellerId).toBeUndefined();
+  });
+
+  it("calcula la confianza con la factura y sin disparos verificados", async () => {
+    m.listingFindFirst.mockResolvedValue(listingConVendedor());
+    const l = await getPublicListing(5);
+    expect(l?.trust.level).toBe("BUENO");
+    expect(l?.trust.verified).toContain("Factura de compra presentada");
+    expect(l?.trust.verified[0]).toBe("Identidad del vendedor verificada");
+    expect(l?.shutterText).toBe("Cantidad de disparos: no verificada");
+    expect(l?.declared).toEqual(["Primer dueño", "Incluye cargador", "2 baterías"]);
+  });
+
+  it("las fotos van firmadas por una hora y sin la foto del número de serie", async () => {
+    m.listingFindFirst.mockResolvedValue(listingConVendedor());
+    const l = await getPublicListing(5);
+    expect(l?.photoUrls).toEqual(["https://firmada/equipos/1/a.jpg", "https://firmada/equipos/1/b.jpg"]);
+    expect(m.signed).toHaveBeenCalledWith("equipos/1/a.jpg", 3600);
+    expect(m.signed).not.toHaveBeenCalledWith("equipos/1/serie.jpg", expect.anything());
+  });
+
+  it("si el almacenamiento falla sigue sin fotos", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    m.signed.mockRejectedValue(new Error("sin bucket"));
+    m.listingFindFirst.mockResolvedValue(listingConVendedor());
+    const l = await getPublicListing(5);
+    expect(l?.photoUrls).toEqual([]);
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it("sin nombre el vendedor es «Vendedor» y el nombre lleva mayúscula inicial", async () => {
+    m.listingFindFirst.mockResolvedValue(listingConVendedor({ name: null }));
+    expect((await getPublicListing(5))?.sellerFirstName).toBe("Vendedor");
+    m.listingFindFirst.mockResolvedValue(listingConVendedor({ name: "  ana   pérez" }));
+    expect((await getPublicListing(5))?.sellerFirstName).toBe("Ana");
+  });
+
+  it("un lente no muestra línea de disparos", async () => {
+    m.listingFindFirst.mockResolvedValue(listingConVendedor(undefined, { kind: "LENS" }));
+    expect((await getPublicListing(5))?.shutterText).toBeNull();
+  });
+});
+
+describe("searchListings", () => {
+  it("sólo publicadas, 24 por página, más nuevas primero y marca sin distinguir mayúsculas", async () => {
+    m.listingFindMany.mockResolvedValue([listingConVendedor()]);
+    m.listingCount.mockResolvedValue(30);
+    const r = await searchListings({
+      make: "canon",
+      kind: "BODY",
+      mount: "Canon RF",
+      province: "Santa Fe",
+      minPrice: 1000,
+      maxPrice: 2000000,
+      page: 2,
+    });
+    const args = m.listingFindMany.mock.calls[0][0];
+    expect(args.where).toEqual({
+      status: "PUBLISHED",
+      kind: "BODY",
+      make: { contains: "canon", mode: "insensitive" },
+      mount: "Canon RF",
+      province: "Santa Fe",
+      priceArs: { gte: 1000, lte: 2000000 },
+    });
+    expect(args.take).toBe(24);
+    expect(args.skip).toBe(24);
+    expect(args.orderBy).toEqual([{ publishedAt: "desc" }, { id: "desc" }]);
+    expect(m.listingCount.mock.calls[0][0]).toEqual({ where: args.where });
+    expect(r.total).toBe(30);
+    expect(r.items).toHaveLength(1);
+    expect(JSON.stringify(r.items)).not.toContain("ABC123456");
+  });
+
+  it("sin filtros sólo pide las publicadas", async () => {
+    m.listingFindMany.mockResolvedValue([]);
+    m.listingCount.mockResolvedValue(0);
+    await searchListings({ page: 1 });
+    expect(m.listingFindMany.mock.calls[0][0].where).toEqual({ status: "PUBLISHED" });
+    expect(m.listingFindMany.mock.calls[0][0].skip).toBe(0);
+  });
+});
+
+describe("recordView", () => {
+  it("suma una vista por persona y publicación", async () => {
+    m.listingFindFirst.mockResolvedValue({ sellerId: 33 });
+    await recordView(5, 40);
+    const args = m.viewUpsert.mock.calls[0][0];
+    expect(args.where).toEqual({ listingId_userId: { listingId: 5, userId: 40 } });
+    expect(args.update.count).toEqual({ increment: 1 });
+    expect(args.create).toMatchObject({ listingId: 5, userId: 40 });
+  });
+
+  it("no registra al propio vendedor", async () => {
+    m.listingFindFirst.mockResolvedValue({ sellerId: 40 });
+    await recordView(5, 40);
+    expect(m.viewUpsert).not.toHaveBeenCalled();
+  });
+
+  it("nunca tira error", async () => {
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    m.listingFindFirst.mockResolvedValue({ sellerId: 33 });
+    m.viewUpsert.mockRejectedValue(new Error("base caída"));
+    await expect(recordView(5, 40)).resolves.toBeUndefined();
+    expect(err).toHaveBeenCalled();
+    err.mockRestore();
+  });
+});
+
+describe("precios", () => {
+  it("pesos y dólares con separador de miles", () => {
+    expect(formatPesos(1850000)).toBe("$ 1.850.000");
+    expect(formatDolares(1500)).toBe("US$ 1.500");
+  });
+});

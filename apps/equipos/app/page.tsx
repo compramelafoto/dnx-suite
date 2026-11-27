@@ -5,19 +5,19 @@ const CAMINOS = [
     titulo: "Comprar",
     texto:
       "Cada publicación muestra qué comprobó el portal y qué declara el vendedor, por separado. Todos los vendedores verificaron su identidad.",
-    enlace: { href: "/equipos", texto: "Ver los equipos publicados" },
+    enlace: { href: "/equipos", texto: "Ver equipos en venta" },
   },
   {
     titulo: "Vender",
     texto:
       "Cargá tu equipo con su número de serie, fotos y factura. Cuantos más datos comprobamos, más alto queda tu nivel de confianza.",
-    enlace: { href: "/mi-equipo", texto: "Cargar mi equipo" },
+    enlace: { href: "/mis-publicaciones", texto: "Mis publicaciones" },
   },
   {
     titulo: "Consultar una serie",
     texto:
       "Antes de comprar en cualquier lado, fijate si el número de serie tiene una denuncia de robo o pérdida activa.",
-    enlace: { href: "/consultar-serie", texto: "Consultar un número de serie" },
+    enlace: { href: "/consultar-serie", texto: "Consultar una serie" },
   },
 ];
 
