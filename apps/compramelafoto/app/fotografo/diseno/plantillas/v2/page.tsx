@@ -44,6 +44,17 @@ function badgeClass(kind: "status" | "review" | "visibility" | "scope"): string 
   return "bg-emerald-50 text-emerald-700 ring-emerald-200";
 }
 
+const BADGE_LABEL: Record<"status" | "review" | "visibility", Record<string, string>> = {
+  status: { DRAFT: "Borrador", ACTIVE: "Activa", ARCHIVED: "Archivada" },
+  review: { DRAFT: "Sin enviar a revisión", IN_REVIEW: "En revisión", APPROVED: "Aprobada", REJECTED: "Rechazada" },
+  visibility: { PRIVATE: "Privada", PUBLIC: "Pública" },
+};
+
+/** Estado de la plantilla en castellano (el valor interno queda solo si no hay traducción). */
+function badgeLabel(kind: "status" | "review" | "visibility", value: string): string {
+  return BADGE_LABEL[kind][value] ?? value;
+}
+
 function StatusBadge({ label, kind }: { label: string; kind: "status" | "review" | "visibility" | "scope" }) {
   return (
     <span className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ${badgeClass(kind)}`}>
@@ -65,6 +76,8 @@ export default async function PlantillasV2ListPage() {
       </div>
     );
   }
+
+  const isAdmin = user.role === Role.ADMIN;
 
   const rows = await prisma.templateV2.findMany({
     // Las archivadas son las que se eliminaron desde esta lista.
@@ -118,9 +131,8 @@ export default async function PlantillasV2ListPage() {
         <div className="max-w-4xl">
           <h1 className="text-2xl font-bold text-[#111827] sm:text-3xl">Plantillas</h1>
           <p className="mt-2 text-base text-[#6b7280] sm:text-lg">
-            Gestioná tus plantillas con el editor visual: estado, publicación y versión actual. En el editor, el bloque{" "}
-            <span className="font-medium text-[#374151]">Versiones del template</span> lista todas las versiones y permite
-            abrir una anterior sin salir del flujo.
+            Tus plantillas del editor visual. Desde acá las abrís para editarlas, las probás con fotos o las
+            duplicás.
           </p>
         </div>
         <CreateTemplateV2Button
@@ -137,15 +149,6 @@ export default async function PlantillasV2ListPage() {
               Usá <span className="font-medium text-[#374151]">Nueva plantilla</span> arriba a la derecha para crear una
               y abrir el editor. Después vas a ver el listado acá con acceso directo a editar.
             </p>
-            <div className="mt-5 rounded-2xl border border-[#e5e7eb] bg-[#f8fafc] p-4">
-              <p className="text-sm text-[#475569]">
-                En desarrollo local también podés cargar datos de ejemplo con{" "}
-                <span className="rounded bg-white px-2 py-1 font-mono text-xs ring-1 ring-[#e5e7eb]">
-                  npm run bootstrap:template-v2-demo
-                </span>
-                .
-              </p>
-            </div>
           </div>
         </Card>
       ) : (
@@ -155,7 +158,9 @@ export default async function PlantillasV2ListPage() {
               <thead className="border-b border-[#e5e7eb] bg-[#f9fafb]">
                 <tr className="text-left">
                   <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Plantilla</th>
-                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#6b7280]">IDs</th>
+                  <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#6b7280]">
+                    {isAdmin ? "IDs" : "Versión"}
+                  </th>
                   <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Estados</th>
                   <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Actualizado</th>
                   <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#6b7280]">Acción</th>
@@ -185,21 +190,39 @@ export default async function PlantillasV2ListPage() {
                         />
                       </td>
                       <td className="px-5 py-4">
-                        <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748b]">Template ID</p>
-                        <p className="mt-1 break-all font-mono text-xs text-[#334155]">{template.id}</p>
-                        <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-[#64748b]">Versión actual</p>
+                        {isAdmin ? (
+                          <>
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748b]">Template ID</p>
+                            <p className="mt-1 break-all font-mono text-xs text-[#334155]">{template.id}</p>
+                            <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-[#64748b]">
+                              Versión actual
+                            </p>
+                          </>
+                        ) : null}
                         {template.currentVersion?.versionNumber != null ? (
                           <p className="mt-1 text-sm font-semibold text-[#111827]">
-                            v{template.currentVersion.versionNumber}
+                            Versión {template.currentVersion.versionNumber}
                           </p>
+                        ) : !isAdmin ? (
+                          <p className="mt-1 text-sm text-[#64748b]">Sin versión guardada</p>
                         ) : null}
-                        <p className="mt-1 break-all font-mono text-xs text-[#334155]">{versionDiagnostic}</p>
+                        {isAdmin ? (
+                          <p className="mt-1 break-all font-mono text-xs text-[#334155]">{versionDiagnostic}</p>
+                        ) : null}
                       </td>
                       <td className="px-5 py-4">
                         <div className="flex flex-wrap gap-2">
-                          <StatusBadge label={template.status} kind="status" />
-                          <StatusBadge label={template.publication?.reviewStatus || "DRAFT"} kind="review" />
-                          <StatusBadge label={template.publication?.visibility || "PRIVATE"} kind="visibility" />
+                          <StatusBadge label={badgeLabel("status", template.status)} kind="status" />
+                          {isAdmin ? (
+                            <StatusBadge
+                              label={badgeLabel("review", template.publication?.reviewStatus || "DRAFT")}
+                              kind="review"
+                            />
+                          ) : null}
+                          <StatusBadge
+                            label={badgeLabel("visibility", template.publication?.visibility || "PRIVATE")}
+                            kind="visibility"
+                          />
                           {user.role === Role.ADMIN ? (
                             <StatusBadge label={template.ownerUserId === user.id ? "Propia" : "Otro usuario"} kind="scope" />
                           ) : null}

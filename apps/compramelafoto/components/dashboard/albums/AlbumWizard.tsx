@@ -2325,8 +2325,7 @@ export default function AlbumWizard({ variant = "page" }: AlbumWizardProps) {
             <h2 className="text-xl font-semibold tracking-tight text-[#1a1a1a]">Seguridad y privacidad</h2>
           </div>
           <p className="clf-form-description">
-            Elegí el nivel de acceso al álbum. Por ahora es sólo referencia en el asistente; el alta del álbum sigue con
-            los mismos campos de siempre.
+            Elegí quién puede ver el álbum. Lo podés cambiar después desde la configuración del álbum.
           </p>
 
           <div className="grid w-full min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:items-stretch">
