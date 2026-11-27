@@ -208,6 +208,17 @@ model User {
   gearListingContacts                   GearListingContact[]
   gearListingFlags                      GearListingFlag[]
   gearSerialLookups                     GearSerialLookup[]
+  gearSalesAsSeller                     GearSale[] @relation("GearSaleSeller")
+  gearSalesAsBuyer                      GearSale[] @relation("GearSaleBuyer")
+  gearRatingsGiven                      GearSaleRating[] @relation("GearSaleRatingRater")
+  gearRatingsReceived                   GearSaleRating[] @relation("GearSaleRatingRated")
+  gearListingFavorites                  GearListingFavorite[]
+  gearSearchAlerts                      GearSearchAlert[]
+  purchaseRequests                      PurchaseRequest[]
+  purchaseRequestNotices                PurchaseRequestNotice[]
+  portalReportsMade                     PortalUserReport[] @relation("PortalUserReportReporter")
+  portalReportsReceived                 PortalUserReport[] @relation("PortalUserReportReported")
+  portalAccountBlock                    PortalAccountBlock?
   uploadedVideos                        VideoAsset[]                           @relation("VideoUploader")
   products                              PhotographerProduct[]
   catalogProductCategories              CatalogProductCategory[]
@@ -29800,6 +29811,8 @@ model GearItem {
   events            GearItemEvent[]
   stolenReports     StolenGearReport[]
   listings          GearListing[]
+  sales             GearSale[]
+  purchaseNotices   PurchaseRequestNotice[]
 
   @@index([ownerId])
   @@index([serialNormalized])
@@ -29844,6 +29857,8 @@ model GearOwnerSettings {
   userId                Int       @unique
   policyRenewalDate     DateTime?
   lastRenewalReminderAt DateTime?
+  /// Si es verdadero, no recibe avisos de pedidos «Busco».
+  purchaseRequestOptOut Boolean   @default(false)
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -29922,6 +29937,9 @@ model GearListing {
   views              GearListingView[]
   contacts           GearListingContact[]
   flags              GearListingFlag[]
+  sale               GearSale?
+  favorites          GearListingFavorite[]
+  alertHits          GearSearchAlertHit[]
 
   @@index([status, kind])
   @@index([sellerId])
@@ -29979,6 +29997,176 @@ model GearSerialLookup {
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
+}
+
+enum GearSaleStatus {
+  PENDING_BUYER
+  CONFIRMED
+  DECLINED
+  EXPIRED
+}
+
+/// Venta de un equipo publicado: el vendedor marca al comprador y el comprador confirma (portal de equipos, etapa 1b-2).
+model GearSale {
+  id         Int              @id @default(autoincrement())
+  listingId  Int              @unique
+  gearItemId Int
+  sellerId   Int
+  buyerId    Int
+  status     GearSaleStatus   @default(PENDING_BUYER)
+  priceArs   Int
+  createdAt  DateTime         @default(now())
+  expiresAt  DateTime
+  resolvedAt DateTime?
+  listing    GearListing      @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  gearItem   GearItem         @relation(fields: [gearItemId], references: [id], onDelete: Cascade)
+  seller     User             @relation("GearSaleSeller", fields: [sellerId], references: [id], onDelete: Cascade)
+  buyer      User             @relation("GearSaleBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  ratings    GearSaleRating[]
+
+  @@index([buyerId, status])
+  @@index([sellerId])
+  @@index([status, expiresAt])
+}
+
+/// Calificación (1 a 5) que se dan comprador y vendedor después de una venta confirmada.
+model GearSaleRating {
+  id        Int      @id @default(autoincrement())
+  saleId    Int
+  raterId   Int
+  ratedId   Int
+  score     Int
+  comment   String?
+  createdAt DateTime @default(now())
+  sale      GearSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  rater     User     @relation("GearSaleRatingRater", fields: [raterId], references: [id], onDelete: Cascade)
+  rated     User     @relation("GearSaleRatingRated", fields: [ratedId], references: [id], onDelete: Cascade)
+
+  @@unique([saleId, raterId])
+  @@index([ratedId])
+}
+
+/// Publicación guardada como favorita por una persona.
+model GearListingFavorite {
+  id        Int         @id @default(autoincrement())
+  userId    Int
+  listingId Int
+  createdAt DateTime    @default(now())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listing   GearListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, listingId])
+  @@index([listingId])
+}
+
+/// Alerta de búsqueda: avisa cuando se publica un equipo que coincide con estos filtros.
+model GearSearchAlert {
+  id          Int                  @id @default(autoincrement())
+  userId      Int
+  kind        GearItemKind?
+  make        String?
+  mount       String?
+  maxPriceArs Int?
+  province    String?
+  active      Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hits        GearSearchAlertHit[]
+
+  @@index([userId, active])
+}
+
+/// Aviso ya enviado de una alerta por una publicación (evita avisar dos veces).
+model GearSearchAlertHit {
+  id        Int             @id @default(autoincrement())
+  alertId   Int
+  listingId Int
+  sentAt    DateTime        @default(now())
+  alert     GearSearchAlert @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  listing   GearListing     @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@unique([alertId, listingId])
+}
+
+enum PurchaseRequestStatus {
+  ACTIVE
+  FULFILLED
+  CANCELLED
+  EXPIRED
+}
+
+/// Pedido «Busco»: alguien pide un equipo y se avisa a los dueños que lo tienen.
+model PurchaseRequest {
+  id           Int                     @id @default(autoincrement())
+  buyerId      Int
+  kind         GearItemKind
+  make         String
+  model        String
+  modelKey     String
+  maxPriceArs  Int?
+  minCondition GearListingCondition?
+  province     String?
+  status       PurchaseRequestStatus   @default(ACTIVE)
+  expiresAt    DateTime
+  createdAt    DateTime                @default(now())
+  cancelledAt  DateTime?
+  buyer        User                    @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  notices      PurchaseRequestNotice[]
+
+  @@index([buyerId, status])
+  @@index([status, modelKey])
+}
+
+enum PurchaseRequestResponse {
+  INTERESTED
+  DECLINED
+}
+
+/// Aviso a un dueño de que alguien busca su equipo. `listingId` es sólo dato, sin clave foránea.
+model PurchaseRequestNotice {
+  id          Int                      @id @default(autoincrement())
+  requestId   Int
+  ownerId     Int
+  gearItemId  Int
+  sentAt      DateTime                 @default(now())
+  response    PurchaseRequestResponse?
+  respondedAt DateTime?
+  listingId   Int?
+  request     PurchaseRequest          @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  owner       User                     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  gearItem    GearItem                 @relation(fields: [gearItemId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, ownerId])
+  @@index([ownerId, sentAt])
+  @@index([gearItemId])
+}
+
+/// Denuncia de una persona hacia otra dentro del portal de equipos.
+model PortalUserReport {
+  id         Int       @id @default(autoincrement())
+  reporterId Int
+  reportedId Int
+  reason     String
+  context    String?
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+  resolution String?
+  reporter   User      @relation("PortalUserReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reported   User      @relation("PortalUserReportReported", fields: [reportedId], references: [id], onDelete: Cascade)
+
+  @@unique([reporterId, reportedId])
+  @@index([resolvedAt])
+}
+
+/// Bloqueo de una cuenta en el portal de equipos. `blockedById` es sólo dato, sin clave foránea.
+model PortalAccountBlock {
+  id          Int       @id @default(autoincrement())
+  userId      Int       @unique
+  reason      String
+  blockedById Int
+  createdAt   DateTime  @default(now())
+  liftedAt    DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 /// Respuesta rápida de la Bandeja de WhatsApp (FOTOFFICE): un texto guardado con atajo (`/carnet`).
