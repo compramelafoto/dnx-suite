@@ -14,6 +14,7 @@ import {
 import { CONDITION_LABELS, type GearListingCondition } from "@/lib/publicaciones/catalogos";
 import { parseEnteroPesos } from "@/lib/publicaciones/numeros";
 import type { ListingInput } from "@/lib/publicaciones/reglas";
+import { markSold } from "@/lib/ventas/ventas";
 
 const LISTA = "/mis-publicaciones";
 
@@ -131,6 +132,29 @@ export async function reanudarPublicacion(formData: FormData) {
     const { status } = await resumeListing(user.id, id);
     return status === "PUBLISHED" ? "REANUDADA" : "EN_REVISION";
   });
+}
+
+/**
+ * El vendedor marca a quién le vendió (alguien que consultó desde el portal). La publicación
+ * queda vendida y el comprador tiene `SALE_DAYS` días para confirmar desde `/compras/<id>`.
+ */
+export async function marcarVendido(formData: FormData) {
+  const id = Number(text(formData, "id"));
+  const formPage = `${LISTA}/${id}/vender`;
+  const user = await requireLevel("identidad", formPage);
+  let destino: string;
+  try {
+    const buyerId = Number(text(formData, "buyerId"));
+    if (!Number.isInteger(buyerId) || buyerId <= 0) {
+      throw new EquipoError("DATO_INVALIDO", "Elegí a quién le vendiste el equipo.");
+    }
+    // Vacío o con decimales llega como NaN y `markSold` lo rechaza con su mensaje fijo.
+    const { saleId } = await markSold(user.id, id, buyerId, entero(formData, "priceArs") ?? Number.NaN);
+    destino = `/ventas/${saleId}?ok=VENTA_MARCADA`;
+  } catch (err) {
+    destino = `${formPage}?error=${errorDe(err)}`;
+  }
+  redirect(destino);
 }
 
 export async function cerrarPublicacion(formData: FormData) {

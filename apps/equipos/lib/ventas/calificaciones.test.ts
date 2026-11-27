@@ -4,12 +4,13 @@ const m = vi.hoisted(() => ({
   ratingCreate: vi.fn(),
   ratingFindMany: vi.fn(),
   ratingGroupBy: vi.fn(),
+  ratingFindUnique: vi.fn(),
   getSale: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
   prisma: {
-    gearSaleRating: { create: m.ratingCreate, findMany: m.ratingFindMany, groupBy: m.ratingGroupBy },
+    gearSaleRating: { create: m.ratingCreate, findMany: m.ratingFindMany, groupBy: m.ratingGroupBy, findUnique: m.ratingFindUnique },
   },
 }));
 vi.mock("./ventas", async () => {
@@ -22,6 +23,7 @@ import {
   formatRating,
   getUserRating,
   getUserRatings,
+  hasRated,
   listRatingsAbout,
   rateSale,
 } from "./calificaciones";
@@ -139,5 +141,14 @@ describe("formatRating", () => {
     expect(formatRating({ average: 4.5, count: 12 })).toBe("4,5 ★ (12 calificaciones)");
     expect(formatRating({ average: 5, count: 1 })).toBe("5 ★ (1 calificación)");
     expect(formatRating({ average: null, count: 0 })).toBe("Sin calificaciones todavía");
+  });
+});
+
+describe("hasRated", () => {
+  it("busca por venta y por quien califica", async () => {
+    m.ratingFindUnique.mockResolvedValueOnce({ id: 9 }).mockResolvedValueOnce(null);
+    expect(await hasRated(2, 500)).toBe(true);
+    expect(m.ratingFindUnique.mock.calls[0][0].where).toEqual({ saleId_raterId: { saleId: 500, raterId: 2 } });
+    expect(await hasRated(1, 500)).toBe(false);
   });
 });

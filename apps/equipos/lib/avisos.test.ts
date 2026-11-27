@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { validateFile } from "./archivos";
 import { EquipoError, MENSAJE_IDENTIDAD_CON_PUBLICACION } from "./inventario/equipos";
+import { VentaError } from "./ventas/ventas";
 import { listingBlocker, validateListingInput } from "./publicaciones/reglas";
 import {
   AVISOS_ERROR,
@@ -72,6 +73,24 @@ describe("codigoDeError", () => {
     expect(
       codigoDeError(new EquipoError("NO_ENCONTRADO"), { noEncontrado: "NO_ENCONTRADA_PUBLICACION" }),
     ).toBe("NO_ENCONTRADA_PUBLICACION");
+  });
+
+  it("los errores de ventas viajan como su código; «no encontrada» respeta la pantalla", () => {
+    expect(codigoDeError(new VentaError("NO_CONSULTO"))).toBe("NO_CONSULTO");
+    expect(codigoDeError(new VentaError("VENCIDA"))).toBe("VENCIDA");
+    expect(codigoDeError(new VentaError("NO_ENCONTRADA"))).toBe("NO_ENCONTRADA_VENTA");
+    expect(
+      codigoDeError(new VentaError("NO_ENCONTRADA"), { noEncontrado: "NO_ENCONTRADA_PUBLICACION" }),
+    ).toBe("NO_ENCONTRADA_PUBLICACION");
+    for (const code of ["NO_CONSULTO", "YA_VENDIDA", "NO_PENDIENTE", "VENCIDA"] as const) {
+      expect(AVISOS_ERROR[code]).toBe(new VentaError(code).message);
+    }
+    expect(codigoDeError(new EquipoError("DATO_INVALIDO", "Ya calificaste esta operación."))).toBe(
+      "YA_CALIFICASTE",
+    );
+    expect(codigoDeError(new EquipoError("DATO_INVALIDO", "La calificación va de 1 a 5 estrellas."))).toBe(
+      "ELEGI_ESTRELLAS",
+    );
   });
 
   it("un error inesperado se registra y queda como ERROR", () => {

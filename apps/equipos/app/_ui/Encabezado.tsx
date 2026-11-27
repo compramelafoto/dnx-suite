@@ -36,7 +36,7 @@ export function Encabezado({ usuario }: { usuario: PortalUser | null }) {
         <div className="cuenta">
           {usuario ? (
             <>
-              <Link className="cuenta-nombre" href="/cuenta/verificacion" title="Mi verificación">
+              <Link className="cuenta-nombre" href="/cuenta" title="Mi cuenta">
                 {usuario.displayName ?? usuario.email}
               </Link>
               <form action="/api/auth/logout" method="post">

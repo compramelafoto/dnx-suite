@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { EstadoPublicacion, FichaConfianza, GuiaCompraSegura, MedidorConfianza, PlacaSerie } from "./index";
+import { EstadoPublicacion, Estrellas, FichaConfianza, GuiaCompraSegura, MedidorConfianza, PlacaSerie } from "./index";
 
 describe("MedidorConfianza", () => {
   it("con nivel ALTO es un medidor accesible en 3 de 4 y dice «Alto»", () => {
@@ -108,5 +108,24 @@ describe("GuiaCompraSegura", () => {
   it("con correo de contacto, «escribinos» es un mailto", () => {
     const html = renderToStaticMarkup(<GuiaCompraSegura contacto="mailto:hola@e.test?subject=x" />);
     expect(html).toContain('o <a href="mailto:hola@e.test?subject=x">escribinos</a>');
+  });
+});
+
+describe("Estrellas", () => {
+  it("sin calificaciones: sólo el texto, sin estrellas", () => {
+    const html = renderToStaticMarkup(<Estrellas valor={{ average: null, count: 0 }} />);
+    expect(html).toContain("Sin calificaciones todavía");
+    expect(html).not.toContain("★");
+  });
+
+  it("con promedio: estrellas decorativas y texto accesible", () => {
+    const html = renderToStaticMarkup(<Estrellas valor={{ average: 4.5, count: 12 }} />);
+    expect(html).toContain('aria-hidden="true"');
+    expect(html).toContain("4,5 ★ (12 calificaciones)");
+    expect(html).toContain("Calificación: 4,5 de 5 estrellas, 12 calificaciones");
+  });
+
+  it("una calificación suelta dice cuántas estrellas", () => {
+    expect(renderToStaticMarkup(<Estrellas puntaje={3} />)).toContain("3 de 5 estrellas");
   });
 });

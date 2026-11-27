@@ -8,7 +8,7 @@ import { computeTrust, declaredItems } from "@/lib/publicaciones/confianza";
 import { findActiveReportForSerial } from "@/lib/publicaciones/denuncia-activa";
 import { listSellerListings } from "@/lib/publicaciones/publicar";
 import { maskSerial, requiresSerial } from "@/lib/publicaciones/reglas";
-import { Aviso, Boton, EstadoPublicacion, FichaConfianza, Pagina } from "@/app/_ui";
+import { Aviso, Boton, BotonEnlace, EstadoPublicacion, FichaConfianza, Pagina } from "@/app/_ui";
 import { CamposPublicacion } from "../CamposPublicacion";
 import {
   cerrarPublicacion,
@@ -129,6 +129,9 @@ export default async function PublicacionPage({
         <section className="seccion" aria-labelledby="acciones">
           <h2 id="acciones">Administrar</h2>
           <div className="acciones">
+            {editable ? (
+              <BotonEnlace href={`/mis-publicaciones/${listing.id}/vender`}>Marcar como vendido</BotonEnlace>
+            ) : null}
             {listing.status === "PUBLISHED" ? (
               <form action={pausarPublicacion}>
                 <input type="hidden" name="id" value={listing.id} />

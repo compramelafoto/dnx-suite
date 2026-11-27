@@ -1871,3 +1871,101 @@
   font-size: 14px;
   font-weight: 600;
 }
+
+/* ───────────── Ventas y calificaciones ───────────── */
+
+.estrellas {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.estrellas-iconos {
+  letter-spacing: 1px;
+  line-height: 1;
+  font-size: 16px;
+}
+
+.estrellas-llenas {
+  color: var(--naranja);
+}
+
+.estrellas-vacias {
+  color: var(--linea);
+}
+
+.calificacion-resumen {
+  font-size: 16px;
+}
+
+/* Elegir de 1 a 5: el DOM va de 5 a 1 y la fila se invierte; así la elegida y las de su izquierda se pintan con `~`. */
+.elegir-estrellas {
+  display: inline-flex;
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.elegir-estrellas label {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  font-size: 30px;
+  line-height: 1;
+  color: var(--papel);
+  /* Contorno oscuro: la estrella sin elegir se distingue del fondo (contraste de control). */
+  -webkit-text-stroke: 1.5px var(--grafito-suave);
+  cursor: pointer;
+  border-radius: var(--radio-control);
+}
+
+.elegir-estrellas input:checked ~ label,
+.elegir-estrellas label:hover,
+.elegir-estrellas label:hover ~ label {
+  color: var(--naranja);
+}
+
+.elegir-estrellas input:focus-visible + label {
+  outline: 2px solid var(--comprobado);
+  outline-offset: 2px;
+}
+
+.lista-opciones {
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.opcion-tarjeta {
+  padding: 12px 14px;
+  border: 1px solid var(--linea);
+  border-radius: var(--radio-ficha);
+  background: var(--papel);
+}
+
+.opcion-tarjeta:has(input:checked) {
+  border-color: var(--comprobado);
+}
+
+.opcion-detalle {
+  display: grid;
+  gap: 4px;
+}
+
+.comentarios {
+  list-style: none;
+  border-top: 1px solid var(--linea);
+}
+
+.comentario {
+  display: grid;
+  gap: 6px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--linea);
+}

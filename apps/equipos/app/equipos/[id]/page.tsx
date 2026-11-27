@@ -10,6 +10,7 @@ import { fechaAr } from "@/lib/inventario/formato";
 import { CONDITION_LABELS } from "@/lib/publicaciones/catalogos";
 import {
   BotonEnlace,
+  Estrellas,
   FichaConfianza,
   GuiaCompraSegura,
   Pagina,
@@ -99,6 +100,7 @@ export default async function FichaEquipoPage({ params }: Props) {
           <div className="ficha-vendedor">
             <span>Vende {l.sellerFirstName}</span>
             <SelloIdentidad />
+            <Estrellas valor={l.sellerRating} />
           </div>
           {l.usageSealText ? (
             <p className="sello-uso">

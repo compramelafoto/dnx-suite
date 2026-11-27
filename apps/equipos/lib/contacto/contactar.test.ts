@@ -262,8 +262,8 @@ describe("listInterested", () => {
     expect(r.views).toBe(7);
     expect(r.viewers).toBe(3);
     expect(r.contacts).toEqual([
-      { name: "Ana Legal", at },
-      { name: "Beto cuenta", at },
+      { buyerId: 2, name: "Ana Legal", at },
+      { buyerId: 3, name: "Beto cuenta", at },
     ]);
   });
 });

@@ -2,6 +2,7 @@ export { Aviso, type TipoAviso } from "./Aviso";
 export { Boton, BotonEnlace, type VarianteBoton } from "./Boton";
 export { Campo } from "./Campo";
 export { Encabezado } from "./Encabezado";
+export { Estrellas } from "./Estrellas";
 export { EstadoEquipo } from "./EstadoEquipo";
 export { EstadoPublicacion, type GearListingStatus } from "./EstadoPublicacion";
 export { FichaConfianza } from "./FichaConfianza";

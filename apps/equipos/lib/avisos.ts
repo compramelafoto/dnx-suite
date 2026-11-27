@@ -1,5 +1,6 @@
 import { MAX_PHOTOS_PER_ITEM } from "@/lib/archivos";
 import { EquipoError, MENSAJE_IDENTIDAD_CON_PUBLICACION } from "@/lib/inventario/equipos";
+import { VentaError } from "@/lib/ventas/ventas";
 
 /**
  * Avisos que vuelven en la URL (`?ok=` / `?error=`) después de una acción. Por la URL viaja sólo
@@ -42,6 +43,11 @@ export const AVISOS_OK = {
   INFORME_GENERADO: "Informe generado. Ya podés descargar el PDF.",
   POLIZA_GUARDADA: "Fecha de renovación guardada.",
   POLIZA_QUITADA: "Quitamos la fecha de renovación.",
+  VENTA_MARCADA:
+    "Listo. Le avisamos al comprador: tiene 7 días para confirmar la compra desde su cuenta.",
+  COMPRA_CONFIRMADA: "Confirmaste la compra. El equipo ya figura en «Mi equipo», con su historial.",
+  COMPRA_RECHAZADA: "Listo. Le avisamos al vendedor que no compraste el equipo.",
+  CALIFICACION_GUARDADA: "Gracias por calificar. Tu opinión ayuda a que todos compren y vendan tranquilos.",
 } as const satisfies MapaAvisos;
 
 export type CodigoOk = keyof typeof AVISOS_OK;
@@ -116,6 +122,20 @@ export const AVISOS_ERROR = {
   BATERIAS: "La cantidad de baterías tiene que ser un número entero de 0 a 10.",
   ELEGI_ESTADO: "Elegí el estado del equipo.",
 
+  // Ventas y calificaciones (los textos de `VentaError` y de `rateSale`).
+  NO_ENCONTRADA_VENTA: "No encontramos esa venta.",
+  NO_CONSULTO: "Esa persona no consultó por esta publicación.",
+  YA_VENDIDA: "Esta publicación ya está marcada como vendida.",
+  NO_PENDIENTE: "Esta venta ya no está pendiente de confirmación.",
+  VENCIDA: "El plazo para confirmar esta compra venció.",
+  ELEGI_COMPRADOR: "Elegí a quién le vendiste el equipo.",
+  PRECIO_VENTA: "El precio tiene que ser un número entero mayor a cero.",
+  ELEGI_ESTRELLAS: "La calificación va de 1 a 5 estrellas.",
+  COMENTARIO_LARGO: "El comentario puede tener hasta 300 caracteres.",
+  YA_CALIFICASTE: "Ya calificaste esta operación.",
+  PLAZO_CALIFICAR: "El plazo para calificar esta operación venció.",
+  CALIFICAR_SIN_CONFIRMAR: "Sólo se puede calificar una compra confirmada.",
+
   // Cuenta.
   TELEFONO_INVALIDO:
     "Ingresá un celular argentino válido, con código de área (por ejemplo 341 555-1234).",
@@ -146,6 +166,9 @@ export function codigoDeError(
     if (porTexto) return porTexto;
     if (Object.prototype.hasOwnProperty.call(AVISOS_ERROR, err.code)) return err.code as CodigoError;
     return "DATO_INVALIDO";
+  }
+  if (err instanceof VentaError) {
+    return err.code === "NO_ENCONTRADA" ? (opciones.noEncontrado ?? "NO_ENCONTRADA_VENTA") : err.code;
   }
   console.error(`[${opciones.origen ?? "acciones"}] Error inesperado:`, err);
   return "ERROR";

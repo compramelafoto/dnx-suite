@@ -160,7 +160,7 @@ export async function listInterested(
 ): Promise<{
   views: number;
   viewers: number;
-  contacts: Array<{ name: string; at: Date }>;
+  contacts: Array<{ buyerId: number; name: string; at: Date }>;
 }> {
   const listing = await prisma.gearListing.findFirst({
     where: { id: listingId, sellerId },
@@ -202,6 +202,7 @@ export async function listInterested(
     views: vistas._sum.count ?? 0,
     viewers: vistas._count._all,
     contacts: consultas.map((c) => ({
+      buyerId: c.buyerId,
       name: nombrePorId.get(c.buyerId) || c.buyer.name || "Persona verificada",
       at: c.createdAt,
     })),

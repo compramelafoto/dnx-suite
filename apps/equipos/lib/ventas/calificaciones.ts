@@ -1,6 +1,9 @@
 import { prisma } from "@repo/db";
 import { EquipoError } from "@/lib/inventario/equipos";
 import { VentaError, getSaleForParty } from "./ventas";
+import type { UserRating } from "./formato-calificacion";
+
+export { formatRating, type UserRating } from "./formato-calificacion";
 
 /**
  * Calificaciones entre comprador y vendedor. Sólo las partes de una venta confirmada, una vez
@@ -10,8 +13,6 @@ import { VentaError, getSaleForParty } from "./ventas";
 export const RATING_WINDOW_DAYS = 30;
 const DIA_MS = 24 * 60 * 60 * 1000;
 const MAX_COMENTARIO = 300;
-
-export type UserRating = { average: number | null; count: number };
 
 const SIN_CALIFICAR: UserRating = { average: null, count: 0 };
 
@@ -76,6 +77,15 @@ export async function rateSale(
   }
 }
 
+/** Si esta persona ya calificó esta venta (una calificación por parte y por venta). */
+export async function hasRated(raterId: number, saleId: number): Promise<boolean> {
+  const row = await prisma.gearSaleRating.findUnique({
+    where: { saleId_raterId: { saleId, raterId } },
+    select: { id: true },
+  });
+  return row !== null;
+}
+
 export type RatingAboutMe = { id: number; score: number; comment: string; createdAt: Date; de: string };
 
 /** Calificaciones recibidas que traen comentario, las más nuevas primero. `de` es el nombre de pila. */
@@ -104,12 +114,4 @@ function nombreDePila(name: string | null): string {
   const palabra = name?.trim().split(/\s+/)[0];
   if (!palabra) return "Usuario";
   return palabra.charAt(0).toLocaleUpperCase("es-AR") + palabra.slice(1);
-}
-
-const PROMEDIO = new Intl.NumberFormat("es-AR", { maximumFractionDigits: 1 });
-
-/** «4,5 ★ (12 calificaciones)», «5 ★ (1 calificación)» o «Sin calificaciones todavía». */
-export function formatRating(r: UserRating): string {
-  if (r.count === 0 || r.average == null) return "Sin calificaciones todavía";
-  return `${PROMEDIO.format(r.average)} ★ (${r.count} ${r.count === 1 ? "calificación" : "calificaciones"})`;
 }
