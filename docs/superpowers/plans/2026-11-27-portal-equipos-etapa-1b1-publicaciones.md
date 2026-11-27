@@ -31,6 +31,25 @@
 - Textos en español; «verificado» significa *identidad verificada*, nunca «compra garantizada».
 - Topes contados en la base (no en memoria): 20 contactos nuevos por comprador cada 24 h; 30 consultas de serie por usuario cada 24 h.
 
+## Nivel de confianza (decidido con Daniel el 27/11/2026)
+
+Lo que más desconfianza da es que el equipo sea robado. Cada publicación muestra un **nivel de confianza** con su lista
+de qué suma, separada en dos grupos que se ven distintos:
+
+- **Comprobado por el portal** (suma puntos): identidad del vendedor verificada (obligatoria, 0 puntos); «Sin denuncias
+  de robo ni pérdida en el portal (revisado el {fecha de hoy})» (obligatoria, 0 puntos: si hay denuncia, la publicación
+  no está publicada); uso verificado en CLF **3**, o serie comprobada con foto **2** (son excluyentes); factura de
+  compra presentada (el equipo tiene `purchaseProofKey`) **2**; cantidad de disparos leída de los metadatos **2**
+  (reservado: lo trae el módulo de contador de disparos, que se diseña en otra sesión; hasta entonces no suma).
+- **Declarado por el vendedor** (se muestra, **no suma**, para que tildar todo no sirva): primer dueño, incluye
+  cargador, cantidad de baterías, manual, caja original.
+- Niveles: 0–1 **Básico**, 2–3 **Bueno**, 4–5 **Alto**, 6 o más **Máximo**.
+- Nunca decir «no robado»: el texto es «Sin denuncias de robo ni pérdida en el portal».
+- Una publicación con nivel bajo **se publica igual** y en el mismo orden del catálogo; lo que no se pudo comprobar se
+  dice en la ficha.
+- Cuerpos de cámara: la ficha muestra «Cantidad de disparos: no verificada» hasta que exista el módulo de contador.
+  **No hay campo para escribir los disparos**, en ningún caso.
+
 ## Review Focus
 
 1. **Equipo con denuncia activa de otra persona**: publicar lo deja `IN_REVIEW`, avisa al admin una vez y el vendedor ve sólo el texto fijo. Un equipo propio `STOLEN`/`LOST`/`SOLD` o con denuncia propia no se puede publicar. → tests en Task 3.
@@ -52,7 +71,7 @@
   - `enum GearListingStatus { DRAFT IN_REVIEW PUBLISHED PAUSED SOLD CLOSED }`
   - `enum GearListingCondition { NEW LIKE_NEW VERY_GOOD GOOD WITH_DETAILS }`
   - `enum GearListingUsageSeal { USAGE_VERIFIED PROOF_PHOTO NONE }`
-  - `model GearListing { id, sellerId Int, gearItemId Int, status GearListingStatus @default(DRAFT), kind GearItemKind, make String, model String, mount String?, priceArs Int, priceUsdRef Int?, condition GearListingCondition, description String?, accessories String?, province String, city String, serialPhotoKey String?, usageSeal GearListingUsageSeal @default(NONE), usageSince DateTime?, usagePhotosCount Int?, socialConsentAt DateTime, reviewNote String?, publishedAt DateTime?, closedAt DateTime?, createdAt, updatedAt }`; índices `[status, kind]`, `[sellerId]`, `[gearItemId]`.
+  - `model GearListing { id, sellerId Int, gearItemId Int, status GearListingStatus @default(DRAFT), kind GearItemKind, make String, model String, mount String?, priceArs Int, priceUsdRef Int?, condition GearListingCondition, description String?, accessories String?, province String, city String, serialPhotoKey String?, declaredFirstOwner Boolean @default(false), includesCharger Boolean @default(false), batteriesCount Int?, includesManual Boolean @default(false), includesBox Boolean @default(false), usageSeal GearListingUsageSeal @default(NONE), usageSince DateTime?, usagePhotosCount Int?, socialConsentAt DateTime, reviewNote String?, publishedAt DateTime?, closedAt DateTime?, createdAt, updatedAt }`; índices `[status, kind]`, `[sellerId]`, `[gearItemId]`.
   - `model GearListingView { id, listingId, userId, firstViewedAt @default(now()), lastViewedAt, count Int @default(1) }`; `@@unique([listingId, userId])`.
   - `model GearListingContact { id, listingId, buyerId, createdAt }`; `@@unique([listingId, buyerId])`, `@@index([buyerId, createdAt])`.
   - `model GearListingFlag { id, listingId, reporterId, reason String, createdAt, resolvedAt DateTime? }`; `@@unique([listingId, reporterId])`.
@@ -68,8 +87,9 @@
 ### Task 2: Reglas puras de publicación y sellos
 
 **Files:**
-- Create: `apps/equipos/lib/publicaciones/reglas.ts`, `apps/equipos/lib/publicaciones/sellos.ts`, `apps/equipos/lib/publicaciones/catalogos.ts`
-- Test: `apps/equipos/lib/publicaciones/reglas.test.ts`, `apps/equipos/lib/publicaciones/sellos.test.ts`
+- Create: `apps/equipos/lib/publicaciones/reglas.ts`, `apps/equipos/lib/publicaciones/sellos.ts`, `apps/equipos/lib/publicaciones/catalogos.ts`, `apps/equipos/lib/publicaciones/confianza.ts`
+- Test: `apps/equipos/lib/publicaciones/reglas.test.ts`, `apps/equipos/lib/publicaciones/sellos.test.ts`, `apps/equipos/lib/publicaciones/confianza.test.ts`
+- `ListingInput` suma `declaredFirstOwner?, includesCharger?, includesManual?, includesBox?: boolean` y `batteriesCount?: number | null` (entero de 0 a 10; fuera de rango → `DATO_INVALIDO`).
 
 **Interfaces:**
 - Produces (`catalogos.ts`): `PROVINCIAS: string[]` (las 23 provincias + «Ciudad Autónoma de Buenos Aires»); `MONTURAS: string[]` = `["Canon EF", "Canon RF", "Nikon F", "Nikon Z", "Sony E", "Fujifilm X", "Fujifilm GFX", "Micro 4/3", "L-Mount", "Pentax K", "Otra"]`; `CONDITION_LABELS: Record<GearListingCondition, string>` = Nuevo, Como nuevo, Muy bueno, Bueno, Con detalles.
@@ -82,6 +102,7 @@
 - Produces (`sellos.ts`):
   - `computeUsageSeal(sightings: Array<{ photographerId: number | null; firstSeenAt: Date; photosCount: number }>, sellerId: number): { seal: "USAGE_VERIFIED" | "NONE"; since: Date | null; photos: number | null; otherOwner: boolean }` — `USAGE_VERIFIED` si algún avistaje es del vendedor (usa el `firstSeenAt` más viejo y la suma de `photosCount` de los suyos); `otherOwner = true` si hay avistajes de otro `photographerId` no nulo.
   - `async proofPhotoMatches(buffer: Buffer, serialNormalized: string): Promise<boolean>` — `extractExifMetadata` + `extractGearSerials`; compara con `normalizeGearSerial` cada serie leída (cuerpo y lente).
+  - En `apps/equipos/lib/publicaciones/confianza.ts`: `type TrustLevel = "BASICO" | "BUENO" | "ALTO" | "MAXIMO"`; `computeTrust(input: { usageSeal: GearListingUsageSeal; hasPurchaseProof: boolean; shutterVerified: boolean }): { points: number; level: TrustLevel; verified: string[] }` con los puntos y cortes de «Nivel de confianza» (`verified` = textos de lo comprobado, en el orden de esa sección); `declaredItems(l: { declaredFirstOwner; includesCharger; batteriesCount; includesManual; includesBox }): string[]` → p. ej. `["Primer dueño", "Incluye cargador", "2 baterías", "Incluye manual"]`. Test: `computeTrust({ usageSeal: "USAGE_VERIFIED", hasPurchaseProof: true, shutterVerified: false })` → `{ points: 5, level: "ALTO" }`; `PROOF_PHOTO` sin factura → 2, `BUENO`; `NONE` sin factura → 0, `BASICO`; los declarados nunca cambian los puntos.
   - `usageSealText(seal, since, photos): string | null` → USAGE_VERIFIED: «Usado por el vendedor desde {mes en letras} de {año}, en {N} fotos»; PROOF_PHOTO: «Serie comprobada con foto del equipo»; NONE: `null`.
 
 - [ ] **Step 1: Escribir las pruebas que fallan**, entre ellas:
@@ -153,7 +174,7 @@ it("texto del sello", () => expect(usageSealText("USAGE_VERIFIED", new Date("202
 
 «Publicar desde cero» = el formulario de alta manual de `/mi-equipo` ya existente + este formulario; no se crea un flujo aparte.
 
-- [ ] **Step 1:** Formulario de publicar: precio en pesos, referencia en dólares (opcional), estado (`CONDITION_LABELS`), provincia (`PROVINCIAS`), ciudad, montura (sólo cámaras y lentes), descripción, accesorios incluidos, foto del número de serie (obligatoria en cámaras y lentes), foto de prueba opcional («Subí una foto tomada con este equipo: si su número de serie coincide, la publicación muestra el sello "Serie comprobada"»), casilla obligatoria de redes. Errores `EquipoError` se muestran arriba del formulario; tras crear, redirige a `/mis-publicaciones/[id]`.
+- [ ] **Step 1:** Formulario de publicar: precio en pesos, referencia en dólares (opcional), estado (`CONDITION_LABELS`), provincia (`PROVINCIAS`), ciudad, montura (sólo cámaras y lentes), descripción, accesorios incluidos, foto del número de serie (obligatoria en cámaras y lentes), foto de prueba opcional («Subí una foto tomada con este equipo: si su número de serie coincide, la publicación muestra el sello "Serie comprobada"»), casilla obligatoria de redes, y un bloque «Qué incluye» con casillas de primer dueño, cargador, manual, caja original y un número de baterías (con la aclaración «Esto lo declarás vos; en la publicación se muestra como declarado por el vendedor»). Ningún campo de cantidad de disparos. Errores `EquipoError` se muestran arriba del formulario; tras crear, redirige a `/mis-publicaciones/[id]`.
 - [ ] **Step 2:** `/mis-publicaciones`: lista con estado (`IN_REVIEW` muestra el texto fijo de las restricciones globales), precio y enlace. `/mis-publicaciones/[id]`: editar precio y datos, pausar, reanudar, cerrar (con confirmación), y el sello obtenido.
 - [ ] **Step 3:** Comprobar en `localhost:3020` contra la rama de prueba: publicar un lente del usuario de prueba 1306 y ver que queda `PUBLISHED` con sello «Uso verificado» si su serie está en `GearSerialSighting`.
 - [ ] **Step 4:** `npx vitest run` y `tsc` → Expected: verde.
@@ -170,7 +191,7 @@ it("texto del sello", () => expect(usageSealText("USAGE_VERIFIED", new Date("202
 - Produces:
   - `type CatalogFilters = { kind?: GearItemKind; make?: string; mount?: string; minPrice?: number; maxPrice?: number; province?: string; page: number }`
   - `parseCatalogFilters(sp: Record<string, string | string[] | undefined>): CatalogFilters` — ignora valores inválidos (tipo fuera del enum, montura/provincia fuera de las listas, precios no enteros o negativos); `page` ≥ 1, por defecto 1.
-  - `type PublicListing = { id: number; kind; make; model; mount: string | null; priceArs: number; priceUsdRef: number | null; condition; description: string | null; accessories: string | null; province: string; city: string; serialMasked: string | null; usageSealText: string | null; sellerFirstName: string; sellerVerified: true; photoUrls: string[]; publishedAt: Date }`
+  - `type PublicListing = { id: number; kind; make; model; mount: string | null; priceArs: number; priceUsdRef: number | null; condition; description: string | null; accessories: string | null; province: string; city: string; serialMasked: string | null; usageSealText: string | null; trust: { level: TrustLevel; verified: string[] }; declared: string[]; shutterText: string | null; sellerFirstName: string; sellerVerified: true; photoUrls: string[]; publishedAt: Date }`
   - `async searchListings(f: CatalogFilters): Promise<{ items: PublicListing[]; total: number }>` — sólo `PUBLISHED`, 24 por página, orden `publishedAt` desc; `make` sin distinguir mayúsculas.
   - `async getPublicListing(id: number): Promise<PublicListing | null>` — `null` si no está `PUBLISHED`.
   - `async recordView(listingId: number, userId: number): Promise<void>` — `upsert` sobre `[listingId, userId]` sumando `count`; no registra al propio vendedor; nunca tira error (lo loguea).
@@ -197,7 +218,8 @@ it("filtros inválidos se ignoran", () => {
 - [ ] **Step 2:** `pnpm --filter equipos test lib/catalogo` → Expected: FAIL.
 - [ ] **Step 3:** Implementar `buscar.ts`. La consulta a la base hace `select` explícito: del vendedor sólo `name` y, del equipo, sólo `photoKeys` y `serialNormalized`.
 - [ ] **Step 4:** Mismo comando → Expected: PASS.
-- [ ] **Step 5:** Páginas: `/equipos` con filtros por formulario GET y paginación; `/equipos/[id]` con fotos, sello de identidad («Identidad verificada»), sello de uso, precio, datos, botón «Contactar al vendedor» (Task 6), «Reportar publicación» (Task 8), `recordView` si hay sesión, y `GuiaCompraSegura` con este texto fijo:
+- `shutterText`: `"Cantidad de disparos: no verificada"` para `BODY`, `null` para el resto (lo reemplaza el módulo de contador). En `getPublicListing`, `trust` usa `computeTrust` con `hasPurchaseProof = item.purchaseProofKey != null` y `shutterVerified: false`; la clave del comprobante nunca sale en el objeto público.
+- [ ] **Step 5:** Páginas: la tarjeta del catálogo muestra el nivel de confianza; la ficha muestra el bloque «Comprobado por el portal» (✔) y «Declarado por el vendedor» (☐) como en la sección «Nivel de confianza». `/equipos` con filtros por formulario GET y paginación; `/equipos/[id]` con fotos, sello de identidad («Identidad verificada»), sello de uso, precio, datos, botón «Contactar al vendedor» (Task 6), «Reportar publicación» (Task 8), `recordView` si hay sesión, y `GuiaCompraSegura` con este texto fijo:
   «Antes de pagar: revisá el equipo en persona y probalo; comprobá que el número de serie del equipo coincida con el de la publicación; no pagues por adelantado a alguien que no conocés; si algo no te cierra, consultá la serie en el portal o escribinos. "Identidad verificada" significa que sabemos quién es el vendedor; no garantiza la operación.»
   `notFound()` si `getPublicListing` da `null`.
 - [ ] **Step 6:** Commit `Portal de equipos 1b: catálogo público y ficha del equipo`.
