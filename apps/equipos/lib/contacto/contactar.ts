@@ -97,6 +97,15 @@ export async function contactSeller(
   return { ...seller, firstTime: true };
 }
 
+/** ¿Esta persona es la vendedora de la publicación? Sólo del lado del servidor. */
+export async function isSellerOf(userId: number, listingId: number): Promise<boolean> {
+  const l = await prisma.gearListing.findFirst({
+    where: { id: listingId, sellerId: userId },
+    select: { id: true },
+  });
+  return l !== null;
+}
+
 export async function contactedBefore(buyerId: number, listingId: number): Promise<boolean> {
   const c = await prisma.gearListingContact.findUnique({
     where: { listingId_buyerId: { listingId, buyerId } },

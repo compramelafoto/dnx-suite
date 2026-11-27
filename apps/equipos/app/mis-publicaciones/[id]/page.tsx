@@ -43,7 +43,7 @@ export default async function PublicacionPage({
 
   const interesados = await listInterested(user.id, id);
 
-  const abierta =listing.status !== "CLOSED" && listing.status !== "SOLD";
+  const abierta = listing.status !== "CLOSED" && listing.status !== "SOLD";
   const editable = listing.status === "PUBLISHED" || listing.status === "PAUSED";
 
   return (

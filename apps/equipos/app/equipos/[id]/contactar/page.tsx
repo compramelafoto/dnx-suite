@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPublicListing } from "@/lib/catalogo/buscar";
 import { contactedBefore, contactSeller, ContactoError } from "@/lib/contacto/contactar";
+import { textoDeAviso } from "@/lib/contacto/avisos";
 import { requireLevel } from "@/lib/guards";
 import { Aviso, Boton, GuiaCompraSegura, Pagina } from "@/app/_ui";
 import { MARCA } from "@/app/_ui/marca";
@@ -28,7 +29,7 @@ export default async function ContactarPage({
   const titulo = `${listing.make} ${listing.model}`;
 
   // Si ya contactó, mostramos los datos sin volver a avisar al vendedor (`firstTime: false`).
-  let aviso = error ?? null;
+  let aviso = textoDeAviso(error);
   let datos: Awaited<ReturnType<typeof contactSeller>> | null = null;
   if (await contactedBefore(user.id, id)) {
     try {

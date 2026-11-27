@@ -15,10 +15,10 @@ export async function contactarVendedor(formData: FormData) {
     await contactSeller({ id: user.id, displayName: user.displayName }, id);
   } catch (err) {
     if (err instanceof ContactoError) {
-      destino = `${volver}?error=${encodeURIComponent(err.message)}`;
+      destino = `${volver}?error=${err.code}`;
     } else {
       console.error("[contacto] Error inesperado:", err);
-      destino = `${volver}?error=${encodeURIComponent("No pudimos completar la operación. Probá de nuevo.")}`;
+      destino = `${volver}?error=ERROR`;
     }
   }
   redirect(destino);

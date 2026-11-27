@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import { contactedBefore } from "@/lib/contacto/contactar";
+import { contactedBefore, isSellerOf } from "@/lib/contacto/contactar";
 import { getPortalUser } from "@/lib/guards";
 import { formatDolares, formatPesos, getPublicListing, recordView } from "@/lib/catalogo/buscar";
 import { KIND_LABELS } from "@/lib/inventario/equipos";
@@ -43,7 +43,9 @@ export default async function FichaEquipoPage({ params }: Props) {
 
   const usuario = await getPortalUser();
   if (usuario) await recordView(l.id, usuario.id);
-  const yaContacto = usuario ? await contactedBefore(usuario.id, l.id) : false;
+  const [esVendedor, yaContacto] = usuario
+    ? await Promise.all([isSellerOf(usuario.id, l.id), contactedBefore(usuario.id, l.id)])
+    : [false, false];
 
   const titulo = `${l.make} ${l.model}`;
   const [principal, ...resto] = l.photoUrls;
@@ -116,9 +118,15 @@ export default async function FichaEquipoPage({ params }: Props) {
               shutterText={l.shutterText}
               serialMasked={l.serialMasked}
             />
-            <BotonEnlace href={`/equipos/${l.id}/contactar`} className="boton-ancho">
-              {yaContacto ? "Ver datos del vendedor" : "Contactar al vendedor"}
-            </BotonEnlace>
+            {esVendedor ? (
+              <BotonEnlace href={`/mis-publicaciones/${l.id}`} className="boton-ancho">
+                Administrar mi publicación
+              </BotonEnlace>
+            ) : (
+              <BotonEnlace href={`/equipos/${l.id}/contactar`} className="boton-ancho">
+                {yaContacto ? "Ver datos del vendedor" : "Contactar al vendedor"}
+              </BotonEnlace>
+            )}
             <GuiaCompraSegura />
             <a className="ficha-reportar" href={`/equipos/${l.id}/reportar`}>
               Reportar publicación

@@ -32,7 +32,7 @@ vi.mock("@repo/db", () => ({
 vi.mock("@/lib/correo", () => ({ sendPortalEmail: m.email }));
 vi.mock("@/lib/sesion", () => ({ urlBaseDeLaApp: () => "https://e.test" }));
 
-import { contactedBefore, contactSeller, listInterested } from "./contactar";
+import { contactedBefore, contactSeller, isSellerOf, listInterested } from "./contactar";
 
 const buyer = { id: 2, displayName: "Ana Compradora" };
 const listing = (over: Record<string, unknown> = {}) => ({
@@ -123,6 +123,29 @@ describe("contactSeller", () => {
   it("publicación inexistente: NO_DISPONIBLE", async () => {
     m.listingFindFirst.mockResolvedValue(null);
     await expect(contactSeller(buyer, 5)).rejects.toMatchObject({ code: "NO_DISPONIBLE" });
+  });
+});
+
+describe("contactSeller: carrera", () => {
+  it("P2002 al crear: firstTime false y sin correo", async () => {
+    m.contactCreate.mockRejectedValue({ code: "P2002" });
+    const r = await contactSeller(buyer, 5);
+    expect(r.firstTime).toBe(false);
+    expect(m.email).not.toHaveBeenCalled();
+  });
+});
+
+describe("isSellerOf", () => {
+  it("true si la publicación es suya", async () => {
+    m.listingFindFirst.mockResolvedValue({ id: 5 });
+    expect(await isSellerOf(1, 5)).toBe(true);
+    expect(m.listingFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 5, sellerId: 1 } }),
+    );
+  });
+  it("false si no", async () => {
+    m.listingFindFirst.mockResolvedValue(null);
+    expect(await isSellerOf(2, 5)).toBe(false);
   });
 });
 
