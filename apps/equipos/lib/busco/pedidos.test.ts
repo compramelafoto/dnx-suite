@@ -13,6 +13,7 @@ const m = vi.hoisted(() => ({
   itemFindMany: vi.fn(),
   byIds: vi.fn(),
   notify: vi.fn(),
+  idFindUnique: vi.fn(),
 }));
 
 vi.mock("@repo/db", () => ({
@@ -27,6 +28,7 @@ vi.mock("@repo/db", () => ({
     purchaseRequestNotice: { findFirst: m.noticeFindFirst, updateMany: m.noticeUpdateMany },
     gearListing: { findMany: m.listingFindMany, findFirst: m.listingFindFirst },
     gearItem: { findMany: m.itemFindMany },
+    identityVerification: { findUnique: m.idFindUnique },
   },
 }));
 vi.mock("@/lib/catalogo/buscar", () => ({ getPublicListingsByIds: m.byIds }));
@@ -64,6 +66,7 @@ beforeEach(() => {
   m.listingFindMany.mockResolvedValue([]);
   m.byIds.mockResolvedValue([]);
   m.notify.mockResolvedValue(undefined);
+  m.idFindUnique.mockResolvedValue({ status: "APPROVED" });
 });
 
 describe("createPurchaseRequest", () => {
@@ -108,6 +111,22 @@ describe("createPurchaseRequest", () => {
     });
     expect(m.reqCreate).not.toHaveBeenCalled();
   });
+
+  it.each([[null], [{ status: "PENDING" }], [{ status: "REJECTED" }]])(
+    "sin identidad aprobada hoy -> error y no crea nada (%#)",
+    async (verif) => {
+      m.idFindUnique.mockResolvedValue(verif);
+      await expect(createPurchaseRequest(7, input)).rejects.toMatchObject({
+        code: "DATO_INVALIDO",
+        message: "Para crear un pedido necesitás tener tu identidad verificada.",
+      });
+      expect(m.idFindUnique).toHaveBeenCalledWith({
+        where: { userId: 7 },
+        select: { status: true },
+      });
+      expect(m.reqCreate).not.toHaveBeenCalled();
+    },
+  );
 
   it("el sexto pedido activo -> error", async () => {
     conteos(MAX_ACTIVE_REQUESTS, 0);

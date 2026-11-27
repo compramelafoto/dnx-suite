@@ -53,38 +53,75 @@ describe("makeKey y makeVariants", () => {
 });
 
 describe("knownModels", () => {
+  type FakeItem = { make: string; model: string; ownerId: number; status: string; kind: string };
+  type FakeSighting = { make: string; model: string; photographerId: number | null; kind: string };
+  let items: FakeItem[];
+  let sightings: FakeSighting[];
+  const it3 = (make: string, model: string, ownerIds: number[], status = "IN_USE"): FakeItem[] =>
+    ownerIds.map((ownerId) => ({ make, model, ownerId, status, kind: "LENS" }));
+
   beforeEach(() => {
     vi.clearAllMocks();
-    m.itemFindMany.mockResolvedValue([
-      { make: "Sony", model: "FE 20mm F1.8 G" },
-      { make: "Canon", model: "EOS R6" },
-    ]);
-    m.sightingFindMany.mockResolvedValue([
-      { make: "SONY", model: "Sony FE 20mm f/1.8 G" },
-      { make: "NIKON CORPORATION", model: "NIKON Z 6" },
-    ]);
+    items = [];
+    sightings = [];
+    m.itemFindMany.mockImplementation(async ({ where }) =>
+      items.filter(
+        (i) => !where.status?.notIn?.includes(i.status) && (!where.kind || i.kind === where.kind),
+      ),
+    );
+    m.sightingFindMany.mockImplementation(async ({ where }) =>
+      sightings.filter(
+        (x) => x.photographerId !== null && (!where.kind || x.kind === where.kind),
+      ),
+    );
   });
 
-  it("junta inventarios y avistajes sin repetir el mismo modelo, ordenados", async () => {
-    expect(await knownModels()).toEqual([
-      { make: "Canon", model: "EOS R6" },
-      { make: "NIKON CORPORATION", model: "NIKON Z 6" },
-      { make: "Sony", model: "FE 20mm F1.8 G" },
-    ]);
-    expect(m.itemFindMany.mock.calls[0][0]).toMatchObject({
-      distinct: ["make", "model"],
-      select: { make: true, model: true },
-      take: 500,
+  it("un modelo de 2 personas no sale", async () => {
+    items = it3("Sony", "FE 20mm F1.8 G", [1, 2]);
+    expect(await knownModels()).toEqual([]);
+  });
+
+  it("con 3 personas distintas sale, con la forma de escribir más común", async () => {
+    items = [...it3("Sony", "FE 20mm F1.8 G", [1, 2]), ...it3("SONY", "Sony FE 20mm f/1.8 G", [3])];
+    expect(await knownModels()).toEqual([{ make: "Sony", model: "FE 20mm F1.8 G" }]);
+  });
+
+  it("la misma persona 3 veces no alcanza", async () => {
+    items = it3("Canon", "EOS R6", [1, 1, 1]);
+    sightings = [{ make: "Canon", model: "EOS R6", photographerId: 1, kind: "BODY" }];
+    expect(await knownModels()).toEqual([]);
+  });
+
+  it("los equipos robados o perdidos no cuentan", async () => {
+    items = [...it3("Canon", "EOS R6", [1, 2]), ...it3("Canon", "EOS R6", [3], "STOLEN")];
+    expect(await knownModels()).toEqual([]);
+    expect(m.itemFindMany.mock.calls[0][0].where.status).toEqual({ notIn: ["STOLEN", "LOST"] });
+  });
+
+  it("suma dueños del inventario y fotógrafos de CLF", async () => {
+    items = it3("Nikon", "Z 6", [1, 2]);
+    sightings = [
+      { make: "NIKON CORPORATION", model: "NIKON Z 6", photographerId: 9, kind: "BODY" },
+      { make: "NIKON CORPORATION", model: "NIKON Z 6", photographerId: null, kind: "BODY" },
+    ];
+    expect(await knownModels()).toEqual([{ make: "Nikon", model: "Z 6" }]);
+    expect(m.sightingFindMany.mock.calls[0][0]).toMatchObject({
+      where: { photographerId: { not: null } },
+      distinct: ["make", "model", "photographerId"],
     });
-    // Nunca se pide quién es el dueño.
-    expect(JSON.stringify(m.itemFindMany.mock.calls[0][0])).not.toContain("owner");
-    expect(JSON.stringify(m.sightingFindMany.mock.calls[0][0])).not.toContain("photographer");
+    expect(m.itemFindMany.mock.calls[0][0].distinct).toEqual(["make", "model", "ownerId"]);
+  });
+
+  it("nunca devuelve quién lo tiene", async () => {
+    items = it3("Sony", "A7 III", [1, 2, 3]);
+    const r = await knownModels();
+    expect(Object.keys(r[0]).sort()).toEqual(["make", "model"]);
   });
 
   it("filtra por tipo; los avistajes sólo existen para cuerpos y lentes", async () => {
     await knownModels("LENS");
-    expect(m.itemFindMany.mock.calls[0][0].where).toEqual({ kind: "LENS" });
-    expect(m.sightingFindMany.mock.calls[0][0].where).toEqual({ kind: "LENS" });
+    expect(m.itemFindMany.mock.calls[0][0].where.kind).toBe("LENS");
+    expect(m.sightingFindMany.mock.calls[0][0].where.kind).toBe("LENS");
     vi.clearAllMocks();
     m.itemFindMany.mockResolvedValue([]);
     await knownModels("TRIPOD");
@@ -92,10 +129,7 @@ describe("knownModels", () => {
   });
 
   it("como mucho 500", async () => {
-    m.itemFindMany.mockResolvedValue(
-      Array.from({ length: 500 }, (_, i) => ({ make: "Sony", model: `M${i}` })),
-    );
-    m.sightingFindMany.mockResolvedValue([{ make: "Canon", model: "R" }]);
+    items = Array.from({ length: 501 }, (_, n) => it3("Sony", `M${n}`, [1, 2, 3])).flat();
     expect(await knownModels()).toHaveLength(500);
   });
 });

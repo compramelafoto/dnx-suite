@@ -39,6 +39,8 @@ export const MENSAJE_MUCHOS_CANCELADOS =
 export const MENSAJE_PEDIDO_NO_RENOVABLE = "Este pedido ya no se puede renovar.";
 export const MENSAJE_PEDIDO_NO_ACTIVO = "Este pedido ya no está activo.";
 export const MENSAJE_AVISO_RESPONDIDO = "Ya respondiste este aviso.";
+export const MENSAJE_PEDIDO_SIN_IDENTIDAD =
+  "Para crear un pedido necesitás tener tu identidad verificada.";
 
 export type PurchaseRequestInput = {
   kind: GearItemKind;
@@ -118,6 +120,13 @@ export async function createPurchaseRequest(
 ): Promise<{ requestId: number; matches: PublicListing[] }> {
   const data = validar(input);
   const now = new Date();
+
+  // El dueño recibe «un comprador con identidad verificada»: se exige acá y otra vez en el cron.
+  const identidad = await prisma.identityVerification.findUnique({
+    where: { userId: buyerId },
+    select: { status: true },
+  });
+  if (identidad?.status !== "APPROVED") throw invalido(MENSAJE_PEDIDO_SIN_IDENTIDAD);
 
   if ((await activosVigentes(buyerId, now)) >= MAX_ACTIVE_REQUESTS) {
     throw invalido(MENSAJE_MAXIMO_PEDIDOS);

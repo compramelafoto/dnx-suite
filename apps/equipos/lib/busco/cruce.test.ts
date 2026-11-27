@@ -106,7 +106,8 @@ beforeEach(() => {
       (r) =>
         r.status === where.status &&
         r.expiresAt > where.expiresAt.gt &&
-        !where.buyerId?.notIn?.includes(r.buyerId),
+        !where.buyerId?.notIn?.includes(r.buyerId) &&
+        (where.buyer?.identityVerification?.is?.status !== "APPROVED" || r.buyerVerified !== false),
     ),
   );
   m.blockFindMany.mockImplementation(async () => bloqueados.map((userId) => ({ userId })));
@@ -216,6 +217,15 @@ describe("runPurchaseRequests", () => {
   it("comprador bloqueado -> su pedido no corre", async () => {
     bloqueados = [7];
     expect((await runPurchaseRequests(HOY)).notices).toBe(0);
+  });
+
+  it("comprador sin identidad aprobada hoy -> su pedido no corre", async () => {
+    requests = [pedido({ buyerVerified: false })];
+    expect((await runPurchaseRequests(HOY)).notices).toBe(0);
+    expect(m.reqFindMany.mock.calls[0][0].where).toMatchObject({
+      buyer: { identityVerification: { is: { status: "APPROVED" } } },
+      buyerId: { notIn: [] },
+    });
   });
 
   it("dueño con los avisos apagados -> sin aviso", async () => {

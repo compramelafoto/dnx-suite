@@ -13,7 +13,7 @@ import { NOTICES_PER_WEEK, makeKey, makeVariants, modelKey } from "./modelo";
 
 const DIA_MS = 24 * 60 * 60 * 1000;
 
-/** Sólo vendedores con la identidad aprobada HOY (el mismo criterio del catálogo). */
+/** Identidad aprobada HOY (el mismo criterio del catálogo), para vendedores y compradores. */
 const VENDEDOR_VERIFICADO = { identityVerification: { is: { status: "APPROVED" } } } as const;
 
 type Pedido = {
@@ -63,7 +63,13 @@ export async function runPurchaseRequests(
   ).map((b) => b.userId);
 
   const pedidos = (await prisma.purchaseRequest.findMany({
-    where: { status: "ACTIVE", expiresAt: { gt: now }, buyerId: { notIn: bloqueados } },
+    where: {
+      status: "ACTIVE",
+      expiresAt: { gt: now },
+      // El correo al dueño dice «comprador con identidad verificada»: tiene que serlo HOY.
+      buyer: VENDEDOR_VERIFICADO,
+      buyerId: { notIn: bloqueados },
+    },
     // Los más viejos primero: con el tope semanal, nadie queda siempre al final de la fila.
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     select: {
