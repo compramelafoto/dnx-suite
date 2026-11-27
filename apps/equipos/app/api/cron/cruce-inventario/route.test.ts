@@ -30,4 +30,22 @@ describe("cron cruce-inventario", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true, matches: 2, notified: 1, held: 3 });
   });
+
+  it("si falla el aviso de inventario, la retención corre igual (500 con held)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    m.matches.mockRejectedValue(new Error("caído"));
+    const res = await GET(pedido("s"));
+    expect(m.hold).toHaveBeenCalledOnce();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ ok: false, error: "cruce_failed", held: 3 });
+  });
+
+  it("si falla la retención, el aviso de inventario ya corrió (500)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    m.hold.mockRejectedValue(new Error("caído"));
+    const res = await GET(pedido("s"));
+    expect(m.matches).toHaveBeenCalledOnce();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ ok: false, error: "cruce_failed", matches: 2, notified: 1 });
+  });
 });

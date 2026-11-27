@@ -18,12 +18,29 @@ export async function GET(req: NextRequest) {
   if (bearer !== secret) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
   }
+  // Cada paso por separado: si falla el aviso de inventario, la retención corre igual.
+  let inventario: { found: number; notified: number } | null = null;
+  let held: number | null = null;
   try {
-    const r = await notifyNewInventoryMatches();
-    const { held } = await holdListingsWithActiveReports();
-    return NextResponse.json({ ok: true, ...r, held });
+    inventario = await notifyNewInventoryMatches();
   } catch (err) {
-    console.error("[cruce-inventario] error", err);
-    return NextResponse.json({ ok: false, error: "cruce_failed" }, { status: 500 });
+    console.error("[cruce-inventario] falló el aviso de inventario", err);
   }
+  try {
+    held = (await holdListingsWithActiveReports()).held;
+  } catch (err) {
+    console.error("[cruce-inventario] falló la retención de publicaciones", err);
+  }
+  if (!inventario || held === null) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "cruce_failed",
+        ...(inventario ?? {}),
+        ...(held !== null ? { held } : {}),
+      },
+      { status: 500 },
+    );
+  }
+  return NextResponse.json({ ok: true, ...inventario, held });
 }

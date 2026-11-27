@@ -36,8 +36,9 @@ export type SellerContact = {
 async function datosDelVendedor(sellerId: number) {
   const [user, identity, phone] = await Promise.all([
     prisma.user.findUnique({ where: { id: sellerId }, select: { email: true } }),
+    // Sólo el nombre legal de una verificación APROBADA: una rechazada o vencida no vale.
     prisma.identityVerification.findUnique({
-      where: { userId: sellerId },
+      where: { userId: sellerId, status: "APPROVED" },
       select: { legalName: true },
     }),
     prisma.phoneVerification.findUnique({

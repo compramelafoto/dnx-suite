@@ -69,6 +69,13 @@ describe("contactSeller", () => {
     await expect(contactSeller(buyer, 5)).rejects.toMatchObject({ code: "NO_DISPONIBLE" });
   });
 
+  it("el nombre del vendedor sale sólo de una verificación APROBADA", async () => {
+    await contactSeller(buyer, 5);
+    expect(m.identityFindUnique.mock.calls[0][0].where).toEqual({ userId: 1, status: "APPROVED" });
+    m.identityFindUnique.mockResolvedValue(null); // sin aprobada
+    expect((await contactSeller(buyer, 5)).sellerName).toBe("Vendedor verificado");
+  });
+
   it("primer contacto: crea, avisa al vendedor y devuelve sus datos", async () => {
     const r = await contactSeller(buyer, 5);
     expect(r).toEqual({
