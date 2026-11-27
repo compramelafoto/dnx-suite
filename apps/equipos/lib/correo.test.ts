@@ -13,6 +13,7 @@ const PLANTILLAS = [
   "serie_de_otro_usuario_admin",
   "publicacion_aprobada",
   "publicacion_rechazada",
+  "consulta_serie_coincide_admin",
 ] as const;
 
 describe("renderPortalEmail", () => {
@@ -40,6 +41,7 @@ describe("renderPortalEmail", () => {
       "conflicto_serie_admin",
       "publicacion_en_revision_admin",
       "serie_de_otro_usuario_admin",
+      "consulta_serie_coincide_admin",
     ] as const) {
       const r = renderPortalEmail(t, { nombre: "Ana Pérez", email: "ana@x.com", dni: "123" });
       expect(r.subject).not.toContain("Ana");
@@ -58,6 +60,20 @@ describe("renderPortalEmail", () => {
     expect(renderPortalEmail("serie_de_otro_usuario_admin", {}).subject).toBe(
       "Serie publicada vista con otro usuario",
     );
+  });
+
+  it("la consulta de serie lleva usuario, serie y denuncia en el cuerpo y un asunto fijo", () => {
+    const r = renderPortalEmail("consulta_serie_coincide_admin", {
+      usuario: "7",
+      serie: "ABC1234",
+      denuncia: "9",
+      url: "https://clf.test/admin/equipos-robados",
+    });
+    expect(r.subject).toBe("Consulta de serie con denuncia activa");
+    expect(r.text).toContain("Usuario: 7");
+    expect(r.text).toContain("Serie: ABC1234");
+    expect(r.text).toContain("Denuncia: #9");
+    expect(r.text).toContain("https://clf.test/admin/equipos-robados");
   });
 
   it("escapa HTML en los datos", () => {

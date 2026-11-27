@@ -12,7 +12,8 @@ export type PortalEmailTemplate =
   | "serie_de_otro_usuario_admin"
   | "publicacion_aprobada"
   | "publicacion_rechazada"
-  | "nueva_consulta";
+  | "nueva_consulta"
+  | "consulta_serie_coincide_admin";
 
 type Rendered = { subject: string; html: string; text: string };
 
@@ -127,6 +128,16 @@ export function renderPortalEmail(
         `${d("comprador", "Una persona")} se interesó en tu ${d("equipo", "equipo")}.`,
         "Su identidad está verificada en MercadoRaw. Igual seguí la guía de compra segura.",
         url ? `Ver tus interesados: ${url}` : "",
+      ];
+      break;
+    case "consulta_serie_coincide_admin":
+      subject = "Consulta de serie con denuncia activa";
+      lineas = [
+        "Un usuario verificado consultó un número de serie que tiene una denuncia activa.",
+        d("usuario") ? `Usuario: ${d("usuario")}` : "",
+        d("serie") ? `Serie: ${d("serie")}` : "",
+        d("denuncia") ? `Denuncia: #${d("denuncia")}` : "",
+        url ? `Revisar: ${url}` : "",
       ];
       break;
     case "recordatorio_poliza":
