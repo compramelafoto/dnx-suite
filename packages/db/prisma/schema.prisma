@@ -203,6 +203,11 @@ model User {
   gearSightingDismissals                GearSightingDismissal[]
   gearOwnerSettings                     GearOwnerSettings?
   insuranceReports                      InsuranceReport[]
+  gearListings                          GearListing[]
+  gearListingViews                      GearListingView[]
+  gearListingContacts                   GearListingContact[]
+  gearListingFlags                      GearListingFlag[]
+  gearSerialLookups                     GearSerialLookup[]
   uploadedVideos                        VideoAsset[]                           @relation("VideoUploader")
   products                              PhotographerProduct[]
   catalogProductCategories              CatalogProductCategory[]
@@ -29794,6 +29799,7 @@ model GearItem {
   sighting          GearSerialSighting? @relation(fields: [sightingId], references: [id], onDelete: SetNull)
   events            GearItemEvent[]
   stolenReports     StolenGearReport[]
+  listings          GearListing[]
 
   @@index([ownerId])
   @@index([serialNormalized])
@@ -29854,6 +29860,125 @@ model InsuranceReport {
   owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([ownerId])
+}
+
+enum GearListingStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  PAUSED
+  SOLD
+  CLOSED
+}
+
+enum GearListingCondition {
+  NEW
+  LIKE_NEW
+  VERY_GOOD
+  GOOD
+  WITH_DETAILS
+}
+
+enum GearListingUsageSeal {
+  USAGE_VERIFIED
+  PROOF_PHOTO
+  NONE
+}
+
+/// Publicación de un equipo usado en venta (portal de equipos, etapa 1b).
+model GearListing {
+  id                 Int                  @id @default(autoincrement())
+  sellerId           Int
+  gearItemId         Int
+  status             GearListingStatus    @default(DRAFT)
+  kind               GearItemKind
+  make               String
+  model              String
+  mount              String?
+  priceArs           Int
+  priceUsdRef        Int?
+  condition          GearListingCondition
+  description        String?
+  accessories        String?
+  province           String
+  city               String
+  serialPhotoKey     String?
+  declaredFirstOwner Boolean              @default(false)
+  includesCharger    Boolean              @default(false)
+  batteriesCount     Int?
+  includesManual     Boolean              @default(false)
+  includesBox        Boolean              @default(false)
+  usageSeal          GearListingUsageSeal @default(NONE)
+  usageSince         DateTime?
+  usagePhotosCount   Int?
+  socialConsentAt    DateTime
+  reviewNote         String?
+  publishedAt        DateTime?
+  closedAt           DateTime?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  seller             User                 @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  gearItem           GearItem             @relation(fields: [gearItemId], references: [id], onDelete: Cascade)
+  views              GearListingView[]
+  contacts           GearListingContact[]
+  flags              GearListingFlag[]
+
+  @@index([status, kind])
+  @@index([sellerId])
+  @@index([gearItemId])
+}
+
+/// Quién vio una publicación (una fila por persona, con contador).
+model GearListingView {
+  id            Int         @id @default(autoincrement())
+  listingId     Int
+  userId        Int
+  firstViewedAt DateTime    @default(now())
+  lastViewedAt  DateTime
+  count         Int         @default(1)
+  listing       GearListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, userId])
+}
+
+/// Un comprador que pidió el contacto del vendedor.
+model GearListingContact {
+  id        Int         @id @default(autoincrement())
+  listingId Int
+  buyerId   Int
+  createdAt DateTime    @default(now())
+  listing   GearListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  buyer     User        @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, buyerId])
+  @@index([buyerId, createdAt])
+}
+
+/// Denuncia de una publicación por parte de otra persona.
+model GearListingFlag {
+  id         Int         @id @default(autoincrement())
+  listingId  Int
+  reporterId Int
+  reason     String
+  createdAt  DateTime    @default(now())
+  resolvedAt DateTime?
+  listing    GearListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  reporter   User        @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@unique([listingId, reporterId])
+}
+
+/// Consulta de un número de serie ajeno (registro para frenar abusos). `matchedReportId` es sólo dato, sin clave foránea.
+model GearSerialLookup {
+  id               Int      @id @default(autoincrement())
+  userId           Int
+  serialNormalized String
+  matchedReportId  Int?
+  createdAt        DateTime @default(now())
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 /// Respuesta rápida de la Bandeja de WhatsApp (FOTOFFICE): un texto guardado con atajo (`/carnet`).
