@@ -208,6 +208,17 @@ describe("rejectListing", () => {
     expect(to).toBe("v@t.com");
     expect(tpl).toBe("publicacion_rechazada");
     expect(JSON.stringify(data)).not.toContain("Serie robada");
+    expect(data.contacto).toBe(""); // sin CONTACTO_EMAIL no se invita a escribir
+  });
+
+  it("con CONTACTO_EMAIL el rechazo lleva el correo y el mailto", async () => {
+    process.env.CONTACTO_EMAIL = "hola@mercadofotoraw.com";
+    m.listingFindFirst.mockResolvedValue(listing());
+    await rejectListing(1, 5, "Serie robada");
+    const data = m.email.mock.calls[0][2];
+    expect(data.contacto).toBe("hola@mercadofotoraw.com");
+    expect(data.contactoUrl).toMatch(/^mailto:hola@mercadofotoraw\.com\?subject=/);
+    delete process.env.CONTACTO_EMAIL;
   });
 });
 

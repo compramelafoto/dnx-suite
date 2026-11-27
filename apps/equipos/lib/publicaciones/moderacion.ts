@@ -1,4 +1,5 @@
 import { prisma } from "@repo/db";
+import { contactoEmail, contactoMailto } from "@/lib/contacto-publico";
 import { sendPortalEmail } from "@/lib/correo";
 import { urlBaseDeLaApp } from "@/lib/sesion";
 import { EquipoError } from "../inventario/equipos";
@@ -77,6 +78,9 @@ async function avisarAlVendedor(
     await sendPortalEmail(seller.email, template, {
       nombre: seller.name ?? "",
       url: `${urlBaseDeLaApp()}/equipos/${listingId}`,
+      // El rechazo invita a escribirnos sólo si hay correo de contacto configurado.
+      contacto: contactoEmail() ?? "",
+      contactoUrl: contactoMailto(`Publicación #${listingId}`) ?? "",
     });
   } catch (err) {
     console.error(`[moderacion] No se pudo avisar "${template}":`, err);

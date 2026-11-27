@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { contactoMailto } from "@/lib/contacto-publico";
 import { getPublicListing } from "@/lib/catalogo/buscar";
 import { contactedBefore, contactSeller, ContactoError } from "@/lib/contacto/contactar";
 import { textoDeAviso } from "@/lib/contacto/avisos";
@@ -73,7 +74,7 @@ export default async function ContactarPage({
                 ) : null}
               </dl>
             </section>
-            <GuiaCompraSegura />
+            <GuiaCompraSegura contacto={contactoMailto("Consulta sobre una compra")} />
           </>
         ) : (
           <section className="superficie" aria-labelledby="contactar-titulo">

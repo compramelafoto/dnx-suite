@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { EstadoPublicacion, FichaConfianza, MedidorConfianza, PlacaSerie } from "./index";
+import { EstadoPublicacion, FichaConfianza, GuiaCompraSegura, MedidorConfianza, PlacaSerie } from "./index";
 
 describe("MedidorConfianza", () => {
   it("con nivel ALTO es un medidor accesible en 3 de 4 y dice «Alto»", () => {
@@ -88,5 +88,25 @@ describe("EstadoPublicacion", () => {
         texto,
       );
     }
+  });
+});
+
+describe("GuiaCompraSegura", () => {
+  it("pide comparar los últimos 4 caracteres de la serie y aclara qué significa «Identidad verificada»", () => {
+    const html = renderToStaticMarkup(<GuiaCompraSegura contacto={null} />);
+    expect(html).toContain("comprobá que los últimos 4");
+    expect(html).toContain("caracteres del número de serie coincidan con los de la publicación");
+    expect(html).toContain("no garantiza");
+  });
+
+  it("sin correo de contacto omite «escribinos»", () => {
+    const html = renderToStaticMarkup(<GuiaCompraSegura contacto={null} />);
+    expect(html).not.toContain("escribinos");
+    expect(html).not.toContain("<a ");
+  });
+
+  it("con correo de contacto, «escribinos» es un mailto", () => {
+    const html = renderToStaticMarkup(<GuiaCompraSegura contacto="mailto:hola@e.test?subject=x" />);
+    expect(html).toContain('o <a href="mailto:hola@e.test?subject=x">escribinos</a>');
   });
 });

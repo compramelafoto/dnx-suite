@@ -19,6 +19,9 @@ export type PortalEmailTemplate =
 
 type Rendered = { subject: string; html: string; text: string };
 
+/** Un párrafo: texto plano, o texto con un enlace (en HTML el enlace va sobre `enlace.texto`). */
+type Linea = string | { antes: string; enlace: { texto: string; href: string }; despues: string; plano: string };
+
 function esc(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -41,7 +44,7 @@ export function renderPortalEmail(
   const url = d("url");
 
   let subject: string;
-  let lineas: string[];
+  let lineas: Linea[];
 
   switch (template) {
     case "verificacion_aprobada":
@@ -118,9 +121,18 @@ export function renderPortalEmail(
       break;
     case "publicacion_rechazada":
       subject = "No pudimos publicar tu artículo";
+      // Sin correo de contacto configurado, se omite la invitación (el remitente no recibe respuestas).
       lineas = [
         saludo,
-        "No pudimos publicar tu artículo. Si tenés dudas, respondé este correo.",
+        "No pudimos publicar tu artículo.",
+        d("contacto") && d("contactoUrl")
+          ? {
+              antes: "Si tenés dudas, ",
+              enlace: { texto: "escribinos", href: d("contactoUrl") },
+              despues: ".",
+              plano: `Si tenés dudas, escribinos a ${d("contacto")}.`,
+            }
+          : "",
       ];
       break;
     case "reporte_publicacion_admin":
@@ -172,8 +184,14 @@ export function renderPortalEmail(
   const partes = lineas.filter((l) => l !== "");
   return {
     subject,
-    text: partes.join("\n\n"),
-    html: partes.map((l) => `<p>${esc(l)}</p>`).join("\n"),
+    text: partes.map((l) => (typeof l === "string" ? l : l.plano)).join("\n\n"),
+    html: partes
+      .map((l) =>
+        typeof l === "string"
+          ? `<p>${esc(l)}</p>`
+          : `<p>${esc(l.antes)}<a href="${esc(l.enlace.href)}">${esc(l.enlace.texto)}</a>${esc(l.despues)}</p>`,
+      )
+      .join("\n"),
   };
 }
 

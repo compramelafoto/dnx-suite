@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import { contactoMailto } from "@/lib/contacto-publico";
 import { contactedBefore, isSellerOf } from "@/lib/contacto/contactar";
 import { getPortalUser } from "@/lib/guards";
 import { formatDolares, formatPesos, getPublicListing, recordView } from "@/lib/catalogo/buscar";
@@ -127,7 +128,7 @@ export default async function FichaEquipoPage({ params }: Props) {
                 {yaContacto ? "Ver datos del vendedor" : "Contactar al vendedor"}
               </BotonEnlace>
             )}
-            <GuiaCompraSegura />
+            <GuiaCompraSegura contacto={contactoMailto("Consulta sobre una compra")} />
             <a className="ficha-reportar" href={`/equipos/${l.id}/reportar`}>
               Reportar publicación
             </a>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { contactoMailto } from "@/lib/contacto-publico";
 import { requireLevel } from "@/lib/guards";
 import { Pagina } from "@/app/_ui";
 import { MARCA } from "@/app/_ui/marca";
@@ -15,7 +16,7 @@ export default async function ConsultarSeriePage() {
       titulo="Consultar número de serie"
       bajada="Antes de comprar un equipo usado, fijate si su número de serie figura con una denuncia activa."
     >
-      <FormularioSerie />
+      <FormularioSerie contacto={contactoMailto("Consulta de número de serie con denuncia")} />
     </Pagina>
   );
 }

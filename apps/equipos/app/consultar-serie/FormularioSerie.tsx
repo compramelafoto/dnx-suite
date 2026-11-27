@@ -7,12 +7,14 @@ import { consultarSerie, type ConsultaEstado } from "./actions";
 const TEXTOS = {
   SIN_DENUNCIA:
     "Este número de serie no figura con denuncias activas en el portal. Igual revisá el equipo en persona antes de comprarlo.",
-  CON_DENUNCIA: "Este número de serie figura con una denuncia activa. No lo compres y escribinos.",
+  CON_DENUNCIA: "Este número de serie figura con una denuncia activa.",
+  CON_DENUNCIA_SIN_CONTACTO: "Guardá este número de serie y no concretes la compra.",
   SERIE_INVALIDA: "Escribí el número de serie completo (al menos 4 caracteres).",
   LIMITE: "Llegaste al máximo de consultas por hoy. Probá mañana.",
 } as const;
 
-export function FormularioSerie() {
+/** `contacto`: el `mailto:` de MercadoFotoRaw, o `null` si no hay correo configurado. */
+export function FormularioSerie({ contacto }: { contacto: string | null }) {
   const [estado, accion, pendiente] = useActionState<ConsultaEstado, FormData>(
     consultarSerie,
     null,
@@ -50,7 +52,14 @@ export function FormularioSerie() {
           </p>
           {estado.result === "CON_DENUNCIA" ? (
             <Aviso tipo="error">
-              {TEXTOS.CON_DENUNCIA} <a href="/">Escribinos</a>
+              {TEXTOS.CON_DENUNCIA}{" "}
+              {contacto ? (
+                <>
+                  No lo compres y <a href={contacto}>escribinos</a>.
+                </>
+              ) : (
+                TEXTOS.CON_DENUNCIA_SIN_CONTACTO
+              )}
             </Aviso>
           ) : (
             <Aviso tipo="exito">{TEXTOS.SIN_DENUNCIA}</Aviso>
