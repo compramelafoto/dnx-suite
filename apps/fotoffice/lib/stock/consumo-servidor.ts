@@ -8,10 +8,13 @@ import {
   type LineaVendida,
   type Receta,
 } from "./consumo";
+import { NOTA_EMBALAJE, REF_EMBALAJE, type EmbalajeCalculado, type PiezaEntrega } from "./embalaje";
+import { planificarEmbalaje, type OpcionesEmbalaje } from "./embalaje-servidor";
 
 /**
  * Consumo de insumos contra la base: planificar (lecturas), aplicar y revertir
- * (escrituras). Quien llama bloquea las filas con `lockStockRows` entre
+ * (escrituras). Incluye el embalaje de la entrega (sobres, bolsas) como una línea más con
+ * `ref = REF_EMBALAJE` y nota `NOTA_EMBALAJE`: así hereda el bloqueo y la devolución. Quien llama bloquea las filas con `lockStockRows` entre
  * `planificarConsumo` y `aplicarConsumo`/`devolverConsumos`; acá no se bloquea.
  */
 
@@ -19,7 +22,8 @@ type Tx = Prisma.TransactionClient | PrismaClient;
 
 export type PlanConsumo = { insumoIds: string[]; consumos: ConsumoLinea[] };
 export type ConsumoPendiente = { insumoId: string; qty: number; note: string };
-type Fuente = "sales" | "pedidos";
+export type FuenteConsumo = "sales" | "pedidos" | "impresiones";
+type Fuente = FuenteConsumo;
 
 // Misma defensa que `expandirConsumo`: los ciclos no se guardan, pero si llegara
 // uno corrupto la búsqueda de combos termina igual.
@@ -32,12 +36,55 @@ export async function planificarConsumo(
   tx: Tx,
   workspaceId: string,
   lineas: readonly LineaVendida[],
+  opciones: { embalaje?: OpcionesEmbalaje; piezasSinProducto?: readonly PiezaEntrega[] } = {},
 ): Promise<PlanConsumo> {
   const raices = new Set<string>();
   for (const l of lineas) if (l.productId) raices.add(l.productId);
-  if (raices.size === 0) return { insumoIds: [], consumos: [] };
+  const consumos = await consumoDeRecetas(tx, workspaceId, lineas, raices);
+  const embalaje = await planificarEmbalaje(tx, workspaceId, {
+    lineas,
+    combos: consumos.combos,
+    alcanzados: consumos.alcanzados,
+    piezasSinProducto: opciones.piezasSinProducto ?? [],
+    opciones: opciones.embalaje ?? { modo: "auto" },
+  });
+  const todos = [...consumos.lineas, ...embalaje.map((e) => ({ ref: REF_EMBALAJE, insumoId: e.insumoId, qty: e.qty }))];
+  return { insumoIds: [...new Set(todos.map((c) => c.insumoId))].sort(), consumos: todos };
+}
 
-  // En anchura: cada vuelta trae los componentes de los combos recién hallados.
+async function consumoDeRecetas(
+  tx: Tx,
+  workspaceId: string,
+  lineas: readonly LineaVendida[],
+  raices: ReadonlySet<string>,
+): Promise<{ lineas: ConsumoLinea[]; combos: ComponenteCombo[]; alcanzados: Set<string> }> {
+  if (raices.size === 0) return { lineas: [], combos: [], alcanzados: new Set() };
+  const { combos, alcanzados } = await combosAlcanzados(tx, workspaceId, raices);
+
+  const recetas: Receta[] = await tx.fotofficeRecetaInsumo.findMany({
+    where: { workspaceId, productId: { in: [...alcanzados] } },
+    select: { productId: true, insumoId: true, quantity: true, porCada: true },
+  });
+  const candidatos = [...new Set(recetas.map((r) => r.insumoId))];
+  if (candidatos.length === 0) return { lineas: [], combos, alcanzados };
+
+  // Activo o no: un insumo desactivado se sigue descontando. Lo que ya no es
+  // insumo (cambió de `kind`) queda fuera y su receta se ignora.
+  const validos = await tx.product.findMany({
+    where: { workspaceId, kind: "INSUMO", id: { in: candidatos } },
+    select: { id: true },
+  });
+  const insumosValidos = new Set(validos.map((p) => p.id));
+
+  return { lineas: expandirConsumo(lineas, recetas, combos, insumosValidos), combos, alcanzados };
+}
+
+/** Los combos que cuelgan de los productos vendidos, en anchura: cada vuelta trae los componentes recién hallados. */
+async function combosAlcanzados(
+  tx: Tx,
+  workspaceId: string,
+  raices: ReadonlySet<string>,
+): Promise<{ combos: ComponenteCombo[]; alcanzados: Set<string> }> {
   const combos: ComponenteCombo[] = [];
   const alcanzados = new Set(raices);
   let frontera = [...raices];
@@ -55,25 +102,29 @@ export async function planificarConsumo(
       }
     }
   }
+  return { combos, alcanzados };
+}
 
-  const recetas: Receta[] = await tx.fotofficeRecetaInsumo.findMany({
-    where: { workspaceId, productId: { in: [...alcanzados] } },
-    select: { productId: true, insumoId: true, quantity: true, porCada: true },
-  });
-  const candidatos = [...new Set(recetas.map((r) => r.insumoId))];
-  if (candidatos.length === 0) return { insumoIds: [], consumos: [] };
+/** El embalaje que el sistema propondría para estos renglones (vista previa del Cobrador). Sólo lee. */
+export async function proponerEmbalaje(
+  tx: Tx,
+  workspaceId: string,
+  lineas: readonly { productId: string | null; qty: number }[],
+): Promise<EmbalajeCalculado[]> {
+  const raices = new Set(lineas.flatMap((l) => (l.productId ? [l.productId] : [])));
+  const { combos, alcanzados } = raices.size > 0 ? await combosAlcanzados(tx, workspaceId, raices) : { combos: [], alcanzados: new Set<string>() };
+  return planificarEmbalaje(tx, workspaceId, { lineas, combos, alcanzados, piezasSinProducto: [], opciones: { modo: "auto" } });
+}
 
-  // Activo o no: un insumo desactivado se sigue descontando. Lo que ya no es
-  // insumo (cambió de `kind`) queda fuera y su receta se ignora.
-  const validos = await tx.product.findMany({
-    where: { workspaceId, kind: "INSUMO", id: { in: candidatos } },
-    select: { id: true },
-  });
-  const insumosValidos = new Set(validos.map((p) => p.id));
+/** La nota de un consumo: la del renglón, o la del embalaje de toda la entrega. */
+function notaDe(ref: string): string {
+  return ref === REF_EMBALAJE ? NOTA_EMBALAJE : `${PREFIJO_NOTA}${ref}`;
+}
 
-  const consumos = expandirConsumo(lineas, recetas, combos, insumosValidos);
-  const insumoIds = [...new Set(consumos.map((c) => c.insumoId))].sort();
-  return { insumoIds, consumos };
+/** El `ref` de una nota de consumo, o null si la nota no es de consumo. */
+function refDeNota(note: string): string | null {
+  if (note === NOTA_EMBALAJE) return REF_EMBALAJE;
+  return note.startsWith(PREFIJO_NOTA) ? note.slice(PREFIJO_NOTA.length) : null;
 }
 
 export async function aplicarConsumo(
@@ -95,7 +146,7 @@ export async function aplicarConsumo(
       reason: "CONSUMO",
       sourceModule: d.sourceModule,
       sourceRef: d.sourceRef,
-      note: `${PREFIJO_NOTA}${c.ref}`,
+      note: notaDe(c.ref),
       unitCostArs: null,
       createdByUserId: d.createdByUserId,
     });
@@ -117,7 +168,8 @@ export async function consumosPendientesDeDevolver(
       sourceModule: d.sourceModule,
       sourceRef: d.sourceRef,
       reason: { in: ["CONSUMO", "DEVOLUCION"] },
-      note: { startsWith: PREFIJO_NOTA },
+      // Las dos notas (`consumo:item:<id>` y `consumo:embalaje`) comparten este prefijo; `refDeNota` las separa.
+      note: { startsWith: "consumo:" },
     },
     select: { productId: true, qty: true, note: true, reason: true },
   });
@@ -126,9 +178,10 @@ export async function consumosPendientesDeDevolver(
   const pendiente = new Map<string, ConsumoPendiente>();
   for (const m of movimientos) {
     const note = m.note ?? "";
-    if (!note.startsWith(PREFIJO_NOTA)) continue;
+    const ref = refDeNota(note);
+    if (ref === null) continue;
     if (m.reason !== "CONSUMO" && m.reason !== "DEVOLUCION") continue;
-    if (d.refs && !d.refs.has(note.slice(PREFIJO_NOTA.length))) continue;
+    if (d.refs && !d.refs.has(ref)) continue;
     const clave = `${note}\u0000${m.productId}`;
     const actual = pendiente.get(clave) ?? { insumoId: m.productId, qty: 0, note };
     actual.qty -= m.qty;

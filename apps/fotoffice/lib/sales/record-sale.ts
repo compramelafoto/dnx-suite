@@ -13,6 +13,8 @@ import { nextSaleNumber } from "./sale-number";
 import { applyStockMovement } from "./variant-stock";
 import { lockStockRows } from "./stock-lock";
 import { aplicarConsumo, planificarConsumo } from "@/lib/stock/consumo-servidor";
+import { REF_EMBALAJE } from "@/lib/stock/embalaje";
+import type { OpcionesEmbalaje } from "@/lib/stock/embalaje-servidor";
 import { SALES_CASH_CATEGORY_NAME, type SalePaymentMethod } from "./constants";
 import type { CheckoutClientResolution } from "./checkout";
 
@@ -34,6 +36,8 @@ export type RecordSaleInput = {
   note: string | null;
   client: CheckoutClientResolution;
   lines: readonly TicketLine[];
+  /** Sobres y bolsas: por omisión los calcula el sistema; el Cobrador puede mandarlos elegidos a mano. */
+  embalaje?: OpcionesEmbalaje;
 };
 
 type Tx = Prisma.TransactionClient | PrismaClient;
@@ -227,6 +231,7 @@ export async function recordSale(
     tx,
     input.workspaceId,
     input.lines.map((l, i) => ({ ref: String(i), productId: l.productId, qty: l.qty })),
+    { embalaje: input.embalaje },
   );
 
   // Lo PRIMERO que bloquea o escribe: las filas de stock del ticket —productos vendidos e
@@ -348,6 +353,8 @@ export async function recordSale(
       plan: {
         insumoIds: planConsumo.insumoIds,
         consumos: planConsumo.consumos.map((c) => {
+          // El embalaje es de toda la venta, no de un renglón: su `ref` queda como está.
+          if (c.ref === REF_EMBALAJE) return c;
           const itemId = itemIds[Number(c.ref)];
           if (!itemId) throw new Error("Consumo de insumos sin renglón de venta.");
           return { ...c, ref: itemId };

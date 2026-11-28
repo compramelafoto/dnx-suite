@@ -706,3 +706,21 @@ describe("voidSale — insumos consumidos", () => {
     );
   });
 });
+
+describe("voidSale — embalaje", () => {
+  it("anular devuelve el sobre que la venta descontó", async () => {
+    const libro = libroDeMovimientos([{ ...consumoDelKit, productId: "sobre", qty: -1, note: "consumo:embalaje" }]);
+    const tx = voidTx({
+      saleItem: { findMany: vi.fn(async () => [{ id: "x", productId: "p1", variantId: null, qty: 3 }]) },
+      product: {
+        findMany: vi.fn(async () => [{ id: "p1", tracksStock: false }]),
+        update: vi.fn(async () => ({})),
+      },
+      stockMovement: { create: libro.create, findMany: libro.findMany },
+    });
+
+    await voidSale(tx as never, inputBase);
+
+    expect(libro.filas.filter((f) => f.reason === "DEVOLUCION").map((f) => [f.productId, f.qty, f.note])).toEqual([["sobre", 1, "consumo:embalaje"]]);
+  });
+});

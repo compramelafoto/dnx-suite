@@ -32,6 +32,8 @@ import { adjustmentQty, validateAdjustment, validateStockEntry } from "@/lib/sal
 import { applyStockMovement } from "@/lib/sales/variant-stock";
 import { lockStockRows } from "@/lib/sales/stock-lock";
 import { asegurarKodak305, entradaEnUnidades } from "@/lib/stock/kodak305";
+import { proponerEmbalaje } from "@/lib/stock/consumo-servidor";
+import { EmbalajeInvalido, envoltoriosActivos, type EmbalajeElegido } from "@/lib/stock/embalaje-servidor";
 import { calibrarMargenPct, margenValido } from "@/lib/precios-proveedor/margen";
 
 const CATALOGO = "/ventas/catalogo";
@@ -299,7 +301,34 @@ export type CheckoutInput = {
   mpPaymentId?: string | null;
   /** La order del QR del mostrador ya pagada (opcional). */
   mpOrderId?: string | null;
+  /** Sobres y bolsas cambiados a mano en el Cobrador. Sin esto, los calcula el sistema. */
+  embalaje?: EmbalajeElegido[] | null;
 };
+
+export type VistaEmbalaje = {
+  propuesto: (EmbalajeElegido & { nombre: string; motivo: string })[];
+  opciones: { insumoId: string; nombre: string }[];
+};
+
+/**
+ * Lo que el Cobrador muestra como «Embalaje: …»: lo que el sistema descontaría con este ticket y
+ * los envoltorios activos para cambiarlo. Sólo lee. Sin envoltorios, `opciones` viene vacío y la
+ * línea no se muestra.
+ */
+export async function previsualizarEmbalajeAction(lineas: { productId: string | null; qty: number }[]): Promise<VistaEmbalaje> {
+  const { workspace } = await requireSalesStaff();
+  const limpias = (Array.isArray(lineas) ? lineas : [])
+    .slice(0, 200)
+    .map((l) => ({ productId: typeof l?.productId === "string" ? l.productId : null, qty: Number.isInteger(l?.qty) && l.qty > 0 ? l.qty : 0 }));
+  const opciones = await envoltoriosActivos(prisma, workspace.id);
+  if (opciones.length === 0) return { propuesto: [], opciones: [] };
+  const nombre = new Map(opciones.map((o) => [o.insumoId, o.nombre]));
+  const propuesto = await proponerEmbalaje(prisma, workspace.id, limpias);
+  return {
+    propuesto: propuesto.map((e) => ({ ...e, nombre: nombre.get(e.insumoId) ?? "" })),
+    opciones: opciones.map((o) => ({ insumoId: o.insumoId, nombre: o.nombre })),
+  };
+}
 
 export type CheckoutResult =
   | { ok: true; saleNumber: number; deposited: boolean }
@@ -424,6 +453,7 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
         note: note === "" ? null : note,
         client,
         lines: armado.lines,
+        embalaje: Array.isArray(input.embalaje) ? { modo: "manual", elegido: input.embalaje } : undefined,
       });
       if (impresion) {
         await impresion.vincularConVenta(
@@ -442,6 +472,7 @@ export async function checkoutAction(input: CheckoutInput): Promise<CheckoutResu
   } catch (e) {
     if (reservaId) await liberarPagoMp(reservaId);
     if (impresion && e instanceof impresion.PreparacionNoVinculable) return { ok: false, error: e.message };
+    if (e instanceof EmbalajeInvalido) return { ok: false, error: e.message };
     console.error("[fotoffice][ventas] error al cobrar", e);
     return { ok: false, error: "No se pudo registrar la venta. Probá de nuevo." };
   }

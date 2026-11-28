@@ -1,0 +1,252 @@
+import "server-only";
+import type { Prisma, PrismaClient } from "@repo/db";
+import { lockStockRows } from "@/lib/sales/stock-lock";
+import { applyStockMovement } from "@/lib/sales/variant-stock";
+import type { FuenteConsumo } from "./consumo-servidor";
+import {
+  NOTA_EMBALAJE,
+  calcularEmbalaje,
+  piezasDeLineas,
+  type EmbalajeCalculado,
+  type EntregaProducto,
+  type Envoltorio,
+  type FormaEntrega,
+  type PiezaEntrega,
+  type TipoEnvoltorio,
+} from "./embalaje";
+
+/**
+ * Embalaje contra la base: qué envoltorios tiene el negocio, cuáles le tocan a una entrega y cómo
+ * se corrige después. El descuento en sí lo escribe `aplicarConsumo` junto con las recetas, en la
+ * misma transacción y con el mismo bloqueo.
+ */
+
+type Tx = Prisma.TransactionClient | PrismaClient;
+
+export type EmbalajeElegido = { insumoId: string; qty: number };
+export type OpcionesEmbalaje = { modo: "auto" } | { modo: "manual"; elegido: readonly EmbalajeElegido[] } | { modo: "ninguno" };
+
+/** El embalaje elegido a mano no se puede usar. El mensaje es para el mostrador. */
+export class EmbalajeInvalido extends Error {}
+
+const CANTIDAD_MAXIMA = 999;
+
+type EnvoltorioConFila = Envoltorio & { filaId: string };
+
+/**
+ * Los envoltorios del negocio con su insumo. Dos lecturas simples en vez de una relación anidada.
+ * Lo que dejó de ser insumo (cambió de `kind`) no cuenta.
+ */
+async function leerEnvoltorios(
+  tx: Tx,
+  workspaceId: string,
+  filtro: { activo?: true; insumoIds?: readonly string[] },
+): Promise<EnvoltorioConFila[]> {
+  const filas = await tx.fotofficeEmbalaje.findMany({
+    where: {
+      workspaceId,
+      ...(filtro.activo ? { activo: true } : {}),
+      ...(filtro.insumoIds ? { insumoId: { in: [...filtro.insumoIds] } } : {}),
+    },
+    orderBy: { orden: "asc" },
+    select: { id: true, insumoId: true, tipo: true, admiteAnchoCm: true, admiteAltoCm: true, piezasPorUnidad: true, orden: true },
+  });
+  if (filas.length === 0) return [];
+  const insumos = await tx.product.findMany({
+    where: { workspaceId, kind: "INSUMO", id: { in: filas.map((f) => f.insumoId) } },
+    select: { id: true, name: true },
+  });
+  const nombre = new Map(insumos.map((p) => [p.id, p.name]));
+  return filas
+    .filter((f) => nombre.has(f.insumoId))
+    .map((f) => ({
+      filaId: f.id,
+      insumoId: f.insumoId,
+      nombre: nombre.get(f.insumoId)!,
+      tipo: f.tipo as TipoEnvoltorio,
+      admiteAnchoCm: Number(f.admiteAnchoCm),
+      admiteAltoCm: Number(f.admiteAltoCm),
+      piezasPorUnidad: f.piezasPorUnidad,
+      orden: f.orden,
+    }));
+}
+
+/** Los envoltorios activos del negocio. */
+export async function envoltoriosActivos(tx: Tx, workspaceId: string): Promise<Envoltorio[]> {
+  return (await leerEnvoltorios(tx, workspaceId, { activo: true })).map((e) => ({
+    insumoId: e.insumoId,
+    nombre: e.nombre,
+    tipo: e.tipo,
+    admiteAnchoCm: e.admiteAnchoCm,
+    admiteAltoCm: e.admiteAltoCm,
+    piezasPorUnidad: e.piezasPorUnidad,
+    orden: e.orden,
+  }));
+}
+
+/** Valida lo elegido a mano: envoltorios del negocio (activos o no) y cantidades enteras de 0 a 999. */
+async function validarElegido(tx: Tx, workspaceId: string, elegido: readonly EmbalajeElegido[]): Promise<EmbalajeElegido[]> {
+  const porInsumo = new Map<string, number>();
+  for (const e of elegido) {
+    if (typeof e.insumoId !== "string" || !Number.isInteger(e.qty) || e.qty < 0 || e.qty > CANTIDAD_MAXIMA) {
+      throw new EmbalajeInvalido("La cantidad de embalaje no se entiende.");
+    }
+    porInsumo.set(e.insumoId, (porInsumo.get(e.insumoId) ?? 0) + e.qty);
+  }
+  const ids = [...porInsumo.keys()];
+  if (ids.length === 0) return [];
+  const propios = new Set((await leerEnvoltorios(tx, workspaceId, { insumoIds: ids })).map((e) => e.insumoId));
+  if (ids.some((id) => !propios.has(id))) throw new EmbalajeInvalido("Ese embalaje no es de este negocio.");
+  return [...porInsumo.entries()].filter(([, qty]) => qty > 0).map(([insumoId, qty]) => ({ insumoId, qty }));
+}
+
+/**
+ * Qué envoltorios gasta una entrega. `combos` y `alcanzados` vienen de `planificarConsumo`, que
+ * ya recorrió los combos para las recetas: así no se consulta dos veces.
+ */
+export async function planificarEmbalaje(
+  tx: Tx,
+  workspaceId: string,
+  d: {
+    lineas: readonly { productId: string | null; qty: number }[];
+    combos: readonly { comboProductId: string; componentProductId: string; quantity: number }[];
+    alcanzados: ReadonlySet<string>;
+    piezasSinProducto: readonly PiezaEntrega[];
+    opciones: OpcionesEmbalaje;
+  },
+): Promise<EmbalajeCalculado[]> {
+  if (d.opciones.modo === "ninguno") return [];
+  if (d.opciones.modo === "manual") {
+    return (await validarElegido(tx, workspaceId, d.opciones.elegido)).map((e) => ({ ...e, motivo: "elegido a mano" }));
+  }
+  if (d.alcanzados.size === 0 && d.piezasSinProducto.length === 0) return [];
+  const envoltorios = await leerEnvoltorios(tx, workspaceId, { activo: true });
+  if (envoltorios.length === 0) return [];
+
+  const filas =
+    d.alcanzados.size > 0
+      ? await tx.fotofficeProductoEntrega.findMany({
+          where: { workspaceId, productId: { in: [...d.alcanzados] } },
+          select: { productId: true, forma: true, anchoCm: true, altoCm: true, embalajeSiguiente: true, embalajeFijoId: true },
+        })
+      : [];
+  // `embalajeFijoId` apunta a la fila del envoltorio; el cálculo trabaja con el insumo.
+  const insumoDeFila = new Map(envoltorios.map((e) => [e.filaId, e.insumoId]));
+  const entregas = new Map<string, EntregaProducto>(
+    filas.map((f) => [
+      f.productId,
+      {
+        forma: f.forma as FormaEntrega,
+        anchoCm: f.anchoCm === null ? null : Number(f.anchoCm),
+        altoCm: f.altoCm === null ? null : Number(f.altoCm),
+        embalajeSiguiente: f.embalajeSiguiente,
+        embalajeFijoId: f.embalajeFijoId ? (insumoDeFila.get(f.embalajeFijoId) ?? null) : null,
+      },
+    ]),
+  );
+  const piezas = [...piezasDeLineas(d.lineas, entregas, d.combos), ...d.piezasSinProducto];
+  return calcularEmbalaje(piezas, envoltorios);
+}
+
+/** Lo neto ya descontado como embalaje de una venta, pedido o pedido de impresión, por insumo. */
+export async function embalajeDescontado(
+  tx: Tx,
+  d: { workspaceId: string; sourceModule: FuenteConsumo; sourceRef: string },
+): Promise<Map<string, number>> {
+  const movimientos = await tx.stockMovement.findMany({
+    where: {
+      workspaceId: d.workspaceId,
+      sourceModule: d.sourceModule,
+      sourceRef: d.sourceRef,
+      reason: { in: ["CONSUMO", "DEVOLUCION"] },
+      note: NOTA_EMBALAJE,
+    },
+    select: { productId: true, qty: true, note: true, reason: true },
+  });
+  const neto = new Map<string, number>();
+  for (const m of movimientos) {
+    if (m.note !== NOTA_EMBALAJE || (m.reason !== "CONSUMO" && m.reason !== "DEVOLUCION")) continue;
+    neto.set(m.productId, (neto.get(m.productId) ?? 0) - m.qty);
+  }
+  for (const [k, v] of neto) if (v <= 0) neto.delete(k);
+  return neto;
+}
+
+/**
+ * Deja el embalaje de una fuente como `deseado`: escribe sólo la diferencia (más → `CONSUMO`,
+ * menos → `DEVOLUCION`), con la nota del embalaje. Bloquea los insumos en el orden de siempre.
+ */
+export async function ajustarEmbalaje(
+  tx: Tx,
+  d: {
+    workspaceId: string;
+    sourceModule: FuenteConsumo;
+    sourceRef: string;
+    deseado: readonly EmbalajeElegido[];
+    createdByUserId: number | null;
+  },
+): Promise<void> {
+  const deseado = new Map((await validarElegido(tx, d.workspaceId, d.deseado)).map((e) => [e.insumoId, e.qty]));
+  const actual = await embalajeDescontado(tx, d);
+  const ids = [...new Set([...deseado.keys(), ...actual.keys()])].sort();
+  const cambios = ids.map((id) => ({ id, diferencia: (deseado.get(id) ?? 0) - (actual.get(id) ?? 0) })).filter((c) => c.diferencia !== 0);
+  if (cambios.length === 0) return;
+
+  await lockStockRows(tx, { workspaceId: d.workspaceId, productIds: cambios.map((c) => c.id), variantIds: [] });
+  for (const c of cambios) {
+    await applyStockMovement(tx, {
+      workspaceId: d.workspaceId,
+      productId: c.id,
+      variantId: null,
+      qty: -c.diferencia,
+      reason: c.diferencia > 0 ? "CONSUMO" : "DEVOLUCION",
+      sourceModule: d.sourceModule,
+      sourceRef: d.sourceRef,
+      note: NOTA_EMBALAJE,
+      unitCostArs: null,
+      createdByUserId: d.createdByUserId,
+    });
+  }
+}
+
+/** Para mostrar y cambiar el embalaje ya descontado de un pedido: lo que hay y con qué se puede cambiar. */
+export async function leerEmbalajeDe(
+  workspaceId: string,
+  d: { sourceModule: FuenteConsumo; sourceRef: string },
+  db: Tx,
+): Promise<{ actual: EmbalajeElegido[]; opciones: { insumoId: string; nombre: string }[] }> {
+  const [descontado, opciones] = await Promise.all([embalajeDescontado(db, { workspaceId, ...d }), envoltoriosActivos(db, workspaceId)]);
+  return {
+    actual: [...descontado.entries()].map(([insumoId, qty]) => ({ insumoId, qty })),
+    opciones: opciones.map((o) => ({ insumoId: o.insumoId, nombre: o.nombre })),
+  };
+}
+
+/**
+ * Cambia el embalaje de un pedido con seña (por ejemplo, la segunda entrega de un pedido en partes
+ * suma un sobre). El pedido tiene que ser del negocio y no estar cancelado.
+ */
+export async function cambiarEmbalajeDePedido(
+  db: PrismaClient,
+  d: { workspaceId: string; pedidoId: string; deseado: unknown; userId: number | null },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!Array.isArray(d.deseado)) return { ok: false, error: "La cantidad de embalaje no se entiende." };
+  const pedido = await db.fotofficePedido.findFirst({ where: { id: d.pedidoId, workspaceId: d.workspaceId }, select: { status: true } });
+  if (!pedido) return { ok: false, error: "No encontramos ese pedido." };
+  if (pedido.status === "CANCELADO") return { ok: false, error: "El pedido está cancelado." };
+  try {
+    await db.$transaction((tx) =>
+      ajustarEmbalaje(tx, {
+        workspaceId: d.workspaceId,
+        sourceModule: "pedidos",
+        sourceRef: d.pedidoId,
+        deseado: d.deseado as EmbalajeElegido[],
+        createdByUserId: d.userId,
+      }),
+    );
+    return { ok: true };
+  } catch (e) {
+    if (e instanceof EmbalajeInvalido) return { ok: false, error: e.message };
+    throw e;
+  }
+}
