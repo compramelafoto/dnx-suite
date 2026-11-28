@@ -8,6 +8,7 @@ import { DsEmptyState } from "@/components/ui/DsEmptyState";
 import { DsDashboardInner, DsPageShell } from "@/components/ui/DsLayout";
 import PhotographerDashboardHeader from "@/components/photographer/PhotographerDashboardHeader";
 import BarraDePasos from "@/components/fotografo/BarraDePasos";
+import VerificarLote from "@/components/fotografo/impresiones/VerificarLote";
 import RevisionDeCorrido, {
   type DisenoEnFila,
   type ResumenRevision,
@@ -162,6 +163,8 @@ export default function FotografoEscuelasPedidosPage() {
   const [mensaje, setMensaje] = useState<{ tono: "ok" | "error"; texto: string } | null>(null);
   const [revision, setRevision] = useState<DisenoEnFila[] | null>(null);
   const [accionFila, setAccionFila] = useState<Record<string, boolean>>({});
+  /** Lote abierto en «Verificar lote» (por nombre). */
+  const [verificando, setVerificando] = useState<string | null>(null);
 
   // El paso puede venir en la dirección (?paso=REVISAR_DISENO), p. ej. desde "Revisiones".
   useEffect(() => {
@@ -1019,6 +1022,14 @@ export default function FotografoEscuelasPedidosPage() {
                   <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       type="button"
+                      className={btnSecundario}
+                      onClick={() => setVerificando(l.nombre)}
+                      title="Pasa uno por uno los archivos que recibe la imprenta: nombre, copias, tamaño y acabado"
+                    >
+                      Verificar lote
+                    </button>
+                    <button
+                      type="button"
                       className={btnPrincipal}
                       disabled={!!ocupado}
                       onClick={() =>
@@ -1361,6 +1372,16 @@ export default function FotografoEscuelasPedidosPage() {
       </DsPageShell>
 
       {revision ? <RevisionDeCorrido disenos={revision} onClose={alCerrarRevision} /> : null}
+      {verificando ? (
+        <VerificarLote
+          titulo={verificando}
+          fuentes={(["pdf", "jpg"] as const).map((formato) => ({
+            etiqueta: formato === "pdf" ? "ZIP de PDF" : "ZIP de JPG",
+            url: `/api/fotografo/escolar/lotes/verificar?${new URLSearchParams({ lote: verificando, formato })}`,
+          }))}
+          onCerrar={() => setVerificando(null)}
+        />
+      ) : null}
     </div>
   );
 }

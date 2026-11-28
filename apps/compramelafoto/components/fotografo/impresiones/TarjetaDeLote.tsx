@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { cn } from "@/lib/utils";
+import VerificarLote from "./VerificarLote";
 import { partesDelLote } from "@/lib/print-batches/partes-del-lote";
 import {
   accionesDelLote,
@@ -52,6 +54,13 @@ export default function TarjetaDeLote({ lote, resaltado, ocupado, onEnviar, onDe
   const base = `/api/fotografo/impresiones/lotes/${lote.id}`;
   const fase = faseDelLote(lote);
   const seguimiento = seguimientoDelLote(lote);
+  const [verificando, setVerificando] = useState(false);
+  const envio = [
+    ...(lote.laboratorio ? [{ etiqueta: "Laboratorio", valor: lote.laboratorio }] : []),
+    { etiqueta: "Entrega", valor: lote.entregaPreferida === "ENVIA_LAB" ? "Lo envía el laboratorio" : "Lo retirás vos" },
+    ...(lote.fechaPrometida ? [{ etiqueta: "Prometido", valor: fechaDelPanel(lote.fechaPrometida) }] : []),
+    ...(lote.mensajeAlLab?.trim() ? [{ etiqueta: "Mensaje", valor: lote.mensajeAlLab.trim() }] : []),
+  ];
 
   return (
     <article
@@ -121,6 +130,16 @@ export default function TarjetaDeLote({ lote, resaltado, ocupado, onEnviar, onDe
       </ul>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {lote.porFuera || partes === 0 ? null : (
+          <button
+            type="button"
+            onClick={() => setVerificando(true)}
+            className={cn(SECUNDARIO, "border-[#c27b3d] text-[#9a5a26] hover:bg-[#c27b3d]/10")}
+            title="Pasa uno por uno los archivos que recibe el laboratorio: nombre, copias, tamaño y acabado"
+          >
+            Verificar lote
+          </button>
+        )}
         {lote.porFuera ? null : <a href={`${base}/etiqueta`} target="_blank" rel="noopener noreferrer" className={ENLACE}>Etiquetas</a>}
         <a href={`${base}/sobres`} target="_blank" rel="noopener noreferrer" className={ENLACE}>Sobres</a>
         {lote.porFuera ? null : <a href={`${base}/remito`} target="_blank" rel="noopener noreferrer" className={ENLACE}>Remito</a>}
@@ -154,6 +173,15 @@ export default function TarjetaDeLote({ lote, resaltado, ocupado, onEnviar, onDe
             </button>
           ) : null}
         </div>
+      ) : null}
+
+      {verificando ? (
+        <VerificarLote
+          titulo={lote.nombre}
+          fuentes={[{ etiqueta: "ZIP", url: `${base}/verificar` }]}
+          envio={envio}
+          onCerrar={() => setVerificando(false)}
+        />
       ) : null}
     </article>
   );
