@@ -33,6 +33,7 @@
     "vitest.social.config.ts",
     "vitest.bot.config.ts",
     "vitest.payments.config.ts",
-    "vitest.raffles.config.ts"
+    "vitest.raffles.config.ts",
+    "vitest.growing-pack.config.ts"
   ]
 }
