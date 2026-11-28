@@ -18,6 +18,7 @@ export type EmailTemplateKey =
   | "ALBUM_INTEREST_DIGEST"
   | "ADMIN_MANUAL"
   | "SUPPORT_REPLY"
+  | "ADMIN_INBOX_REPLY"
   | "BOT_CODIGO"
   | "SCHOOL_LEAD_DNX"
   | "SCHOOL_LEAD_PHOTOGRAPHER";
@@ -27,6 +28,12 @@ export type SendEmailParams = {
   subject: string;
   html: string;
   replyTo?: string;
+  /** Nombre visible del remitente (por defecto "Compramelafoto"). */
+  fromName?: string;
+  /** Dirección del remitente; por defecto `EMAIL_FROM`. Tiene que ser de un dominio verificado. */
+  fromEmail?: string;
+  /** Cabeceras extra, p. ej. `In-Reply-To` y `References` para responder en el mismo hilo. */
+  headers?: Record<string, string>;
   templateKey?: EmailTemplateKey;
   meta?: {
     userId?: number;

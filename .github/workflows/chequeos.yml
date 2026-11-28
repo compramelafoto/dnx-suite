@@ -206,6 +206,9 @@ jobs:
       - name: Pruebas de los frenos de gasto en Amazon
         run: pnpm --filter compramelafoto test:aws-costos
 
+      - name: Pruebas de la bandeja de correos recibidos
+        run: pnpm --filter compramelafoto test:correos-recibidos
+
       - name: Pruebas del embudo de pedidos escolares
         run: pnpm --filter compramelafoto test:embudo-escolar
 

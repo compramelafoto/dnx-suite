@@ -5,6 +5,7 @@ import Tabs from "@/components/ui/Tabs";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import Textarea from "@/components/ui/Textarea";
+import InboxTab from "@/components/admin/emails/InboxTab";
 
 type SentLog = {
   id: number;
@@ -47,7 +48,7 @@ type OrderOption = {
   label: string;
 };
 
-const tabs = [
+const baseTabs = [
   { id: "sent", label: "Enviados" },
   { id: "compose", label: "Redactar" },
   { id: "contacts", label: "Contactos" },
@@ -56,7 +57,12 @@ const tabs = [
 ];
 
 export default function AdminEmailsPage() {
-  const [activeTab, setActiveTab] = useState("sent");
+  const [activeTab, setActiveTab] = useState("inbox");
+  const [inboxUnread, setInboxUnread] = useState(0);
+  const tabs = [
+    { id: "inbox", label: inboxUnread > 0 ? `Recibidos (${inboxUnread})` : "Recibidos" },
+    ...baseTabs,
+  ];
 
   const [sentLogs, setSentLogs] = useState<SentLog[]>([]);
   const [sentPage, setSentPage] = useState(1);
@@ -268,6 +274,8 @@ export default function AdminEmailsPage() {
     <div className="w-full max-w-none">
       <h1 className="text-2xl font-semibold text-[#1a1a1a] mb-6">Emails</h1>
       <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab}>
+        {activeTab === "inbox" && <InboxTab onSinLeer={setInboxUnread} />}
+
         {activeTab === "sent" && (
           <div className="bg-white border border-[#e5e7eb] rounded-xl p-4">
             {sentLoading ? (
