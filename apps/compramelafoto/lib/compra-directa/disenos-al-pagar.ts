@@ -109,7 +109,7 @@ export async function ensureProductDesignsForPaidOrder(orderId: number): Promise
   const albumId = order.albumId;
   const creados = await prisma.$transaction(
     async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CANDADO}, ${orderId})`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CANDADO}::int, ${orderId}::int)`;
       const yaHay = await tx.designProject.count({ where: { albumOrderId: orderId, albumPackDraftId: null } });
       if (yaHay > 0) return [] as number[];
       const ids: number[] = [];

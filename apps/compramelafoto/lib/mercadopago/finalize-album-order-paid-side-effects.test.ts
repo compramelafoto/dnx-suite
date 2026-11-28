@@ -70,6 +70,7 @@ vi.mock("@/lib/mercadopago/resolve-album-order-mp-credentials", () => ({
   resolveAlbumOrderMpAccessTokenByOrderId: vi.fn(async () => "token-fotografo"),
 }));
 vi.mock("@/lib/design-v2/album-pack-designs", () => ({ ensureAlbumPackDesignsForPaidOrder: vi.fn() }));
+vi.mock("@/lib/compra-directa/disenos-al-pagar", () => ({ ensureProductDesignsForPaidOrder: vi.fn() }));
 
 import { runAlbumOrderPaidSideEffects } from "./finalize-album-order-mp-approved";
 

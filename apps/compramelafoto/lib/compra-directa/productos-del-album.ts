@@ -107,17 +107,21 @@ async function precioDeUnaUnidad(
   albumId: number,
   item: { fileKey: string; tipo: "digital" | "impresa"; size: string; finish: string | null; productId: number | null; productName: string | null }
 ): Promise<number | null> {
-  try {
-    const totals = await computeCheckoutTotals({
-      flow: "ALBUM_ORDER",
-      albumId,
-      items: [{ ...item, quantity: 1, includedWithPrint: false, uploaderId: null, uploaderDigitalPriceCents: null }],
-    });
-    const v = Math.round(Number(totals.displayTotalCents));
-    return Number.isFinite(v) && v > 0 ? v : null;
-  } catch {
-    return null;
+  // Un reintento: un corte de conexión con la base no tiene que dejar el precio en blanco.
+  for (let intento = 0; intento < 2; intento++) {
+    try {
+      const totals = await computeCheckoutTotals({
+        flow: "ALBUM_ORDER",
+        albumId,
+        items: [{ ...item, quantity: 1, includedWithPrint: false, uploaderId: null, uploaderDigitalPriceCents: null }],
+      });
+      const v = Math.round(Number(totals.displayTotalCents));
+      return Number.isFinite(v) && v > 0 ? v : null;
+    } catch (err) {
+      if (intento === 1) console.error("[compra-directa] no se pudo cotizar", { albumId, item: item.productId ?? "digital", err });
+    }
   }
+  return null;
 }
 
 /**
