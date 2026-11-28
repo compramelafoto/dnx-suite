@@ -1,3 +1,4 @@
+import { linkGrowingPackFaceToOrder } from "@/lib/album-packs/growing-pack/link-growing-pack-face-to-order";
 import {
   AlbumPackOrderDraftStatus,
   CheckoutPaymentSource,
@@ -616,6 +617,11 @@ export async function convertAlbumPackDraftsToOrder(params: {
           checkoutPaymentSource: true,
           createdAt: true,
         },
+      });
+
+      await linkGrowingPackFaceToOrder(tx, {
+        orderId: createdOrder.id,
+        selectionSessionIds: drafts.map((draft) => draft.selectionSessionId),
       });
 
       if (allPrintMirrorItems.length > 0) {
