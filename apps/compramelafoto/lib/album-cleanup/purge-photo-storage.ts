@@ -270,3 +270,40 @@ export async function purgeAlbumHiddenSelfies(albumId: number): Promise<number> 
   }
   return externalOps;
 }
+
+/**
+ * Selfies de compradores de packs «Todas mis fotos» que se van sumando: al limpiar el álbum
+ * se borran de Rekognition y de R2 (es lo que le prometimos al comprador). Si algo falla,
+ * la fila queda sin marcar y se reintenta en la próxima corrida.
+ * Devuelve la cantidad de operaciones externas hechas.
+ */
+export async function purgeAlbumGrowingPackFaces(albumId: number): Promise<number> {
+  let externalOps = 0;
+  const faces = await prisma.growingPackFace.findMany({
+    where: { albumId, biometricDeletedAt: null },
+    select: { id: true, faceId: true, selfieKey: true },
+  });
+  for (const face of faces) {
+    try {
+      if (face.faceId) {
+        externalOps += 1;
+        await deleteFace(face.faceId);
+      }
+      if (face.selfieKey) {
+        externalOps += 1;
+        await deleteFromR2(face.selfieKey);
+      }
+    } catch (err: unknown) {
+      console.warn(
+        "[album-cleanup] growing pack selfie delete failed",
+        JSON.stringify({ albumId, growingPackFaceId: face.id, error: err instanceof Error ? err.message : String(err) })
+      );
+      continue;
+    }
+    await prisma.growingPackFace.update({
+      where: { id: face.id },
+      data: { faceId: null, selfieKey: null, biometricDeletedAt: new Date(), endedAt: new Date() },
+    });
+  }
+  return externalOps;
+}

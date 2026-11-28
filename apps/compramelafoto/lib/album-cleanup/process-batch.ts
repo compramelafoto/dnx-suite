@@ -15,6 +15,7 @@ import {
 import {
   deletePhotoRowIfAllowed,
   purgeAlbumHiddenSelfies,
+  purgeAlbumGrowingPackFaces,
   purgePhotoStorageAndMetadata,
 } from "@/lib/album-cleanup/purge-photo-storage";
 import {
@@ -468,6 +469,7 @@ export async function processAlbumCleanupBatch(
         albumLog.externalOps += await purgeAlbumRawUploads(album.id);
         albumLog.externalOps += await purgeAlbumCovers(album.id);
         albumLog.externalOps += await purgeAlbumHiddenSelfies(album.id);
+        albumLog.externalOps += await purgeAlbumGrowingPackFaces(album.id);
         const finalized = await finalizeAlbumCleanup(album.id, config);
         albumLog.status = finalized.status;
         log.processedAlbums.push({
