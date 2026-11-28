@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { descartarGrabacionAction, editarTituloAction, guardarAjustesAction, reintentarConversionAction, terminarConLoGrabadoAction, urlDeVideoAction, urlsDeLecturaAction } from "@/app/(shell)/digitalizacion/actions";
 import { elegirArchivoDeDestino } from "@/lib/digitalizacion/cliente/apis-navegador";
 import { descargarCrudo } from "@/lib/digitalizacion/cliente/descargar-crudo";
+import { guardarVideoEnDisco, nombreDelVideoFinal, textoAvance } from "@/lib/digitalizacion/cliente/guardar-en-disco";
 import type { EstadoVisible } from "@/lib/digitalizacion/validar";
 import { ReproductorHls } from "./ver-video";
 
@@ -28,6 +29,7 @@ export function AccionesGrabacion({ id, estado, nombreArchivo, titulo, puedeGrab
   const [editando, setEditando] = useState(false);
   const [valorTitulo, setValorTitulo] = useState(titulo ?? "");
   const [mirando, setMirando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
 
   const guardarTitulo = () =>
     empezar(async () => {
@@ -92,12 +94,49 @@ export function AccionesGrabacion({ id, estado, nombreArchivo, titulo, puedeGrab
     }
   };
 
+  /**
+   * «Guardar en pendrive o disco»: el operador elige dónde (el pendrive del cliente, un disco) y el
+   * MP4 final se copia ahí. No reemplaza al envío por correo: la copia en la nube sigue igual.
+   */
+  const guardarEnDisco = async () => {
+    // El selector va primero: el navegador sólo lo abre si es lo primero que pasa dentro del clic.
+    let destino: FileSystemWritableFileStream;
+    try {
+      destino = await elegirArchivoDeDestino(nombreDelVideoFinal(nombreArchivo));
+    } catch (e) {
+      if ((e as DOMException)?.name !== "AbortError") setAviso(e instanceof Error ? e.message : "No se pudo elegir dónde guardar.");
+      return;
+    }
+    setGuardando(true);
+    setAviso("Guardando…");
+    try {
+      const r = await urlDeVideoAction(id, "descargar");
+      if (!r.ok) throw new Error(r.error);
+      await guardarVideoEnDisco(destino, r.url, (p, b) => setAviso(textoAvance(p, b)));
+      setAviso("Listo: el video quedó guardado. Si es un pendrive, expulsalo antes de sacarlo.");
+    } catch (e) {
+      try { await destino.abort(); } catch { /* ya estaba abortado */ }
+      setAviso(e instanceof Error ? `No se pudo guardar: ${e.message}` : "No se pudo guardar el video.");
+    } finally {
+      setGuardando(false);
+    }
+  };
+
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm">
       {conversionEstado === "LISTA" ? (
         <>
           <button type="button" className="fo-btn fo-btn-primary text-xs" onClick={() => void verVideo()}>{mirando ? "Cerrar video" : "Ver video"}</button>
           <button type="button" className="fo-btn fo-btn-secondary text-xs" onClick={() => void descargarVideo()}>Descargar video</button>
+          <button
+            type="button"
+            className="fo-btn fo-btn-secondary text-xs"
+            disabled={guardando}
+            title="Elegí el pendrive o la carpeta y el video final se copia ahí"
+            onClick={() => void guardarEnDisco()}
+          >
+            {guardando ? "Guardando…" : "Guardar en pendrive o disco"}
+          </button>
         </>
       ) : null}
       {puedeGrabar && conversionEstado === "ERROR" ? (
