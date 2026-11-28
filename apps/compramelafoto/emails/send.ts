@@ -28,19 +28,25 @@ export async function sendEmail(params: SendEmailParams) {
     return { success: true, resendId: undefined };
   }
   const resendKey = getEnvOrThrow("RESEND_API_KEY");
-  const fromEmail = getEnvOrThrow("EMAIL_FROM");
+  const fromEmail = params.fromEmail?.trim() || getEnvOrThrow("EMAIL_FROM");
+  const fromName = params.fromName?.trim() || "Compramelafoto";
   const resend = new Resend(resendKey);
 
   let resendId: string | undefined;
   try {
     const response = await resend.emails.send({
-      from: `Compramelafoto <${fromEmail}>`,
+      from: `${fromName} <${fromEmail}>`,
       to,
       subject,
       html,
       replyTo: resolveReplyTo(replyTo),
+      ...(params.headers && Object.keys(params.headers).length > 0 ? { headers: params.headers } : {}),
     });
 
+    // El SDK no lanza: devuelve `{ error }`. Sin esto un rechazo de Resend quedaba como enviado.
+    if (response?.error) {
+      throw new Error(response.error.message || "Resend rechazó el envío");
+    }
     resendId = response?.data?.id;
 
     await prisma.sentEmailLog.create({

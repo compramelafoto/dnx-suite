@@ -5853,6 +5853,54 @@ model SentEmailLog {
   @@index([createdAt])
 }
 
+/// Correos que llegan a las casillas de @compramelafoto.com (Resend Inbound), para leerlos y
+/// contestarlos desde Admin → Emails → Recibidos. `resendId` único: un aviso repetido no duplica.
+model ClfInboundEmail {
+  id          Int                    @id @default(autoincrement())
+  resendId    String                 @unique
+  messageId   String?
+  inReplyTo   String?
+  references  String?
+  fromEmail   String
+  fromName    String?
+  to          String
+  cc          String?
+  subject     String
+  text        String
+  html        String?
+  attachments Json?
+  /// NORMAL | AUTOMATICA | REBOTE | SPAM
+  kind        String                 @default("NORMAL")
+  receivedAt  DateTime
+  createdAt   DateTime               @default(now())
+  readAt      DateTime?
+  archivedAt  DateTime?
+  repliedAt   DateTime?
+  replies     ClfInboundEmailReply[]
+
+  @@index([receivedAt])
+  @@index([fromEmail])
+  @@index([archivedAt, receivedAt])
+}
+
+/// Respuestas mandadas desde el Admin a un correo recibido.
+model ClfInboundEmailReply {
+  id             Int             @id @default(autoincrement())
+  inboundEmailId Int
+  inboundEmail   ClfInboundEmail @relation(fields: [inboundEmailId], references: [id], onDelete: Cascade)
+  to             String
+  subject        String
+  body           String
+  resendId       String?
+  /// SENT | FAILED
+  status         String
+  error          String?
+  sentByUserId   Int?
+  createdAt      DateTime        @default(now())
+
+  @@index([inboundEmailId])
+}
+
 model AdminSystemMessage {
   id        Int      @id @default(autoincrement())
   type      String
