@@ -3,6 +3,8 @@ import { OrderOrigin, OrderStatus, Role, prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { recuperarLinksDePack } from "@/lib/preventa-canjeable/recuperar-pack";
 import { isPlaceholderEmail } from "@/lib/canje-externo/external-preventa";
+import { familiaPuedeElegir } from "@/lib/schools/quien-elige-las-fotos";
+import { cargarReglas } from "@/lib/schools/quien-elige-las-fotos-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,12 +42,25 @@ export async function POST(req: NextRequest) {
       redemptionOrderId: null,
       album: { userId: user.id },
     },
-    select: { id: true, buyerEmail: true },
+    select: { id: true, buyerEmail: true, albumId: true },
   });
+  // Preventas en las que elige el fotógrafo: la familia no tiene nada que elegir con el link.
+  const reglas = await cargarReglas(pedidos.flatMap((p) => (p.albumId ? [p.albumId] : [])));
+  const eligeElFotografo = (albumId: number | null) => {
+    const r = albumId ? reglas.get(albumId) : undefined;
+    return r ? !familiaPuedeElegir(r) : false;
+  };
+  const paraFamilias = pedidos.filter((p) => !eligeElFotografo(p.albumId));
+  if (pedidos.length > 0 && paraFamilias.length === 0) {
+    return NextResponse.json(
+      { error: "En esta preventa elegís vos las fotos: no hace falta mandarles el link a las familias." },
+      { status: 409 }
+    );
+  }
 
   let enviados = 0;
   let sinEmail = 0;
-  for (const p of pedidos) {
+  for (const p of paraFamilias) {
     const email = p.buyerEmail?.trim() ?? "";
     // Los packs cobrados por fuera tienen un email de relleno hasta que la familia canjea: a
     // esos el link les llega por WhatsApp desde el panel Canjes, no por correo.
@@ -65,7 +80,7 @@ export async function POST(req: NextRequest) {
     ok: true,
     enviados,
     sinEmail,
-    // Pedidos que no se tocaron: DEMO, ajenos, ya canjeados o de la tienda escolar.
-    salteados: ids.length - pedidos.length,
+    // Pedidos que no se tocaron: DEMO, ajenos, ya canjeados, de la tienda escolar o que elige el fotógrafo.
+    salteados: ids.length - paraFamilias.length,
   });
 }

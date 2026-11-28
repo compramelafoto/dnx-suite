@@ -14,6 +14,7 @@ import RevisionDeCorrido, {
 } from "@/components/fotografo/escolar/RevisionDeCorrido";
 import { MAX_LIBRITOS_POR_ZIP_JPG as MAX_ZIP_JPG } from "@/lib/design-v2/produccion-reglas";
 import { ensurePhotographerSession } from "@/lib/photographer-session-client";
+import { COLA_ELEGIR_KEY, armarCola } from "@/lib/schools/cola-de-eleccion";
 import {
   INFO_FUERA,
   INFO_PASOS,
@@ -22,6 +23,8 @@ import {
   disenosParaRevisar,
   esPasoEmbudo,
   packsPendientesPorAlbum,
+  separarPorCanjear,
+  type ResponsablePorCanjear,
   textoCurso,
   type PasoEmbudo,
   type UbicacionEnEmbudo,
@@ -118,6 +121,10 @@ type Order = {
   album: { id: number; title: string; publicSlug: string; school: { id: number; name: string } | null } | null;
   schoolCourse: { id: number; name: string; division: string | null } | null;
   items?: Array<{ id: number; status: string; designProjectId: number | null; designProjectStatus: string | null }>;
+  /** «Por canjear»: quién tiene que elegir las fotos según la preventa del álbum. */
+  eligeQuien?: ResponsablePorCanjear | null;
+  /** Packs (`Order` PREVENTA_PACK) que se pueden elegir desde acá. */
+  packOrderIds?: number[];
 };
 
 type Vista = PasoEmbudo | "FUERA";
@@ -148,6 +155,8 @@ export default function FotografoEscuelasPedidosPage() {
   const [filterSchool, setFilterSchool] = useState<string>("");
   const [filterCurso, setFilterCurso] = useState<string>("");
   const [vista, setVista] = useState<Vista | null>(null);
+  /** «Por canjear»: los que esperan a la familia o los que te tocan a vos (null = automático). */
+  const [lado, setLado] = useState<ResponsablePorCanjear | null>(null);
   const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [mensaje, setMensaje] = useState<{ tono: "ok" | "error"; texto: string } | null>(null);
@@ -227,15 +236,29 @@ export default function FotografoEscuelasPedidosPage() {
       ? "REVISAR_DISENO"
       : (PASOS_EMBUDO.find((p) => p !== "ENTREGADO" && conteo[p] > 0) ?? "POR_CANJEAR"));
 
+  const porCanjear = useMemo(() => separarPorCanjear(delCurso), [delCurso]);
+  // Si hay pedidos que te tocan a vos, se abre ahí: es lo que depende de vos.
+  const ladoEfectivo: ResponsablePorCanjear = lado ?? (porCanjear.fotografo.length > 0 ? "FOTOGRAFO" : "FAMILIA");
+
   const filas = useMemo(
     () =>
-      delCurso.filter((o) =>
-        vistaEfectiva === "FUERA" ? o.paso === "PAGO_PENDIENTE" || o.paso === "CANCELADO" : o.paso === vistaEfectiva,
-      ),
-    [delCurso, vistaEfectiva],
+      vistaEfectiva === "POR_CANJEAR"
+        ? ladoEfectivo === "FOTOGRAFO"
+          ? porCanjear.fotografo
+          : porCanjear.familia
+        : delCurso.filter((o) =>
+            vistaEfectiva === "FUERA" ? o.paso === "PAGO_PENDIENTE" || o.paso === "CANCELADO" : o.paso === vistaEfectiva,
+          ),
+    [delCurso, vistaEfectiva, ladoEfectivo, porCanjear],
   );
   const elegidas = filas.filter((o) => seleccion.has(clave(o)));
   const todasElegidas = filas.length > 0 && elegidas.length === filas.length;
+
+  function elegirLado(l: ResponsablePorCanjear) {
+    setLado(l);
+    setSeleccion(new Set());
+    setMensaje(null);
+  }
 
   function elegirVista(v: Vista) {
     setVista(v);
@@ -260,6 +283,22 @@ export default function FotografoEscuelasPedidosPage() {
   }
 
   // ------------------------------------------------------------------ acciones del paso
+
+  /** Por canjear · te toca elegir: abre el canje de cada pack uno atrás del otro. */
+  function elegirDeCorrido() {
+    const cola = armarCola((elegidas.length ? elegidas : filas).flatMap((o) => o.packOrderIds ?? []));
+    if (cola.length === 0) {
+      setMensaje({ tono: "ok", texto: "No hay packs para elegir en esta lista." });
+      return;
+    }
+    try {
+      sessionStorage.setItem(COLA_ELEGIR_KEY, JSON.stringify(cola));
+    } catch {
+      setMensaje({ tono: "error", texto: "Tu navegador no deja guardar la lista. Probá en otra ventana." });
+      return;
+    }
+    router.push("/fotografo/escuelas/elegir");
+  }
 
   /** Por canjear · principal: el aviso "ya están las fotos" de cada álbum (el mismo del álbum). */
   async function avisarFamilias() {
@@ -606,7 +645,11 @@ export default function FotografoEscuelasPedidosPage() {
       case "POR_CANJEAR":
         return (
           <span className="text-xs text-gray-500">
-            {o.kind === "PACK_EXTERNO" ? "Todavía no eligió sus fotos" : "La familia todavía no terminó de elegir"}
+            {o.eligeQuien === "FOTOGRAFO"
+              ? "Te toca elegir"
+              : o.kind === "PACK_EXTERNO"
+                ? "Todavía no eligió sus fotos"
+                : "La familia todavía no terminó de elegir"}
           </span>
         );
       case "REVISAR_DISENO":
@@ -789,6 +832,45 @@ export default function FotografoEscuelasPedidosPage() {
 
     switch (vistaEfectiva) {
       case "POR_CANJEAR": {
+        const pestanas = (
+          <div className="flex flex-wrap gap-2" role="tablist" aria-label="Quién elige">
+            {(
+              [
+                ["FOTOGRAFO", "Te toca elegir", porCanjear.fotografo.length],
+                ["FAMILIA", "Esperando a la familia", porCanjear.familia.length],
+              ] as const
+            ).map(([l, texto, n]) => (
+              <button
+                key={l}
+                type="button"
+                role="tab"
+                aria-selected={ladoEfectivo === l}
+                onClick={() => elegirLado(l)}
+                className={`rounded-full px-3 py-1 text-sm font-semibold ring-1 ${
+                  ladoEfectivo === l ? "bg-[#c27b3d] text-white ring-[#c27b3d]" : "bg-white text-gray-700 ring-gray-200 hover:bg-gray-50"
+                }`}
+              >
+                {texto} ({n})
+              </button>
+            ))}
+          </div>
+        );
+        if (ladoEfectivo === "FOTOGRAFO") {
+          const paraElegir = armarCola((elegidas.length ? elegidas : filas).flatMap((o) => o.packOrderIds ?? [])).length;
+          return (
+            <>
+              {pestanas}
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className={btnPrincipal} disabled={!!ocupado || paraElegir === 0} onClick={elegirDeCorrido}>
+                  Elegir de corrido{paraElegir ? ` (${paraElegir})` : ""}
+                </button>
+              </div>
+              {nota(
+                "Estas familias pagaron y la preventa dice que elegís vos (o se les venció el plazo). Abrí el canje de cada una y elegí sus fotos: el pedido pasa a «Revisar diseño» como siempre.",
+              )}
+            </>
+          );
+        }
         const albumes = new Set(
           (elegidas.length ? elegidas : filas)
             .filter((o) => o.kind === "PACK_EXTERNO" && !o.isDemo && o.album)
@@ -797,6 +879,7 @@ export default function FotografoEscuelasPedidosPage() {
         const reenviables = elegidas.filter((o) => o.kind === "PACK_EXTERNO" && !o.isDemo).length;
         return (
           <>
+            {pestanas}
             <div className="flex flex-wrap gap-2">
               <button type="button" className={btnPrincipal} disabled={!!ocupado || albumes === 0} onClick={() => void avisarFamilias()}>
                 {ocupado === "avisar" ? "Mandando…" : "Avisar a las familias"}

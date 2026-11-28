@@ -10,6 +10,7 @@
  * releer) y no revoca los anteriores: el link del correo de compra sigue sirviendo.
  */
 
+import { familiaPuedeElegir, leerRegla } from "@/lib/schools/quien-elige-las-fotos";
 import { OrderOrigin, OrderStatus, Prisma, prisma } from "@/lib/prisma";
 import { queueEmail } from "@/lib/email-queue";
 import { createPackAccessTokenForOrder } from "./pack-access-tokens";
@@ -146,6 +147,14 @@ export async function notifyPreventaPhotosReady(params: {
     select: { title: true, user: { select: { name: true } } },
   });
   if (!album) return { enviados: 0, sinEmail: 0 };
+  // Preventa en la que elige el fotógrafo: las familias no tienen que entrar a elegir.
+  const regla = leerRegla(
+    await prisma.schoolPhotoChooserSetting.findUnique({
+      where: { albumId: params.albumId },
+      select: { mode: true, familyDays: true },
+    })
+  );
+  if (!familiaPuedeElegir(regla)) return { enviados: 0, sinEmail: 0 };
 
   const orders = await prisma.order.findMany({
     where: pendingWhere(params.albumId, params.orderIds),

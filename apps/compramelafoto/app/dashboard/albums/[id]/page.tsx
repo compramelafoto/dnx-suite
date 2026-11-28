@@ -23,6 +23,7 @@ import PhotographerDashboardHeader from "@/components/photographer/PhotographerD
 import PreventaPackDashboardSection from "@/components/dashboard/preventa-packs/PreventaPackDashboardSection";
 import AlbumUpsellConfigCard from "@/components/dashboard/preventa-packs/AlbumUpsellConfigCard";
 import PreventaAvisoFamiliasCard from "@/components/dashboard/preventa-packs/PreventaAvisoFamiliasCard";
+import QuienEligeFotosCard from "@/components/dashboard/preventa-packs/QuienEligeFotosCard";
 import AvisoPorCursoCard, {
   marcarCursosSubidos,
   mensajeDelAviso,
@@ -2441,6 +2442,8 @@ export default function DashboardAlbumDetailPage() {
                 ) : (
                   <PreventaAvisoFamiliasCard albumId={album.id} hasPhotos={albumPhotoStats.total > 0} />
                 )}
+
+                <QuienEligeFotosCard albumId={album.id} />
 
                 <ProbarComoClienteButton albumId={album.id} />
 

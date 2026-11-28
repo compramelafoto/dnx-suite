@@ -4705,6 +4705,41 @@ model SchoolCopiesPrintJob {
   @@index([photographerUserId, printBatchName])
 }
 
+/// Preventa escolar (CLF): quién elige las fotos del pack. Una fila por álbum; sin fila = FAMILY.
+model SchoolPhotoChooserSetting {
+  id              Int      @id @default(autoincrement())
+  albumId         Int      @unique
+  /// FAMILY | PHOTOGRAPHER | FAMILY_THEN_PHOTOGRAPHER
+  mode            String   @default("FAMILY")
+  /// Sólo FAMILY_THEN_PHOTOGRAPHER: días que tiene la familia antes de que pase al fotógrafo.
+  familyDays      Int?
+  updatedByUserId Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+/// Canjes de preventa que hizo el fotógrafo por la familia. `preventaOrderId` = pack (Order PREVENTA_PACK).
+model SchoolPhotoChosenByPhotographer {
+  id                 Int      @id @default(autoincrement())
+  preventaOrderId    Int      @unique
+  redemptionOrderId  Int      @unique
+  photographerUserId Int
+  createdAt          DateTime @default(now())
+}
+
+/// Foto grupal que eligió el fotógrafo para un curso: se propone en los pedidos siguientes del curso.
+model SchoolCourseGroupPhoto {
+  id             Int      @id @default(autoincrement())
+  albumId        Int
+  /// `claveDeCurso()` de lib/schools/grupal-del-curso.ts.
+  courseKey      String
+  photoId        Int
+  chosenByUserId Int
+  updatedAt      DateTime @updatedAt
+
+  @@unique([albumId, courseKey])
+}
+
 model DesignProject {
   id                  Int                 @id @default(autoincrement())
   /// Preventa escolar: el ítem canjeado. Nulo en los diseños de packs de galería.

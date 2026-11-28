@@ -13,6 +13,7 @@ import {
   pasoDeItemTienda,
   pasoMasAtrasado,
   packsPendientesPorAlbum,
+  separarPorCanjear,
   textoCurso,
   ubicarPedido,
 } from "./embudo-pedidos-escolares";
@@ -261,5 +262,35 @@ describe("packsPendientesPorAlbum (aviso a un curso)", () => {
   });
   it("lista vacía → nada que avisar", () => {
     assert.equal(packsPendientesPorAlbum([]).size, 0);
+  });
+});
+
+describe("separarPorCanjear (quién elige las fotos)", () => {
+  const fila = (id: number, paso: string, eligeQuien?: "FAMILIA" | "FOTOGRAFO" | null) => ({ id, paso, eligeQuien });
+
+  it("reparte los pedidos por canjear entre la familia y el fotógrafo", () => {
+    const r = separarPorCanjear([fila(1, "POR_CANJEAR", "FAMILIA"), fila(2, "POR_CANJEAR", "FOTOGRAFO")]);
+    assert.deepEqual(r.familia.map((f) => f.id), [1]);
+    assert.deepEqual(r.fotografo.map((f) => f.id), [2]);
+  });
+
+  it("ignora los que ya no están por canjear", () => {
+    const r = separarPorCanjear([fila(1, "REVISAR_DISENO", "FOTOGRAFO"), fila(2, "ENTREGADO", null)]);
+    assert.equal(r.familia.length + r.fotografo.length, 0);
+  });
+
+  it("sin dato de quién elige, le toca a la familia", () => {
+    const r = separarPorCanjear([fila(1, "POR_CANJEAR"), fila(2, "POR_CANJEAR", null)]);
+    assert.deepEqual(r.familia.map((f) => f.id), [1, 2]);
+  });
+});
+
+describe("packsPendientesPorAlbum no avisa a quien no elige", () => {
+  it("deja afuera los packs que elige el fotógrafo", () => {
+    const filas = [
+      { id: 1, kind: "PACK_EXTERNO", isDemo: false, redemptionOrderId: null, album: { id: 7 }, eligeQuien: "FOTOGRAFO" as const },
+      { id: 2, kind: "PACK_EXTERNO", isDemo: false, redemptionOrderId: null, album: { id: 7 }, eligeQuien: "FAMILIA" as const },
+    ];
+    assert.deepEqual(packsPendientesPorAlbum(filas).get(7), [2]);
   });
 });

@@ -16,6 +16,22 @@ import {
 import { getAlbumOrderFulfillmentFromItems } from "@/lib/order-fulfillment";
 import { formatBuyerContactForPhotographer } from "@/lib/orders/resolve-album-order-buyer-contact";
 import { buildPreventaPackAccessEmailContent } from "@/lib/preventa-canjeable/pack-access-email-content";
+import { leerRegla } from "@/lib/schools/quien-elige-las-fotos";
+
+/** ¿La preventa del álbum dice que elige el fotógrafo? (sin fila o con error: no). */
+async function eligeElFotografoEn(albumId: number | null): Promise<boolean> {
+  if (!albumId) return false;
+  try {
+    const fila = await prisma.schoolPhotoChooserSetting.findUnique({
+      where: { albumId },
+      select: { mode: true, familyDays: true },
+    });
+    return leerRegla(fila).mode === "PHOTOGRAPHER";
+  } catch (err) {
+    console.error("preventa-pack-access-email: no se pudo leer quién elige", { albumId, err });
+    return false;
+  }
+}
 import {
   parsePreventaPackSnapshotV1,
   type PreventaPackSnapshotV1,
@@ -221,7 +237,7 @@ export async function queuePreventaPackAccessEmail(
       mpPaymentId: true,
       preCompraPaymentRef: true,
       preventaPackSnapshotJson: true,
-      album: { select: { title: true } },
+      album: { select: { id: true, title: true } },
     },
   });
 
@@ -266,6 +282,7 @@ export async function queuePreventaPackAccessEmail(
     recoverUrl: `${APP_URL}/cliente/recuperar-pack`,
     snapshot,
     packQuantity,
+    eligeElFotografo: await eligeElFotografoEn(order.album?.id ?? null),
   });
 
   await queueEmail({

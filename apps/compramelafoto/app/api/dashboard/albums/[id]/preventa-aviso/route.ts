@@ -8,6 +8,11 @@ import {
   parseAvisoOrderIds,
 } from "@/lib/preventa-canjeable/notify-preventa-photos-ready";
 import { cursosDeLosPacks, marcarCursosSubidos } from "@/lib/preventa-canjeable/cursos-publicados";
+import { familiaPuedeElegir } from "@/lib/schools/quien-elige-las-fotos";
+import { cargarRegla } from "@/lib/schools/quien-elige-las-fotos-server";
+
+const MOTIVO_ELIGE_EL_FOTOGRAFO =
+  "En esta preventa elegís vos las fotos: las familias no reciben el aviso para elegir. Las encontrás en Pedidos escolares → Por canjear → Te toca elegir.";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +44,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const r = await ownedAlbumId(params);
   if ("response" in r) return r.response;
+  if (!familiaPuedeElegir(await cargarRegla(r.albumId))) {
+    return NextResponse.json({ error: MOTIVO_ELIGE_EL_FOTOGRAFO }, { status: 409 });
+  }
   const body = (await req.json().catch(() => null)) as { orderIds?: unknown } | null;
   const orderIds = parseAvisoOrderIds(body?.orderIds);
   const baseUrl = (process.env.APP_URL || req.nextUrl.origin).replace(/\/+$/, "");

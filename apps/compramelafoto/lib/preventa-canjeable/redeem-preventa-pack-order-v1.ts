@@ -39,6 +39,11 @@ export type RevisionDelCanjeInput = {
 
 export { PreventaPackRedeemValidationError };
 
+export type RedeemOptions = {
+  /** Canje en modo fotógrafo: quién eligió por la familia (`SchoolPhotoChosenByPhotographer`). */
+  elegidoPorFotografoUserId?: number;
+};
+
 export type PreventaPackRedeemResultV1 = {
   redemptionOrderId: number;
 };
@@ -301,7 +306,8 @@ export async function executePreventaPackRedeemV1InTransaction(
   preventaOrderId: number,
   selections: RedeemUnitSelectionInput[],
   now: Date = new Date(),
-  revision: RevisionDelCanjeInput | null = null
+  revision: RevisionDelCanjeInput | null = null,
+  opts: RedeemOptions = {}
 ): Promise<PreventaPackRedeemResultV1> {
   const parent = await tx.order.findUnique({
     where: { id: preventaOrderId },
@@ -565,13 +571,25 @@ export async function executePreventaPackRedeemV1InTransaction(
     );
   }
 
+  // El fotógrafo eligió por la familia: queda marcado junto con el canje, nunca uno sin el otro.
+  if (opts.elegidoPorFotografoUserId != null) {
+    await tx.schoolPhotoChosenByPhotographer.create({
+      data: {
+        preventaOrderId: parent.id,
+        redemptionOrderId: child.id,
+        photographerUserId: opts.elegidoPorFotografoUserId,
+      },
+    });
+  }
+
   return { redemptionOrderId: child.id };
 }
 
 export async function executePreventaPackRedeemV1(
   preventaOrderId: number,
   selections: RedeemUnitSelectionInput[],
-  revision: RevisionDelCanjeInput | null = null
+  revision: RevisionDelCanjeInput | null = null,
+  opts: RedeemOptions = {}
 ): Promise<PreventaPackRedeemResultV1> {
   const gate = await assertPreventaPackOrderRedeemable(preventaOrderId);
   if (!gate.ok) {
@@ -581,7 +599,7 @@ export async function executePreventaPackRedeemV1(
   const now = new Date();
   try {
     const resultado = await prisma.$transaction(
-      (tx) => executePreventaPackRedeemV1InTransaction(tx, preventaOrderId, selections, now, revision),
+      (tx) => executePreventaPackRedeemV1InTransaction(tx, preventaOrderId, selections, now, revision, opts),
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
         maxWait: 10_000,

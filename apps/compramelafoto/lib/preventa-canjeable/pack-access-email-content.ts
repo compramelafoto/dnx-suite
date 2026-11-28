@@ -25,7 +25,12 @@ export type PreventaPackAccessEmailInput = {
   snapshot: PreventaPackSnapshotV1 | null;
   /** Cuántas unidades del mismo pack entraron en el pedido (1 si no se sabe) */
   packQuantity?: number | null;
+  /** La preventa dice que el fotógrafo elige las fotos: la familia no tiene que hacer nada. */
+  eligeElFotografo?: boolean;
 };
+
+const ELIGE_EL_FOTOGRAFO =
+  "El fotógrafo va a elegir las mejores fotos de tu pack. No tenés que hacer nada: cuando esté listo te llega otro correo.";
 
 export type PreventaPackAccessEmailContent = {
   subject: string;
@@ -130,7 +135,10 @@ export function buildPreventaPackAccessEmailContent(
       : "Medio de pago: Mercado Pago"
   );
 
-  const accesoText = input.packAccessUrl
+  const accesoText = input.eligeElFotografo && input.packAccessUrl
+    ? `${ELIGE_EL_FOTOGRAFO} Con este link podés ver tu pack cuando quieras:
+${input.packAccessUrl}`
+    : input.packAccessUrl
     ? `Guardá este link: es tu acceso directo para elegir y canjear tus fotos cuando corresponda (no necesitás crear cuenta).
 ${input.packAccessUrl}`
     : `Todavía no pudimos generar tu link de acceso. Entrá en ${input.recoverUrl}, ingresá este mismo email y te lo enviamos al instante. Tu compra ya está registrada.`;
@@ -179,7 +187,12 @@ ComprameLaFoto`;
     ? `<p style="margin: 0 0 16px 0; color: #4b5563;">${escapeHtml(descriptionLabel)}</p>`
     : "";
 
-  const accesoHtml = input.packAccessUrl
+  const accesoHtml = input.eligeElFotografo && input.packAccessUrl
+    ? `<p style="margin: 0 0 12px 0;">${escapeHtml(ELIGE_EL_FOTOGRAFO)}</p>
+<p style="margin: 0 0 20px 0;"><a href="${escapeHtml(
+        input.packAccessUrl
+      )}" style="display: inline-block; background: #c27b3d; color: #ffffff; padding: 10px 18px; border-radius: 6px; text-decoration: none;">Ver mi pack</a></p>`
+    : input.packAccessUrl
     ? `<p style="margin: 0 0 12px 0;">Guardá este link: es tu acceso directo para elegir y canjear tus fotos cuando corresponda (no necesitás crear cuenta).</p>
 <p style="margin: 0 0 20px 0;"><a href="${escapeHtml(
         input.packAccessUrl

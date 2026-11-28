@@ -6,6 +6,16 @@ import { Role } from "@/lib/prisma";
 import { logLegacyPreventaUsage } from "@/lib/observability/legacy-preventa-usage";
 import { emptySlotIds, parseDesignV2Data } from "@/lib/design-v2/design-data";
 import { ubicarPedido } from "@/lib/schools/embudo-pedidos-escolares";
+import { quienElige, type ReglaEleccion } from "@/lib/schools/quien-elige-las-fotos";
+import { cargarReglas } from "@/lib/schools/quien-elige-las-fotos-server";
+import { fechaAvisoFotosListas } from "@/lib/preventa-canjeable/aviso-fotos-listas";
+
+/** Desde cuándo la familia pudo elegir: el aviso «ya están las fotos». Sin aviso, `null` (no corre el plazo). */
+function inicioDelPack(p: { redemptionPaymentRefsJson: unknown }): Date | null {
+  const aviso = fechaAvisoFotosListas(p.redemptionPaymentRefsJson);
+  const fecha = aviso ? new Date(aviso) : null;
+  return fecha && Number.isFinite(fecha.getTime()) ? fecha : null;
+}
 
 type DisenoFila = {
   id: number;
@@ -150,6 +160,46 @@ export async function GET(req: NextRequest) {
     });
 
     /*
+     * Quién elige las fotos (regla de la preventa del álbum) y qué packs se pueden elegir. En la
+     * tienda escolar, los packs son los `Order` PREVENTA_PACK cuyo `preCompraPaymentRef` es la
+     * pre-compra.
+     */
+    const ahora = new Date();
+    const reglas = new Map<number, ReglaEleccion>();
+    const reglaDe = async (albumId: number | null | undefined): Promise<ReglaEleccion | null> => {
+      if (!albumId) return null;
+      if (!reglas.has(albumId)) for (const [id, r] of await cargarReglas([albumId])) reglas.set(id, r);
+      return reglas.get(albumId) ?? null;
+    };
+    for (const [id, r] of await cargarReglas(orders.map((o) => o.albumId))) reglas.set(id, r);
+    const porCanjearTienda = payload.filter((f) => f.paso === "POR_CANJEAR").map((f) => Number(f.id));
+    const packsTienda = porCanjearTienda.length
+      ? await prisma.order.findMany({
+          where: {
+            origin: OrderOrigin.PREVENTA_PACK,
+            status: OrderStatus.PAID,
+            redemptionOrderId: null,
+            preCompraPaymentRef: { in: porCanjearTienda.map(String) },
+          },
+          select: { id: true, createdAt: true, preCompraPaymentRef: true, redemptionPaymentRefsJson: true },
+          orderBy: { id: "asc" },
+        })
+      : [];
+    for (const fila of payload) {
+      const packs = packsTienda.filter((p) => String(p.preCompraPaymentRef ?? "").trim() === String(fila.id));
+      fila.packOrderIds = fila.paso === "POR_CANJEAR" ? packs.map((p) => p.id) : [];
+      const regla = await reglaDe((fila.album as { id: number } | null)?.id);
+      fila.eligeQuien =
+        fila.paso === "POR_CANJEAR" && regla
+          ? packs.length
+            ? packs.some((p) => quienElige(regla, { inicio: inicioDelPack(p) }, ahora) === "FOTOGRAFO")
+              ? "FOTOGRAFO"
+              : "FAMILIA"
+            : "FAMILIA" // sin pack para elegir desde acá: queda del lado de la familia
+          : null;
+    }
+
+    /*
      * Packs cobrados por fuera (importados del Excel, como San Patricio) y sus pruebas DEMO.
      * Son pedidos del álbum, no de la tienda escolar, así que antes no aparecían acá: ni los 500
      * de las familias ni los canjes de prueba del fotógrafo.
@@ -226,6 +276,7 @@ export async function GET(req: NextRequest) {
             (escuela?.name ?? "").trim().toLowerCase() === escuelaElegida.name.trim().toLowerCase();
           if (!coincide) continue;
         }
+        const reglaDelPack = await reglaDe(p.album?.id);
         const nombre = externo?.studentName?.trim() ?? "";
         const delCanje = disenos.filter((d) => p.redemptionOrderId != null && d.albumOrderId === p.redemptionOrderId);
         const tieneCopiasFisicas = p.redemptionOrderId != null && canjesConCopias.has(p.redemptionOrderId);
@@ -252,6 +303,11 @@ export async function GET(req: NextRequest) {
           totalCents: p.isTest ? 0 : Math.round(Number(p.totalCents ?? 0) * 100),
           status: p.isTest ? "DEMO" : p.redemptionOrderId != null ? "CANJEADO" : "POR_CANJEAR",
           redemptionOrderId: p.redemptionOrderId,
+          packOrderIds: p.redemptionOrderId == null ? [p.id] : [],
+          eligeQuien:
+            p.redemptionOrderId == null && reglaDelPack
+              ? quienElige(reglaDelPack, { inicio: inicioDelPack(p) }, ahora)
+              : null,
           isDemo: p.isTest,
           paso: ubicarPedido({
             kind: "PACK_EXTERNO",
