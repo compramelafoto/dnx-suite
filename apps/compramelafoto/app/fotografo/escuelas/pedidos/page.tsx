@@ -8,6 +8,8 @@ import { DsEmptyState } from "@/components/ui/DsEmptyState";
 import { DsDashboardInner, DsPageShell } from "@/components/ui/DsLayout";
 import PhotographerDashboardHeader from "@/components/photographer/PhotographerDashboardHeader";
 import BarraDePasos from "@/components/fotografo/BarraDePasos";
+import QuienEligeEnPedidos from "@/components/fotografo/escolar/QuienEligeEnPedidos";
+import { albumParaLaRegla, albumesDeLosPedidos } from "@/lib/schools/albumes-de-pedidos";
 import RevisionDeCorrido, {
   type DisenoEnFila,
   type ResumenRevision,
@@ -154,6 +156,8 @@ export default function FotografoEscuelasPedidosPage() {
   const [photographer, setPhotographer] = useState<any>(null);
   const [filterSchool, setFilterSchool] = useState<string>("");
   const [filterCurso, setFilterCurso] = useState<string>("");
+  /** Álbum del colegio elegido (la regla «¿Quién elige las fotos?» es por álbum). */
+  const [filterAlbum, setFilterAlbum] = useState<number | null>(null);
   const [vista, setVista] = useState<Vista | null>(null);
   /** «Por canjear»: los que esperan a la familia o los que te tocan a vos (null = automático). */
   const [lado, setLado] = useState<ResponsablePorCanjear | null>(null);
@@ -214,17 +218,24 @@ export default function FotografoEscuelasPedidosPage() {
     void recargar();
   }, [recargar]);
 
+  const albumes = useMemo(() => albumesDeLosPedidos(orders), [orders]);
+  const delAlbum = useMemo(
+    () => (filterAlbum != null ? orders.filter((o) => o.album?.id === filterAlbum) : orders),
+    [orders, filterAlbum],
+  );
+  const albumDeLaRegla = albumParaLaRegla(Boolean(filterSchool), albumes, filterAlbum);
+
   const cursos = useMemo(
     () =>
-      [...new Set(orders.map((o) => textoCurso(o.schoolCourse)).filter((c): c is string => c != null))].sort((a, b) =>
+      [...new Set(delAlbum.map((o) => textoCurso(o.schoolCourse)).filter((c): c is string => c != null))].sort((a, b) =>
         a.localeCompare(b, "es", { numeric: true }),
       ),
-    [orders],
+    [delAlbum],
   );
 
   const delCurso = useMemo(
-    () => (filterCurso ? orders.filter((o) => textoCurso(o.schoolCourse) === filterCurso) : orders),
-    [orders, filterCurso],
+    () => (filterCurso ? delAlbum.filter((o) => textoCurso(o.schoolCourse) === filterCurso) : delAlbum),
+    [delAlbum, filterCurso],
   );
   const conteo = useMemo(() => contarPorPaso(delCurso.map((o) => o.paso)), [delCurso]);
   const fuera = conteo.PAGO_PENDIENTE + conteo.CANCELADO;
@@ -1165,6 +1176,7 @@ export default function FotografoEscuelasPedidosPage() {
                 value={filterSchool}
                 onChange={(e) => {
                   setFilterSchool(e.target.value);
+                  setFilterAlbum(null);
                   setFilterCurso("");
                   setSeleccion(new Set());
                 }}
@@ -1178,6 +1190,30 @@ export default function FotografoEscuelasPedidosPage() {
                 ))}
               </select>
             </div>
+            {filterSchool && albumes.length > 1 ? (
+              <div>
+                <label className="block text-xs text-gray-600 mb-1" htmlFor="filtro-album">
+                  Álbum
+                </label>
+                <select
+                  id="filtro-album"
+                  value={filterAlbum ?? ""}
+                  onChange={(e) => {
+                    setFilterAlbum(e.target.value ? Number(e.target.value) : null);
+                    setFilterCurso("");
+                    setSeleccion(new Set());
+                  }}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white"
+                >
+                  <option value="">Todos</option>
+                  {albumes.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
             <div>
               <label className="block text-xs text-gray-600 mb-1" htmlFor="filtro-curso">
                 Curso
@@ -1200,6 +1236,21 @@ export default function FotografoEscuelasPedidosPage() {
               </select>
             </div>
           </div>
+
+          {albumDeLaRegla ? (
+            <QuienEligeEnPedidos
+              albumId={albumDeLaRegla.id}
+              albumTitulo={albumDeLaRegla.title}
+              onGuardado={() => {
+                setLado(null);
+                void recargar();
+              }}
+            />
+          ) : filterSchool && albumes.length > 1 ? (
+            <p className="m-0 text-sm text-gray-600">
+              Este colegio tiene {albumes.length} álbumes. Elegí uno en «Álbum» para ver o cambiar quién elige las fotos.
+            </p>
+          ) : null}
 
           <BarraDePasos
             pasos={PASOS_EMBUDO.map((p) => ({
