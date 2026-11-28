@@ -1,10 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import {
-  MercadoPagoSplitConsentAdapter,
-  createMercadoPagoProviderConfig,
-} from "@repo/payments";
+import { MercadoPagoSplitConsentAdapter } from "@repo/payments";
 import { requireActiveWorkspace } from "@/lib/workspace";
 import { canManageWorkspaceCollection } from "@/lib/payments/connect/authz";
 import {
@@ -14,6 +11,7 @@ import {
   type ConsentProviderPort,
 } from "@/lib/payments/connect/consent-invite";
 import { sanitizeError } from "@/lib/payments/connect/log";
+import { buildPlatformConsentConfig } from "@/lib/payments/connect/platform-consent-config";
 
 export type ConsentState = { error: string | null; ok: string | null; inviteUrl?: string | null };
 
@@ -22,12 +20,17 @@ const fail = (error: string): ConsentState => ({ error, ok: null });
 /**
  * Adaptador de MercadoPago con el token de **la plataforma**: la invitación al
  * consentimiento la envía quien cobra, no el receptor.
+ *
+ * La configuración la arma `buildPlatformConsentConfig`, que agrega
+ * `allowProductionWrites` sólo si `DNX_MP_SPLIT_CONSENT_PRODUCTION_ENABLED` está
+ * encendida. Sin ese campo el cliente HTTP del paquete corta cualquier POST en
+ * producción y la invitación nunca sale.
  */
 function createProvider(): ConsentProviderPort | null {
   const accessToken = process.env[PLATFORM_TOKEN_ENV]?.trim();
   if (!accessToken) return null;
   return new MercadoPagoSplitConsentAdapter({
-    config: createMercadoPagoProviderConfig({ accessToken, environment: "production" }),
+    config: buildPlatformConsentConfig(accessToken),
   }) as unknown as ConsentProviderPort;
 }
 
