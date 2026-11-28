@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
@@ -13,9 +13,12 @@ interface Lab {
   name: string;
   email: string | null;
   phone: string | null;
+  address?: string | null;
   city: string | null;
   province: string | null;
   country: string | null;
+  labType?: string | null;
+  logoUrl?: string | null;
   approvalStatus: string;
   isActive: boolean;
   isSuspended: boolean;
@@ -35,7 +38,6 @@ interface Lab {
 }
 
 export default function LaboratoriosClient() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [labs, setLabs] = useState<Lab[]>([]);
@@ -46,9 +48,10 @@ export default function LaboratoriosClient() {
   const [platformDefaultPercent, setPlatformDefaultPercent] = useState(10);
   const [bulkFeeValue, setBulkFeeValue] = useState("");
   const [bulkFeeBusy, setBulkFeeBusy] = useState(false);
-  
-  // Formulario nuevo laboratorio
-  const [formData, setFormData] = useState({
+  // null = alta de un laboratorio nuevo; número = edición de ese laboratorio
+  const [editingLabId, setEditingLabId] = useState<number | null>(null);
+
+  const emptyForm = {
     name: "",
     email: "",
     phone: "",
@@ -58,7 +61,39 @@ export default function LaboratoriosClient() {
     country: "Argentina",
     labType: "TYPE_B",
     approvalStatus: "PENDING",
-  });
+    logoUrl: "",
+  };
+
+  // Formulario de laboratorio (alta y edición)
+  const [formData, setFormData] = useState(emptyForm);
+
+  function openNewLab() {
+    setEditingLabId(null);
+    setFormData(emptyForm);
+    setShowNewLabModal(true);
+  }
+
+  function openEditLab(lab: Lab) {
+    setEditingLabId(lab.id);
+    setFormData({
+      name: lab.name || "",
+      email: lab.email || "",
+      phone: lab.phone || "",
+      address: lab.address || "",
+      city: lab.city || "",
+      province: lab.province || "",
+      country: lab.country || "",
+      labType: lab.labType || "TYPE_B",
+      approvalStatus: lab.approvalStatus,
+      logoUrl: lab.logoUrl || "",
+    });
+    setShowNewLabModal(true);
+  }
+
+  function closeLabModal() {
+    setShowNewLabModal(false);
+    setEditingLabId(null);
+  }
 
   useEffect(() => {
     loadLabs();
@@ -72,7 +107,7 @@ export default function LaboratoriosClient() {
   useEffect(() => {
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape" && showNewLabModal) {
-        setShowNewLabModal(false);
+        closeLabModal();
       }
     }
     if (showNewLabModal) {
@@ -321,28 +356,21 @@ export default function LaboratoriosClient() {
 
     setCreating(true);
     try {
-      const res = await fetch("/api/admin/labs", {
-        method: "POST",
+      const isEdit = editingLabId !== null;
+      // En la edición, el estado de aprobación se cambia con sus propios botones
+      const { approvalStatus, logoUrl, ...datos } = formData;
+      const res = await fetch(isEdit ? `/api/admin/labs/${editingLabId}` : "/api/admin/labs", {
+        method: isEdit ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify(formData),
+        body: JSON.stringify(isEdit ? { ...datos, logoUrl } : { ...datos, approvalStatus }),
       });
 
       if (res.ok) {
-        setShowNewLabModal(false);
-        setFormData({
-          name: "",
-          email: "",
-          phone: "",
-          address: "",
-          city: "",
-          province: "",
-          country: "Argentina",
-          labType: "TYPE_B",
-          approvalStatus: "PENDING",
-        });
+        closeLabModal();
+        setFormData(emptyForm);
         loadLabs();
-        alert("Laboratorio creado correctamente");
+        alert(isEdit ? "Laboratorio actualizado correctamente" : "Laboratorio creado correctamente");
       } else {
         const errorData = await res.json().catch(() => ({}));
         alert("Error: " + (errorData.error || "Error desconocido"));
@@ -369,7 +397,7 @@ export default function LaboratoriosClient() {
           <h1 className="text-2xl font-bold text-gray-900">Laboratorios</h1>
           <p className="text-gray-600 mt-1">Total: {labs.length} laboratorios</p>
         </div>
-        <Button variant="primary" onClick={() => setShowNewLabModal(true)}>
+        <Button variant="primary" onClick={openNewLab}>
           + Nuevo Laboratorio
         </Button>
       </div>
@@ -600,9 +628,9 @@ export default function LaboratoriosClient() {
                         <Button
                           variant="secondary"
                           size="sm"
-                          onClick={() => router.push(`/admin/laboratorios/${lab.id}`)}
+                          onClick={() => openEditLab(lab)}
                         >
-                          Ver
+                          Editar
                         </Button>
                         {lab.approvalStatus === "PENDING" && (
                           <>
@@ -654,9 +682,11 @@ export default function LaboratoriosClient() {
           <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
             <div className="p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-gray-900">Nuevo Laboratorio</h2>
+                <h2 className="text-xl font-bold text-gray-900">
+                  {editingLabId !== null ? `Editar laboratorio #${editingLabId}` : "Nuevo Laboratorio"}
+                </h2>
                 <button
-                  onClick={() => setShowNewLabModal(false)}
+                  onClick={closeLabModal}
                   className="text-gray-400 hover:text-gray-600"
                 >
                   ✕
@@ -767,21 +797,47 @@ export default function LaboratoriosClient() {
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Estado de Aprobación
-                    </label>
-                    <select
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      value={formData.approvalStatus}
-                      onChange={(e) => setFormData({ ...formData, approvalStatus: e.target.value })}
-                    >
-                      <option value="PENDING">Pendiente</option>
-                      <option value="APPROVED">Aprobado</option>
-                      <option value="REJECTED">Rechazado</option>
-                    </select>
-                  </div>
+                  {editingLabId === null ? (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Estado de Aprobación
+                      </label>
+                      <select
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        value={formData.approvalStatus}
+                        onChange={(e) => setFormData({ ...formData, approvalStatus: e.target.value })}
+                      >
+                        <option value="PENDING">Pendiente</option>
+                        <option value="APPROVED">Aprobado</option>
+                        <option value="REJECTED">Rechazado</option>
+                      </select>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Logo (dirección web de la imagen)
+                      </label>
+                      <Input
+                        type="url"
+                        value={formData.logoUrl}
+                        onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
+                        placeholder="https://..."
+                      />
+                    </div>
+                  )}
                 </div>
+
+                {editingLabId !== null && formData.logoUrl.trim() && (
+                  <div className="flex items-center gap-3">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={formData.logoUrl.trim()}
+                      alt="Logo del laboratorio"
+                      className="h-12 w-auto max-w-[160px] object-contain border border-gray-200 rounded bg-white p-1"
+                    />
+                    <span className="text-xs text-gray-500">Vista previa del logo</span>
+                  </div>
+                )}
 
                 <div className="flex gap-2 pt-4">
                   <Button
@@ -790,11 +846,13 @@ export default function LaboratoriosClient() {
                     disabled={creating || !formData.name.trim()}
                     className="flex-1"
                   >
-                    {creating ? "Creando..." : "Crear Laboratorio"}
+                    {editingLabId !== null
+                      ? creating ? "Guardando..." : "Guardar cambios"
+                      : creating ? "Creando..." : "Crear Laboratorio"}
                   </Button>
                   <Button
                     variant="secondary"
-                    onClick={() => setShowNewLabModal(false)}
+                    onClick={closeLabModal}
                     className="flex-1"
                   >
                     Cancelar

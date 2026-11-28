@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
-import { Role, LabApprovalStatus } from "@prisma/client";
+import { Role, LabApprovalStatus, LabType } from "@prisma/client";
 import { logAdminAction, getRequestMetadata } from "@/lib/admin/audit";
 
 export const runtime = "nodejs";
@@ -108,6 +108,14 @@ export async function PATCH(
       select: {
         id: true,
         name: true,
+        email: true,
+        phone: true,
+        address: true,
+        city: true,
+        province: true,
+        country: true,
+        labType: true,
+        logoUrl: true,
         approvalStatus: true,
         isSuspended: true,
         suspendedReason: true,
@@ -121,6 +129,51 @@ export async function PATCH(
     }
 
     const updateData: any = {};
+
+    // Datos de la ficha (nombre, contacto, ubicación, tipo y logo)
+    const textoOpcional = (v: unknown) => {
+      const s = typeof v === "string" ? v.trim() : "";
+      return s === "" ? null : s;
+    };
+    const editaFicha = ["name", "email", "phone", "address", "city", "province", "country", "labType", "logoUrl"].some(
+      (k) => body[k] !== undefined
+    );
+
+    if (body.name !== undefined) {
+      const name = typeof body.name === "string" ? body.name.trim() : "";
+      if (!name) {
+        return NextResponse.json({ error: "El nombre es requerido" }, { status: 400 });
+      }
+      updateData.name = name;
+    }
+    if (body.email !== undefined) {
+      const email = textoOpcional(body.email)?.toLowerCase() ?? null;
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return NextResponse.json({ error: "El email no es válido" }, { status: 400 });
+      }
+      if (email && email !== currentLab.email) {
+        const otro = await prisma.lab.findFirst({
+          where: { email: { equals: email, mode: "insensitive" }, NOT: { id: labId } },
+          select: { id: true, name: true },
+        });
+        if (otro) {
+          return NextResponse.json(
+            { error: `Ese email ya lo usa otro laboratorio (#${otro.id} ${otro.name})` },
+            { status: 400 }
+          );
+        }
+      }
+      updateData.email = email;
+    }
+    for (const campo of ["phone", "address", "city", "province", "country", "logoUrl"] as const) {
+      if (body[campo] !== undefined) updateData[campo] = textoOpcional(body[campo]);
+    }
+    if (body.labType !== undefined) {
+      if (!Object.values(LabType).includes(body.labType)) {
+        return NextResponse.json({ error: "Tipo de laboratorio inválido" }, { status: 400 });
+      }
+      updateData.labType = body.labType as LabType;
+    }
 
     if (approvalStatus && ["PENDING", "APPROVED", "REJECTED"].includes(approvalStatus)) {
       updateData.approvalStatus = approvalStatus as LabApprovalStatus;
@@ -190,7 +243,9 @@ export async function PATCH(
     // Registrar auditoría
     const { ipAddress, userAgent } = getRequestMetadata(req);
     let actionDesc = "";
-    if (approvalStatus) {
+    if (editaFicha) {
+      actionDesc = `Datos del laboratorio editados: ${updatedLab.name}`;
+    } else if (approvalStatus) {
       actionDesc = `Estado de aprobación cambiado de ${currentLab.approvalStatus} a ${approvalStatus}`;
     } else if (isSuspended !== undefined) {
       actionDesc = isSuspended ? "Laboratorio suspendido" : "Laboratorio reactivado";
@@ -202,7 +257,9 @@ export async function PATCH(
 
     await logAdminAction({
       action:
-        approvalStatus
+        editaFicha
+          ? "UPDATE_LAB"
+          : approvalStatus
           ? "APPROVE_LAB"
           : isSuspended !== undefined
           ? "SUSPEND_LAB"
@@ -213,12 +270,30 @@ export async function PATCH(
       entityId: labId,
       description: actionDesc,
       beforeData: {
+        name: currentLab.name,
+        email: currentLab.email,
+        phone: currentLab.phone,
+        address: currentLab.address,
+        city: currentLab.city,
+        province: currentLab.province,
+        country: currentLab.country,
+        labType: currentLab.labType,
+        logoUrl: currentLab.logoUrl,
         approvalStatus: currentLab.approvalStatus,
         isSuspended: currentLab.isSuspended,
         internalNotes: currentLab.internalNotes,
         commissionOverrideBps: currentLab.commissionOverrideBps,
       },
       afterData: {
+        name: updatedLab.name,
+        email: updatedLab.email,
+        phone: updatedLab.phone,
+        address: updatedLab.address,
+        city: updatedLab.city,
+        province: updatedLab.province,
+        country: updatedLab.country,
+        labType: updatedLab.labType,
+        logoUrl: updatedLab.logoUrl,
         approvalStatus: updatedLab.approvalStatus,
         isSuspended: updatedLab.isSuspended,
         internalNotes: updatedLab.internalNotes,

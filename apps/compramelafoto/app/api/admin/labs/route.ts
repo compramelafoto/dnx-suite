@@ -42,10 +42,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Validar email único si se proporciona
-    if (email) {
-      const existingLab = await prisma.lab.findUnique({
-        where: { email },
+    // Validar email único si se proporciona (se guarda en minúsculas, igual que el registro)
+    const normalizedEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
+    if (normalizedEmail) {
+      const existingLab = await prisma.lab.findFirst({
+        where: { email: { equals: normalizedEmail, mode: "insensitive" } },
       });
       if (existingLab) {
         return NextResponse.json(
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
     const lab = await prisma.lab.create({
       data: {
         name: name.trim(),
-        email: email?.trim() || null,
+        email: normalizedEmail || null,
         phone: phone?.trim() || null,
         address: address?.trim() || null,
         city: city?.trim() || null,
@@ -149,6 +150,8 @@ export async function GET(req: NextRequest) {
         city: true,
         province: true,
         country: true,
+        labType: true,
+        logoUrl: true,
         approvalStatus: true,
         isActive: true,
         isSuspended: true,
