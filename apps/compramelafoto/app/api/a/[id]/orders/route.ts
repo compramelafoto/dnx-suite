@@ -54,6 +54,12 @@ import { leerMarcaGrupo } from "@/lib/split-1n-carrito-evento/marca";
 import { shouldUseIntlFlow, intlBlockMessage } from "@/lib/international/intl-order";
 import { createIntlAlbumOrder } from "@/lib/international/intl-order-service";
 import { ensureAlbumOrderMpPreference } from "@/lib/mercadopago/album-order-mp-preference";
+import {
+  PRODUCT_DESIGNS_SNAPSHOT_KEY,
+  validarDisenosDelPedido,
+  type ProductDesignSnapshotV1,
+} from "@/lib/compra-directa/compra-directa";
+import { plantillasCargadasDelAlbum } from "@/lib/compra-directa/productos-del-album";
 import { consultaPuntosDeRetiro, elegirPuntoDeRetiro, puntosDeRetiroDelAlbum, retiraElCliente, type PuntoDeRetiro } from "@/lib/print-batches/puntos-de-retiro";
 
 function normalizePercent(value: unknown): number | null {
@@ -480,6 +486,45 @@ export async function POST(
       });
     });
 
+    // Compra directa con librito (`/a/[id]/llevar`): cada librito se cobra como un ítem impreso de
+    // su producto y viaja con las fotos de sus lugares. Se valida acá y se guarda en el pedido
+    // para armar el diseño al aprobarse el pago. Sin `productDesigns`, nada cambia.
+    let productDesigns: ProductDesignSnapshotV1[] = [];
+    if (body?.productDesigns != null && !carritoEvento && !canjeVoucher) {
+      const pedidosConDiseno = Array.isArray(body.productDesigns)
+        ? (body.productDesigns as Array<{ productId?: unknown }>)
+            .map((d) => Number(d?.productId))
+            .filter((n) => Number.isInteger(n) && n > 0)
+        : [];
+      const plantillas =
+        pedidosConDiseno.length > 0 && productNameById.size > 0
+          ? await plantillasCargadasDelAlbum(
+              albumId,
+              pedidosConDiseno.filter((n) => productNameById.has(n))
+            )
+          : new Map();
+      const validacion = validarDisenosDelPedido({
+        raw: body.productDesigns,
+        alumno: body.alumno,
+        items: orderItemsData.map((it) => {
+          const meta = (it.metadata ?? null) as { productId?: unknown } | null;
+          const pid = Number(meta?.productId);
+          return {
+            photoId: it.photoId,
+            productId: Number.isInteger(pid) && pid > 0 ? pid : null,
+            quantity: it.quantity,
+            tipo: it.productType === "DIGITAL" ? ("digital" as const) : ("impresa" as const),
+          };
+        }),
+        albumPhotoIds: new Set(album.photos.map((ph: { id: number }) => ph.id)),
+        plantillas,
+      });
+      if (!validacion.ok) {
+        return NextResponse.json({ error: validacion.error, code: "PRODUCT_DESIGN_INVALID" }, { status: 400 });
+      }
+      productDesigns = validacion.designs;
+    }
+
     // Dónde retira el cliente sus copias (diseño §4.2): sólo la compra común con impresas en un
     // álbum donde retira el cliente. Canje y carrito de evento no lo guardan; sin puntos, nada cambia.
     // El servidor nunca devuelve error por esto (p. ej. CanjeExtrasStep no manda la elección).
@@ -527,6 +572,14 @@ export async function POST(
       ) as Prisma.InputJsonValue;
       orderV1Fields.origin = OrderOrigin.STANDARD_CHECKOUT;
       orderV1Fields.checkoutPaymentSource = CheckoutPaymentSource.MERCADO_PAGO;
+    }
+    if (productDesigns.length > 0) {
+      pricingSnapshotForOrder = {
+        ...((pricingSnapshotForOrder && typeof pricingSnapshotForOrder === "object"
+          ? pricingSnapshotForOrder
+          : {}) as Record<string, unknown>),
+        [PRODUCT_DESIGNS_SNAPSHOT_KEY]: productDesigns,
+      } as Prisma.InputJsonValue;
     }
     if (voucher) {
       // Origen y tipo de pago explícitos aunque el flag de preventa esté apagado: el
@@ -610,7 +663,8 @@ export async function POST(
     // Con canje no se reutiliza un pedido anterior: el combo se reserva para el pedido nuevo.
     // Pago simulado: tampoco, cada compra de la demo arranca un pedido de prueba nuevo.
     // Carrito de evento: tampoco, cada carrito arma su grupo de pedidos nuevo.
-    const recentCandidates = voucher || pagoSimulado || carritoEvento ? [] : await prisma.order.findMany({
+    // Con libritos tampoco: el pedido anterior puede tener otras fotos en la tapa o la contratapa.
+    const recentCandidates = voucher || pagoSimulado || carritoEvento || productDesigns.length > 0 ? [] : await prisma.order.findMany({
       where: {
         albumId,
         buyerEmail: normalizedBuyerEmail,

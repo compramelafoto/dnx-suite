@@ -25,6 +25,7 @@ vi.mock("@prisma/client", () => ({
 vi.mock("@/lib/videos/video-feature-flag", () => ({ isVideoMvpEnabled: () => false }));
 vi.mock("@/lib/videos/create-video-order", () => ({ loadCartVideos: vi.fn() }));
 vi.mock("@/lib/videos/video-cart", () => ({ quoteVideoCart: vi.fn() }));
+vi.mock("@/lib/compra-directa/productos-del-album", () => ({ plantillasCargadasDelAlbum: vi.fn(async () => new Map()) }));
 vi.mock("@/lib/pricing/pricing-engine", () => ({
   computeCheckoutTotals: vi.fn(async () => ({
     displayTotalCents: 9000,

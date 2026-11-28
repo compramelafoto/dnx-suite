@@ -3,7 +3,8 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { prisma } from "@/lib/prisma";
 import { Prisma, Role } from "@/lib/prisma";
-import { notFound, permanentRedirect } from "next/navigation";
+import { debeEmpezarPorLosProductos } from "@/lib/compra-directa/empezar-por-productos";
+import { notFound, permanentRedirect, redirect } from "next/navigation";
 import { getR2PublicUrl, urlToR2Key } from "@/lib/r2-client";
 import ProtectedAlbumWrapper from "@/components/photo/ProtectedAlbumWrapper";
 import ClientAlbumView from "@/components/photo/ClientAlbumView";
@@ -752,6 +753,20 @@ export default async function Page({
     prismaClient: prisma,
   });
   const albumSaleCurrency = (album as { currency?: string | null }).currency || "ARS";
+  // Fotos ocultas hasta la selfie: se empieza por «¿Qué querés llevar?» (productos → selfie → fotos).
+  if (
+    debeEmpezarPorLosProductos({
+      hiddenPhotosEnabled,
+      initialHasGrant,
+      photographerBypassGrant,
+      singlesPurchaseReady,
+      isAccessBlocked,
+      intl: shouldUseIntlFlow(albumSaleCurrency),
+      searchParams: resolvedSearchParams,
+    })
+  ) {
+    redirect(`/a/${album.id}/llevar`);
+  }
   const galleryPricingBase = await loadGalleryPricingSnapshot(
     prisma,
     {
