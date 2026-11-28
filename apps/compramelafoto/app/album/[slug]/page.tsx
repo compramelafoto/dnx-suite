@@ -180,6 +180,7 @@ const selectAlbumBase = {
       packType: true,
       availabilityPhase: true,
       isActive: true,
+      keepsAddingPhotos: true,
       components: albumPackComponentsInclude,
     },
     orderBy: [{ createdAt: Prisma.SortOrder.desc }],
