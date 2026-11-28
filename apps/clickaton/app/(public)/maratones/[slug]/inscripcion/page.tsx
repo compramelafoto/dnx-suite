@@ -1,11 +1,13 @@
 import { randomBytes } from "node:crypto";
-import { Fragment } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { SimpleBreadcrumb } from "@/components/content/SimpleBreadcrumb";
 import { Container } from "@/components/layout/Container";
 import { Section } from "@/components/layout/Section";
-import { DecoradoNavidad } from "@/components/public-registration/experience/DecoradoNavidad";
+import {
+  DecoradoEstacional,
+  type MotivoEstacional,
+} from "@/components/public-registration/experience/decorado-estacional";
 import { PublicRegistrationWizard } from "@/components/public-registration/PublicRegistrationWizard";
 import { Button } from "@/components/ui/Button";
 import { routes, marathonPath } from "@/config/navigation";
@@ -22,9 +24,12 @@ export const dynamic = "force-dynamic";
 /**
  * Ediciones que se visten para la ocasión. Lista explícita a propósito: mirar
  * el slug con una expresión regular haría que cualquier edición futura con la
- * palabra "navidad" se decorara sola, sin que nadie lo haya decidido.
+ * palabra "navidad" u "otoño" se decorara sola, sin que nadie lo decidiera.
  */
-const EDICIONES_DECORADAS_NAVIDAD = new Set(["clickaton-navidad-2026"]);
+const MOTIVO_POR_EDICION: Record<string, MotivoEstacional> = {
+  "clickaton-navidad-2026": "navidad",
+  "clickaton-otono-2027": "otono",
+};
 
 /**
  * Nota al pie del título, para lo que la fecha sola no explica. La del 26 de
@@ -92,9 +97,7 @@ export default async function PublicRegistrationPage({ params }: PageProps) {
 
   const context = contextResult.data;
   const idempotencyKey = `idem_${randomBytes(16).toString("hex")}`;
-  const Envoltorio = EDICIONES_DECORADAS_NAVIDAD.has(slug)
-    ? DecoradoNavidad
-    : Fragment;
+  const motivo = MOTIVO_POR_EDICION[slug];
 
   if (context.registrationWindow !== "open" || context.tickets.every((t) => t.isSoldOut || t.salesStatus !== "open")) {
     return (
@@ -138,14 +141,23 @@ export default async function PublicRegistrationPage({ params }: PageProps) {
         <header className="sr-only">
           <h1>Inscripción — {context.edition.name}</h1>
         </header>
-        <Envoltorio>
+        {motivo ? (
+          <DecoradoEstacional motivo={motivo}>
+            <PublicRegistrationWizard
+              context={context}
+              idempotencyKey={idempotencyKey}
+              coverImageUrl={marathon?.coverImage ?? null}
+              nota={NOTAS_POR_EDICION[slug] ?? null}
+            />
+          </DecoradoEstacional>
+        ) : (
           <PublicRegistrationWizard
             context={context}
             idempotencyKey={idempotencyKey}
             coverImageUrl={marathon?.coverImage ?? null}
             nota={NOTAS_POR_EDICION[slug] ?? null}
           />
-        </Envoltorio>
+        )}
       </Container>
     </Section>
   );
