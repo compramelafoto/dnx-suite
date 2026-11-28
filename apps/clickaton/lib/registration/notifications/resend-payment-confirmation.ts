@@ -56,7 +56,7 @@ export async function resendPaymentConfirmationEmail(input: {
       include: {
         edition: true,
         items: {
-          where: { isIncluded: true },
+          where: { isIncluded: true, fulfillmentStatus: { not: "CANCELLED" } },
           select: { nameSnapshot: true, variantNameSnapshot: true },
         },
       },
