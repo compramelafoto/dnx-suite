@@ -49,6 +49,10 @@ export async function GET(
           where: { productType: "DIGITAL", photoId },
           select: { photoId: true },
         },
+        addedPhotos: {
+          where: { photoId, removedByClientAt: null },
+          select: { photoId: true },
+        },
       },
     });
 
@@ -56,7 +60,7 @@ export async function GET(
       !order ||
       order.status !== "PAID" ||
       order.album?.deletedAt ||
-      order.items.length === 0
+      order.items.length + order.addedPhotos.length === 0
     ) {
       return new NextResponse("No autorizado", { status: 403 });
     }

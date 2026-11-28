@@ -86,4 +86,16 @@ describe("POST /api/dashboard/albums/[id]/packs", () => {
     expect(m.create.mock.calls[0]![0].data).toMatchObject({ albumId: 3, name: "5 fotos", price: 15000, includedPhotoCount: 5, requiresSelection: true, packType: "DIGITAL", isActive: true });
     expect(m.replace).not.toHaveBeenCalled();
   });
+  it("«Este evento dura varios días» en «Todas mis fotos» digital: se guarda encendido", async () => {
+    m.create.mockResolvedValue({ id: "p2" });
+    m.full.mockResolvedValue({ id: "p2" });
+    const res = await call({ name: "Todas mis fotos", description: "@packQty:ALL_MY_PHOTOS", price: 20000, availabilityPhase: "POST_UPLOAD", packType: "DIGITAL", keepsAddingPhotos: true });
+    expect(res.status).toBe(201);
+    expect(m.create.mock.calls[0]![0].data).toMatchObject({ keepsAddingPhotos: true });
+  });
+  it("«Este evento dura varios días» en un pack de cantidad fija → 400", async () => {
+    const res = await call({ name: "5 fotos", price: 15000, availabilityPhase: "ALWAYS", packType: "DIGITAL", requiresSelection: true, includedPhotoCount: 5, keepsAddingPhotos: true });
+    expect(res.status).toBe(400);
+    expect(m.create).not.toHaveBeenCalled();
+  });
 });

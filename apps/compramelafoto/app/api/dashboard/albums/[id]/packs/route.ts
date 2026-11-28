@@ -1,3 +1,4 @@
+import { resolveKeepsAddingPhotos } from "@/lib/album-packs/growing-pack/keeps-adding-photos-rules";
 import { NextRequest, NextResponse } from "next/server";
 import {
   AlbumPackAvailabilityPhase,
@@ -197,6 +198,17 @@ export async function POST(
         ? null
         : String(body.description).trim() || null;
 
+    const keepsAddingPhotosRule = resolveKeepsAddingPhotos({
+      requested: body?.keepsAddingPhotos === undefined ? undefined : body.keepsAddingPhotos === true,
+      current: false,
+      description,
+      packType,
+      componentKinds: (componentsInput ?? []).map((c) => String(c.kind)),
+    });
+    if (!keepsAddingPhotosRule.ok) {
+      return NextResponse.json({ error: keepsAddingPhotosRule.error }, { status: 400 });
+    }
+
     const includedPhotoCountRule = parseIncludedPhotoCount(body?.includedPhotoCount);
     if (!includedPhotoCountRule.ok) {
       return NextResponse.json({ error: includedPhotoCountRule.error }, { status: 400 });
@@ -295,6 +307,7 @@ export async function POST(
           availabilityPhase,
           packType,
           isActive: body?.isActive === undefined ? true : Boolean(body.isActive),
+          keepsAddingPhotos: keepsAddingPhotosRule.value,
         },
       });
       if (componentsInput) {

@@ -2394,6 +2394,7 @@ model Album {
   packDefinitions                 PackDefinition[]
   packPurchaseEntitlements        PackPurchaseEntitlement[]
   packs                           AlbumPack[]
+  growingPackFaces                GrowingPackFace[]
   packSelectionSessions           AlbumPackSelectionSession[]
   agencyAlbum                     AgencyAlbum?
   packOrderDrafts                 AlbumPackOrderDraft[]
@@ -3314,6 +3315,7 @@ model Photo {
   cutout                   PhotoCutout?
   faceMatches              FaceMatch[]
   faceMatchEvents          FaceMatchEvent[]
+  orderAddedPhotos         OrderAddedPhoto[]
   ocrTokens                OcrToken[]
   items                    OrderItem[]
   organizerDownloads       OrganizerEventDownload[]
@@ -3966,6 +3968,8 @@ model Order {
   buyerUser                 User?                     @relation("OrderBuyerUser", fields: [buyerUserId], references: [id])
   fulfillmentGroups         OrderFulfillmentGroup[]
   items                     OrderItem[]
+  addedPhotos               OrderAddedPhoto[]
+  growingPackFace           GrowingPackFace?
   videoItems                VideoOrderItem[]
   packRedemptionEntitlement PackPurchaseEntitlement?
   whatsappDeliveryLogs      WhatsAppDeliveryLog[]
@@ -4397,6 +4401,8 @@ model AlbumPack {
   availabilityPhase  AlbumPackAvailabilityPhase
   packType           AlbumPackType
   isActive           Boolean                     @default(true)
+  /// «Todas mis fotos» en eventos de varios días: las fotos nuevas en las que aparece el comprador se suman a su panel.
+  keepsAddingPhotos  Boolean                     @default(false)
   createdAt          DateTime                    @default(now())
   updatedAt          DateTime                    @updatedAt
   album              Album                       @relation(fields: [albumId], references: [id], onDelete: Cascade)
@@ -4410,6 +4416,53 @@ model AlbumPack {
   @@index([templateId])
   @@index([templateV2Id])
   @@index([isActive])
+}
+
+/// Selfie guardada (con permiso) de quien compró un pack «Todas mis fotos» que se va sumando.
+/// Mientras el pedido esté pagado y la fila siga activa, las fotos nuevas donde aparece se suman al pedido.
+model GrowingPackFace {
+  id                 Int       @id @default(autoincrement())
+  albumId            Int
+  albumPackId        String
+  /// Selección del comprador cuando subió la selfie (antes de tener pedido).
+  selectionSessionId String    @unique
+  orderId            Int?      @unique
+  /// Cara indexada en la colección de Rekognition.
+  faceId             String?   @unique
+  selfieKey          String?   @unique
+  consentAt          DateTime
+  /// Última vez que se buscaron fotos nuevas de esta cara.
+  lastSyncedAt       DateTime?
+  /// Última vez que el comprador abrió su panel (para marcar las fotos «Nuevas»).
+  panelSeenAt        DateTime?
+  /// Ya no se suman fotos (el fotógrafo terminó de subir o el álbum cerró).
+  endedAt            DateTime?
+  biometricDeletedAt DateTime?
+  createdAt          DateTime  @default(now())
+  album              Album     @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  order              Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([albumId])
+}
+
+/// Foto sumada a un pedido después de pagarlo (pack «Todas mis fotos» que se va sumando).
+/// No es una línea del pedido: no cambia montos, comisión ni informes de ventas.
+model OrderAddedPhoto {
+  id                Int       @id @default(autoincrement())
+  orderId           Int
+  photoId           Int
+  similarity        Float?
+  addedAt           DateTime  @default(now())
+  /// Cuándo se le avisó al comprador por mail.
+  notifiedAt        DateTime?
+  /// El comprador la sacó con «Esta no soy yo».
+  removedByClientAt DateTime?
+  order             Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  photo             Photo     @relation(fields: [photoId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, photoId])
+  @@index([orderId])
+  @@index([photoId])
 }
 
 model AlbumPackComponent {

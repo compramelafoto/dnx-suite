@@ -4,6 +4,7 @@ import {
   CreateCollectionCommand,
   IndexFacesCommand,
   SearchFacesByImageCommand,
+  SearchFacesCommand,
   DeleteFacesCommand,
   ListFacesCommand,
   DetectFacesCommand,
@@ -156,6 +157,35 @@ export async function searchFacesByImage(
         similarity: match.Similarity ?? null,
       },
     ];
+  });
+}
+
+/**
+ * Busca en la colección las caras parecidas a una cara ya indexada (por ejemplo, la selfie
+ * guardada de un comprador). No devuelve la cara de entrada.
+ */
+export async function searchFacesByFaceId(
+  faceId: string,
+  limits?: Partial<FaceSearchLimits>
+): Promise<FaceSearchMatch[]> {
+  const { maxFaces, faceMatchThreshold } = normalizeFaceSearchLimits(limits);
+  const rekognition = getRekognitionClient();
+  const collectionId = getCollectionId();
+  await ensureCollectionExists();
+
+  const response = await rekognition.send(
+    new SearchFacesCommand({
+      CollectionId: collectionId,
+      FaceId: faceId,
+      FaceMatchThreshold: faceMatchThreshold,
+      MaxFaces: maxFaces,
+    })
+  );
+
+  return (response.FaceMatches || []).flatMap((match) => {
+    const face = match.Face;
+    if (!face?.FaceId) return [];
+    return [{ rekognitionFaceId: face.FaceId, similarity: match.Similarity ?? null }];
   });
 }
 
