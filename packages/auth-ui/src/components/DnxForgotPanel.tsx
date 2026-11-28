@@ -19,6 +19,8 @@ export function DnxForgotPanel({
   notice,
   loading = "idle",
   loginHref = "/login",
+  showRegister = false,
+  registerHref = "/crear-cuenta",
 }: {
   brand: DnxAuthBrandConfig;
   formAction?: string | ((formData: FormData) => void | Promise<void>);
@@ -27,6 +29,9 @@ export function DnxForgotPanel({
   notice?: string | null;
   loading?: DnxAuthLoadingState;
   loginHref?: string;
+  /** Muestra "¿No tenés cuenta? Crear cuenta" — p. ej. cuando el email no tiene cuenta. */
+  showRegister?: boolean;
+  registerHref?: string;
 }) {
   const copy = brand.contextualCopy;
   const sending = loading === "sending-email" || loading === "submitting";
@@ -53,6 +58,11 @@ export function DnxForgotPanel({
       </form>
       <DnxAuthError message={error} />
       <DnxAuthNotice tone="info" message={notice} />
+      <DnxAuthLinks
+        variant="create-account"
+        showRegister={showRegister}
+        registerHref={registerHref}
+      />
       <DnxAuthLinks variant="have-account" loginHref={loginHref} />
     </DnxAuthShell>
   );
