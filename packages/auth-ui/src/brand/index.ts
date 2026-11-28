@@ -1,6 +1,7 @@
 import type { DnxAuthApplicationId, DnxAuthBrandConfig } from "../types";
 import { clickatonAuthBrand } from "./clickaton";
 import { compramelafotoAuthBrand } from "./compramelafoto";
+import { equiposAuthBrand } from "./equipos";
 import { fotofficeAuthBrand } from "./fotoffice";
 import { fotorankAuthBrand } from "./fotorank";
 import { infospotAuthBrand } from "./infospot";
@@ -10,6 +11,7 @@ import { subilafotoAuthBrand } from "./subilafoto";
 export {
   clickatonAuthBrand,
   compramelafotoAuthBrand,
+  equiposAuthBrand,
   fotofficeAuthBrand,
   fotorankAuthBrand,
   infospotAuthBrand,
@@ -25,6 +27,7 @@ const BRANDS: Record<string, DnxAuthBrandConfig> = {
   fotoffice: fotofficeAuthBrand,
   subilafoto: subilafotoAuthBrand,
   muestras: muestrasAuthBrand,
+  equipos: equiposAuthBrand,
 };
 
 export function getAuthBrandConfig(applicationId: DnxAuthApplicationId): DnxAuthBrandConfig {

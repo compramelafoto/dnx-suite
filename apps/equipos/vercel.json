@@ -1,0 +1,6 @@
+{
+  "crons": [
+    { "path": "/api/cron/cruce-inventario", "schedule": "30 12 * * *" },
+    { "path": "/api/cron/recordatorio-poliza", "schedule": "0 13 * * *" }
+  ]
+}

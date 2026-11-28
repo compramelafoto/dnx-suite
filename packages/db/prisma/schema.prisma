@@ -196,6 +196,13 @@ model User {
   stolenGearReports                     StolenGearReport[]            @relation("StolenGearReporter")
   stolenGearReviews                     StolenGearReport[]            @relation("StolenGearReviewer")
   gearSerialSightings                   GearSerialSighting[]
+  identityVerification                  IdentityVerification?         @relation("IdentityVerificationUser")
+  identityVerificationsReviewed         IdentityVerification[]        @relation("IdentityVerificationReviewer")
+  phoneVerification                     PhoneVerification?
+  gearItems                             GearItem[]
+  gearSightingDismissals                GearSightingDismissal[]
+  gearOwnerSettings                     GearOwnerSettings?
+  insuranceReports                      InsuranceReport[]
   uploadedVideos                        VideoAsset[]                           @relation("VideoUploader")
   products                              PhotographerProduct[]
   catalogProductCategories              CatalogProductCategory[]
@@ -29685,6 +29692,11 @@ enum StolenGearMatchStatus {
   DISMISSED
 }
 
+enum StolenGearIncident {
+  THEFT
+  LOST
+}
+
 /// Historial permanente de cada número de serie visto en fotos de CLF.
 /// No depende de las fotos: sobrevive a la limpieza de álbumes.
 model GearSerialSighting {
@@ -29707,6 +29719,7 @@ model GearSerialSighting {
   updatedAt         DateTime          @updatedAt
   photographer      User?             @relation(fields: [photographerId], references: [id], onDelete: SetNull)
   matches           StolenGearMatch[]
+  gearItem          GearItem?
 
   @@unique([kind, serialNormalized, photographerId])
   @@index([serialNormalized])
@@ -29727,8 +29740,12 @@ model StolenGearReport {
   stolenPlace        String?
   description        String?
   policeReportNumber String?
-  invoiceKey         String
-  invoiceMime        String
+  /// Robo o pérdida. Una pérdida puede no tener comprobante.
+  incident           StolenGearIncident     @default(THEFT)
+  /// Equipo del portal de equipos desde el que se hizo la denuncia (si se hizo desde ahí).
+  gearItemId         Int?
+  invoiceKey         String?
+  invoiceMime        String?
   policeReportKey    String?
   policeReportMime   String?
   status             StolenGearReportStatus @default(PENDING_REVIEW)
@@ -29743,10 +29760,12 @@ model StolenGearReport {
   reporter           User                   @relation("StolenGearReporter", fields: [reporterId], references: [id], onDelete: Cascade)
   reviewedBy         User?                  @relation("StolenGearReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   matches            StolenGearMatch[]
+  gearItem           GearItem?              @relation(fields: [gearItemId], references: [id], onDelete: SetNull)
 
   @@index([reporterId])
   @@index([status])
   @@index([serialNormalized])
+  @@index([gearItemId])
 }
 
 /// Un equipo denunciado apareció en fotos de otro fotógrafo. Sólo lo ve el admin.
@@ -29767,6 +29786,162 @@ model StolenGearMatch {
   @@unique([reportId, sightingId])
   @@index([status])
   @@index([notifiedAt])
+}
+
+// ─── Portal de equipos usados verificados (etapa 1a) ─────────────────────────
+// Diseño: docs/superpowers/specs del portal de equipos (2026-11-25).
+
+enum IdentityVerificationStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+/// Verificación de identidad del dueño de equipos (una por usuario).
+model IdentityVerification {
+  id                 Int                        @id @default(autoincrement())
+  userId             Int                        @unique
+  status             IdentityVerificationStatus @default(PENDING)
+  provider           String
+  providerRef        String?                    @unique
+  documentHash       String?                    @unique
+  documentLast3      String?
+  legalName          String?
+  consentAt          DateTime
+  approvedAt         DateTime?
+  rejectionReason    String?
+  reviewedById       Int?
+  reverifyRequiredAt DateTime?
+  createdAt          DateTime                   @default(now())
+  updatedAt          DateTime                   @updatedAt
+  user               User                       @relation("IdentityVerificationUser", fields: [userId], references: [id], onDelete: Cascade)
+  reviewedBy         User?                      @relation("IdentityVerificationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+}
+
+/// Verificación del celular por código (una por usuario).
+model PhoneVerification {
+  id            Int       @id @default(autoincrement())
+  userId        Int       @unique
+  phone         String
+  code          String
+  codeExpiresAt DateTime
+  verifiedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum GearItemKind {
+  BODY
+  LENS
+  FLASH
+  TRIPOD
+  BAG
+  FILTER
+  DRONE
+  OTHER
+}
+
+enum GearItemStatus {
+  IN_USE
+  FOR_SALE
+  SOLD
+  STOLEN
+  LOST
+  RECOVERED
+}
+
+enum GearItemSource {
+  CLF_SIGHTING
+  MANUAL
+}
+
+/// Un equipo del inventario de un fotógrafo.
+model GearItem {
+  id                Int                 @id @default(autoincrement())
+  ownerId           Int
+  kind              GearItemKind
+  make              String
+  model             String
+  serialRaw         String?
+  serialNormalized  String?
+  status            GearItemStatus      @default(IN_USE)
+  source            GearItemSource
+  sightingId        Int?                @unique
+  purchaseDate      DateTime?
+  purchaseProofKey  String?
+  purchaseProofMime String?
+  declaredValueArs  Int?
+  declaredValueUsd  Int?
+  photoKeys         String[]
+  notes             String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  owner             User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  sighting          GearSerialSighting? @relation(fields: [sightingId], references: [id], onDelete: SetNull)
+  events            GearItemEvent[]
+  stolenReports     StolenGearReport[]
+
+  @@index([ownerId])
+  @@index([serialNormalized])
+}
+
+enum GearItemEventType {
+  CREATED
+  CONFIRMED_FROM_CLF
+  UPDATED
+  STATUS_CHANGED
+  REPORTED
+  RECOVERED
+  PROOF_ADDED
+}
+
+/// Historial de un equipo.
+model GearItemEvent {
+  id         Int               @id @default(autoincrement())
+  gearItemId Int
+  type       GearItemEventType
+  detail     Json?
+  createdAt  DateTime          @default(now())
+  gearItem   GearItem          @relation(fields: [gearItemId], references: [id], onDelete: Cascade)
+
+  @@index([gearItemId])
+}
+
+/// El fotógrafo dijo «no es mío» a un número de serie visto en CLF.
+model GearSightingDismissal {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  sightingId Int
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, sightingId])
+}
+
+/// Preferencias del dueño de equipos (vencimiento de la póliza del seguro).
+model GearOwnerSettings {
+  id                    Int       @id @default(autoincrement())
+  userId                Int       @unique
+  policyRenewalDate     DateTime?
+  lastRenewalReminderAt DateTime?
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Informe de equipos para el seguro, con código verificable.
+model InsuranceReport {
+  id          Int      @id @default(autoincrement())
+  ownerId     Int
+  code        String   @unique
+  contentHash String
+  snapshot    Json
+  totalArs    Int
+  totalUsd    Int
+  createdAt   DateTime @default(now())
+  owner       User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId])
 }
 
 /// Respuesta rápida de la Bandeja de WhatsApp (FOTOFFICE): un texto guardado con atajo (`/carnet`).
