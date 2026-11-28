@@ -17,6 +17,13 @@ export const FACE_SEARCH_DEFAULT: FaceSearchLimits = { maxFaces: 20, faceMatchTh
 /** Selfie de una persona buscando sus fotos en un álbum o evento. */
 export const FACE_SEARCH_PERSON_PHOTOS: FaceSearchLimits = { maxFaces: 1000, faceMatchThreshold: 80 };
 
+/**
+ * Fotos que se suman solas a un pack ya pagado («Todas mis fotos» de varios días).
+ * Nadie las revisa antes de llegar al panel, así que el umbral es más exigente (90%).
+ * Pide el máximo de caras porque la colección es de todo CLF y el costo es el mismo.
+ */
+export const FACE_SEARCH_GROWING_PACK: FaceSearchLimits = { maxFaces: 4096, faceMatchThreshold: 90 };
+
 /** Rekognition acepta entre 1 y 4096 caras y un umbral entre 0 y 100. */
 export function normalizeFaceSearchLimits(limits?: Partial<FaceSearchLimits>): FaceSearchLimits {
   const maxFaces = Math.round(Number(limits?.maxFaces ?? FACE_SEARCH_DEFAULT.maxFaces));

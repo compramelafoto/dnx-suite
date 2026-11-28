@@ -1,3 +1,8 @@
+import {
+  GROWING_PACK_ZIP_META,
+  mergeOrderDigitalPhotoIds,
+  zipJobCoversPhotos,
+} from "@/lib/digital-download/order-digital-photo-ids";
 /**
  * GET /api/downloads/[token]
  *
@@ -189,6 +194,12 @@ export async function GET(
               photo: true,
             },
           },
+          // Fotos sumadas después de pagar (pack «Todas mis fotos» de varios días).
+          addedPhotos: {
+            where: { removedByClientAt: null },
+            include: { photo: true },
+            orderBy: { id: "asc" },
+          },
         },
       });
 
@@ -215,9 +226,9 @@ export async function GET(
 
       // Si es descarga individual de una foto
       if (downloadToken.photoId) {
-        const item = order.items.find(
-          (i) => i.photoId === downloadToken.photoId
-        );
+        const item =
+          order.items.find((i) => i.photoId === downloadToken.photoId) ??
+          order.addedPhotos.find((a) => a.photoId === downloadToken.photoId);
         if (!item) {
           return NextResponse.json(
             { error: "Foto no encontrada en el pedido" },
@@ -241,7 +252,13 @@ export async function GET(
       } else {
         // Descarga completa del pedido (ZIP) — solo ítems digitales
         const digitalItems = order.items.filter((item) => item.productType === "DIGITAL");
-        const photos = digitalItems.map((item) => item.photo);
+        const photoById = new Map<number, (typeof digitalItems)[number]["photo"]>();
+        for (const item of digitalItems) photoById.set(item.photo.id, item.photo);
+        for (const added of order.addedPhotos) photoById.set(added.photo.id, added.photo);
+        const photos = mergeOrderDigitalPhotoIds(
+          digitalItems.map((item) => item.photo.id),
+          order.addedPhotos.map((added) => added.photo.id)
+        ).map((id) => photoById.get(id)!);
 
         if (photos.length === 0) {
           return NextResponse.json(
@@ -275,7 +292,7 @@ export async function GET(
 
         const baseUrl = process.env.APP_URL || `${req.url.split("/api")[0]}`;
 
-        const existingJob = await prisma.zipGenerationJob.findFirst({
+        const latestJob = await prisma.zipGenerationJob.findFirst({
           where: {
             orderId: order.id,
             type: "ORDER_DOWNLOAD",
@@ -283,6 +300,12 @@ export async function GET(
           },
           orderBy: { createdAt: "desc" },
         });
+        // Si se sumaron fotos después de armar el ZIP, ese ZIP quedó corto: se arma otro.
+        const hasAddedPhotos = order.addedPhotos.length > 0;
+        const existingJob =
+          latestJob && hasAddedPhotos && !zipJobCoversPhotos(latestJob.photoIds, photoIds)
+            ? null
+            : latestJob;
 
         if (existingJob?.status === "COMPLETED") {
           const r2Key = existingJob.r2Key;
@@ -318,6 +341,7 @@ export async function GET(
                 albumId: order.albumId,
                 photoIds,
                 expiresAt: downloadExpiresAt,
+                ...(hasAddedPhotos && latestJob ? { meta: GROWING_PACK_ZIP_META } : {}),
               });
 
         const statusUrl = `${baseUrl}/api/zip-jobs/${job.id}/status`;

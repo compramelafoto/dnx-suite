@@ -1,3 +1,4 @@
+import { isGrowingPackZipRefresh } from "@/lib/digital-download/order-digital-photo-ids";
 import { prisma } from "@/lib/prisma";
 import { queueEmail, renderTemplate } from "@/lib/email-queue";
 import { getOrderDownloadTokens } from "@/lib/download-tokens";
@@ -77,6 +78,8 @@ export async function notifyClientDigitalZipReady(
   if (!job) return;
   if (job.type !== "ORDER_DOWNLOAD") return;
   if (!job.orderId) return;
+  // ZIP rearmado porque se sumaron fotos: el comprador lo pidió desde su panel, no hace falta otro mail.
+  if (isGrowingPackZipRefresh(job.meta)) return;
 
   const order = await prisma.order.findUnique({
     where: { id: job.orderId },
