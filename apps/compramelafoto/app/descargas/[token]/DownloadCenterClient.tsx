@@ -261,6 +261,34 @@ function ZipSection({
   return null;
 }
 
+/** Pack «Todas mis fotos» de un evento de varios días: cuenta que el panel sigue sumando fotos. */
+function GrowingPackBanner({ data }: { data: DownloadCenterData }) {
+  const growing = data.growingPack;
+  if (!growing) return null;
+  const nuevas =
+    growing.newCount > 0
+      ? growing.newCount === 1
+        ? "Hay 1 foto nueva desde tu última visita."
+        : `Hay ${growing.newCount} fotos nuevas desde tu última visita.`
+      : null;
+  return (
+    <Card className="border-emerald-200/70 bg-emerald-50/50 !p-4 shadow-none md:!p-5">
+      <p className="text-sm font-semibold text-emerald-950">
+        {growing.active
+          ? "Este evento sigue sumando fotos"
+          : "El fotógrafo terminó de subir este evento. Estas son todas tus fotos."}
+      </p>
+      {growing.active ? (
+        <p className="mt-1 text-sm leading-relaxed text-emerald-900/80">
+          Cuando el fotógrafo suba fotos nuevas en las que aparezcas, se suman acá solas y te avisamos
+          por mail. Pueden tardar unas horas en aparecer.
+        </p>
+      ) : null}
+      {nuevas ? <p className="mt-2 text-sm font-medium text-emerald-900">{nuevas}</p> : null}
+    </Card>
+  );
+}
+
 function PhotoCard({
   photo,
   index,
@@ -282,6 +310,11 @@ function PhotoCard({
             sizes="(max-width: 399px) 100vw, (max-width: 639px) 50vw, (max-width: 1023px) 33vw, 25vw"
             unoptimized
           />
+          {photo.isNew ? (
+            <span className="absolute left-2 top-2 rounded-full bg-emerald-600 px-2.5 py-0.5 text-xs font-semibold text-white shadow">
+              Nueva
+            </span>
+          ) : null}
         </div>
         <div className="p-2.5 sm:p-3">
           <p className="sr-only">{photo.filename}</p>
@@ -451,6 +484,7 @@ export default function DownloadCenterClient({ data }: Props) {
           <DownloadCenterHeader data={data} />
 
           <StatusBanner data={data} />
+          <GrowingPackBanner data={data} />
 
           {!isExpired ? (
             <section aria-label="Galería de fotos compradas" className="min-w-0">

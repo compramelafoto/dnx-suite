@@ -96,6 +96,12 @@ interface AlbumOrderDetail {
   paymentStatus: string;
   orderType: string;
   fulfillmentKind?: OrderFulfillmentKind;
+  /** Combo cobrado por fuera o de regalo: no es un pedido con fotos. */
+  comboExterno?: {
+    titulo: string;
+    detalle: string | null;
+    pedidoId: number | null;
+  } | null;
   digitalItemsCount?: number;
   printItemsCount?: number;
   total: number;
@@ -313,6 +319,8 @@ function AdminPedidoDetailContent() {
           return { kind: f.kind, digital: f.digitalItemsCount, print: f.printItemsCount };
         })();
     const albumPaid = digitalOrder.paymentStatus === "PAID";
+    const combo = digitalOrder.comboExterno ?? null;
+    const esLinkCompartido = combo?.titulo === "Link compartido de regalo";
 
     return (
       <div className="space-y-6">
@@ -320,7 +328,18 @@ function AdminPedidoDetailContent() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Pedido #{digitalOrder.id}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className="text-gray-800 font-medium">{getFulfillmentKindLabel(derived.kind)}</span>
+              <span className="text-gray-800 font-medium">
+                {combo ? combo.titulo : getFulfillmentKindLabel(derived.kind)}
+              </span>
+              {combo && !esLinkCompartido ? (
+                <span
+                  className={`px-2 py-0.5 rounded text-xs font-medium ${
+                    combo.pedidoId ? "bg-green-100 text-green-800" : "bg-amber-100 text-amber-800"
+                  }`}
+                >
+                  {combo.pedidoId ? "Canjeado" : "Sin canjear"}
+                </span>
+              ) : null}
               {derived.digital > 0 && (
                 <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                   D {derived.digital}
@@ -338,6 +357,31 @@ function AdminPedidoDetailContent() {
           </Button>
         </div>
 
+        {combo ? (
+          <Card className="p-6 border border-amber-200 bg-amber-50">
+            <h2 className="text-lg font-semibold text-gray-900 mb-2">Esto es un combo, no un pedido con fotos</h2>
+            {combo.detalle ? <p className="text-sm text-gray-800 mb-2">{combo.detalle}</p> : null}
+            <p className="text-sm text-gray-700">
+              {esLinkCompartido
+                ? "Es el link único que comparten todas las familias. Cada familia que deja sus datos recibe su propio combo. No lo borres ni lo revoques."
+                : "Es el cupo de la familia: por eso no tiene fotos ni descargas. Cuando la familia elige sus fotos se crea un pedido aparte, que es el que se imprime."}
+            </p>
+            {combo.pedidoId ? (
+              <Button
+                className="mt-3"
+                variant="secondary"
+                size="sm"
+                onClick={() => router.push(`/admin/pedidos/${combo.pedidoId}?source=ALBUM_ORDER`)}
+              >
+                Ver el pedido #{combo.pedidoId}
+              </Button>
+            ) : !esLinkCompartido ? (
+              <p className="mt-2 text-sm font-medium text-amber-800">La familia todavía no eligió sus fotos.</p>
+            ) : null}
+          </Card>
+        ) : null}
+
+        {combo ? null : (
         <Card className="p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-3">Acciones de descarga</h2>
           <p className="text-sm text-gray-600 mb-4">
@@ -377,6 +421,7 @@ function AdminPedidoDetailContent() {
             )}
           </div>
         </Card>
+        )}
 
         <Card className="p-6">
           <div className="grid dnx-grid-2 gap-4">
@@ -454,7 +499,9 @@ function AdminPedidoDetailContent() {
         <Card className="p-6">
           <h2 className="text-lg font-semibold mb-4">Items</h2>
           {digitalOrder.items.length === 0 ? (
-            <p className="text-gray-500">Sin items</p>
+            <p className="text-gray-500">
+              {combo ? "Sin fotos: las fotos van en el pedido que arma la familia." : "Sin items"}
+            </p>
           ) : (
             <div className="space-y-3">
               {digitalOrder.items.map((item) => (

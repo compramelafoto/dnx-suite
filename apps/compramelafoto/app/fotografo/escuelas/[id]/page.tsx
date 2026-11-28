@@ -27,9 +27,7 @@ import {
   LayoutTemplate,
   PieChart,
   Search,
-  Shield,
   Upload,
-  UserPlus,
   Users,
   Wallet,
 } from "lucide-react";
@@ -292,6 +290,20 @@ function formatArsWhole(n: number) {
   return `$ ${n.toLocaleString("es-AR", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+const ORGANIZER_STATUS_LABEL: Record<string, string> = {
+  ACTIVE: "Activo",
+  DISABLED: "Desactivado",
+  PENDING: "Pendiente",
+  ACCEPTED: "Aceptada",
+  EXPIRED: "Vencida",
+  CANCELLED: "Cancelada",
+};
+
+/** Estado de un administrador o de una invitación, en castellano. */
+function organizerStatusLabel(status: string): string {
+  return ORGANIZER_STATUS_LABEL[status] ?? status;
+}
+
 function commissionLineStatusLabel(status: SchoolCommission["status"]): string {
   switch (status) {
     case "PENDING":
@@ -456,11 +468,6 @@ export default function FotografoEscuelaDetallePage() {
         id: "comisiones_ventas",
         label: "Comisiones y ventas",
         icon: <CreditCard className="h-4 w-4" aria-hidden />,
-      },
-      {
-        id: "config_privacidad",
-        label: "Configuración y privacidad",
-        icon: <Shield className="h-4 w-4" aria-hidden />,
       },
     ],
     []
@@ -891,7 +898,9 @@ export default function FotografoEscuelaDetallePage() {
 
   function getPreventaLink(album: Album) {
     if (typeof window === "undefined") return "";
-    return `${window.location.origin}/album/${album.publicSlug}`;
+    // Con la marca del colegio (`?ref=school_<id>`): sin ella, la compra no le suma comisión.
+    const ref = school?.id ? `?ref=school_${school.id}` : "";
+    return `${window.location.origin}/album/${album.publicSlug}${ref}`;
   }
 
   function copyPreventaLink(album: Album) {
@@ -1688,15 +1697,6 @@ export default function FotografoEscuelaDetallePage() {
               </div>
             </div>
           </Card>
-                  <Card className="rounded-2xl border border-dashed border-[#dcd6cf] bg-[#fafaf9] p-6 shadow-sm">
-                    <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">
-                      Color institucional
-                    </h2>
-                    <p className="mt-2 ds-readable-text ds-readable-text--fluid ds-readable-text--sm ds-readable-text--muted">
-                      Pronto vas a poder guardar aquí una referencia de color para branding coherente en diseños y
-                      materiales. Por ahora es solo planificación UX.
-                    </p>
-                  </Card>
                 </DsTabPanel>
               )}
 
@@ -1875,7 +1875,7 @@ export default function FotografoEscuelaDetallePage() {
                           {member.user.name || "Sin nombre"}
                         </td>
                         <td className="px-3 py-3 text-sm text-gray-700">{member.user.email}</td>
-                        <td className="px-3 py-3 text-sm text-gray-700">{member.status}</td>
+                        <td className="px-3 py-3 text-sm text-gray-700">{organizerStatusLabel(member.status)}</td>
                         <td className="px-3 py-3 text-sm text-gray-700">
                           {formatDate(member.createdAt)}
                         </td>
@@ -1928,7 +1928,7 @@ export default function FotografoEscuelaDetallePage() {
                           {invitation.name || invitation.email}
                           <div className="text-xs text-gray-600">{invitation.email}</div>
                         </td>
-                        <td className="px-3 py-3 text-sm text-gray-700">{invitation.status}</td>
+                        <td className="px-3 py-3 text-sm text-gray-700">{organizerStatusLabel(invitation.status)}</td>
                         <td className="px-3 py-3 text-sm text-gray-700">
                           {formatDate(invitation.expiresAt)}
                         </td>
@@ -2025,17 +2025,6 @@ export default function FotografoEscuelaDetallePage() {
                         >
                           <Upload className="h-4 w-4" aria-hidden />
                           Importar listado
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          disabled
-                          className="cursor-not-allowed gap-2 opacity-70"
-                          title="Por ahora, sumá alumnos desde la importación o desde cada sesión fotográfica (álbum)."
-                        >
-                          <UserPlus className="h-4 w-4" aria-hidden />
-                          Agregar alumno
                         </Button>
                         <div className="min-w-[12rem] max-w-md flex-1">
                           <div className="relative">
@@ -2660,14 +2649,6 @@ export default function FotografoEscuelaDetallePage() {
 
               {activeTab === "albumes" && (
                 <DsTabPanel>
-                  <Card className="rounded-2xl border border-[#ebe8e4] bg-[#fdfbf9] p-6 shadow-sm">
-                    <h3 className="text-sm font-semibold text-gray-900">Herencia desde la escuela</h3>
-                    <p className="mt-2 w-full min-w-0 ds-readable-text ds-readable-text--fluid ds-readable-text--sm text-gray-700">
-                      Los álbumes que vinculés a esta institución comparten la misma referencia interna de escuela. En las
-                      próximas iteraciones se aplicarán acá valores por defecto de privacidad, comisión cooperadora, packs
-                      recomendados y plantillas sugeridas, sin sobrescribir lo que ya configuraste en cada sesión.
-                    </p>
-                  </Card>
                   <Card className="rounded-2xl border border-[#ebe8e4] p-6 shadow-sm">
                     <div className="mb-6 w-full min-w-0 space-y-2">
                       <h2 className="text-lg font-semibold text-gray-900">Álbumes de la institución</h2>
@@ -2841,9 +2822,6 @@ export default function FotografoEscuelaDetallePage() {
                                 <div className="mt-3 flex flex-wrap items-center gap-2">
                                   <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${b.className}`}>
                                     {b.label}
-                                  </span>
-                                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase text-amber-900 ring-1 ring-amber-200/80">
-                                    Institucional (pronto)
                                   </span>
                                 </div>
                                 <p className="mt-2 line-clamp-2 text-sm font-semibold text-gray-900">{t.name}</p>
@@ -3255,33 +3233,6 @@ export default function FotografoEscuelaDetallePage() {
                 </DsTabPanel>
               )}
 
-              {activeTab === "config_privacidad" && (
-                <DsTabPanel>
-                  <div className="w-full min-w-0 max-w-full">
-                    <h2 className="text-lg font-semibold text-gray-900">Configuración y privacidad (defaults)</h2>
-                    <p className="mt-2 ds-readable-text ds-readable-text--fluid ds-readable-text--sm ds-readable-text--muted">
-                      Todos los álbumes nuevos de esta escuela usarán esta configuración por defecto cuando el backend
-                      exponga estos campos a nivel institución. Hoy estos valores siguen viviendo en cada álbum; esta
-                      pestaña comunica la intención de producto sin romper comportamiento legacy ni preventa activa.
-                    </p>
-                  </div>
-                  <Card className="rounded-2xl border border-[#ebe8e4] p-6 shadow-sm space-y-4">
-                    <h3 className="text-sm font-semibold text-gray-900">Privacidad de fotos y selfie</h3>
-                    <ul className="w-full min-w-0 max-w-full list-disc space-y-2 pl-5 text-sm leading-relaxed text-gray-700">
-                      <li>defaults de selfies y fotos ocultas hasta validación,</li>
-                      <li>público u oculto por defecto al crear álbum,</li>
-                      <li>si se exige aprobación de cliente en preventa,</li>
-                      <li>mensajes institucionales en flujos de compra cuando existan.</li>
-                    </ul>
-                  </Card>
-                  <Card className="rounded-2xl border border-dashed border-gray-300 bg-gray-50/80 p-6">
-                    <p className="w-full min-w-0 max-w-full text-sm text-gray-600">
-                      Migración recomendada: campos opcionales en <code className="text-xs">School</code> con shadowing en{" "}
-                      <code className="text-xs">Album</code>, mismo patrón que herencia de configuración en otros módulos.
-                    </p>
-                  </Card>
-                </DsTabPanel>
-              )}
             </Tabs>
           </Card>
         </DsDashboardInner>

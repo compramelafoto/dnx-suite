@@ -25,6 +25,7 @@ vi.mock("@prisma/client", () => ({
 vi.mock("@/lib/videos/video-feature-flag", () => ({ isVideoMvpEnabled: () => false }));
 vi.mock("@/lib/videos/create-video-order", () => ({ loadCartVideos: vi.fn() }));
 vi.mock("@/lib/videos/video-cart", () => ({ quoteVideoCart: vi.fn() }));
+vi.mock("@/lib/compra-directa/productos-del-album", () => ({ plantillasCargadasDelAlbum: vi.fn(async () => new Map()) }));
 vi.mock("@/lib/pricing/pricing-engine", () => ({
   computeCheckoutTotals: vi.fn(async () => ({
     displayTotalCents: 9000,
@@ -38,7 +39,7 @@ vi.mock("@/lib/preventa-canjeable/pricing-snapshot-v1", () => ({
   buildStandardLinesFromAlbumCheckout: vi.fn(),
   mergeStandardAlbumCheckoutPricingSnapshotV1: vi.fn(),
 }));
-vi.mock("@/lib/album-helpers", () => ({ isAlbumPubliclyAccessible: () => true }));
+vi.mock("@/lib/album-helpers", () => ({ isAlbumOpenByLink: () => true }));
 vi.mock("@/lib/albums/album-sales-readiness-server", () => ({
   albumSalesNotReadyResponse: vi.fn(),
   isAlbumReadyToSellForCheckout: vi.fn(async () => true),

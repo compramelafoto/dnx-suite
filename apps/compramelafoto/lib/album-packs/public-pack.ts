@@ -1,3 +1,4 @@
+import { packCanKeepAddingPhotos } from "@/lib/album-packs/growing-pack/keeps-adding-photos-rules";
 import type {
   AlbumPackFulfillmentKind,
   AlbumPackSelectionMode,
@@ -35,6 +36,8 @@ export type PublicPack = {
   compositionFulfillmentKind: AlbumPackFulfillmentKind;
   components: PublicPackComponent[];
   selectionMode: AlbumPackSelectionMode;
+  /** «Todas mis fotos» de un evento de varios días: las fotos que se suban después se suman al panel. */
+  keepsAddingPhotos: boolean;
   productName: string | null;
   size: string | null;
   finish: string | null;
@@ -55,6 +58,7 @@ export type AlbumPackRowForPublic = {
   availabilityPhase: "PRE_UPLOAD" | "POST_UPLOAD" | "ALWAYS";
   isActive: boolean;
   packType?: AlbumPackType;
+  keepsAddingPhotos?: boolean;
   components?: Array<{
     kind: "DIGITAL" | "PRINT" | "DESIGN_PRODUCT";
     sortOrder: number;
@@ -231,6 +235,13 @@ export function buildPublicPackFromAlbumPackRow(pack: AlbumPackRowForPublic): Pu
     compositionFulfillmentKind,
     components,
     selectionMode,
+    keepsAddingPhotos:
+      pack.keepsAddingPhotos === true &&
+      packCanKeepAddingPhotos({
+        description: pack.description,
+        packType: pack.packType ?? "DIGITAL",
+        componentKinds: components.map((c) => c.kind),
+      }),
     productName: print?.productName ?? null,
     size: print?.size ?? null,
     finish: print?.finish ?? null,

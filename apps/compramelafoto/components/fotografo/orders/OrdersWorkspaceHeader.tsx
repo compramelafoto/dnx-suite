@@ -5,6 +5,7 @@ import { sinPedidosDemo } from "@/lib/canje-externo/pack-de-prueba";
 import OrdersSummaryCards from "./OrdersSummaryCards";
 import OrdersWorkspaceNav from "./OrdersWorkspaceNav";
 import OrdersSearchBar from "./OrdersSearchBar";
+import OrdersDateRangeBar from "./OrdersDateRangeBar";
 import {
   computeOrdersWorkspaceStats,
   type OrdersQuickFilter,
@@ -19,6 +20,11 @@ type OrdersWorkspaceHeaderProps = {
   onSearchChange: (value: string) => void;
   onClearSearch: () => void;
   shownCount: number;
+  desde: string;
+  hasta: string;
+  onDesdeChange: (value: string) => void;
+  onHastaChange: (value: string) => void;
+  onClearDates: () => void;
 };
 
 export default function OrdersWorkspaceHeader({
@@ -29,6 +35,11 @@ export default function OrdersWorkspaceHeader({
   onSearchChange,
   onClearSearch,
   shownCount,
+  desde,
+  hasta,
+  onDesdeChange,
+  onHastaChange,
+  onClearDates,
 }: OrdersWorkspaceHeaderProps) {
   // Los pedidos DEMO (pruebas del fotógrafo) se listan pero no cuentan.
   const stats = computeOrdersWorkspaceStats(sinPedidosDemo(orders));
@@ -53,6 +64,13 @@ export default function OrdersWorkspaceHeader({
           onSearchChange={onSearchChange}
           onClear={onClearSearch}
           hasActiveSearch={q.trim().length > 0}
+        />
+        <OrdersDateRangeBar
+          desde={desde}
+          hasta={hasta}
+          onDesdeChange={onDesdeChange}
+          onHastaChange={onHastaChange}
+          onClear={onClearDates}
         />
       </div>
     </div>

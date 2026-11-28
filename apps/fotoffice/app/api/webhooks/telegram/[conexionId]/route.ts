@@ -1,4 +1,5 @@
 import { after, NextResponse } from "next/server";
+import { atenderBoton, atenderRespuesta } from "@/lib/bandeja/telegram";
 import { procesarUpdateTelegram } from "@/lib/presupuesto-automatico/telegram-webhook";
 import { conexionPorId } from "@/lib/telegram/conexion";
 import { ENCABEZADO_SECRETO, leerUpdate, secretoValido } from "@/lib/telegram/webhook";
@@ -29,9 +30,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ con
   } catch {
     return NextResponse.json({ ok: true, ignored: true });
   }
-  const update = leerUpdate(payload);
-  // Este bot sólo vincula el chat y aprueba con el botón; una respuesta de texto (que sí usa el
-  // canal de agentes) acá no significa nada.
+  const update = leerUpdate(payload, { bandeja: true });
+  // Bandeja de WhatsApp (diseño 2026-11-24 §7): responder citando y sus botones (`bj:`).
+  if (update.tipo === "RESPUESTA" || update.tipo === "RESPUESTA_NO_TEXTO") {
+    after(() => atenderRespuesta(conexion, update).then(() => undefined));
+    return NextResponse.json({ ok: true });
+  }
+  if (update.tipo === "BOTON" && update.data.startsWith("bj:")) {
+    after(() => atenderBoton(conexion, update).then(() => undefined));
+    return NextResponse.json({ ok: true });
+  }
+  // Lo demás: vincular el chat y aprobar cotizaciones con el botón.
   if (update.tipo !== "START" && update.tipo !== "BOTON") return NextResponse.json({ ok: true, ignored: true });
   after(() => procesarUpdateTelegram(conexion, update));
   return NextResponse.json({ ok: true });

@@ -93,3 +93,10 @@ describe("horarioDeSeguimiento", () => {
     expect(horarioDeSeguimiento(new Date("2026-10-29T23:00:00Z"))).toBe(false); // 20:00
   });
 });
+
+describe("notas internas y seguimiento", () => {
+  it("una nota del equipo no cuenta como que alguien ya lo atendió", () => {
+    const nota = m(5, "NOTA", "USUARIO", "no contestó, insistir el lunes");
+    expect(decidirSeguimiento([cliente(0, "cuánto salen 20 copias 10x15?"), bot(1, PRECIO_COPIAS), nota])).toEqual({ desde: new Date(T0.getTime() + 60_000), tema: "las copias" });
+  });
+});

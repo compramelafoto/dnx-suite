@@ -252,8 +252,7 @@ export default function DashboardDesignsPage() {
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-semibold text-[#111827]">Diseños</h1>
           <p className="mt-2 w-full min-w-0 ds-readable-text ds-readable-text--fluid ds-readable-text--sm text-gray-600 sm:text-[0.9375rem]">
-            Plantillas del editor nuevo (solo V2 en este panel). Las plantillas clásicas siguen disponibles sólo donde haga
-            falta en datos históricos; no aparecen acá ni en los listados públicos si no sos admin.
+            Las plantillas con las que se arman los libritos, carpetas y fotos con datos de cada alumno.
           </p>
         </div>
         <div className="shrink-0">
@@ -273,7 +272,7 @@ export default function DashboardDesignsPage() {
       <section className="mt-10">
         <h2 className="mb-1 text-lg font-semibold text-[#111827]">Mis plantillas</h2>
         <p className="mb-4 w-full min-w-0 ds-readable-text ds-readable-text--fluid ds-readable-text--sm ds-readable-text--muted">
-          Tus borradores y plantillas que no están marcadas como «sistema» (meta editor v2).
+          Las plantillas que creaste o duplicaste. Son tuyas y las podés editar cuando quieras.
         </p>
         {userTemplates.length === 0 ? (
           <Card className="border border-[#f1f5f9] p-8">

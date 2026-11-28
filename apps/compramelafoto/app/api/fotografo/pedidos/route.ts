@@ -11,6 +11,7 @@ import {
 } from "@/lib/orders/resolve-album-order-buyer-contact";
 import { digitalOrdersVisibilityWhere } from "@/lib/agencies/order-visibility";
 import { esPedidoDemo } from "@/lib/canje-externo/pack-de-prueba";
+import { esComboExterno } from "@/lib/canje-externo/combo-externo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,9 +54,9 @@ export async function GET(req: Request) {
     const photographerInstagram = photographerProfile?.instagram ?? null;
     const url = new URL(req.url);
     const debugMode = url.searchParams.get("debug") === "1";
-    // Estadísticas: todos los pedidos (sin el tope de 200 del listado), para que las sumas sean reales.
-    const forStats = url.searchParams.get("alcance") === "estadisticas";
-    const take = forStats ? undefined : 200;
+    // Sin tope: el listado y las estadísticas traen todos los pedidos. Antes el listado se cortaba
+    // en 200 y los fotógrafos con más ventas no veían los pedidos viejos. El filtro por fechas
+    // se hace en la pantalla. (`?alcance=estadisticas` se sigue aceptando y da lo mismo.)
 
     let labId: number | null = null;
     if (user.role === Role.LAB_PHOTOGRAPHER || user.role === Role.LAB) {
@@ -78,7 +79,6 @@ export async function GET(req: Request) {
     const printOrdersRaw = await prisma.printOrder.findMany({
       where: printOrderWhere,
       orderBy: { createdAt: "desc" },
-      take,
       include: { items: true, lab: true },
     });
 
@@ -128,7 +128,7 @@ export async function GET(req: Request) {
         };
       });
 
-    const digitalOrders = await prisma.order.findMany({
+    const albumOrdersRaw = await prisma.order.findMany({
       where: {
         AND: [
           digitalOrdersVisibilityWhere(id),
@@ -143,7 +143,6 @@ export async function GET(req: Request) {
         status: { in: ["PAID", "PENDING", "FAILED", "REFUNDED"] },
       },
       orderBy: { createdAt: "desc" },
-      take,
       include: {
         items: true,
         // Los videos van en su propia tabla: sin esto, un pedido de sólo
@@ -153,6 +152,10 @@ export async function GET(req: Request) {
         buyerUser: { select: { name: true, phone: true, whatsapp: true } },
       },
     });
+
+    // Los combos cobrados por fuera o de regalo no tienen fotos: son el cupo de la familia y
+    // se siguen en "Canjes". El pedido con fotos que arma la familia sí aparece acá.
+    const digitalOrders = albumOrdersRaw.filter((o) => !esComboExterno(o));
 
     // Diseños armados en el pedido (el librito del canje): el fotógrafo los abre desde el pedido.
     const designsByOrderId = new Map<number, number[]>();
@@ -283,6 +286,7 @@ export async function GET(req: Request) {
             ? "PREVENTA"
             : f.kind,
         origin: o.origin ?? null,
+        checkoutPaymentSource: o.checkoutPaymentSource ?? null,
         source: "ALBUM_ORDER" as const,
         hasDigitalItems: f.hasDigitalItems,
         hasPrintItems: f.hasPrintItems,

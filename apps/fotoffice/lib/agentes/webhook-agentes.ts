@@ -43,7 +43,7 @@ async function esDelVendedor(messageId: string, deps: DepsWebhookAgentes): Promi
 
 export async function procesarUpdateAgentes(canal: CanalAgentes, update: UpdateTelegram, deps: DepsWebhookAgentes = {}): Promise<void> {
   try {
-    if (update.tipo === "OTRO") return;
+    if (update.tipo === "OTRO" || update.tipo === "RESPUESTA_NO_TEXTO") return;
     const token = deps.token === undefined ? tokenAgentes() : deps.token;
     if (!token) return;
 

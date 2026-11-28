@@ -2,6 +2,7 @@
 
 import { CASILLA_DANIEL } from "@/lib/agentes/vendedor/tipos";
 import { sendTransactionalEmail } from "@/lib/communications/send-email";
+import { confirmarFotoSubida, permisoParaSubirFoto, type FotoConfirmada, type PermisoDeSubida } from "@/lib/alta-cliente/fotos";
 import { cargarFormularioDeAlta, guardarRespuestasDeAlta, marcarAltaEnviada } from "@/lib/alta-cliente/repositorio";
 import { faltantes, respuestasEnTexto } from "@/lib/alta-cliente/tipos";
 
@@ -68,4 +69,31 @@ export async function enviarAlta(token: string, respuestas: unknown): Promise<Re
     console.error("[fotoffice][alta] aviso por correo no enviado", { id: formulario.id, estado: envio.status });
   }
   return { ok: true, enviado: true };
+}
+
+const NO_DISPONIBLE = "Este enlace ya no está disponible.";
+const SIN_SUBIDA = "No se pudo preparar la subida. Probá de nuevo en un rato.";
+
+/** Primer paso de una foto: un permiso de un minuto para subirla directo al almacenamiento. */
+export async function pedirSubidaDeFoto(token: string, tipo: string): Promise<PermisoDeSubida> {
+  try {
+    const formulario = await cargarFormularioDeAlta(token);
+    if (!formulario) return { ok: false, error: NO_DISPONIBLE };
+    return await permisoParaSubirFoto(formulario.id, tipo);
+  } catch (error) {
+    console.error("[fotoffice][alta] no se pudo firmar la subida", { detalle: error instanceof Error ? error.message : String(error) });
+    return { ok: false, error: SIN_SUBIDA };
+  }
+}
+
+/** Segundo paso: el servidor mira lo que se subió de verdad y, si es una foto, devuelve su dirección. */
+export async function confirmarFotoDeAlta(token: string, key: string): Promise<FotoConfirmada> {
+  try {
+    const formulario = await cargarFormularioDeAlta(token);
+    if (!formulario) return { ok: false, error: NO_DISPONIBLE };
+    return await confirmarFotoSubida(formulario.id, key);
+  } catch (error) {
+    console.error("[fotoffice][alta] no se pudo confirmar la foto", { detalle: error instanceof Error ? error.message : String(error) });
+    return { ok: false, error: "No pudimos verificar la foto. Probá de nuevo." };
+  }
 }

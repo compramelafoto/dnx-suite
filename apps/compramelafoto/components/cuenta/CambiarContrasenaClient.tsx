@@ -242,6 +242,9 @@ export default function CambiarContrasenaClient({
           <Link href={backToConfigHref} className="text-sm font-medium text-[#c27b3d] hover:underline">
             ← Volver a Configuración
           </Link>
+          <Link href="/cuenta/cambiar-email" className="text-sm font-medium text-[#c27b3d] hover:underline">
+            Cambiar email
+          </Link>
           <Link href="/" className="text-sm text-gray-600 hover:underline">
             Ir al inicio del sitio
           </Link>

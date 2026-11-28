@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getAuthUser } from "@/lib/auth";
-import { isAlbumPubliclyAccessible } from "@/lib/album-helpers";
+import { isAlbumOpenByLink } from "@/lib/album-helpers";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { searchFacesByImage } from "@/lib/faces/rekognition";
+import { FACE_SEARCH_PERSON_PHOTOS } from "@/lib/faces/face-search-limits";
 import { findVideosBySelfieFaceIds } from "@/lib/videos/video-selfie-search";
 import { Role } from "@/lib/prisma";
 import { denyIfTestAlbumNotOwnerPreview } from "@/lib/public-album-test-access";
@@ -31,7 +32,7 @@ async function ensureAlbumAccess(albumId: number) {
   if (testDeny) {
     return { ok: false, album: null, testDenyResponse: testDeny };
   }
-  if (!isAlbumPubliclyAccessible(album)) {
+  if (!isAlbumOpenByLink(album)) {
     const isOwner = authUser?.id === album.userId;
     const isAdmin = authUser?.role === Role.ADMIN;
     const hasAccess = authUser
@@ -96,7 +97,7 @@ export async function POST(
 
   try {
     const imageBytes = await getImageBytes(req);
-    const matches = await searchFacesByImage(imageBytes);
+    const matches = await searchFacesByImage(imageBytes, FACE_SEARCH_PERSON_PHOTOS);
     if (matches.length === 0) {
       return NextResponse.json({ items: [], videos: [] });
     }

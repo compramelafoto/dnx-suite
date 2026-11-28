@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createPreference } from "@/lib/mercadopago";
 import { resolveAlbumOrderMercadoPagoCredentials } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
 import { resolveClientMarketplaceFeePercent } from "@/lib/pricing/client-price";
-import { isAlbumPubliclyAccessible } from "@/lib/album-helpers";
+import { isAlbumOpenByLink } from "@/lib/album-helpers";
 import { isVideoMvpEnabled } from "@/lib/videos/video-feature-flag";
 import { loadCartVideos, createVideoOrder } from "@/lib/videos/create-video-order";
 import { quoteVideoCart } from "@/lib/videos/video-cart";
@@ -83,7 +83,7 @@ export async function POST(
     if (!album) {
       return NextResponse.json({ error: "Álbum no encontrado" }, { status: 404 });
     }
-    if (!isAlbumPubliclyAccessible(album)) {
+    if (!isAlbumOpenByLink(album)) {
       return NextResponse.json({ error: "Álbum no disponible" }, { status: 403 });
     }
 

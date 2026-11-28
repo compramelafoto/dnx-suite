@@ -71,27 +71,49 @@ type FotografoNuevo = {
   isBlocked: boolean;
 };
 
-/** Fotógrafos cuyo primer álbum (de todos los que creó) cae dentro de la ventana. */
+/**
+ * Nombre (o comienzo del nombre) de las campañas de correo que avisan «cargá tu logo y tu
+ * Instagram para recibir la bienvenida». A quien recibió una, el plazo de 30 días se le
+ * cuenta desde el aviso: si no, al que se sumó hace 28 días no le daría el tiempo.
+ */
+export const WELCOME_REMINDER_CAMPAIGN_PREFIX = "Bienvenida IG · aviso";
+
+/**
+ * Fotógrafos cuyo primer álbum (de todos los que creó) cae dentro de la ventana, más los
+ * que recibieron el aviso de la bienvenida dentro de la ventana.
+ */
 async function fotografosConPrimerAlbumReciente(now: Date) {
   const desde = new Date(now.getTime() - WELCOME_LOOKBACK_DAYS * 24 * 3600_000);
   const hasta = new Date(now.getTime() - WELCOME_SETTLE_HOURS * 3600_000);
-  const grupos = await prisma.album.groupBy({
-    by: ["userId"],
-    _min: { createdAt: true },
-    having: { createdAt: { _min: { gte: desde, lte: hasta } } },
-  });
-  const ids = grupos.map((g) => g.userId);
+  const [grupos, avisados] = await Promise.all([
+    prisma.album.groupBy({
+      by: ["userId"],
+      _min: { createdAt: true },
+      having: { createdAt: { _min: { gte: desde, lte: hasta } } },
+    }),
+    prisma.emailSend.findMany({
+      where: {
+        status: "SENT",
+        sentAt: { gte: desde },
+        toUserId: { not: null },
+        campaign: { name: { startsWith: WELCOME_REMINDER_CAMPAIGN_PREFIX } },
+      },
+      select: { toUserId: true },
+    }),
+  ]);
+  const ids = [...new Set([...grupos.map((g) => g.userId), ...avisados.map((a) => a.toUserId!)])];
   if (ids.length === 0) return { usuarios: [] as FotografoNuevo[], conAlbumReal: new Set<number>(), primerAlbum: new Map<number, Date>() };
-  const [usuarios, reales] = await Promise.all([
+  const [usuarios, reales, primeros] = await Promise.all([
     prisma.user.findMany({
       where: { id: { in: ids } },
       select: { id: true, name: true, city: true, logoUrl: true, instagram: true, role: true, isBlocked: true },
     }),
     prisma.album.groupBy({ by: ["userId"], where: { userId: { in: ids }, isTest: false, deletedAt: null }, _count: { _all: true } }),
+    prisma.album.groupBy({ by: ["userId"], where: { userId: { in: ids } }, _min: { createdAt: true } }),
   ]);
-  const primerAlbum = new Map(grupos.map((g) => [g.userId, g._min.createdAt!]));
+  const primerAlbum = new Map(primeros.map((g) => [g.userId, g._min.createdAt ?? now]));
   // Los más viejos primero: si no entran todos hoy, el que espera hace más sale antes.
-  usuarios.sort((a, b) => primerAlbum.get(a.id)!.getTime() - primerAlbum.get(b.id)!.getTime());
+  usuarios.sort((a, b) => (primerAlbum.get(a.id) ?? now).getTime() - (primerAlbum.get(b.id) ?? now).getTime());
   return { usuarios: usuarios as FotografoNuevo[], conAlbumReal: new Set(reales.map((r) => r.userId)), primerAlbum };
 }
 

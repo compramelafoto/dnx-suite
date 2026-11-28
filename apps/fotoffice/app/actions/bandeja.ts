@@ -1,9 +1,14 @@
 "use server";
 
 import { refresh, revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { generarResumen } from "@/lib/bandeja/resumen";
+import { avisarDerivacion } from "@/lib/bandeja/telegram";
 import { MENSAJES_BANDEJA } from "@/lib/bandeja/acceso";
 import {
+  agregarNota,
   crearContactoDesdeChat,
+  derivar,
   devolverAlBot,
   excluirDelBot,
   marcarLeido,
@@ -67,6 +72,35 @@ export async function devolverAlBotAction(chatId: string) {
 
 export async function excluirDelBotAction(chatId: string, excluir: boolean) {
   return conOperar(chatId, (ctx, id) => excluirDelBot(ctx, id, excluir === true));
+}
+
+/** Nota interna: sólo la ve el equipo (no sale al cliente ni la lee el bot). */
+export async function agregarNotaAction(chatId: string, texto: string) {
+  return conOperar(chatId, (ctx, id) => agregarNota(ctx, id, texto));
+}
+
+/** Deriva el chat a una persona del equipo (su id) o al bot (`"bot"`). El servidor valida el destino. */
+export async function derivarAction(chatId: string, destino: number | "bot") {
+  return conOperar(chatId, async (ctx, id) => {
+    const r = await derivar(ctx, id, destino);
+    // A una persona: el resumen se arma en segundo plano (no frena la pantalla).
+    // Si se lo derivó a quien usa Telegram, le llega la tarjeta con ese resumen (§7.2.1).
+    if (r.ok && r.cambio && destino !== "bot") {
+      after(async () => {
+        const resumen = await generarResumen(ctx.workspaceId, id);
+        await avisarDerivacion(ctx.workspaceId, id, { userId: ctx.userId, nombre: ctx.userLabel }, { resumir: async () => resumen });
+      });
+    }
+    return r;
+  });
+}
+
+/** Vuelve a armar el resumen de la charla (cuenta en el tope de gasto del bot). */
+export async function actualizarResumenAction(chatId: string) {
+  return conOperar(chatId, async (ctx, id) => {
+    const resumen = await generarResumen(ctx.workspaceId, id);
+    return resumen ? { ok: true as const } : { ok: false as const, error: "No se pudo armar el resumen ahora. Probá más tarde." };
+  });
 }
 
 export async function resolverAction(chatId: string) {

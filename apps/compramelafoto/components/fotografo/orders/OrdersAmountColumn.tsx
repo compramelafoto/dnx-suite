@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { isCanjeOrder } from "@/lib/orders/canje-order-label";
 import { formatCollaborativeEventMoneyPesos } from "@/lib/event-organizer-commission-display";
 import { CollaborativeEventOrganizerBadge } from "@/components/sales/CollaborativeEventSaleBreakdown";
 import {
@@ -58,9 +59,23 @@ export default function OrdersAmountColumn({
           ) : null}
         </>
       ) : (
-        <p className="text-xs font-bold text-gray-900 tabular-nums whitespace-nowrap leading-tight">
-          {order.currency} {order.total.toLocaleString("es-AR")}
-        </p>
+        <>
+          {isCanjeOrder(order) ? (
+            <span
+              className={cn(
+                "inline-flex rounded-full bg-violet-50 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-violet-700",
+                align === "right" ? "self-end" : "self-start"
+              )}
+            >
+              Canje
+            </span>
+          ) : null}
+          <p className="text-xs font-bold text-gray-900 tabular-nums whitespace-nowrap leading-tight">
+            {isCanjeOrder(order) && !(order.total > 0)
+              ? "Sin cargo"
+              : `${order.currency} ${order.total.toLocaleString("es-AR")}`}
+          </p>
+        </>
       )}
     </div>
   );

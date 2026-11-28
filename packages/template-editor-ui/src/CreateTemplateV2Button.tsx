@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "./primitives/Button";
-import { templateV2EditorPath } from "./template-v2-base-path";
+import { TEMPLATE_V2_BASE_PATHS, templateV2EditorPath } from "./template-v2-base-path";
 import { editorThemeStyle, LIGHT_EDITOR_THEME, type TemplateEditorTheme } from "./theme";
 
 type CreateResponse = {
@@ -56,6 +56,8 @@ export function CreateTemplateV2Button({
   const [menuOpen, setMenuOpen] = useState(false);
   const [officialOpen, setOfficialOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement | null>(null);
+  /** Las plantillas oficiales que hay son de Clickatón: en otra plataforma no se ofrecen. */
+  const ofrecePlantillasOficiales = basePath === TEMPLATE_V2_BASE_PATHS.clickaton;
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -100,13 +102,14 @@ export function CreateTemplateV2Button({
         <Button
           type="button"
           variant="primary"
-          className="rounded-r-none px-6 py-2.5 text-sm font-semibold"
+          className={`${ofrecePlantillasOficiales ? "rounded-r-none " : ""}px-6 py-2.5 text-sm font-semibold`}
           onClick={() => void createFromBody({})}
           disabled={isCreating}
           data-testid="template-v2-create-button"
         >
           {isCreating ? "Creando..." : "Nueva plantilla"}
         </Button>
+        {ofrecePlantillasOficiales ? (
         <Button
           type="button"
           variant="primary"
@@ -120,9 +123,10 @@ export function CreateTemplateV2Button({
         >
           ▾
         </Button>
+        ) : null}
       </div>
 
-      {menuOpen ? (
+      {menuOpen && ofrecePlantillasOficiales ? (
         <div
           className="absolute right-0 top-full z-40 mt-2 min-w-[260px] rounded-xl border border-[color:var(--te-line)] bg-white p-2 shadow-xl"
           role="menu"

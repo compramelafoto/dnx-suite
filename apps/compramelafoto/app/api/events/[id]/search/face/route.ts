@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { searchFacesByImage } from "@/lib/faces/rekognition";
+import { FACE_SEARCH_PERSON_PHOTOS } from "@/lib/faces/face-search-limits";
 import { resolvePublicPhotoPreviewSrc } from "@/lib/images/public-photo-view-url";
 import { isAlbumPubliclyAccessible } from "@/lib/album-helpers";
 
@@ -65,7 +66,7 @@ export async function POST(
       photographerId && Number.isFinite(photographerId)
         ? { uploadedBy: { id: photographerId } }
         : {};
-    const matches = await searchFacesByImage(imageBytes);
+    const matches = await searchFacesByImage(imageBytes, FACE_SEARCH_PERSON_PHOTOS);
     if (matches.length === 0) {
       return NextResponse.json({ items: [] });
     }

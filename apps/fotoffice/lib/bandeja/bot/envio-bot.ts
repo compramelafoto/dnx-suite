@@ -2,7 +2,7 @@ import "server-only";
 import { prisma } from "@repo/db";
 import { aEstado, canalDe, chatBloqueado, enviarPorCanal, escribirSistema, guardarResultadoDelEnvio } from "../acciones";
 import { leerConexion } from "../conexion";
-import { TEXTO_MAXIMO } from "../constantes";
+import { DIRECCIONES_NO_REALES, TEXTO_MAXIMO } from "../constantes";
 import { enviarTexto, type ResultadoEnvio } from "../envio";
 import { atiendeElBot, puedeResponderLibre } from "../reglas";
 import { truncarSeguro, vistaPreviaDe } from "../vista-previa";
@@ -31,7 +31,7 @@ export async function enviarComoBot(
     const chat = await chatBloqueado(tx, workspaceId, chatId);
     if (!chat) return null;
     const ultimo = await tx.fotofficeWaMensaje.findFirst({
-      where: { chatId: chat.id, workspaceId, direccion: { not: "SISTEMA" } },
+      where: { chatId: chat.id, workspaceId, direccion: { notIn: DIRECCIONES_NO_REALES } },
       orderBy: { createdAt: "desc" },
       select: { id: true },
     });

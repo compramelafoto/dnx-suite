@@ -179,8 +179,16 @@ export default function PerfilDatosSection({
               onChange={(e) => setTitularLastName(e.target.value)}
             />
           </DsField>
-          <DsField label="Email" className="md:col-span-2" hint="El email no se puede modificar desde aquí.">
-            <Input type="email" value={email} disabled className="cursor-not-allowed bg-[#f3f4f6]" />
+          <DsField label="Email" className="md:col-span-2" hint="Es el email con el que iniciás sesión.">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <Input type="email" value={email} disabled className="cursor-not-allowed bg-[#f3f4f6]" />
+              <a
+                href="/cuenta/cambiar-email"
+                className="shrink-0 text-sm font-medium text-[#c27b3d] hover:underline"
+              >
+                Cambiar email
+              </a>
+            </div>
           </DsField>
           <DsField
             label="Teléfono personal o WhatsApp"

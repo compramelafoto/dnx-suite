@@ -1,4 +1,5 @@
 import { parseHiddenSelfieRetentionDays } from "@/lib/albums/hidden-selfie-retention";
+import { parseAlbumProfitMarginPercent } from "@/lib/albums/album-profit-margin";
 import { NextRequest, NextResponse } from "next/server";
 import { ensureAlbumPhotosQueuedForHiddenMode } from "@/lib/hidden-album/prepare-hidden-album-photos";
 import { encolarLecturaDeTexto, lecturaSeEncendio } from "@/lib/analysis/encolar-lectura-de-texto";
@@ -566,9 +567,8 @@ export async function PATCH(
     Object.assign(updateData, builtSettings.data);
 
     if (albumProfitMarginPercent !== undefined) {
-      updateData.albumProfitMarginPercent = albumProfitMarginPercent
-        ? parseFloat(String(albumProfitMarginPercent))
-        : null;
+      // 0% es un margen válido: no confundirlo con un campo vacío.
+      updateData.albumProfitMarginPercent = parseAlbumProfitMarginPercent(albumProfitMarginPercent);
     }
 
 
@@ -900,11 +900,7 @@ export async function PUT(
     const parsedPickupBy = (pickupBy === "PHOTOGRAPHER" ? "PHOTOGRAPHER" : "CLIENT") as "CLIENT" | "PHOTOGRAPHER";
 
     // Parsear albumProfitMarginPercent (mínimo 0% para habilitar)
-    let parsedMargin: number | null = null;
-    if (albumProfitMarginPercent !== null && albumProfitMarginPercent !== undefined && albumProfitMarginPercent !== "") {
-      parsedMargin = parseFloat(String(albumProfitMarginPercent));
-      parsedMargin = Number.isFinite(parsedMargin) && parsedMargin >= 0 ? parsedMargin : null;
-    }
+    const parsedMargin = parseAlbumProfitMarginPercent(albumProfitMarginPercent);
 
     // Construir el objeto de datos
     const enablePrinted = enablePrintedPhotos !== undefined ? Boolean(enablePrintedPhotos) : Boolean(existingAlbum.enablePrintedPhotos);

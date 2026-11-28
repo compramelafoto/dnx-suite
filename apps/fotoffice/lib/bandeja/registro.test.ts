@@ -43,7 +43,7 @@ beforeEach(async () => {
 describe("aplicarEventos: entrantes", () => {
   it("crea el chat con nombre, no leído, hora y el mensaje", async () => {
     const r = await aplicarEventos([entrante()], AHORA);
-    expect(r).toEqual({ aplicados: 1, duplicados: 0, ignorados: 0, fallidos: 0, paraElBot: [chats()[0].id], medios: [] });
+    expect(r).toEqual({ aplicados: 1, duplicados: 0, ignorados: 0, fallidos: 0, paraElBot: [chats()[0].id], medios: [], paraTelegram: [], anuncios: [] });
     expect(chats()).toHaveLength(1);
     expect(chats()[0]).toMatchObject({
       workspaceId: WS, waId: WA, nombre: "Lucía", estado: "BOT", noLeidos: 1, clientId: null,
@@ -79,7 +79,7 @@ describe("aplicarEventos: entrantes", () => {
   it("idempotente: el mismo waMessageId no duplica ni vuelve a sumar", async () => {
     await aplicarEventos([entrante()], AHORA);
     const r = await aplicarEventos([entrante()], AHORA);
-    expect(r).toEqual({ aplicados: 0, duplicados: 1, ignorados: 0, fallidos: 0, paraElBot: [], medios: [] });
+    expect(r).toEqual({ aplicados: 0, duplicados: 1, ignorados: 0, fallidos: 0, paraElBot: [], medios: [], paraTelegram: [], anuncios: [] });
     expect(mensajes()).toHaveLength(1);
     expect(chats()[0].noLeidos).toBe(1);
   });
@@ -105,14 +105,14 @@ describe("aplicarEventos: entrantes", () => {
 
   it("phoneNumberId sin conexión: se ignora sin tocar nada", async () => {
     const r = await aplicarEventos([entrante({ phoneNumberId: "999" })], AHORA);
-    expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0, paraElBot: [], medios: [] });
+    expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0, paraElBot: [], medios: [], paraTelegram: [], anuncios: [] });
     expect(chats()).toHaveLength(0);
   });
 
   it("una conexión SIMULADA no recibe eventos por phoneNumberId (no puede apropiarse de un número)", async () => {
     B.datos.fotofficeWaConexion[0].modo = "SIMULADO";
     const r = await aplicarEventos([entrante()], AHORA);
-    expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0, paraElBot: [], medios: [] });
+    expect(r).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0, paraElBot: [], medios: [], paraTelegram: [], anuncios: [] });
     expect(chats()).toHaveLength(0);
     // El simulador de Configuración sí entra, por workspaceId.
     expect(await aplicarEventos([entrante()], AHORA, { workspaceId: WS })).toMatchObject({ aplicados: 1 });
@@ -214,7 +214,7 @@ describe("aplicarEventos: estados de envío", () => {
   });
 
   it("estado de un mensaje desconocido y reciente (< 5 min): fallido, para que Meta reintente", async () => {
-    expect(await aplicarEventos([estado({ en: min(-1) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 1, paraElBot: [], medios: [] });
+    expect(await aplicarEventos([estado({ en: min(-1) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 0, fallidos: 1, paraElBot: [], medios: [], paraTelegram: [], anuncios: [] });
   });
 
   it("estado desconocido con hora ilegible o muy en el futuro: se ignora, no se reintenta", async () => {
@@ -223,7 +223,7 @@ describe("aplicarEventos: estados de envío", () => {
   });
 
   it("estado de un mensaje desconocido y viejo (>= 5 min): se ignora", async () => {
-    expect(await aplicarEventos([estado({ en: min(-6) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0, paraElBot: [], medios: [] });
+    expect(await aplicarEventos([estado({ en: min(-6) })], AHORA)).toEqual({ aplicados: 0, duplicados: 0, ignorados: 1, fallidos: 0, paraElBot: [], medios: [], paraTelegram: [], anuncios: [] });
   });
 
   it("mensaje entrante con ese id: el estado se ignora", async () => {
@@ -671,5 +671,29 @@ describe("Instagram", () => {
   it("una foto del cliente por Instagram entra en medios", async () => {
     const r = await aplicarEventos([igEntrante({ mensajeTipo: "IMAGEN", texto: null, media: { url: "https://scontent.cdninstagram.com/x.jpg" } })], AHORA);
     expect(r.medios).toEqual([mensajes()[0].id]);
+  });
+});
+
+describe("aplicarEventos: reenvío a Telegram", () => {
+  it("un entrante en un chat que atiende una persona queda para Telegram; uno del bot, no", async () => {
+    await P.fotofficeWaChat.create({ data: { workspaceId: WS, waId: WA, estado: "HUMANO", asignadoUserId: 4, ultimoMensajeEn: min(-10) } });
+    await P.fotofficeWaChat.create({ data: { workspaceId: WS, waId: "5493410000001", estado: "BOT", ultimoMensajeEn: min(-10) } });
+    const r = await aplicarEventos([entrante(), entrante({ waId: "5493410000001", waMessageId: "wamid.2" })], AHORA);
+    const humano = chats().find((c) => c.waId === WA)!;
+    const delMensaje = mensajes().find((m) => m.waMessageId === "wamid.1")!;
+    expect(r.paraTelegram).toEqual([{ workspaceId: WS, chatId: humano.id, mensajeId: delMensaje.id }]);
+  });
+});
+
+describe("aplicarEventos: anuncio de Meta", () => {
+  it("guarda en el chat el último anuncio y lo devuelve una vez para preguntar su campaña", async () => {
+    const conAnuncio = (id: string, waMessageId: string) => entrante({ waMessageId, media: { anuncio: { id, titulo: "Chatea con nosotros" } } as never });
+    const r = await aplicarEventos([conAnuncio("120250851161490497", "wamid.a1"), conAnuncio("120250851161490497", "wamid.a2")], AHORA);
+    expect(chats()[0].anuncioId).toBe("120250851161490497");
+    expect(r.anuncios).toEqual([{ workspaceId: WS, adId: "120250851161490497", titulo: "Chatea con nosotros" }]);
+    await aplicarEventos([conAnuncio("999", "wamid.a3")], AHORA);
+    expect(chats()[0].anuncioId).toBe("999");
+    await aplicarEventos([entrante({ waMessageId: "wamid.a4" })], AHORA);
+    expect(chats()[0].anuncioId).toBe("999");
   });
 });

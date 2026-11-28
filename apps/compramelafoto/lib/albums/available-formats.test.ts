@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { resolveAvailableFormats } from "./available-formats";
+import { fitSizeToAvailable, fitTipoToFormats, resolveAvailableFormats } from "./available-formats";
 
 describe("qué formatos se le ofrecen al cliente", () => {
   it("el álbum manda: sin impresión habilitada, no se ofrece impresa", () => {
@@ -106,5 +106,46 @@ describe("qué formatos se le ofrecen al cliente", () => {
       }).preferred,
       null
     );
+  });
+});
+
+describe("fitTipoToFormats", () => {
+  const formats = (albumAllowsDigital: boolean, albumAllowsPrint: boolean) =>
+    resolveAvailableFormats({ albumAllowsDigital, albumAllowsPrint, photoSellsDigital: true, photoSellsPrint: true });
+
+  it("pasa a impresa una foto guardada como digital en un álbum que sólo vende impresas", () => {
+    assert.equal(fitTipoToFormats("digital", formats(false, true)), "impresa");
+  });
+
+  it("pasa a digital una foto guardada como impresa en un álbum sólo digital", () => {
+    assert.equal(fitTipoToFormats("impresa", formats(true, false)), "digital");
+  });
+
+  it("respeta la elección cuando el formato está disponible", () => {
+    assert.equal(fitTipoToFormats("impresa", formats(true, true)), "impresa");
+    assert.equal(fitTipoToFormats("digital", formats(true, true)), "digital");
+  });
+
+  it("sin configuración del álbum todavía, no cambia nada", () => {
+    const f = resolveAvailableFormats({ albumAllowsDigital: undefined, albumAllowsPrint: undefined, photoSellsDigital: true, photoSellsPrint: true });
+    assert.equal(fitTipoToFormats("digital", f), "digital");
+  });
+});
+
+describe("fitSizeToAvailable", () => {
+  it("cambia el 10x15 de relleno por la medida que vende el álbum", () => {
+    assert.equal(fitSizeToAvailable("10x15", ["15x20"], "15x20"), "15x20");
+  });
+
+  it("respeta una medida que el álbum vende", () => {
+    assert.equal(fitSizeToAvailable("13x18", ["10x15", "13x18"], "10x15"), "13x18");
+  });
+
+  it("sin precios cargados todavía, no toca la medida", () => {
+    assert.equal(fitSizeToAvailable("10x15", [], "10x15"), "10x15");
+  });
+
+  it("si el relleno tampoco existe, usa la primera medida disponible", () => {
+    assert.equal(fitSizeToAvailable(null, ["15x20", "20x30"], "10x15"), "15x20");
   });
 });

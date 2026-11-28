@@ -78,6 +78,10 @@ import {
   resolveAlbumPhotoContentType,
 } from "@/lib/albums/album-photo-content-type";
 import { prepareMobileUploadFileForQueue } from "@/lib/albums/prepare-mobile-album-photo-upload";
+import {
+  canAutoReduceAlbumPhoto,
+  reduceOversizedAlbumPhoto,
+} from "@/lib/albums/reduce-oversized-album-photo";
 import type { AlbumPricingSnapshot } from "@/components/dashboard/albums/AlbumPricingSection";
 import {
   type AlbumDashboardLegacyTabId,
@@ -1717,12 +1721,15 @@ export default function DashboardAlbumDetailPage() {
       return;
     }
 
-    // 1. Validar tamaño ANTES de iniciar: si alguna supera 10MB, rechazar todas y no subir ninguna
-    const tooLarge = fileList.filter((f) => f.size > maxBytes);
+    // 1. Validar tamaño ANTES de iniciar. Las JPG de más de 10 MB se achican
+    // solas al subir; solo se rechaza la tanda si hay otro formato pesado.
+    const tooLarge = fileList.filter(
+      (f) => f.size > maxBytes && !canAutoReduceAlbumPhoto(f)
+    );
     if (tooLarge.length > 0) {
       const names = tooLarge.map((f) => f.name).join(", ");
       setError(
-        `Una o más fotos superan el límite de ${maxMb} MB y no se subió ninguna: ${names}`
+        `Una o más fotos superan el límite de ${maxMb} MB y no son JPG, así que no se pueden achicar solas. No se subió ninguna: ${names}`
       );
       if (retryFailed) {
         setFailedFiles([]);
@@ -1802,6 +1809,10 @@ export default function DashboardAlbumDetailPage() {
             hooks.onPhase("init");
             setUploadCurrentFile(`Preparando ${file.name}…`);
             uploadable = await prepareMobileUploadFileForQueue(file);
+          } else if (file.size > maxBytes) {
+            hooks.onPhase("init");
+            setUploadCurrentFile(`Achicando ${file.name}…`);
+            uploadable = await reduceOversizedAlbumPhoto(file, maxBytes);
           }
           return uploadSingleFile(uploadable, {
             eventFolderId: batchEventFolderId,

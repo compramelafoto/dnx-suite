@@ -25,6 +25,8 @@ type Base = {
 
 export type CampoDeLista =
   | { id: string; titulo: string; tipo: "texto" | "parrafo" | "dinero" | "numero" | "enlace"; ayuda?: string }
+  /** Fotos que la persona sube desde el formulario. Se guardan como direcciones, una por renglón. */
+  | { id: string; titulo: string; tipo: "fotos"; maximo?: number; ayuda?: string }
   | { id: string; titulo: string; tipo: "opcion"; opciones: Opcion[]; ayuda?: string };
 
 export type Pregunta = Base &
@@ -32,6 +34,8 @@ export type Pregunta = Base &
     | { tipo: "texto" | "parrafo" | "email" | "telefono" | "enlace" | "fecha"; placeholder?: string }
     | { tipo: "numero" | "dinero"; placeholder?: string }
     | { tipo: "si_no" }
+    /** Fotos que la persona sube desde el formulario. Se guardan como direcciones, una por renglón. */
+    | { tipo: "fotos"; maximo?: number }
     | { tipo: "opcion"; opciones: Opcion[]; conOtro?: boolean }
     | { tipo: "opciones"; opciones: Opcion[]; conOtro?: boolean }
     /** Varias filas con los mismos campos (p. ej. un curso por fila). */
@@ -54,6 +58,15 @@ export type Cuestionario = {
 };
 
 export type Valor = string | boolean | string[] | Record<string, string>[];
+
+/** Cuántas fotos admite un campo de fotos si el cuestionario no dice otra cosa. */
+export const MAXIMO_DE_FOTOS = 8;
+
+/** Las direcciones de un campo de fotos (una por renglón), sin vacíos ni repetidas. */
+export function fotosDe(valor: string | undefined | null): string[] {
+  if (!valor) return [];
+  return [...new Set(valor.split("\n").map((x) => x.trim()).filter((x) => /^https:\/\/\S+$/.test(x)))];
+}
 export type Respuestas = Record<string, Valor>;
 
 function cumple(c: Condicion, respuestas: Respuestas): boolean {
@@ -196,6 +209,10 @@ export function respuestasEnTexto(c: Cuestionario, respuestas: Respuestas, desti
                 .map((campo) => {
                   const x = f[campo.id]?.trim();
                   if (!x) return null;
+                  if (campo.tipo === "fotos") {
+                    const fotos = fotosDe(x);
+                    return fotos.length ? `${campo.titulo}: ${fotos.join(" ")}` : null;
+                  }
                   const valor = campo.tipo === "opcion" ? etiquetaDe(campo.opciones, x) : x;
                   return `${campo.titulo}: ${valor}`;
                 })
@@ -203,6 +220,8 @@ export function respuestasEnTexto(c: Cuestionario, respuestas: Respuestas, desti
               return `  ${i + 1}. ${partes.join(" · ")}`;
             })
             .join("\n");
+      } else if (p.tipo === "fotos") {
+        r = "\n" + fotosDe(String(v)).map((url) => `  - ${url}`).join("\n");
       } else {
         r = String(v);
       }

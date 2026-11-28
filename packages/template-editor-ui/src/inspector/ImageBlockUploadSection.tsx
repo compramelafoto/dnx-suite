@@ -68,6 +68,12 @@ export function ImageBlockUploadSection({
   const isSchoolLogoDynamic = variableKey !== "";
   const varDef = variableKey ? getTemplateV2VariableByKey(variableKey) : undefined;
   const imagenesDelProducto = getInsertableImageVariablesForProduct(product);
+  /** El dato al que está atada la imagen (foto del alumno, logo del colegio, logo del estudio…). */
+  const datoAtado = variableKey
+    ? imagenesDelProducto.find((v) => v.key === variableKey) ?? varDef
+    : undefined;
+  const esLogoDelColegio = variableKey === "branding.schoolLogoUrl";
+  const nombreDelDato = datoAtado?.label?.replace(/^[^-]+ - /, "") ?? "un dato";
 
   const hasStaticImage = src.trim() !== "";
 
@@ -129,10 +135,11 @@ export function ImageBlockUploadSection({
 
       {isSchoolLogoDynamic ? (
         <div className="mb-3 rounded-lg border border-[color:var(--te-accent-wash)] bg-[color:var(--te-accent-wash)] px-2.5 py-2 text-[11px] leading-snug text-[color:var(--te-ink)]">
-          <p className="font-medium text-[color:var(--te-accent)]">Logo de la escuela (dinámico)</p>
+          <p className="font-medium text-[color:var(--te-accent)]">Se llena sola: {nombreDelDato}</p>
           <p className="mt-1 text-[color:var(--te-ink-muted)]">
-            En el pedido se usará el PNG con fondo transparente cargado al dar de alta la escuela en la plataforma. En el
-            editor ves una vista previa de diseño.
+            {esLogoDelColegio
+              ? "En el pedido se usa el logo (PNG con fondo transparente) cargado al dar de alta la escuela. En el editor ves una vista previa."
+              : "En cada pedido se pone la imagen que corresponde. En el editor ves una vista previa."}
           </p>
         </div>
       ) : null}
@@ -151,7 +158,7 @@ export function ImageBlockUploadSection({
           </div>
         ) : isSchoolLogoDynamic ? (
           <div className="flex h-10 w-14 shrink-0 items-center justify-center rounded-[var(--te-radius)] border border-dashed border-[color:var(--te-accent-wash)] bg-[color:var(--te-chrome-sunken)] text-[9px] font-medium text-[color:var(--te-accent)]">
-            Logo
+            Dato
           </div>
         ) : (
           <div className="flex h-10 w-14 shrink-0 items-center justify-center rounded-[var(--te-radius)] border border-dashed border-[color:var(--te-line-strong)] bg-[color:var(--te-chrome-sunken)] text-[10px] text-[color:var(--te-ink-faint)]">
@@ -161,7 +168,7 @@ export function ImageBlockUploadSection({
         <div className="min-w-0 flex-1">
           <p className="text-[11px] leading-snug text-[color:var(--te-ink-muted)]">
             {isSchoolLogoDynamic
-              ? "Vinculado al logo institucional"
+              ? `Atada a: ${nombreDelDato}`
               : hasStaticImage
                 ? "Imagen asignada al bloque"
                 : "Sin imagen: en el lienzo se ve el recuadro de ejemplo"}

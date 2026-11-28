@@ -19,6 +19,7 @@ import {
 } from "./recordatorio-pago";
 import { marcaRecordatorioAnuncio } from "./recordatorio-anuncio";
 import { decidirSeguimiento, DIAS_ENTRE_SEGUIMIENTOS, horarioDeSeguimiento, MARCA_SEGUIMIENTO_CONSULTA, textoSeguimientoConsulta } from "./seguimiento-consulta";
+import { DIRECCIONES_NO_REALES } from "../constantes";
 
 /**
  * Recordatorio de pago del bot (lo corre el cron cada 15 minutos): a cada chat que atiende el bot,
@@ -131,7 +132,7 @@ const POR_OMISION: Required<Omit<DepsRecordatorio, "ahora">> = {
       where: { workspaceId: chat.workspaceId, chatId: chat.id, direccion: "SISTEMA", texto: { startsWith: MARCA_RECORDATORIO }, createdAt: { gte: p.creado } },
     })) > 0,
   ultimoMensaje: (chatId) =>
-    prisma.fotofficeWaMensaje.findFirst({ where: { chatId, direccion: { not: "SISTEMA" } }, orderBy: { createdAt: "desc" }, select: { id: true, direccion: true } }),
+    prisma.fotofficeWaMensaje.findFirst({ where: { chatId, direccion: { notIn: DIRECCIONES_NO_REALES } }, orderBy: { createdAt: "desc" }, select: { id: true, direccion: true } }),
   enviar: (workspaceId, chatId, texto, condicion) => enviarComoBot(workspaceId, chatId, texto, condicion),
   marcar: (workspaceId, chatId, texto) => prisma.$transaction((tx) => escribirSistema(tx, workspaceId, chatId, texto, new Date())),
   porTransferencia: async (workspaceId) => {

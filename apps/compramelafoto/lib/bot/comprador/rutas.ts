@@ -8,6 +8,7 @@ export type RutaComprador = { ruta: string; proposito: string; pagina: string };
 export const RUTAS_COMPRADOR: readonly RutaComprador[] = [
   { ruta: "/album/{slug}", proposito: "la página de un álbum", pagina: "app/album/[slug]/page.tsx" },
   { ruta: "/a/{id}", proposito: "la página de un álbum por número", pagina: "app/a/[id]/page.tsx" },
+  { ruta: "/a/{id}/llevar", proposito: "comprar en un álbum con fotos ocultas: elegir productos, selfie, fotos y pagar", pagina: "app/a/[id]/llevar/page.tsx" },
   { ruta: "/pago/reintentar/{pedido}", proposito: "reintentar el pago de un pedido pendiente o rechazado", pagina: "app/pago/reintentar/[orderId]/page.tsx" },
   { ruta: "/cliente/pedidos", proposito: "mis pedidos (con cuenta)", pagina: "app/cliente/pedidos/page.tsx" },
   { ruta: "/cliente/recuperar-pack", proposito: "recuperar el enlace del pack de preventa", pagina: "app/cliente/recuperar-pack/page.tsx" },

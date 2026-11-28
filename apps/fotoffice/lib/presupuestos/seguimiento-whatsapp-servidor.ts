@@ -144,7 +144,7 @@ const POR_OMISION: Required<Omit<DepsSeguimientoWa, "ahora" | "prueba">> = {
       prisma.fotofficePresupuestoVista.count({ where: { workspaceId: c.workspaceId, version: { presupuestoId: c.presupuestoId }, viewedAt: { gte: desde } } }),
       prisma.fotofficeMessage.count({ where: { workspaceId: c.workspaceId, entityType: "CONSULTA", entityId: c.leadId, automatic: false, createdAt: { gte: desde } } }),
       prisma.fotofficeCita.count({ where: { workspaceId: c.workspaceId, consultaLeadId: c.leadId, createdAt: { gte: desde } } }),
-      prisma.fotofficeWaMensaje.count({ where: { chatId, autor: { in: ["USUARIO", "CELULAR"] }, createdAt: { gte: desde } } }),
+      prisma.fotofficeWaMensaje.count({ where: { chatId, autor: { in: ["USUARIO", "CELULAR"] }, direccion: { notIn: ["SISTEMA", "NOTA"] }, createdAt: { gte: desde } } }),
     ]);
     return { vio: c.vista || vistas > 0, delEquipo: mensajes + citas + desdeElChat > 0 };
   },

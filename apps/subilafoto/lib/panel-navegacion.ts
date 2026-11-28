@@ -29,6 +29,7 @@ export function gruposDelPanel(): Grupo[] {
       items: [
         { href: "/panel", texto: "Mis eventos", ayuda: "Todos los que creaste" },
         { href: "/panel/perfil", texto: "Perfil y precios", ayuda: "Tu marca y cuánto cobrás" },
+        { href: "/panel/kit", texto: "Kit para vender", ayuda: "Placas, folleto y mensajes" },
         {
           href: "/panel/arrepentimientos",
           texto: "Arrepentimientos",

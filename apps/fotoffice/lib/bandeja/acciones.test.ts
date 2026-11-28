@@ -79,7 +79,7 @@ describe("permisos", () => {
 describe("tomar, devolver, resolver", () => {
   it("tomar: HUMANO asignado a quien toma, con candado de fila y mensaje SISTEMA", async () => {
     const { id } = await chatNuevo();
-    expect(await A.tomar(ANA, id, { ahora: AHORA })).toEqual({ ok: true });
+    expect(await A.tomar(ANA, id, { ahora: AHORA })).toEqual({ ok: true, cambio: true });
     expect(chats()[0]).toMatchObject({ estado: "HUMANO", asignadoUserId: 2, botPausadoHasta: null });
     expect(mensajes()).toHaveLength(1);
     expect(mensajes()[0]).toMatchObject({ direccion: "SISTEMA", autor: "SISTEMA", texto: "Ana tomó el chat", createdAt: AHORA });
@@ -412,5 +412,96 @@ describe("responder en un chat de Instagram", () => {
     const enviar = vi.fn(async () => ({ ok: true as const, simulado: true as const }));
     await A.responder(ANA, id, "hola", "t-wa", { ahora: AHORA, enviar });
     expect(enviar.mock.calls[0] as unknown as unknown[]).toHaveLength(3);
+  });
+});
+
+describe("derivar", () => {
+  const CAMI = { userId: 7, nombre: "Camila", puedeOperar: true };
+  const deps = (persona: typeof CAMI | null = CAMI) => ({ ahora: AHORA, personaQuePuedeAtender: vi.fn(async () => persona) });
+
+  it("a una persona: HUMANO, asignado a ella y el SISTEMA «Ana se lo derivó a Camila»", async () => {
+    const { id } = await chatNuevo();
+    const d = deps();
+    expect(await A.derivar(ANA, id, 7, d)).toEqual({ ok: true, cambio: true });
+    expect(d.personaQuePuedeAtender).toHaveBeenCalledWith("w1", 7);
+    expect(chats()[0]).toMatchObject({ estado: "HUMANO", asignadoUserId: 7, botPausadoHasta: null });
+    expect(mensajes().map((m) => m.texto)).toEqual(["Ana se lo derivó a Camila"]);
+  });
+
+  it("a alguien sin Gestionar o de otra institución: no", async () => {
+    const { id } = await chatNuevo();
+    expect(await A.derivar(ANA, id, 7, deps(null))).toEqual({ ok: false, error: "Esa persona no puede atender la Bandeja." });
+    expect(await A.derivar(ANA, id, "7; drop", deps())).toEqual({ ok: false, error: "Esa persona no puede atender la Bandeja." });
+    expect(chats()[0].asignadoUserId).toBeNull();
+  });
+
+  it("con sólo Ver o desde otra institución: no", async () => {
+    const { id } = await chatNuevo();
+    expect(await A.derivar(LEO, id, 7, deps())).toEqual({ ok: false, error: "No tenés permiso para hacer esto." });
+    expect(await A.derivar(OTRA_INSTITUCION, id, 7, deps())).toEqual({ ok: false, error: "No encontramos ese chat." });
+  });
+
+  it("al bot: como devolver; con el número excluido, no", async () => {
+    const { id } = await chatNuevo({ estado: "HUMANO", asignadoUserId: 2 });
+    expect(await A.derivar(ANA, id, "bot", deps())).toEqual({ ok: true, cambio: true });
+    expect(chats()[0]).toMatchObject({ estado: "BOT", asignadoUserId: null });
+    expect(mensajes().map((m) => m.texto)).toEqual(["Ana se lo derivó al bot"]);
+    const otro = await P.fotofficeWaChat.create({ data: { workspaceId: "w1", waId: "549111", ultimoMensajeEn: hace(1), estado: "HUMANO", asignadoUserId: 2, botExcluido: true } });
+    expect(await A.derivar(ANA, otro.id, "bot", deps())).toEqual({ ok: false, error: "El bot no atiende este número." });
+  });
+
+  it("a quien ya lo tiene: sin cambio ni aviso; un RESUELTO se reabre asignado", async () => {
+    const { id } = await chatNuevo({ estado: "HUMANO", asignadoUserId: 7 });
+    expect(await A.derivar(ANA, id, 7, deps())).toEqual({ ok: true, cambio: false });
+    expect(mensajes()).toHaveLength(0);
+    const r = await P.fotofficeWaChat.create({ data: { workspaceId: "w1", waId: "549222", ultimoMensajeEn: hace(1), estado: "RESUELTO", resueltoPorUserId: 2 } });
+    await A.derivar(ANA, r.id, 7, deps());
+    expect(chats().find((c) => c.id === r.id)).toMatchObject({ estado: "HUMANO", asignadoUserId: 7, resueltoPorUserId: null });
+  });
+
+  it("resolver guarda quién lo resolvió", async () => {
+    const { id } = await chatNuevo({ estado: "HUMANO", asignadoUserId: 2 });
+    await A.resolver(ANA, id, { ahora: AHORA });
+    expect(chats()[0]).toMatchObject({ estado: "RESUELTO", asignadoUserId: null, resueltoPorUserId: 2 });
+  });
+});
+
+describe("notas internas", () => {
+  it("guarda una NOTA con autor y no toca la hora, los no leídos ni la vista previa", async () => {
+    const { id } = await chatNuevo({ ultimoMensajeTexto: "hola", ultimoMensajeTipo: "TEXTO" });
+    const antes = { ...chats()[0] };
+    expect(await A.agregarNota(ANA, id, "  Ya le pasé el Oro  ", { ahora: AHORA })).toEqual({ ok: true });
+    expect(mensajes()).toHaveLength(1);
+    expect(mensajes()[0]).toMatchObject({ direccion: "NOTA", autor: "USUARIO", autorUserId: 2, autorLabel: "Ana", texto: "Ya le pasé el Oro" });
+    expect(chats()[0]).toMatchObject({ ultimoMensajeEn: antes.ultimoMensajeEn, noLeidos: antes.noLeidos, ultimoMensajeTexto: "hola", estado: antes.estado });
+  });
+  it("pide Gestionar, texto y el chat de su institución", async () => {
+    const { id } = await chatNuevo();
+    expect(await A.agregarNota(LEO, id, "x")).toEqual({ ok: false, error: "No tenés permiso para hacer esto." });
+    expect(await A.agregarNota(ANA, id, "   ")).toEqual({ ok: false, error: "Escribí la nota antes de guardarla." });
+    expect(await A.agregarNota(ANA, id, "x".repeat(4097))).toEqual({ ok: false, error: "El mensaje puede tener hasta 4096 caracteres." });
+    expect(await A.agregarNota(OTRA_INSTITUCION, id, "x")).toEqual({ ok: false, error: "No encontramos ese chat." });
+    expect(mensajes()).toHaveLength(0);
+  });
+});
+
+describe("Nuevo para vos", () => {
+  const deps = { ahora: AHORA, personaQuePuedeAtender: vi.fn(async (_w: string, userId: number) => ({ userId, nombre: "Camila", puedeOperar: true })) };
+  it("derivar a otra persona la marca; derivarse a uno mismo o al bot, no", async () => {
+    const { id } = await chatNuevo();
+    await A.derivar(ANA, id, 7, deps);
+    expect(chats()[0].derivadoSinVerUserId).toBe(7);
+    await A.derivar(ANA, id, 2, deps);
+    expect(chats()[0].derivadoSinVerUserId).toBeNull();
+    await A.derivar(ANA, id, 7, deps);
+    await A.derivar(ANA, id, "bot", deps);
+    expect(chats()[0].derivadoSinVerUserId).toBeNull();
+  });
+  it("abrir el chat la borra sólo para esa persona", async () => {
+    const { id } = await chatNuevo({ derivadoSinVerUserId: 7 });
+    await A.marcarLeido(ANA, id);
+    expect(chats()[0].derivadoSinVerUserId).toBe(7);
+    await A.marcarLeido({ ...ANA, userId: 7 }, id);
+    expect(chats()[0].derivadoSinVerUserId).toBeNull();
   });
 });

@@ -10,7 +10,9 @@ import { puedeOperarBandeja, puedeVerBandeja, type CtxBandeja } from "./acceso";
 import { archivoDeMensaje, type ArchivoDeMensaje } from "./archivo-de-mensaje";
 import { CANALES, type Autor, type Canal, type Direccion, type EstadoDelChat, type TipoMensaje } from "./constantes";
 import { atiendeElBot, estadoVisible, puedeResponderLibre } from "./reglas";
-import { textoDeVistaPrevia, truncarSeguro } from "./vista-previa";
+import { fragmentoDe, textoDeVistaPrevia, truncarSeguro, type Fragmento } from "./vista-previa";
+import { anunciosDeCampana, etiquetasDeAnuncios } from "./campanas";
+import { CAMPANA_VALIDA, FILTROS_POR_OMISION, ESTADOS_FILTRO, type FiltrosBandeja } from "./filtros";
 
 /**
  * Lecturas de la Bandeja de WhatsApp (servidor): la lista de chats, el detalle de uno y el total de
@@ -18,17 +20,6 @@ import { textoDeVistaPrevia, truncarSeguro } from "./vista-previa";
  * "Ver" en el módulo. Todo se busca con el `workspaceId` del contexto. Nunca loguean textos ni
  * teléfonos y nunca devuelven la columna `media` ni el `clientToken` de los mensajes.
  */
-
-export const FILTROS_BANDEJA = ["todos", "bot", "mios", "sin-asignar", "resueltos"] as const;
-export type FiltroBandeja = (typeof FILTROS_BANDEJA)[number];
-
-export const ETIQUETA_FILTRO: Record<FiltroBandeja, string> = {
-  todos: "Todos",
-  bot: "Atiende el bot",
-  mios: "Míos",
-  "sin-asignar": "Sin asignar",
-  resueltos: "Resueltos",
-};
 
 export const MAXIMO_CHATS = 200;
 export const MAXIMO_MENSAJES = 200;
@@ -65,9 +56,18 @@ export type ChatDeLista = {
   estado: EstadoDelChat;
   /** Lo atiende el bot ahora (incluye la pausa vencida de un chat sin asignar). */
   atiendeElBot: boolean;
+  asignadoUserId: number | null;
   asignadoNombre: string | null;
   clienteNombre: string | null;
   ultimoMensaje: string | null;
+  /** Con búsqueda por palabra: dónde apareció (en lugar de la vista previa). */
+  fragmento: Fragmento | null;
+  /** Último mensaje del cliente (base del tiempo de espera). */
+  ultimoEntranteEn: Date | null;
+  /** Se lo derivaron a quien mira y todavía no lo abrió. */
+  nuevoParaMi: boolean;
+  /** Campaña de Meta del último anuncio del que llegó (o el título del anuncio, si no se sabe la campaña). */
+  campana: string | null;
   ultimoMensajeEn: Date;
   noLeidos: number;
 };
@@ -93,77 +93,107 @@ async function clientesPorId(workspaceId: string, ids: string[]): Promise<Map<st
   return new Map(filas.map((c) => [c.id, c]));
 }
 
-/** El `where` de cada filtro. "Atiende el bot" sigue la misma regla que `atiendeElBot`. */
-function dondeDelFiltro(filtro: FiltroBandeja, userId: number, ahora: Date): Record<string, unknown> {
-  switch (filtro) {
-    case "bot":
-      return { botExcluido: false, OR: [{ estado: "BOT" }, { estado: "HUMANO", asignadoUserId: null, botPausadoHasta: { lte: ahora } }] };
-    case "mios":
-      return { asignadoUserId: userId, estado: { not: "RESUELTO" } };
-    case "sin-asignar":
-      return { asignadoUserId: null, estado: { not: "RESUELTO" } };
-    case "resueltos":
-      return { estado: "RESUELTO" };
-    default:
-      // "Todos" es todo menos lo resuelto; lo resuelto se ve en su filtro.
-      return { estado: { not: "RESUELTO" } };
-  }
-}
+/** "Atiende el bot" en la base: la misma regla que `atiendeElBot`. */
+const DONDE_BOT = (ahora: Date) => ({ botExcluido: false, OR: [{ estado: "BOT" }, { estado: "HUMANO", asignadoUserId: null, botPausadoHasta: { lte: ahora } }] });
 
 /**
- * Lista de chats del workspace, los más recientes primero (máximo 200). `q` busca por nombre del
- * perfil, número o nombre del cliente vinculado. Sin permiso de "Ver": `null`.
+ * "Sin asignar": nadie asignado y el bot NO lo atiende (número excluido, o HUMANO con la pausa
+ * vigente o sin pausa). Sin `NOT`: en SQL un `NOT` sobre columnas nulas deja afuera los NULL.
  */
-export async function listarChats(
-  ctx: CtxBandeja,
-  opciones: { filtro?: FiltroBandeja; canal?: Canal | "todos"; q?: string; ahora?: Date } = {},
-): Promise<ChatDeLista[] | null> {
+const DONDE_SIN_ASIGNAR = (ahora: Date) => ({
+  asignadoUserId: null,
+  OR: [{ botExcluido: true }, { estado: "HUMANO", botPausadoHasta: null }, { estado: "HUMANO", botPausadoHasta: { gt: ahora } }],
+});
+
+/** Días hacia atrás que mira "Esperando respuesta" (un chat abandonado hace meses no es urgente). */
+export const DIAS_ESPERANDO = 7;
+const DIRECCIONES_BUSCABLES = ["ENTRANTE", "SALIENTE", "NOTA"];
+
+type OpcionesLista = Partial<FiltrosBandeja> & { ahora?: Date };
+
+/**
+ * Lista de chats del workspace (máximo 200), con los filtros de ejes independientes (§5.1 del diseño
+ * 2026-11-24): quién atiende, canal, estado y búsqueda. `q` busca por nombre del perfil, número,
+ * @usuario, nombre del cliente vinculado y palabras de los mensajes (no los SISTEMA). Sin permiso
+ * de "Ver": `null`.
+ */
+export async function listarChats(ctx: CtxBandeja, opciones: OpcionesLista = {}): Promise<ChatDeLista[] | null> {
   if (!puedeVerBandeja(ctx) || ctx.userId === null) return null;
   const ahora = opciones.ahora ?? new Date();
-  const filtro = (FILTROS_BANDEJA as readonly string[]).includes(opciones.filtro ?? "") ? (opciones.filtro as FiltroBandeja) : "todos";
-  const condiciones: Record<string, unknown>[] = [{ workspaceId: ctx.workspaceId }, dondeDelFiltro(filtro, ctx.userId, ahora)];
-  // Un canal inventado se trata como "todos".
-  if ((CANALES as readonly unknown[]).includes(opciones.canal)) condiciones.push({ canal: opciones.canal });
+  const f: FiltrosBandeja = { ...FILTROS_POR_OMISION };
+  const quien = opciones.quien;
+  if (quien === "bot" || quien === "sin-asignar" || (typeof quien === "number" && Number.isInteger(quien) && quien > 0)) f.quien = quien;
+  if ((CANALES as readonly unknown[]).includes(opciones.canal)) f.canal = opciones.canal as Canal;
+  if ((ESTADOS_FILTRO as readonly unknown[]).includes(opciones.estado)) f.estado = opciones.estado!;
+
+  const condiciones: Record<string, unknown>[] = [{ workspaceId: ctx.workspaceId }];
+  condiciones.push(f.estado === "resueltos" ? { estado: "RESUELTO" } : { estado: { in: ["BOT", "HUMANO"] } });
+  if (f.quien === "bot") condiciones.push(DONDE_BOT(ahora));
+  else if (f.quien === "sin-asignar") condiciones.push(DONDE_SIN_ASIGNAR(ahora));
+  // Entre los resueltos nadie queda asignado: "de Camila" son los que resolvió ella.
+  else if (typeof f.quien === "number") condiciones.push(f.estado === "resueltos" ? { resueltoPorUserId: f.quien } : { asignadoUserId: f.quien });
+  if (f.canal !== "todos") condiciones.push({ canal: f.canal });
+  if (typeof opciones.campana === "string" && CAMPANA_VALIDA.test(opciones.campana)) f.campana = opciones.campana;
+  if (f.campana === "sin-anuncio") condiciones.push({ anuncioId: null });
+  else if (f.campana.startsWith("ad:")) condiciones.push({ anuncioId: f.campana.slice(3) });
+  else if (f.campana !== "todas") condiciones.push({ anuncioId: { in: await anunciosDeCampana(ctx.workspaceId, f.campana).catch(() => [] as string[]) } });
+  if (f.estado === "esperando") condiciones.push({ ultimoEntranteEn: { gte: new Date(ahora.getTime() - DIAS_ESPERANDO * 86_400_000) } });
 
   // Sin permiso de Clientes la búsqueda no entra a la ficha: sólo perfil de WhatsApp y número.
   const veClientes = puedeEnContexto(ctx, "ver", CLIENTS_MODULE_KEY);
   const q = truncarSeguro((opciones.q ?? "").trim(), 80, false);
+  /** Chat → texto del mensaje más reciente donde apareció la palabra. */
+  const porPalabra = new Map<string, string>();
   if (q) {
     const digitos = soloDigitos(q);
-    const porNombre = !veClientes ? [] : ((await prisma.client.findMany({
-      where: {
-        workspaceId: ctx.workspaceId,
-        OR: [
-          { firstName: { contains: q, mode: "insensitive" } },
-          { lastName: { contains: q, mode: "insensitive" } },
-          { businessName: { contains: q, mode: "insensitive" } },
-        ],
-      },
-      select: { id: true },
-      take: 50,
-    })) as { id: string }[]);
+    const [porNombre, mensajes] = await Promise.all([
+      !veClientes ? [] : (prisma.client.findMany({
+        where: {
+          workspaceId: ctx.workspaceId,
+          OR: [
+            { firstName: { contains: q, mode: "insensitive" } },
+            { lastName: { contains: q, mode: "insensitive" } },
+            { businessName: { contains: q, mode: "insensitive" } },
+          ],
+        },
+        select: { id: true },
+        take: 50,
+      }) as Promise<{ id: string }[]>),
+      q.length < 2 ? [] : (prisma.fotofficeWaMensaje.findMany({
+        where: { workspaceId: ctx.workspaceId, direccion: { in: DIRECCIONES_BUSCABLES }, texto: { contains: q, mode: "insensitive" } },
+        orderBy: { createdAt: "desc" },
+        take: 500,
+        select: { chatId: true, texto: true },
+      }) as Promise<{ chatId: string; texto: string | null }[]>),
+    ]);
+    for (const m of mensajes) if (!porPalabra.has(m.chatId) && m.texto) porPalabra.set(m.chatId, m.texto);
     const o: Record<string, unknown>[] = [{ nombre: { contains: q, mode: "insensitive" } }];
     // El número sólo se busca en WhatsApp: en Instagram `waId` es el IGSID, no un teléfono.
     if (digitos.length >= 3) o.push({ canal: "WHATSAPP", waId: { contains: digitos } });
     const usuario = q.replace(/^@/, "");
     if (usuario) o.push({ usuarioInstagram: { contains: usuario, mode: "insensitive" } });
     if (porNombre.length > 0) o.push({ clientId: { in: porNombre.map((c) => c.id) } });
+    if (porPalabra.size > 0) o.push({ id: { in: [...porPalabra.keys()] } });
     condiciones.push({ OR: o });
   }
 
-  const chats = (await prisma.fotofficeWaChat.findMany({
+  const esperando = f.estado === "esperando";
+  let chats = (await prisma.fotofficeWaChat.findMany({
     where: { AND: condiciones },
-    orderBy: { ultimoMensajeEn: "desc" },
-    take: MAXIMO_CHATS,
+    // "Esperando": del que más espera al que menos; se filtra después (compara dos columnas).
+    orderBy: esperando ? { ultimoEntranteEn: "asc" } : { ultimoMensajeEn: "desc" },
+    take: esperando ? MAXIMO_CHATS * 5 : MAXIMO_CHATS,
   })) as {
     id: string; waId: string; canal: string; usuarioInstagram: string | null; nombre: string | null; clientId: string | null; estado: string; asignadoUserId: number | null;
     botPausadoHasta: Date | null; botExcluido: boolean; ultimoMensajeEn: Date; ultimoEntranteEn: Date | null; noLeidos: number;
-    ultimoMensajeTexto: string | null; ultimoMensajeTipo: string | null;
+    ultimoMensajeTexto: string | null; ultimoMensajeTipo: string | null; derivadoSinVerUserId: number | null; anuncioId: string | null;
   }[];
+  if (esperando) chats = chats.filter((c) => c.ultimoEntranteEn !== null && c.ultimoEntranteEn.getTime() >= c.ultimoMensajeEn.getTime()).slice(0, MAXIMO_CHATS);
 
-  const [usuarios, clientes] = await Promise.all([
+  const [usuarios, clientes, campanas] = await Promise.all([
     nombresDeUsuarios(chats.flatMap((c) => (c.asignadoUserId !== null ? [c.asignadoUserId] : []))),
     clientesPorId(ctx.workspaceId, chats.flatMap((c) => (c.clientId ? [c.clientId] : []))),
+    etiquetasDeAnuncios(ctx.workspaceId, chats.flatMap((c) => (c.anuncioId ? [c.anuncioId] : []))),
   ]);
 
   return chats.map((c) => {
@@ -178,9 +208,14 @@ export async function listarChats(
       usuarioInstagram: c.usuarioInstagram ?? null,
       estado,
       atiendeElBot: atiendeElBot({ estado, asignadoUserId: c.asignadoUserId, botPausadoHasta: c.botPausadoHasta, ultimoEntranteEn: c.ultimoEntranteEn, botExcluido: c.botExcluido }, ahora),
+      asignadoUserId: c.asignadoUserId,
       asignadoNombre: c.asignadoUserId !== null ? (usuarios.get(c.asignadoUserId) ?? "Alguien del equipo") : null,
       clienteNombre,
       ultimoMensaje: textoDeVistaPrevia(c),
+      fragmento: q ? fragmentoDe(porPalabra.get(c.id), q) : null,
+      ultimoEntranteEn: c.ultimoEntranteEn,
+      nuevoParaMi: c.derivadoSinVerUserId !== null && c.derivadoSinVerUserId === ctx.userId,
+      campana: c.anuncioId ? (campanas.get(c.anuncioId) ?? null) : null,
       ultimoMensajeEn: c.ultimoMensajeEn,
       noLeidos: c.noLeidos,
     };
@@ -227,6 +262,10 @@ export type DetalleDeChat = {
   asignadoNombre: string | null;
   noLeidos: number;
   ultimoEntranteEn: Date | null;
+  ultimoMensajeEn: Date;
+  /** Resumen de la charla (Claude) y cuándo se armó. */
+  resumen: string | null;
+  resumenEn: Date | null;
   /** Se puede mandar texto libre (ventana de 24 h). */
   dentroDeVentana: boolean;
   mensajes: MensajeDeChat[];
@@ -241,7 +280,8 @@ export async function detalleChat(ctx: CtxBandeja, chatId: string, ahora: Date =
   if (typeof chatId !== "string" || !ID_VALIDO.test(chatId)) return null;
   const c = (await prisma.fotofficeWaChat.findFirst({ where: { id: chatId, workspaceId: ctx.workspaceId } })) as {
     id: string; waId: string; canal: string; usuarioInstagram: string | null; nombre: string | null; clientId: string | null; estado: string; asignadoUserId: number | null;
-    botPausadoHasta: Date | null; botExcluido: boolean; ultimoEntranteEn: Date | null; noLeidos: number;
+    botPausadoHasta: Date | null; botExcluido: boolean; ultimoEntranteEn: Date | null; ultimoMensajeEn: Date; noLeidos: number;
+    resumen: string | null; resumenEn: Date | null;
   } | null;
   if (!c) return null;
 
@@ -283,6 +323,9 @@ export async function detalleChat(ctx: CtxBandeja, chatId: string, ahora: Date =
     asignadoNombre: c.asignadoUserId !== null ? (usuarios.get(c.asignadoUserId) ?? "Alguien del equipo") : null,
     noLeidos: c.noLeidos,
     ultimoEntranteEn: c.ultimoEntranteEn,
+    ultimoMensajeEn: c.ultimoMensajeEn,
+    resumen: c.resumen ?? null,
+    resumenEn: c.resumenEn ?? null,
     dentroDeVentana: puedeResponderLibre({ ultimoEntranteEn: c.ultimoEntranteEn }, ahora),
     mensajes,
     cliente,
@@ -299,6 +342,15 @@ export async function noLeidosDelWorkspace(workspaceId: string): Promise<number>
   try {
     const r = await prisma.fotofficeWaChat.aggregate({ where: { workspaceId, noLeidos: { gt: 0 } }, _sum: { noLeidos: true } });
     return r._sum.noLeidos ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** Chats derivados a esta persona que todavía no abrió (el punto del menú). Si falla, 0. */
+export async function derivadosSinVer(workspaceId: string, userId: number): Promise<number> {
+  try {
+    return await prisma.fotofficeWaChat.count({ where: { workspaceId, derivadoSinVerUserId: userId, estado: { in: ["BOT", "HUMANO"] } } });
   } catch {
     return 0;
   }

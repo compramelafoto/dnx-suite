@@ -25,8 +25,8 @@ async function faceIdsEnLaBase(): Promise<Set<string>> {
   const vivas = new Set<string>();
 
   /*
-    Dos orígenes en la misma colección: las caras de las fotos del fotógrafo y las selfies
-    con las que el cliente se busca. Si se mirara sólo el primero, el barrido borraría
+    Tres orígenes en la misma colección: las caras de las fotos del fotógrafo, las selfies
+    con las que el cliente se busca y las de los compradores de packs que se van sumando. Si se mirara sólo el primero, el barrido borraría
     todas las selfies vigentes.
   */
   const deFotos = await prisma.faceDetection.findMany({
@@ -39,6 +39,13 @@ async function faceIdsEnLaBase(): Promise<Set<string>> {
     select: { faceId: true },
   });
   for (const s of deSelfies) if (s.faceId) vivas.add(s.faceId);
+
+  // Selfies guardadas de quienes compraron un pack «Todas mis fotos» que se va sumando.
+  const deCompradores = await prisma.growingPackFace.findMany({
+    where: { faceId: { not: null } },
+    select: { faceId: true },
+  });
+  for (const c of deCompradores) if (c.faceId) vivas.add(c.faceId);
 
   return vivas;
 }

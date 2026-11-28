@@ -33,6 +33,7 @@ import { createOrganizerCommissionForPaidOrder } from "@/lib/school-organizer-co
 import { ensureEventOrganizerCommissionSnapshotForPaidOrder } from "@/lib/event-organizer-commission-snapshot";
 import { resolveAlbumOrderMpAccessTokenByOrderId } from "@/lib/mercadopago/resolve-album-order-mp-credentials";
 import { ensureAlbumPackDesignsForPaidOrder } from "@/lib/design-v2/album-pack-designs";
+import { ensureProductDesignsForPaidOrder } from "@/lib/compra-directa/disenos-al-pagar";
 import { classifyApprovedPaymentOnAlbumOrder } from "@/lib/mercadopago/duplicate-album-order-payment-rules";
 import { reportDuplicateAlbumOrderPayment } from "@/lib/mercadopago/duplicate-album-order-payment";
 import { reportFirstSaleIfAny } from "@/lib/meta-capi";
@@ -603,6 +604,13 @@ export async function finalizeAlbumOrderMercadoPagoApproved(
     await ensureAlbumPackDesignsForPaidOrder(orderId);
   } catch (err: unknown) {
     console.error("[design_v2] armado de diseños del pedido falló", { orderId, err });
+  }
+
+  // Compra directa con librito: el diseño se arma con las fotos de la tapa y la contratapa.
+  try {
+    await ensureProductDesignsForPaidOrder(orderId);
+  } catch (err: unknown) {
+    console.error("[compra-directa] armado del librito del pedido falló", { orderId, err });
   }
 
   try {

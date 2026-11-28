@@ -481,7 +481,7 @@ export default function Header() {
                   <Link
                     href="/cuenta/cambiar-contrasena"
                     className="p-2 rounded-lg hover:bg-black/5 transition-colors group relative"
-                    title="Cambiar contraseña"
+                    title="Email y contraseña"
                   >
                     <svg
                       className="w-5 h-5 text-black/70"
@@ -497,7 +497,7 @@ export default function Header() {
                       />
                     </svg>
                     <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-[#111827] text-white text-xs rounded opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
-                      Cambiar contraseña
+                      Email y contraseña
                     </span>
                   </Link>
                   {user.type === "organizer" && (

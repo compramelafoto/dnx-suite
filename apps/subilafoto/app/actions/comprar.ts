@@ -112,6 +112,12 @@ export async function comprarEvento(formData: FormData): Promise<void> {
       notificationUrl: `${base}/api/pagos/aviso`,
       marketplaceFeeMinor: venta.plataformaCents,
       sourceApp: "subilafoto",
+      /*
+        El token tiene que viajar acá y no sólo al crear el adaptador: en modo LIVE el
+        adaptador exige `accessTokenOverride` y, sin él, corta antes de llamar a Mercado
+        Pago. Así falló toda venta hasta el 26/11/2026 (`mp_live_collector_token_required`).
+      */
+      accessTokenOverride: cobrador.collector.accessToken,
     });
 
     await prisma.subilafotoOrder.update({

@@ -687,7 +687,11 @@ export default function ClientAlbumView({
   const [pendingAllPhotosPack, setPendingAllPhotosPack] = useState<{
     packId: string;
     packName: string;
+    /** «Este evento dura varios días»: se guarda la selfie (con permiso) para sumar fotos nuevas. */
+    keepsAddingPhotos?: boolean;
   } | null>(null);
+  /** Permiso del comprador para guardar su selfie y sumarle las fotos que se suban después. */
+  const [growingFaceConsent, setGrowingFaceConsent] = useState(false);
 
   const canSelectPhotosForPurchase =
     canPurchaseSingles || packSelectionMode != null || preventaRedeem != null;
@@ -1062,7 +1066,12 @@ export default function ClientAlbumView({
     setPackPaymentError(null);
     setPackSelectionError(null);
     setPackSelectionMode(null);
-    setPendingAllPhotosPack({ packId: pack.id, packName: pack.name });
+    setPendingAllPhotosPack({
+      packId: pack.id,
+      packName: pack.name,
+      keepsAddingPhotos: pack.keepsAddingPhotos === true,
+    });
+    setGrowingFaceConsent(false);
     void openFaceSearchFlow();
   }
 
@@ -1214,6 +1223,30 @@ export default function ClientAlbumView({
       return next;
     });
     setPackCartOrderId(null);
+    return { sessionId, guestToken: finalGuestToken };
+  }
+
+  /** Guarda la selfie del comprador para que se le sumen las fotos nuevas del evento. */
+  async function saveGrowingPackSelfie(params: {
+    sessionId: string;
+    guestToken: string;
+    file: File;
+  }): Promise<string | null> {
+    const formData = new FormData();
+    formData.append("file", params.file);
+    formData.append("consent", "1");
+    try {
+      const res = await fetch(`/api/album-pack-selections/${params.sessionId}/growing-face`, {
+        method: "POST",
+        headers: params.guestToken ? { "x-guest-token": params.guestToken } : {},
+        body: formData,
+      });
+      if (res.ok) return null;
+      const data = await res.json().catch(() => ({}));
+      return typeof data?.error === "string" ? data.error : "No pudimos guardar tu selfie.";
+    } catch {
+      return "No pudimos guardar tu selfie.";
+    }
   }
 
   async function handleRemovePreparedPack(draftId: string) {
@@ -2045,11 +2078,23 @@ export default function ClientAlbumView({
           setPackSelectionError(null);
           setPackPaymentError(null);
           try {
-            await persistPackSelectionForAlbumPack({
+            const prepared = await persistPackSelectionForAlbumPack({
               packId: pendingPack.packId,
               packName: pendingPack.packName,
               photoIds: faceIdsForBulk,
             });
+            if (pendingPack.keepsAddingPhotos && growingFaceConsent && prepared) {
+              const selfieError = await saveGrowingPackSelfie({
+                sessionId: prepared.sessionId,
+                guestToken: prepared.guestToken,
+                file: fileToUse,
+              });
+              if (selfieError) {
+                setPackSelectionError(
+                  `Tu pack quedó listo, pero no pudimos guardar tu selfie (${selfieError}). Vas a recibir sólo las fotos que ya están subidas.`
+                );
+              }
+            }
           } catch (packErr: unknown) {
             const message =
               packErr instanceof Error ? packErr.message : "No pudimos preparar el pack.";
@@ -2230,6 +2275,22 @@ export default function ClientAlbumView({
               <p className="text-sm sm:text-base text-[#6b7280] mb-6 leading-relaxed max-w-none">
                 Elegí cómo querés cargar tu selfie.
               </p>
+              {pendingAllPhotosPack?.keepsAddingPhotos ? (
+                <label className="mb-6 flex cursor-pointer items-start gap-3 rounded-xl border border-[#e5e7eb] bg-[#f9fafb] p-4 text-left">
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 shrink-0 accent-[#c27b3d]"
+                    checked={growingFaceConsent}
+                    onChange={(e) => setGrowingFaceConsent(e.target.checked)}
+                  />
+                  <span className="text-sm text-[#374151] leading-relaxed">
+                    <strong>Sumarme las fotos que se suban después.</strong> Este evento dura varios
+                    días: guardamos tu selfie sólo para encontrarte en las fotos nuevas y sumarlas a tu
+                    panel de descarga. Se borra cuando el álbum cierra. Si no lo marcás, te llevás
+                    sólo las fotos que ya están subidas.
+                  </span>
+                </label>
+              ) : null}
               <div className="grid gap-5 sm:grid-cols-2 sm:gap-6">
                 <label className="group flex w-full min-w-0 cursor-pointer flex-col items-center justify-center gap-4 rounded-3xl border border-[#e5e7eb] bg-white px-6 py-8 text-center shadow-lg transition hover:border-[#cbd5f5] sm:px-8">
                   <input
@@ -2630,6 +2691,12 @@ export default function ClientAlbumView({
                         ) : null}
                         {purchaseNote ? (
                           <p className="text-sm text-[#6b7280] leading-relaxed">{purchaseNote}</p>
+                        ) : null}
+                        {pack.keepsAddingPhotos ? (
+                          <p className="text-sm font-medium text-[#047857] leading-relaxed">
+                            Incluye las fotos tuyas que se suban después. Te las sumamos a tu panel de
+                            descarga y te avisamos por mail (pueden tardar unas horas en aparecer).
+                          </p>
                         ) : null}
                       </div>
                       <div className="shrink-0 text-right">

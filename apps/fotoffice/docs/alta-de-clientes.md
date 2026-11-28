@@ -10,6 +10,7 @@ Cuestionarios disponibles:
 
 - `productora-docente-v1`: escuela o productora con cursos (F64, desde cero).
 - `club-suscripcion-v1`: club por suscripción con clases en vivo, grabadas y un envío mensual (SOYBELUZ). Pensado para un espacio ya armado: confirma lo cargado y pregunta lo que falta (materiales de cada BOX, envíos, cobros, clases, textos).
+- `marca-tienda-comunidad-v1`: marca que fabrica y vende productos propios (tienda con envíos a todo el país, pedidos a medida, mayoristas y comunidad). Estrenado con Proyecto Design (Jonatan Pérez), noviembre de 2026. Los productos se cargan con fotos: el formulario tiene un campo `fotos` que sube directo a R2 (`fotoffice/alta-clientes/<id del alta>/`), y en las respuestas quedan las direcciones.
 - `registro-docente-v1`: docente de escuela (asistencia, notas, períodos, Mi Escuela de Santa Fe). Estrenado con Belén Saldaña; ver `docs/analisis-registro-docente.md`.
 
 ## 1. Juntar lo público antes de preguntar

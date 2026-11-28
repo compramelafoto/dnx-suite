@@ -40,6 +40,10 @@ export type ConexionTelegram = {
   linkCodeExpiresAt: Date | null;
   webhookSecretHash: string;
   linkedAt: Date | null;
+  /** Quien conectó el bot: la persona de FOTOFFICE dueña del chat de Telegram (Bandeja, §7.1). */
+  connectedByUserId: number | null;
+  /** Mandar por Telegram los chats de la Bandeja asignados a esa persona. */
+  bandejaActiva: boolean;
 };
 
 export type ResultadoTelegram = { ok: true } | { ok: false; error: string };
@@ -53,7 +57,7 @@ function registrar(donde: string, e: unknown): void {
 
 const SELECCION = {
   id: true, workspaceId: true, botId: true, botUsername: true, chatId: true, chatNombre: true,
-  linkCode: true, linkCodeExpiresAt: true, webhookSecretHash: true, linkedAt: true,
+  linkCode: true, linkCodeExpiresAt: true, webhookSecretHash: true, linkedAt: true, connectedByUserId: true, bandejaActiva: true,
 } as const;
 
 export async function leerConexionTelegram(workspaceId: string): Promise<ConexionTelegram | null> {
@@ -150,7 +154,9 @@ export async function nuevoCodigoTelegram(ctx: CtxConsultas, deps: DepsConexionT
   try {
     const r = await prisma.fotofficeTelegramConexion.updateMany({
       where: { workspaceId: ctx.workspaceId },
-      data: { linkCode: codigoDeVinculo(), linkCodeExpiresAt: new Date(ahora.getTime() + MINUTOS_CODIGO * 60_000) },
+      // Quien pide el código es quien va a vincular su celular: pasa a ser el dueño del chat de Telegram
+      // (le llegan los chats de la Bandeja asignados a él y responde con su usuario).
+      data: { linkCode: codigoDeVinculo(), linkCodeExpiresAt: new Date(ahora.getTime() + MINUTOS_CODIGO * 60_000), connectedByUserId: ctx.userId },
     });
     return r.count === 1 ? { ok: true } : no(MENSAJES_TELEGRAM.sinConexion);
   } catch (e) {
@@ -208,12 +214,26 @@ export type EstadoTelegram = {
   /** Enlace para tocar "Iniciar", mientras el código siga vigente. */
   enlaceVinculo: string | null;
   codigo: string | null;
+  /** Se mandan por Telegram los chats de la Bandeja asignados a quien conectó el bot. */
+  bandejaActiva: boolean;
 };
+
+/** Prende o apaga los chats de la Bandeja por Telegram (§7.1 del diseño 2026-11-24). Pide `configurar`. */
+export async function cambiarBandejaTelegram(ctx: CtxConsultas, encendido: boolean): Promise<ResultadoTelegram> {
+  if (!puedeEnContexto(ctx, "configurar")) return no(MENSAJES_TELEGRAM.sinPermiso);
+  try {
+    const r = await prisma.fotofficeTelegramConexion.updateMany({ where: { workspaceId: ctx.workspaceId }, data: { bandejaActiva: encendido } });
+    return r.count === 1 ? { ok: true } : no(MENSAJES_TELEGRAM.sinConexion);
+  } catch (e) {
+    registrar("cambiarBandejaTelegram", e);
+    return no(MENSAJES_TELEGRAM.fallo);
+  }
+}
 
 /** Para la pantalla: nunca el token ni el secreto. */
 export async function estadoTelegram(workspaceId: string, ahora: Date = new Date()): Promise<EstadoTelegram> {
   const [c, tieneToken] = await Promise.all([leerConexionTelegram(workspaceId), hayTokenTelegram(workspaceId)]);
-  if (!c) return { conectado: false, tieneToken, botUsername: null, vinculado: false, chatNombre: null, enlaceVinculo: null, codigo: null };
+  if (!c) return { conectado: false, tieneToken, botUsername: null, vinculado: false, chatNombre: null, enlaceVinculo: null, codigo: null, bandejaActiva: false };
   const vigente = c.linkCode && c.linkCodeExpiresAt && c.linkCodeExpiresAt.getTime() > ahora.getTime() ? c.linkCode : null;
   return {
     conectado: true,
@@ -223,6 +243,7 @@ export async function estadoTelegram(workspaceId: string, ahora: Date = new Date
     chatNombre: c.chatNombre,
     enlaceVinculo: vigente ? enlaceDeVinculo(c.botUsername, vigente) : null,
     codigo: vigente,
+    bandejaActiva: c.bandejaActiva,
   };
 }
 

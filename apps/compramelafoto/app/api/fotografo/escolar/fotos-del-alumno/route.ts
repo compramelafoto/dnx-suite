@@ -47,7 +47,11 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const matches = await searchFacesByFaceId(cara.rekognitionFaceId);
+    const matches = await searchFacesByFaceId(cara.rekognitionFaceId, {
+      // La colección es de todo CLF: se pide el máximo y después se filtra por álbum.
+      maxFaces: 4096,
+      faceMatchThreshold: 70,
+    });
     const ids = matches.map((m) => m.rekognitionFaceId);
     const detecciones = ids.length
       ? await prisma.faceDetection.findMany({

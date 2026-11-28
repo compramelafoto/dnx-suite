@@ -97,3 +97,15 @@ describe("historialParaElBot", () => {
     expect(r?.userText).toBe("e");
   });
 });
+
+describe("notas internas", () => {
+  it("el bot nunca ve una NOTA, ni la toma como corte de «resuelto»", () => {
+    const nota = (texto: string): MensajeChat => ({ direccion: "NOTA", autor: "USUARIO", tipo: "TEXTO", texto });
+    const r = historialParaElBot([cli("hola"), nota("ojo: es cliente viejo, marcado como resuelto"), bot("¡Hola!"), cli("precio?")]);
+    expect(r?.history).toEqual([
+      { role: "user", content: "hola" },
+      { role: "assistant", content: "¡Hola!" },
+    ]);
+    expect(JSON.stringify(r)).not.toContain("cliente viejo");
+  });
+});

@@ -21,6 +21,7 @@ import { createPackAccessTokenForOrder } from "@/lib/preventa-canjeable/pack-acc
 import { readPackDefinitionIdFromOrderPricingSnapshot } from "@/lib/preventa-canjeable/order-checkout-kind";
 import { createOrganizerCommissionForPaidOrder } from "@/lib/school-organizer-commission";
 import { ensureAlbumPackDesignsForPaidOrder } from "@/lib/design-v2/album-pack-designs";
+import { ensureProductDesignsForPaidOrder } from "@/lib/compra-directa/disenos-al-pagar";
 import { resolvePlatformCommissionPercent } from "@/lib/services/commissionService";
 import { getOrderDownloadTokens } from "@/lib/download-tokens";
 import {
@@ -142,6 +143,11 @@ export async function finalizeAlbumOrderSimulatedApproved(
   } catch (err) {
     console.error("[DEMO] armado de diseños falló", { orderId, err });
   }
+  try {
+    await ensureProductDesignsForPaidOrder(orderId);
+  } catch (err) {
+    console.error("[DEMO] armado del librito falló", { orderId, err });
+  }
 
   return { ok: true, packToken };
 }
@@ -228,6 +234,11 @@ export async function finalizeAlbumGalleryOrderSimulatedApproved(
       await ensureAlbumPackDesignsForPaidOrder(orderId);
     } catch (err) {
       console.error("[DEMO] armado de diseños falló", { orderId, err });
+    }
+    try {
+      await ensureProductDesignsForPaidOrder(orderId);
+    } catch (err) {
+      console.error("[DEMO] armado del librito falló", { orderId, err });
     }
   }
 

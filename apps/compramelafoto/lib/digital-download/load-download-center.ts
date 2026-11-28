@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { createClientDownloadToken } from "@/lib/download-tokens";
+import { createZipJob, getZipExpiresAt } from "@/lib/zip-job-queue";
+import {
+  GROWING_PACK_ZIP_META,
+  mergeOrderDigitalPhotoIds,
+  zipJobCoversPhotos,
+} from "@/lib/digital-download/order-digital-photo-ids";
 import {
   buildDownloadCenterVideos,
   type DownloadCenterVideo,
@@ -24,6 +30,8 @@ export type DownloadCenterPhoto = {
   filename: string;
   previewUrl: string;
   downloadUrl: string;
+  /** Sumada después de pagar y todavía no vista en el panel (pack que se va sumando). */
+  isNew?: boolean;
 };
 
 export type DownloadCenterZipState =
@@ -49,6 +57,8 @@ export type DownloadCenterData = {
   purchasedAtLabel: string;
   photoCount: number;
   photos: DownloadCenterPhoto[];
+  /** Pack «Todas mis fotos» de un evento de varios días: el panel sigue sumando fotos. */
+  growingPack: { active: boolean; newCount: number } | null;
   /** Videos comprados en el mismo pedido. Cada uno se baja por su cuenta. */
   videos: DownloadCenterVideo[];
   /** Diseños con las fotos elegidas (carpeta, póster…), cuando el fotógrafo ya los aprobó. */
@@ -161,6 +171,18 @@ export async function loadDownloadCenterByToken(
           photo: { select: { id: true, originalKey: true } },
         },
       },
+      addedPhotos: {
+        where: { removedByClientAt: null },
+        select: {
+          photoId: true,
+          addedAt: true,
+          photo: { select: { id: true, originalKey: true } },
+        },
+        orderBy: { id: "asc" },
+      },
+      growingPackFace: {
+        select: { id: true, panelSeenAt: true, endedAt: true, biometricDeletedAt: true },
+      },
       videoItems: {
         select: {
           videoId: true,
@@ -210,14 +232,14 @@ export async function loadDownloadCenterByToken(
     ? "expired"
     : availability.status;
 
-  const zipJob = await prisma.zipGenerationJob.findFirst({
+  let zipJob = await prisma.zipGenerationJob.findFirst({
     where: {
       orderId: order.id,
       type: "ORDER_DOWNLOAD",
       status: { in: ["PENDING", "PROCESSING", "COMPLETED", "FAILED"] },
     },
     orderBy: { createdAt: "desc" },
-    select: { status: true, progress: true, meta: true },
+    select: { status: true, progress: true, meta: true, photoIds: true },
   });
 
   const zipDownloadUrl =
@@ -228,11 +250,19 @@ export async function loadDownloadCenterByToken(
   const photos: DownloadCenterPhoto[] = [];
   const seenPhotoIds = new Set<number>();
 
-  for (const item of order.items) {
+  const panelSeenAt = order.growingPackFace?.panelSeenAt ?? null;
+  const addedAtByPhotoId = new Map(order.addedPhotos.map((a) => [a.photoId, a.addedAt]));
+  const photoRows = [
+    ...order.items,
+    ...order.addedPhotos.map((a) => ({ photoId: a.photoId, photo: a.photo })),
+  ];
+
+  for (const item of photoRows) {
     if (!Number.isFinite(item.photoId)) continue;
     const photoId = Number(item.photoId);
     if (seenPhotoIds.has(photoId)) continue;
     seenPhotoIds.add(photoId);
+    const addedAt = addedAtByPhotoId.get(photoId);
 
     const perPhotoToken =
       allTokens.find((t) => t.photoId === photoId)?.token ??
@@ -252,10 +282,48 @@ export async function loadDownloadCenterByToken(
       downloadUrl: perPhotoToken
         ? buildPhotoDownloadApiUrl(perPhotoToken, baseUrl)
         : "#",
+      ...(addedAt ? { isNew: !panelSeenAt || addedAt.getTime() > panelSeenAt.getTime() } : {}),
     });
   }
 
-  photos.sort((a, b) => a.photoId - b.photoId);
+  // Las nuevas primero, para que el comprador las vea al entrar.
+  photos.sort((a, b) => Number(Boolean(b.isNew)) - Number(Boolean(a.isNew)) || a.photoId - b.photoId);
+
+  const growingFace = order.growingPackFace;
+  const growingPack = growingFace
+    ? {
+        active: !growingFace.endedAt && !growingFace.biometricDeletedAt && !albumDeleted,
+        newCount: photos.filter((p) => p.isNew).length,
+      }
+    : null;
+  if (growingFace) {
+    // Desde ahora, las que ya vio dejan de figurar como «Nuevas» en la próxima visita.
+    await prisma.growingPackFace.update({
+      where: { id: growingFace.id },
+      data: { panelSeenAt: new Date() },
+    });
+  }
+
+  // Se sumaron fotos después de armar el ZIP: ese ZIP quedó corto. Se arma otro con todas
+  // (sin volver a mandar el mail de descarga) y mientras tanto se muestra «en preparación».
+  if (
+    order.addedPhotos.length > 0 &&
+    photos.length > 1 &&
+    effectiveStatus !== "expired" &&
+    !(zipJob && zipJobCoversPhotos(zipJob.photoIds, photos.map((p) => p.photoId)))
+  ) {
+    zipJob = await createZipJob({
+      type: "ORDER_DOWNLOAD",
+      orderId: order.id,
+      albumId: order.albumId,
+      photoIds: mergeOrderDigitalPhotoIds(
+        order.items.map((i) => i.photoId),
+        order.addedPhotos.map((a) => a.photoId)
+      ),
+      meta: GROWING_PACK_ZIP_META,
+      expiresAt: getZipExpiresAt(),
+    });
+  }
 
   const designs = await loadApprovedDesignsForOrder(order.id);
 
@@ -273,6 +341,7 @@ export async function loadDownloadCenterByToken(
     purchasedAtLabel: formatDownloadExpiryDate(order.createdAt),
     photoCount: photos.length,
     photos,
+    growingPack,
     videos: buildDownloadCenterVideos(order.videoItems ?? [], {
       accessToken,
       baseUrl: appBase,

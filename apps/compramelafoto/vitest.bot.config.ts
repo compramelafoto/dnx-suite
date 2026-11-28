@@ -12,6 +12,7 @@ export default defineConfig({
     environment: "node",
     include: [
       "lib/cron/send-album-notifications.test.ts",
+      "components/blog/admin/blog-admin-constants.test.ts",
       "lib/preventa-canjeable/fecha-maxima-compra.test.ts",
       "lib/preventa-canjeable/cursos-publicados-reglas.test.ts",
       "lib/agencies/**/*.test.ts",

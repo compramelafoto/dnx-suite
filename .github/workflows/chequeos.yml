@@ -93,6 +93,17 @@ jobs:
       - name: Pruebas de FOTOFFICE
         run: pnpm --filter fotoffice test
 
+      # SubiLaFoto no tenía ningún control hasta el 26/11/2026, y su build sólo corre al
+      # publicar en producción: un error de tipos se descubría con la app caída. Así se
+      # coló que ninguna compra llegara a Mercado Pago (PR 1199).
+      - name: Chequear tipos de SubiLaFoto
+        run: pnpm --filter subilafoto check-types
+        env:
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      - name: Pruebas de SubiLaFoto
+        run: pnpm --filter subilafoto test
+
       - name: Pruebas de las reglas de Muestras
         run: pnpm --filter @repo/muestras test
 
