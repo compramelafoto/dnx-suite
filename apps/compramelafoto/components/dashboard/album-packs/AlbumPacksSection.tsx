@@ -26,6 +26,7 @@ import {
 import {
   ALBUM_PACK_QUANTITY_MODE_HELP,
   encodePackDescriptionWithQty,
+  parsePackQtyFromDescription,
 } from "@/lib/album-packs/album-pack-quantity-mode";
 import { formatARS } from "@/lib/lab/helpers";
 import { feeFromBase, totalFromBase } from "@/lib/pricing/fee-formula";
@@ -93,6 +94,7 @@ type AlbumPack = {
   availabilityPhase: (typeof availabilityPhaseOptions)[number]["value"];
   packType: (typeof packTypeOptions)[number]["value"];
   isActive: boolean;
+  keepsAddingPhotos?: boolean;
   components?: AlbumPackComponentApi[];
   compositionFulfillmentKind?: "DIGITAL" | "PRINT" | "MIXED";
   template?: TemplateOption | null;
@@ -117,6 +119,8 @@ type FormState = {
   productComposition: AlbumPackProductComposition;
   photographerProductId: string;
   isActive: boolean;
+  /** «Este evento dura varios días» (sólo «Todas mis fotos» digital). */
+  keepsAddingPhotos: boolean;
 };
 
 const defaultFormState: FormState = {
@@ -133,7 +137,17 @@ const defaultFormState: FormState = {
   productComposition: "DIGITAL",
   photographerProductId: "",
   isActive: true,
+  keepsAddingPhotos: false,
 };
+
+/** Misma regla que el servidor (`packCanKeepAddingPhotos`), con el estado del formulario. */
+function draftCanKeepAddingPhotos(draft: FormState): boolean {
+  return (
+    parsePackQtyFromDescription(draft.description) === "ALL_MY_PHOTOS" &&
+    draft.productComposition === "DIGITAL" &&
+    draft.packType !== "PRINT"
+  );
+}
 
 function parsePackPriceWhole(raw: string): number | null {
   const trimmed = raw.trim();
@@ -489,6 +503,7 @@ export default function AlbumPacksSection({
           ? String(printComponent.photographerProductId)
           : "",
       isActive: pack.isActive,
+      keepsAddingPhotos: pack.keepsAddingPhotos === true,
     });
     setWizardStep(4);
     resetCoverDraftState();
@@ -745,6 +760,7 @@ export default function AlbumPacksSection({
       productComposition: preset.packType === "PRINT" ? "PRINT" : "DIGITAL",
       photographerProductId: "",
       isActive: true,
+      keepsAddingPhotos: false,
     });
     if (preset.requiresDesign && templateV2PickCount === 0) {
       setError(
@@ -891,6 +907,7 @@ export default function AlbumPacksSection({
               ? "DIGITAL"
               : draft.packType,
         isActive: draft.isActive,
+        keepsAddingPhotos: draftCanKeepAddingPhotos(draft) && draft.keepsAddingPhotos,
       };
       if (components) {
         payload.components = components;
@@ -1859,6 +1876,33 @@ export default function AlbumPacksSection({
                         <strong className="text-[#374151]">Disponibilidad:</strong>{" "}
                         {availabilityPhaseOptions.find((o) => o.value === draft.availabilityPhase)?.label}
                       </li>
+                      {parsePackQtyFromDescription(draft.description) === "ALL_MY_PHOTOS" ? (
+                        <li className="pt-2">
+                          <label
+                            className={`flex items-start gap-2 ${
+                              draftCanKeepAddingPhotos(draft) ? "cursor-pointer" : "cursor-not-allowed opacity-60"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-0.5 h-4 w-4 accent-[#c27b3d]"
+                              checked={draftCanKeepAddingPhotos(draft) && draft.keepsAddingPhotos}
+                              disabled={!draftCanKeepAddingPhotos(draft)}
+                              onChange={(e) =>
+                                setDraft((prev) => ({ ...prev, keepsAddingPhotos: e.target.checked }))
+                              }
+                            />
+                            <span>
+                              <strong className="text-[#374151]">Este evento dura varios días</strong>
+                              <span className="block text-xs text-[#6b7280]">
+                                {draftCanKeepAddingPhotos(draft)
+                                  ? "El cliente puede comprar el primer día. Las fotos en las que aparezca que subas después se le suman solas a su panel de descarga. El precio cubre todas, aunque las subas después. Si más adelante apagás esta opción, los que ya compraron siguen recibiendo sus fotos nuevas."
+                                  : "Sólo disponible en packs de fotos digitales (sin impresiones)."}
+                              </span>
+                            </span>
+                          </label>
+                        </li>
+                      ) : null}
                       <label className="flex cursor-pointer items-center gap-2 pt-2">
                         <input
                           type="checkbox"

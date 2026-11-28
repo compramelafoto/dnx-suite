@@ -1,3 +1,4 @@
+import { resolveKeepsAddingPhotos } from "@/lib/album-packs/growing-pack/keeps-adding-photos-rules";
 import { NextRequest, NextResponse } from "next/server";
 import {
   AlbumPackAvailabilityPhase,
@@ -103,6 +104,9 @@ export async function PATCH(
         templateId: true,
         templateV2Id: true,
         packType: true,
+        description: true,
+        keepsAddingPhotos: true,
+        components: { select: { kind: true } },
       },
     });
     if (!existing) {
@@ -129,6 +133,7 @@ export async function PATCH(
       availabilityPhase?: AlbumPackAvailabilityPhase;
       packType?: AlbumPackType;
       isActive?: boolean;
+      keepsAddingPhotos?: boolean;
     } = {};
 
     const touchTemplateLegacy = "templateId" in body;
@@ -318,6 +323,27 @@ export async function PATCH(
           return NextResponse.json({ error: err.message, code: err.code }, { status: 400 });
         }
         throw err;
+      }
+    }
+
+    if (
+      "keepsAddingPhotos" in body ||
+      "description" in body ||
+      data.packType !== undefined ||
+      componentsInput
+    ) {
+      const keepsAddingPhotosRule = resolveKeepsAddingPhotos({
+        requested: "keepsAddingPhotos" in body ? body.keepsAddingPhotos === true : undefined,
+        current: existing.keepsAddingPhotos,
+        description: "description" in body ? (data.description ?? null) : existing.description,
+        packType: data.packType ?? existing.packType,
+        componentKinds: (componentsInput ?? existing.components ?? []).map((c) => String(c.kind)),
+      });
+      if (!keepsAddingPhotosRule.ok) {
+        return NextResponse.json({ error: keepsAddingPhotosRule.error }, { status: 400 });
+      }
+      if (keepsAddingPhotosRule.value !== existing.keepsAddingPhotos) {
+        data.keepsAddingPhotos = keepsAddingPhotosRule.value;
       }
     }
 

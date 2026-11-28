@@ -14,6 +14,7 @@
     "test:analysis": "../../services/dnx-mcp/node_modules/.bin/vitest run --config vitest.analysis.config.ts",
     "test:social": "../../services/dnx-mcp/node_modules/.bin/vitest run --config vitest.social.config.ts",
     "test:sorteos": "../../services/dnx-mcp/node_modules/.bin/vitest run --config vitest.raffles.config.ts",
+    "test:packs-que-suman": "../../services/dnx-mcp/node_modules/.bin/vitest run --config vitest.growing-pack.config.ts",
     "test:payments": "../../services/dnx-mcp/node_modules/.bin/vitest run --config vitest.payments.config.ts",
     "test:theme-scale": "../../packages/payments/node_modules/.bin/tsx --test styles/design-system/theme-scale.test.ts",
     "test:scan-protection": "../../packages/payments/node_modules/.bin/tsx --tsconfig ./tsconfig.test.json --test lib/photo/scan-protection.test.ts components/photo/scan-protected-photo.test.tsx",
